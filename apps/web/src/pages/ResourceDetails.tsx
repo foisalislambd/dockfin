@@ -8,6 +8,7 @@ import { Btn, Input } from './Servers'
 const DB_TABS = [
   { id: 'configuration', label: 'Configuration' },
   { id: 'environment', label: 'Environment Variables' },
+  { id: 'backups', label: 'Backups' },
   { id: 'danger', label: 'Danger' },
 ]
 
@@ -24,6 +25,108 @@ const SERVER_TABS = [
   { id: 'terminal', label: 'Terminal' },
   { id: 'danger', label: 'Danger' },
 ]
+
+function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
+  const qc = useQueryClient()
+  const backups = useQuery({ queryKey: ['scheduled-backups'], queryFn: api.scheduledBackups })
+  const storages = useQuery({ queryKey: ['s3-storages'], queryFn: api.s3Storages })
+  const [s3Id, setS3Id] = useState('')
+  const [frequency, setFrequency] = useState('0 0 * * *')
+  const [retention, setRetention] = useState('7')
+  const mine = (backups.data?.scheduled_backups || []).filter(
+    (b) => b.resource_type === 'database' && b.resource_id === dbId,
+  )
+  const create = useMutation({
+    mutationFn: () =>
+      api.createScheduledBackup({
+        resource_type: 'database',
+        resource_id: dbId,
+        s3_storage_id: s3Id || undefined,
+        frequency,
+        retention: Number(retention) || 7,
+      }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['scheduled-backups'] }),
+  })
+
+  return (
+    <div className="space-y-4">
+      <div className="panel-card overflow-hidden">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+            <tr>
+              <th className="px-3 py-2">Frequency</th>
+              <th className="px-3 py-2">Retention</th>
+              <th className="px-3 py-2">S3</th>
+              <th className="px-3 py-2">Enabled</th>
+            </tr>
+          </thead>
+          <tbody>
+            {mine.map((b) => (
+              <tr key={b.id} className="border-t border-gray-200 dark:border-gray-800">
+                <td className="px-3 py-2 font-mono text-xs">{b.frequency}</td>
+                <td className="px-3 py-2">{b.retention}</td>
+                <td className="px-3 py-2 font-mono text-xs">{b.s3_storage_id?.slice(0, 8) || '—'}</td>
+                <td className="px-3 py-2">{b.enabled ? 'yes' : 'no'}</td>
+              </tr>
+            ))}
+            {!mine.length && (
+              <tr>
+                <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                  No scheduled backups for this database.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <form
+        className="panel-card grid gap-3 p-4 sm:grid-cols-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          create.mutate()
+        }}
+      >
+        <label className="block text-sm">
+          <span className="mb-1 block text-gray-500 dark:text-gray-400">Cron frequency</span>
+          <input
+            value={frequency}
+            onChange={(e) => setFrequency(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 font-mono text-sm dark:border-gray-800 dark:bg-gray-900"
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block text-gray-500 dark:text-gray-400">Retention (days)</span>
+          <input
+            value={retention}
+            onChange={(e) => setRetention(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-900"
+          />
+        </label>
+        <label className="block text-sm sm:col-span-2">
+          <span className="mb-1 block text-gray-500 dark:text-gray-400">S3 storage (optional)</span>
+          <select
+            value={s3Id}
+            onChange={(e) => setS3Id(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-900"
+          >
+            <option value="">None</option>
+            {(storages.data?.s3_storages || []).map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.bucket})
+              </option>
+            ))}
+          </select>
+        </label>
+        {create.error && <p className="text-sm text-error-500 sm:col-span-2">{create.error.message}</p>}
+        <div className="sm:col-span-2">
+          <Btn primary type="submit">
+            {create.isPending ? 'Saving…' : 'Add schedule'}
+          </Btn>
+        </div>
+      </form>
+    </div>
+  )
+}
 
 function EnvVarsEditor({ resourceType, resourceId }: { resourceType: string; resourceId: string }) {
   const qc = useQueryClient()
@@ -193,6 +296,12 @@ export function DatabaseDetailPage() {
       {tab === 'environment' && (
         <TabPanel>
           <EnvVarsEditor resourceType="database" resourceId={dbId} />
+        </TabPanel>
+      )}
+
+      {tab === 'backups' && (
+        <TabPanel>
+          <DatabaseBackupsPanel dbId={dbId} />
         </TabPanel>
       )}
 

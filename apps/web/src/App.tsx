@@ -28,6 +28,7 @@ import { DatabaseDetailPage, ServerDetailPage, ServiceDetailPage } from './pages
 import { DeploymentShowPage } from './pages/DeploymentShow'
 import {
   PrivateKeysPage,
+  ApiTokensPage,
   SettingsPage,
   SharedVariablesPage,
   StoragesPage,
@@ -274,6 +275,12 @@ const privateKeysRoute = createRoute({
   component: PrivateKeysPage,
 })
 
+const apiTokensRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/security/api-tokens',
+  component: ApiTokensPage,
+})
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -310,6 +317,7 @@ const routeTree = rootRoute.addChildren([
     teamRoute,
     sharedVariablesRoute,
     privateKeysRoute,
+    apiTokensRoute,
   ]),
 ])
 

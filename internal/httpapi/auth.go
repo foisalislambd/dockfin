@@ -141,6 +141,10 @@ func (a *API) handleSwitchTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sess := currentSession(r)
+	if sess.ID == uuid.Nil {
+		writeError(w, http.StatusBadRequest, "cannot switch team with API token auth")
+		return
+	}
 	if err := a.Store.SetCurrentTeam(r.Context(), sess.ID, teamID); err != nil {
 		mapStoreErr(w, err)
 		return

@@ -75,6 +75,19 @@ func (a *API) Router() http.Handler {
 
 			r.Get("/teams", a.handleListTeams)
 
+			r.Get("/team/members", a.handleListTeamMembers)
+			r.Delete("/team/members/{userID}", a.handleRemoveTeamMember)
+			r.Get("/team/invitations", a.handleListInvitations)
+			r.Post("/team/invitations", a.handleCreateInvitation)
+			r.Delete("/team/invitations/{inviteID}", a.handleDeleteInvitation)
+			r.Post("/team/invitations/accept", a.handleAcceptInvitation)
+
+			r.Route("/api-tokens", func(r chi.Router) {
+				r.Get("/", a.handleListApiTokens)
+				r.Post("/", a.handleCreateApiToken)
+				r.Delete("/{tokenID}", a.handleDeleteApiToken)
+			})
+
 			r.Route("/private-keys", func(r chi.Router) {
 				r.Get("/", a.handleListKeys)
 				r.Post("/", a.handleCreateKey)
@@ -205,18 +218,33 @@ func (a *API) requireAuth(next http.Handler) http.Handler {
 			writeError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
+		// Prefer session cookie / session bearer; fall back to API tokens (glfy_…).
 		sess, err := a.Store.GetSession(r.Context(), token)
+		if err == nil {
+			user, err := a.Store.GetUserByID(r.Context(), sess.UserID)
+			if err != nil {
+				writeError(w, http.StatusUnauthorized, "unauthorized")
+				return
+			}
+			ctx := context.WithValue(r.Context(), ctxUser, user)
+			ctx = context.WithValue(ctx, ctxSession, sess)
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+		apiTok, user, err := a.Store.GetApiTokenByPlain(r.Context(), token)
 		if err != nil {
 			writeError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
-		user, err := a.Store.GetUserByID(r.Context(), sess.UserID)
-		if err != nil {
-			writeError(w, http.StatusUnauthorized, "unauthorized")
-			return
+		teamID := apiTok.TeamID
+		synth := &store.Session{
+			ID:            uuid.Nil,
+			UserID:        user.ID,
+			CurrentTeamID: &teamID,
+			ExpiresAt:     time.Now().UTC().Add(24 * time.Hour),
 		}
 		ctx := context.WithValue(r.Context(), ctxUser, user)
-		ctx = context.WithValue(ctx, ctxSession, sess)
+		ctx = context.WithValue(ctx, ctxSession, synth)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

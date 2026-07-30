@@ -5,8 +5,8 @@
 - [x] Personal team on signup
 - [x] Team switcher API
 - [x] Bearer token returned on login
-- [ ] Team invitations UI
-- [ ] API tokens with abilities UI
+- [x] Team invitations UI
+- [x] API tokens with abilities UI
 
 ## Servers
 - [x] SSH private keys (encrypted)

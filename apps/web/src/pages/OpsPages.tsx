@@ -92,8 +92,16 @@ export function StoragesPage() {
 
 export function TeamPage() {
   const { user, team, teams, refresh } = useAuth()
+  const qc = useQueryClient()
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState('member')
+  const [acceptToken, setAcceptToken] = useState('')
+  const [createdInvite, setCreatedInvite] = useState<string | null>(null)
+
+  const members = useQuery({ queryKey: ['team-members'], queryFn: api.teamMembers })
+  const invitations = useQuery({ queryKey: ['team-invitations'], queryFn: api.teamInvitations })
 
   const switchTo = async (teamId: string) => {
     setError('')
@@ -101,12 +109,34 @@ export function TeamPage() {
     try {
       await api.switchTeam(teamId)
       await refresh()
+      void qc.invalidateQueries({ queryKey: ['team-members'] })
+      void qc.invalidateQueries({ queryKey: ['team-invitations'] })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to switch team')
     } finally {
       setBusy(false)
     }
   }
+
+  const invite = useMutation({
+    mutationFn: () => api.createInvitation(inviteEmail, inviteRole),
+    onSuccess: (inv) => {
+      setInviteEmail('')
+      setCreatedInvite(inv.token || null)
+      void qc.invalidateQueries({ queryKey: ['team-invitations'] })
+    },
+  })
+
+  const accept = useMutation({
+    mutationFn: () => api.acceptInvitation(acceptToken.trim()),
+    onSuccess: async () => {
+      setAcceptToken('')
+      await refresh()
+      void qc.invalidateQueries({ queryKey: ['team-members'] })
+    },
+  })
+
+  const canManage = team?.role === 'owner' || team?.role === 'admin'
 
   return (
     <div className="space-y-6">
@@ -116,6 +146,7 @@ export function TeamPage() {
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
           {team?.name || '—'}
           {team?.personal ? ' (personal)' : ''}
+          {team?.role ? ` · ${team.role}` : ''}
         </p>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Signed in as {user?.email}</p>
       </div>
@@ -148,6 +179,259 @@ export function TeamPage() {
           ))}
         </div>
       </div>
+
+      <div className="space-y-3">
+        <h2 className="text-lg font-medium text-gray-900 dark:text-white">Members</h2>
+        <div className="panel-card overflow-hidden">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+              <tr>
+                <th className="px-3 py-2">Name</th>
+                <th className="px-3 py-2">Email</th>
+                <th className="px-3 py-2">Role</th>
+                <th className="px-3 py-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(members.data?.members || []).map((m) => (
+                <tr key={m.user_id} className="border-t border-gray-200 dark:border-gray-800">
+                  <td className="px-3 py-2">{m.name}</td>
+                  <td className="px-3 py-2 text-gray-500">{m.email}</td>
+                  <td className="px-3 py-2">{m.role}</td>
+                  <td className="px-3 py-2">
+                    {canManage && m.user_id !== user?.id && (
+                      <button
+                        type="button"
+                        className="text-error-500"
+                        onClick={() => {
+                          if (confirm(`Remove ${m.email}?`)) {
+                            void api.removeTeamMember(m.user_id).then(() =>
+                              qc.invalidateQueries({ queryKey: ['team-members'] }),
+                            )
+                          }
+                        }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {canManage && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Invitations</h2>
+          <form
+            className="flex flex-wrap items-end gap-3"
+            onSubmit={(e) => {
+              e.preventDefault()
+              invite.mutate()
+            }}
+          >
+            <div className="min-w-[200px] flex-1">
+              <Input label="Email" value={inviteEmail} onChange={setInviteEmail} />
+            </div>
+            <label className="block text-sm">
+              <span className="mb-1 block text-gray-500 dark:text-gray-400">Role</span>
+              <select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value)}
+                className="h-9 rounded-lg border border-gray-200 bg-white px-2 dark:border-gray-800 dark:bg-gray-900"
+              >
+                <option value="member">member</option>
+                <option value="admin">admin</option>
+              </select>
+            </label>
+            <Btn primary type="submit">
+              Invite
+            </Btn>
+          </form>
+          {invite.error && <p className="text-sm text-error-500">{invite.error.message}</p>}
+          {createdInvite && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-500/30 dark:bg-amber-500/10">
+              <p className="font-medium text-amber-800 dark:text-amber-200">Invite token (share once)</p>
+              <code className="mt-1 block break-all font-mono text-xs">{createdInvite}</code>
+            </div>
+          )}
+          <div className="panel-card overflow-hidden">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+                <tr>
+                  <th className="px-3 py-2">Email</th>
+                  <th className="px-3 py-2">Role</th>
+                  <th className="px-3 py-2">Expires</th>
+                  <th className="px-3 py-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(invitations.data?.invitations || []).map((inv) => (
+                  <tr key={inv.id} className="border-t border-gray-200 dark:border-gray-800">
+                    <td className="px-3 py-2">{inv.email}</td>
+                    <td className="px-3 py-2">{inv.role}</td>
+                    <td className="px-3 py-2 text-gray-500">
+                      {new Date(inv.expires_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        className="text-error-500"
+                        onClick={() =>
+                          void api.deleteInvitation(inv.id).then(() =>
+                            qc.invalidateQueries({ queryKey: ['team-invitations'] }),
+                          )
+                        }
+                      >
+                        Revoke
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {!invitations.data?.invitations?.length && (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
+                      No pending invitations.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <div className="panel-card space-y-3 p-5">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Accept invitation</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Paste an invite token (email must match your account).
+        </p>
+        <form
+          className="flex flex-wrap items-end gap-3"
+          onSubmit={(e) => {
+            e.preventDefault()
+            accept.mutate()
+          }}
+        >
+          <div className="min-w-[220px] flex-1">
+            <Input label="Token" value={acceptToken} onChange={setAcceptToken} />
+          </div>
+          <Btn primary type="submit">
+            Accept
+          </Btn>
+        </form>
+        {accept.error && <p className="text-sm text-error-500">{accept.error.message}</p>}
+      </div>
+    </div>
+  )
+}
+
+export function ApiTokensPage() {
+  const qc = useQueryClient()
+  const tokens = useQuery({ queryKey: ['api-tokens'], queryFn: api.apiTokens })
+  const [show, setShow] = useState(false)
+  const [name, setName] = useState('')
+  const [plain, setPlain] = useState<string | null>(null)
+  const create = useMutation({
+    mutationFn: () => api.createApiToken(name, ['*']),
+    onSuccess: (data) => {
+      setPlain(data.token)
+      setName('')
+      setShow(false)
+      void qc.invalidateQueries({ queryKey: ['api-tokens'] })
+    },
+  })
+
+  return (
+    <div className="space-y-6">
+      <Header
+        title="API Tokens"
+        actions={
+          <Btn primary onClick={() => setShow(true)}>
+            + New token
+          </Btn>
+        }
+      />
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        Use as <code className="font-mono text-xs">Authorization: Bearer glfy_…</code> for CLI and
+        automation. Bound to the current team.
+      </p>
+
+      {plain && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
+          <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Copy now — shown once</p>
+          <code className="mt-2 block break-all font-mono text-sm">{plain}</code>
+          <button type="button" className="mt-2 text-xs text-brand-600" onClick={() => setPlain(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      <div className="panel-card overflow-hidden">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+            <tr>
+              <th className="px-3 py-2">Name</th>
+              <th className="px-3 py-2">Prefix</th>
+              <th className="px-3 py-2">Abilities</th>
+              <th className="px-3 py-2">Created</th>
+              <th className="px-3 py-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(tokens.data?.api_tokens || []).map((t) => (
+              <tr key={t.id} className="border-t border-gray-200 dark:border-gray-800">
+                <td className="px-3 py-2 font-medium">{t.name}</td>
+                <td className="px-3 py-2 font-mono text-xs">{t.token_prefix}…</td>
+                <td className="px-3 py-2 text-xs">{(t.abilities || []).join(', ')}</td>
+                <td className="px-3 py-2 text-gray-500">{new Date(t.created_at).toLocaleString()}</td>
+                <td className="px-3 py-2">
+                  <button
+                    type="button"
+                    className="text-error-500"
+                    onClick={() => {
+                      if (confirm(`Delete token ${t.name}?`)) {
+                        void api.deleteApiToken(t.id).then(() =>
+                          qc.invalidateQueries({ queryKey: ['api-tokens'] }),
+                        )
+                      }
+                    }}
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {!tokens.data?.api_tokens?.length && (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                  No API tokens yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {show && (
+        <Modal title="New API token" onClose={() => setShow(false)}>
+          <form
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault()
+              create.mutate()
+            }}
+          >
+            <Input label="Name" value={name} onChange={setName} />
+            {create.error && <p className="text-sm text-error-500">{create.error.message}</p>}
+            <Btn primary type="submit">
+              Create
+            </Btn>
+          </form>
+        </Modal>
+      )}
     </div>
   )
 }
@@ -283,6 +567,11 @@ export function SettingsPage() {
           <li>
             <Link to="/team" className="text-brand-600 hover:underline dark:text-brand-400">
               Team
+            </Link>
+          </li>
+          <li>
+            <Link to="/security/api-tokens" className="text-brand-600 hover:underline dark:text-brand-400">
+              API tokens
             </Link>
           </li>
           <li>

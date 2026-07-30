@@ -12,6 +12,7 @@ import {
   Settings,
   Users,
   Variable,
+  Key,
 } from 'lucide-react'
 
 export const appConfig = {
@@ -46,6 +47,7 @@ export const navItems: NavItem[] = [
   { name: 'Shared vars', href: '/shared-variables', icon: Variable },
   { name: 'Team', href: '/team', icon: Users },
   { name: 'Keys', href: '/security/private-keys', icon: KeyRound },
+  { name: 'API Tokens', href: '/security/api-tokens', icon: Key },
   { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'Settings', href: '/settings', icon: Settings },
 ]

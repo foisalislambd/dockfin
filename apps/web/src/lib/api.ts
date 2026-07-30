@@ -229,6 +229,45 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(body),
     }),
+
+  teamMembers: () => request<{ members: TeamMember[] }>('/api/v1/team/members'),
+  removeTeamMember: (userId: string) =>
+    request<{ status: string }>(`/api/v1/team/members/${userId}`, { method: 'DELETE' }),
+  teamInvitations: () => request<{ invitations: TeamInvitation[] }>('/api/v1/team/invitations'),
+  createInvitation: (email: string, role = 'member') =>
+    request<TeamInvitation>('/api/v1/team/invitations', {
+      method: 'POST',
+      body: JSON.stringify({ email, role }),
+    }),
+  deleteInvitation: (id: string) =>
+    request<{ status: string }>(`/api/v1/team/invitations/${id}`, { method: 'DELETE' }),
+  acceptInvitation: (token: string) =>
+    request<{ status: string; team: Team }>('/api/v1/team/invitations/accept', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    }),
+
+  apiTokens: () => request<{ api_tokens: ApiToken[] }>('/api/v1/api-tokens'),
+  createApiToken: (name: string, abilities: string[] = ['*'], expires_in_days?: number) =>
+    request<{ api_token: ApiToken; token: string }>('/api/v1/api-tokens', {
+      method: 'POST',
+      body: JSON.stringify({ name, abilities, expires_in_days }),
+    }),
+  deleteApiToken: (id: string) =>
+    request<{ status: string }>(`/api/v1/api-tokens/${id}`, { method: 'DELETE' }),
+
+  scheduledBackups: () => request<{ scheduled_backups: ScheduledBackup[] }>('/api/v1/scheduled-backups'),
+  createScheduledBackup: (body: {
+    resource_type: string
+    resource_id: string
+    s3_storage_id?: string
+    frequency?: string
+    retention?: number
+  }) =>
+    request<ScheduledBackup>('/api/v1/scheduled-backups', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 }
 
 export type Server = {
@@ -323,6 +362,42 @@ export type NotificationSetting = {
   channel: string
   enabled: boolean
   events: string[]
+  created_at: string
+}
+export type TeamMember = {
+  user_id: string
+  email: string
+  name: string
+  role: string
+  created_at: string
+}
+export type TeamInvitation = {
+  id: string
+  team_id: string
+  email: string
+  role: string
+  token?: string
+  invited_by: string
+  expires_at: string
+  created_at: string
+}
+export type ApiToken = {
+  id: string
+  name: string
+  token_prefix: string
+  abilities: string[]
+  last_used_at?: string | null
+  expires_at?: string | null
+  created_at: string
+}
+export type ScheduledBackup = {
+  id: string
+  resource_type: string
+  resource_id: string
+  s3_storage_id?: string | null
+  frequency: string
+  enabled: boolean
+  retention: number
   created_at: string
 }
 
