@@ -16,6 +16,7 @@ import { useMemo, useState } from 'react'
 import { ServiceLogo } from '../components/ServiceLogo'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { api, LAST_ENV_KEY, type Template } from '../lib/api'
+import { Header } from './Servers'
 
 const GIT_APPS = [
   {
@@ -203,7 +204,7 @@ export function NewResourcePage() {
 
   return (
     <div className="space-y-6">
-      <div className="sticky top-0 z-10 -mx-3 space-y-3 border-b border-gray-200 bg-white/90 px-3 py-3 backdrop-blur-sm sm:-mx-5 sm:px-5 lg:-mx-6 lg:px-6 dark:border-gray-800 dark:bg-gray-950/90">
+      <div>
         <nav className="flex flex-wrap items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
           <Link to="/projects" className="hover:text-brand-600 dark:hover:text-brand-400">
             Projects
@@ -227,42 +228,39 @@ export function NewResourcePage() {
           <span>/</span>
           <span className="text-gray-900 dark:text-white">New</span>
         </nav>
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
-            New Resource
-          </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Deploy resources, like Applications, Databases, Services…
-          </p>
+        <Header title="New Resource" />
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          Deploy resources, like Applications, Databases, Services…
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Type / to search…"
+            className="panel-field h-9 w-full rounded-md py-1.5 pr-3 pl-9 text-sm"
+            onKeyDown={(e) => {
+              if (e.key === '/') e.stopPropagation()
+            }}
+          />
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Type / to search…"
-              className="panel-field h-9 w-full rounded-md py-1.5 pr-3 pl-9 text-sm"
-              onKeyDown={(e) => {
-                if (e.key === '/') e.stopPropagation()
-              }}
-            />
-          </div>
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="panel-field h-9 w-full rounded-md px-3 text-sm sm:w-56"
-            aria-label="Filter by category"
-          >
-            <option value="">All categories</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </div>
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          className="panel-field h-9 w-full rounded-md px-3 text-sm sm:w-56"
+          aria-label="Filter by category"
+        >
+          <option value="">All categories</option>
+          {categories.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
       </div>
 
       {createError && (
