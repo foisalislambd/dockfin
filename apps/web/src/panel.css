@@ -62,6 +62,36 @@
     0 8px 10px -6px rgba(0, 0, 0, 0.35);
 }
 
+@keyframes goolify-skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.goolify-skeleton {
+  background: linear-gradient(
+    90deg,
+    #e4e7ec 0%,
+    #f2f4f7 40%,
+    #e4e7ec 80%
+  );
+  background-size: 200% 100%;
+  animation: goolify-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.dark .goolify-skeleton {
+  background: linear-gradient(
+    90deg,
+    #1d2939 0%,
+    #344054 40%,
+    #1d2939 80%
+  );
+  background-size: 200% 100%;
+}
+
 .panel-card-body {
   padding: 0.875rem;
 }

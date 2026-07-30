@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { ServiceLogo } from '../components/ServiceLogo'
 import { CreatePageShell, FormActions, FormInput, FormSelect } from '../components/ui/forms'
+import { TemplateGridSkeleton } from '../components/ui/Skeleton'
 import { api, fetchAllEnvironments, LAST_ENV_KEY } from '../lib/api'
 
 export function CreateServicePage() {
@@ -164,40 +165,44 @@ export function CreateServicePage() {
               </div>
             </div>
           )}
-          <div className="grid max-h-[min(40rem,70vh)] gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filtered.map((t) => {
-              const active = form.template === t.type
-              return (
-                <button
-                  key={t.type}
-                  type="button"
-                  onClick={() =>
-                    setForm((f) => ({
-                      ...f,
-                      template: t.type,
-                      name: f.name || t.name.toLowerCase().replace(/\s+/g, '-'),
-                    }))
-                  }
-                  className={`flex items-start gap-3 rounded-lg border p-2.5 text-left transition ${
-                    active
-                      ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500/30 dark:bg-brand-500/10'
-                      : 'border-gray-200 hover:border-gray-300 dark:border-gray-800'
-                  }`}
-                >
-                  <ServiceLogo src={t.logo} name={t.name} className="h-9 w-9" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-gray-900 dark:text-white">{t.name}</div>
-                    {t.category && (
-                      <div className="mt-1 text-[10px] font-semibold tracking-wide text-gray-400 uppercase">
-                        {t.category}
-                      </div>
-                    )}
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-          {!filtered.length && (
+          {templates.isLoading ? (
+            <TemplateGridSkeleton count={12} />
+          ) : (
+            <div className="grid max-h-[min(40rem,70vh)] gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {filtered.map((t) => {
+                const active = form.template === t.type
+                return (
+                  <button
+                    key={t.type}
+                    type="button"
+                    onClick={() =>
+                      setForm((f) => ({
+                        ...f,
+                        template: t.type,
+                        name: f.name || t.name.toLowerCase().replace(/\s+/g, '-'),
+                      }))
+                    }
+                    className={`flex items-start gap-3 rounded-lg border p-2.5 text-left transition ${
+                      active
+                        ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500/30 dark:bg-brand-500/10'
+                        : 'border-gray-200 hover:border-gray-300 dark:border-gray-800'
+                    }`}
+                  >
+                    <ServiceLogo src={t.logo} name={t.name} className="h-9 w-9" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-gray-900 dark:text-white">{t.name}</div>
+                      {t.category && (
+                        <div className="mt-1 text-[10px] font-semibold tracking-wide text-gray-400 uppercase">
+                          {t.category}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          {!templates.isLoading && !filtered.length && (
             <p className="text-sm text-gray-500 dark:text-gray-400">No templates match your search.</p>
           )}
         </section>

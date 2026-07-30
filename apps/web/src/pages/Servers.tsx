@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { TableSkeleton } from '../components/ui/Skeleton'
 import { api } from '../lib/api'
 
 export function ServersPage() {
@@ -40,6 +41,9 @@ export function ServersPage() {
         }
       />
 
+      {servers.isLoading ? (
+        <TableSkeleton rows={5} cols={5} />
+      ) : (
       <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
         <table className="w-full text-left text-sm">
           <thead className="panel-card bg-white dark:bg-white/3 text-gray-500 dark:text-gray-400">
@@ -109,6 +113,7 @@ export function ServersPage() {
           </tbody>
         </table>
       </div>
+      )}
 
       {show && (
         <Modal title="Add server" onClose={() => setShow(false)}>

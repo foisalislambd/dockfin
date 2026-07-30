@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useState } from 'react'
+import { PageSkeleton } from '../components/ui/Skeleton'
 import { api, LAST_ENV_KEY } from '../lib/api'
 import { Btn, Header, Input, Modal } from './Servers'
 
@@ -37,7 +38,7 @@ export function ProjectShowPage() {
   })
 
   if (project.isLoading) {
-    return <p className="text-gray-500 dark:text-gray-400">Loading…</p>
+    return <PageSkeleton cards={1} />
   }
   if (project.error || !project.data) {
     return (

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
+import { CardGridSkeleton, PageSkeleton } from '../components/ui/Skeleton'
 import { api, type GitSource } from '../lib/api'
 import { Btn, Input } from './Servers'
 
@@ -94,13 +95,21 @@ export function GitSourcesPage() {
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">
+        {sources.isLoading ? (
+          <div className="col-span-full">
+            <CardGridSkeleton count={4} />
+          </div>
+        ) : (
+          <>
         {(sources.data?.git_sources || []).map((gs) => (
           <GitSourceCard key={gs.id} source={gs} onDelete={() => remove.mutate(gs.id)} />
         ))}
-        {!sources.data?.git_sources?.length && !sources.isLoading && (
+        {!sources.data?.git_sources?.length && (
           <div className="panel-card col-span-full p-8 text-center text-sm text-gray-500 dark:text-gray-400">
             No GitHub Apps configured yet.
           </div>
+        )}
+          </>
         )}
       </div>
     </div>
@@ -160,7 +169,7 @@ export function GitSourceDetailPage() {
     },
   })
 
-  if (source.isLoading) return <p className="text-gray-500 dark:text-gray-400">Loading…</p>
+  if (source.isLoading) return <PageSkeleton cards={2} />
   if (source.error || !source.data) {
     return <p className="text-error-500">{source.error?.message || 'Not found'}</p>
   }

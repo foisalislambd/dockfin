@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { ServerTerminal } from '../components/Terminal'
 import { ServiceLogo } from '../components/ServiceLogo'
+import { MetricsSkeleton, PageSkeleton } from '../components/ui/Skeleton'
 import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
 import { api } from '../lib/api'
 import { Btn, Input } from './Servers'
@@ -370,7 +371,7 @@ export function DatabaseDetailPage() {
       </Link>
     )
 
-  if (db.isLoading) return <p className="text-gray-500 dark:text-gray-400">Loading…</p>
+  if (db.isLoading) return <PageSkeleton cards={2} />
   if (db.error || !db.data) {
     return (
       <div className="space-y-4">
@@ -496,7 +497,7 @@ export function ServiceDetailPage() {
       </Link>
     )
 
-  if (svc.isLoading) return <p className="text-gray-500 dark:text-gray-400">Loading…</p>
+  if (svc.isLoading) return <PageSkeleton cards={2} />
   if (svc.error || !svc.data) {
     return (
       <div className="space-y-4">
@@ -603,7 +604,7 @@ function ServerMetricsView({
   metrics: import('../lib/api').ServerMetric[]
   loading: boolean
 }) {
-  if (loading) return <p className="text-gray-500 dark:text-gray-400">Loading metrics…</p>
+  if (loading) return <MetricsSkeleton />
   const latest = metrics[metrics.length - 1]
   const cpu = metrics.map((m) => m.cpu_percent)
   const memPct = metrics.map((m) =>
@@ -724,7 +725,7 @@ export function ServerDetailPage() {
     },
   })
 
-  if (server.isLoading) return <p className="text-gray-500 dark:text-gray-400">Loading…</p>
+  if (server.isLoading) return <PageSkeleton cards={3} />
   if (server.error || !server.data) {
     return (
       <div className="space-y-4">

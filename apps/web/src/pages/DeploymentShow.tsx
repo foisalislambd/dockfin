@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
+import { PageSkeleton } from '../components/ui/Skeleton'
 import { Meta } from '../components/ui/tabs'
 import { api } from '../lib/api'
 import { Btn } from './Servers'
@@ -77,7 +78,7 @@ export function DeploymentShowPage() {
       </Link>
     )
 
-  if (dep.isLoading) return <p className="text-gray-500 dark:text-gray-400">Loading…</p>
+  if (dep.isLoading) return <PageSkeleton cards={2} />
   if (dep.error || !dep.data) {
     return (
       <div className="space-y-4">

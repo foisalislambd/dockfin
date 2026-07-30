@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
+import { PageSkeleton } from '../components/ui/Skeleton'
 import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
 import { api } from '../lib/api'
 import { Btn, Input } from './Servers'
@@ -228,7 +229,7 @@ export function ApplicationDetailPage() {
   })
 
   if (app.isLoading) {
-    return <p className="text-gray-500 dark:text-gray-400">Loading…</p>
+    return <PageSkeleton cards={3} />
   }
 
   const backLink =

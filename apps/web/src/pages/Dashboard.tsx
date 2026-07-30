@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Database, FolderKanban, Rocket, Server } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { StatsSkeleton } from '../components/ui/Skeleton'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 
@@ -43,6 +44,8 @@ export function DashboardPage() {
   const dbs = useQuery({ queryKey: ['databases'], queryFn: () => api.databases() })
 
   const hasServers = (servers.data?.servers?.length ?? 0) > 0
+  const statsLoading =
+    servers.isLoading || projects.isLoading || apps.isLoading || dbs.isLoading
 
   return (
     <div className="space-y-6">
@@ -64,6 +67,9 @@ export function DashboardPage() {
         </div>
       )}
 
+      {statsLoading ? (
+        <StatsSkeleton count={4} />
+      ) : (
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard
           label="Servers"
@@ -94,6 +100,7 @@ export function DashboardPage() {
           iconBg="bg-amber-50 dark:bg-amber-500/15"
         />
       </div>
+      )}
 
       <div className="panel-card p-6">
         <h2 className="text-lg font-medium text-gray-900 dark:text-white">Quick start</h2>

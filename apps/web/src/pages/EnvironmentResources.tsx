@@ -1,6 +1,7 @@
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { Boxes, Database, Rocket } from 'lucide-react'
+import { CardGridSkeleton } from '../components/ui/Skeleton'
 import { api, LAST_ENV_KEY } from '../lib/api'
 import { Header } from './Servers'
 
@@ -101,7 +102,7 @@ export function EnvironmentResourcesPage() {
         />
       </div>
 
-      {loading && <p className="text-sm text-gray-500 dark:text-gray-400">Loading resources…</p>}
+      {loading && <CardGridSkeleton count={6} />}
 
       {!loading && !resources.length && (
         <div className="panel-card p-10 text-center">
@@ -116,6 +117,7 @@ export function EnvironmentResourcesPage() {
         </div>
       )}
 
+      {!loading && resources.length > 0 && (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {resources.map((r) => {
           const Icon = r.kind === 'application' ? Rocket : r.kind === 'database' ? Database : Boxes
@@ -171,6 +173,7 @@ export function EnvironmentResourcesPage() {
           )
         })}
       </div>
+      )}
     </div>
   )
 }
