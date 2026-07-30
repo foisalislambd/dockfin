@@ -25,7 +25,8 @@ import { NotificationsPage } from './pages/Notifications'
 import { ProjectShowPage } from './pages/ProjectShow'
 import { EnvironmentResourcesPage } from './pages/EnvironmentResources'
 import { NewResourcePage } from './pages/NewResource'
-import { DatabaseDetailPage, ServerDetailPage, ServiceDetailPage } from './pages/ResourceDetails'
+import { DatabaseDetailPage, ServerDetailPage } from './pages/ResourceDetails'
+import { ServiceDetailPage } from './pages/ServiceDetail'
 import { DeploymentShowPage } from './pages/DeploymentShow'
 import {
   PrivateKeysPage,

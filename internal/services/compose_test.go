@@ -71,6 +71,130 @@ services:
 	if !strings.Contains(out, "services:") {
 		t.Fatalf("missing services:\n%s", out)
 	}
+	if !strings.Contains(out, "traefik.enable") {
+		t.Fatalf("expected traefik labels when BaseURL host is set:\n%s", out)
+	}
+	if !strings.Contains(out, "Host(`wp.example.com`)") {
+		t.Fatalf("expected Host rule:\n%s", out)
+	}
+	if !strings.Contains(out, "loadbalancer.server.port: \"80\"") && !strings.Contains(out, "loadbalancer.server.port: \"80\"") {
+		if !strings.Contains(out, "loadbalancer.server.port") {
+			t.Fatalf("expected traefik port:\n%s", out)
+		}
+	}
+}
+
+func TestPrepareComposePortSuffixAndCompanionKeys(t *testing.T) {
+	raw := `services:
+  n8n:
+    image: n8nio/n8n
+    environment:
+      - SERVICE_URL_N8N_5678
+      - N8N_EDITOR_BASE_URL=${SERVICE_URL_N8N}
+      - N8N_HOST=${SERVICE_FQDN_N8N}
+  redis:
+    image: redis
+`
+	out, env, err := PrepareCompose(raw, PrepareOpts{
+		BaseURL:    "http://n8n.1.2.3.4.sslip.io",
+		FQDN:       "n8n.1.2.3.4.sslip.io",
+		Network:    "goolify",
+		RouterName: "n8n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env["SERVICE_URL_N8N_5678"] != "http://n8n.1.2.3.4.sslip.io" {
+		t.Fatalf("port url: %#v", env["SERVICE_URL_N8N_5678"])
+	}
+	if env["SERVICE_URL_N8N"] != "http://n8n.1.2.3.4.sslip.io" {
+		t.Fatalf("companion url missing: %#v", env)
+	}
+	if env["SERVICE_FQDN_N8N"] != "n8n.1.2.3.4.sslip.io" {
+		t.Fatalf("companion fqdn missing: %#v", env)
+	}
+	if !strings.Contains(out, "N8N_EDITOR_BASE_URL=http://n8n.1.2.3.4.sslip.io") {
+		t.Fatalf("companion not substituted:\n%s", out)
+	}
+	if !strings.Contains(out, "loadbalancer.server.port: \"5678\"") {
+		t.Fatalf("expected traefik port 5678:\n%s", out)
+	}
+	if !strings.Contains(out, "Host(`n8n.1.2.3.4.sslip.io`)") {
+		t.Fatalf("expected host rule:\n%s", out)
+	}
+}
+
+func TestExtractMagicEnvPreservesPasswords(t *testing.T) {
+	raw := `services:
+  wordpress:
+    image: wordpress
+    environment:
+      - WORDPRESS_DB_PASSWORD=$SERVICE_PASSWORD_WORDPRESS
+  mysql:
+    image: mysql
+    environment:
+      - MYSQL_PASSWORD=$SERVICE_PASSWORD_WORDPRESS
+`
+	out1, env1, err := PrepareCompose(raw, PrepareOpts{BaseURL: "http://127.0.0.1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pass := env1["SERVICE_PASSWORD_WORDPRESS"]
+	if pass == "" {
+		t.Fatal("missing password")
+	}
+	if !strings.Contains(out1, "SERVICE_PASSWORD_WORDPRESS="+pass) {
+		t.Fatalf("password not persisted in compose:\n%s", out1)
+	}
+	out2, env2, err := PrepareCompose(raw, PrepareOpts{
+		BaseURL:     "http://wp.1.2.3.4.sslip.io",
+		FQDN:        "wp.1.2.3.4.sslip.io",
+		ExistingEnv: ExtractMagicEnv(out1),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env2["SERVICE_PASSWORD_WORDPRESS"] != pass {
+		t.Fatalf("password regenerated: %q -> %q", pass, env2["SERVICE_PASSWORD_WORDPRESS"])
+	}
+	if !strings.Contains(out2, "WORDPRESS_DB_PASSWORD="+pass) {
+		t.Fatalf("substituted password lost:\n%s", out2)
+	}
+	if !strings.Contains(out2, "Host(`wp.1.2.3.4.sslip.io`)") {
+		t.Fatalf("expected domain labels:\n%s", out2)
+	}
+}
+
+func TestPickProxyServiceExactOverContains(t *testing.T) {
+	got := pickProxyService(map[string]any{
+		"webhook": map[string]any{"image": "x"},
+		"app":     map[string]any{"image": "y"},
+	})
+	if got != "app" {
+		t.Fatalf("got %q want app", got)
+	}
+	got = pickProxyService(map[string]any{
+		"webhook": map[string]any{"image": "x"},
+		"mysql":   map[string]any{"image": "y"},
+	})
+	if got == "webhook" {
+		// "web" must not match webhook via contains
+		t.Fatalf("webhook should not win via 'web' substring, got %q", got)
+	}
+}
+
+func TestPrepareComposeSkipsLocalhostProxy(t *testing.T) {
+	raw := `services:
+  app:
+    image: nginx
+`
+	out, _, err := PrepareCompose(raw, PrepareOpts{BaseURL: "http://127.0.0.1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "traefik.enable") {
+		t.Fatalf("should not inject traefik for localhost:\n%s", out)
+	}
 }
 
 func TestNamedVolumeSkipsBindMounts(t *testing.T) {

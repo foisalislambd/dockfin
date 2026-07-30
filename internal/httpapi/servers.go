@@ -300,8 +300,10 @@ func (a *API) handlePatchServerSettings(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var body struct {
-		IsBuildServer  *bool `json:"is_build_server"`
-		IsSwarmManager *bool `json:"is_swarm_manager"`
+		IsBuildServer   *bool   `json:"is_build_server"`
+		IsSwarmManager  *bool   `json:"is_swarm_manager"`
+		WildcardDomain  *string `json:"wildcard_domain"`
+		MagicDomain     *string `json:"magic_domain"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -320,6 +322,25 @@ func (a *API) handlePatchServerSettings(w http.ResponseWriter, r *http.Request) 
 	}
 	if body.IsSwarmManager != nil {
 		if err := a.Store.SetServerSwarmManager(r.Context(), teamID, id, *body.IsSwarmManager); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+	}
+	if body.WildcardDomain != nil || body.MagicDomain != nil {
+		srv, err := a.Store.GetServer(r.Context(), teamID, id)
+		if err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+		wildcard := srv.WildcardDomain
+		magic := srv.MagicDomain
+		if body.WildcardDomain != nil {
+			wildcard = *body.WildcardDomain
+		}
+		if body.MagicDomain != nil {
+			magic = *body.MagicDomain
+		}
+		if err := a.Store.SetServerDomainSettings(r.Context(), teamID, id, wildcard, magic); err != nil {
 			mapStoreErr(w, err)
 			return
 		}

@@ -109,7 +109,7 @@ export function EnvironmentResourcesPage() {
     id: a.id,
     name: a.name,
     kind: 'application' as const,
-    subtitle: serverLabel(a.destination_id),
+    subtitle: a.fqdn ? a.fqdn : serverLabel(a.destination_id),
     status: a.status,
     destinationId: a.destination_id,
   }))
@@ -127,7 +127,7 @@ export function EnvironmentResourcesPage() {
     id: s.id,
     name: s.name,
     kind: 'service' as const,
-    subtitle: serverLabel(s.destination_id),
+    subtitle: s.fqdn ? s.fqdn : serverLabel(s.destination_id),
     status: s.status,
     destinationId: s.destination_id,
   }))

@@ -175,14 +175,32 @@ export function CreateApplicationPage() {
               onChange={(v) => setForm({ ...form, ports_exposes: v })}
               placeholder="80"
             />
-            <FormInput
-              label="FQDN"
-              value={form.fqdn}
-              onChange={(v) => setForm({ ...form, fqdn: v })}
-              required={false}
-              placeholder="app.example.com"
-              hint="optional"
-            />
+            <div className="space-y-2">
+              <FormInput
+                label="FQDN"
+                value={form.fqdn}
+                onChange={(v) => setForm({ ...form, fqdn: v })}
+                required={false}
+                placeholder="Leave empty for free sslip.io"
+                hint="Empty = auto free domain (sslip.io / nip.io)"
+              />
+              <button
+                type="button"
+                className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                disabled={!form.name || !form.destination_id}
+                onClick={() => {
+                  void api
+                    .generateDomain({
+                      name: form.name || 'app',
+                      destination_id: form.destination_id || undefined,
+                    })
+                    .then((d) => setForm((f) => ({ ...f, fqdn: d.fqdn })))
+                    .catch(() => undefined)
+                }}
+              >
+                Generate free domain
+              </button>
+            </div>
           </div>
         </section>
 

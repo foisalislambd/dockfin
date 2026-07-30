@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,6 +38,8 @@ type Server struct {
 	HostKeyType        string     `json:"host_key_type"`
 	IsBuildServer      bool       `json:"is_build_server"`
 	IsSwarmManager     bool       `json:"is_swarm_manager"`
+	WildcardDomain     string     `json:"wildcard_domain"`
+	MagicDomain        string     `json:"magic_domain"`
 	CreatedAt          time.Time  `json:"created_at"`
 }
 
@@ -151,14 +154,16 @@ func (s *Store) CreateServer(ctx context.Context, teamID uuid.UUID, keyID *uuid.
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
+	s.loadServerFlags(ctx, srv)
 	return srv, nil
 }
 
 func (s *Store) loadServerFlags(ctx context.Context, srv *Server) {
 	_ = s.Pool.QueryRow(ctx, `
-		SELECT COALESCE(is_build_server,false), COALESCE(is_swarm_manager,false)
+		SELECT COALESCE(is_build_server,false), COALESCE(is_swarm_manager,false),
+		       COALESCE(wildcard_domain,''), COALESCE(NULLIF(magic_domain,''),'sslip.io')
 		FROM server_settings WHERE server_id=$1
-	`, srv.ID).Scan(&srv.IsBuildServer, &srv.IsSwarmManager)
+	`, srv.ID).Scan(&srv.IsBuildServer, &srv.IsSwarmManager, &srv.WildcardDomain, &srv.MagicDomain)
 }
 
 func (s *Store) ListServers(ctx context.Context, teamID uuid.UUID) ([]Server, error) {
@@ -321,6 +326,24 @@ func (s *Store) SetServerSwarmManager(ctx context.Context, teamID, serverID uuid
 		UPDATE server_settings SET is_swarm_manager=$3, updated_at=NOW()
 		WHERE server_id=$1 AND EXISTS (SELECT 1 FROM servers WHERE id=$1 AND team_id=$2)
 	`, serverID, teamID, isSwarm)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) SetServerDomainSettings(ctx context.Context, teamID, serverID uuid.UUID, wildcardDomain, magicDomain string) error {
+	magicDomain = strings.ToLower(strings.TrimSpace(magicDomain))
+	if magicDomain != "nip.io" {
+		magicDomain = "sslip.io"
+	}
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE server_settings SET wildcard_domain=$3, magic_domain=$4, updated_at=NOW()
+		WHERE server_id=$1 AND EXISTS (SELECT 1 FROM servers WHERE id=$1 AND team_id=$2)
+	`, serverID, teamID, strings.TrimSpace(wildcardDomain), magicDomain)
 	if err != nil {
 		return err
 	}

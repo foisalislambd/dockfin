@@ -127,6 +127,7 @@ func (a *API) Router() http.Handler {
 			})
 
 			r.Get("/destinations", a.handleListDestinations)
+			r.Post("/domains/generate", a.handleGenerateDomain)
 
 			r.Route("/projects", func(r chi.Router) {
 				r.Get("/", a.handleListProjects)
@@ -181,7 +182,10 @@ func (a *API) Router() http.Handler {
 				r.Post("/", a.handleCreateService)
 				r.Get("/templates", a.handleListServiceTemplates)
 				r.Get("/{serviceID}", a.handleGetService)
+				r.Patch("/{serviceID}", a.handlePatchService)
 				r.Post("/{serviceID}/deploy", a.handleDeployService)
+				r.Post("/{serviceID}/stop", a.handleStopService)
+				r.Post("/{serviceID}/restart", a.handleRestartService)
 			})
 
 			r.Route("/s3-storages", func(r chi.Router) {

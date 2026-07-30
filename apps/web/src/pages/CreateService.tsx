@@ -135,7 +135,7 @@ export function CreateServicePage() {
               value={form.destination_id}
               onChange={(v) => setForm({ ...form, destination_id: v })}
               required={false}
-              hint="optional"
+              hint="Needed for free sslip.io / nip.io domain"
             >
               <option value="">Optional…</option>
               {(dests.data?.destinations || []).map((d) => (
@@ -145,6 +145,11 @@ export function CreateServicePage() {
               ))}
             </FormSelect>
           </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            With a destination selected, Goolify assigns a free domain like{' '}
+            <code className="text-xs">name-id.SERVER_IP.sslip.io</code> so you can open the service
+            in a browser after deploy (proxy must be running).
+          </p>
         </section>
 
         <section className="space-y-3">

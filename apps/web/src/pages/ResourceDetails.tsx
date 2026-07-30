@@ -1,9 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
-import { useEffect, useRef, useState } from 'react'
-import { DeployLogPanel } from '../components/DeployLogPanel'
+import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { useEffect, useState } from 'react'
 import { ServerTerminal } from '../components/Terminal'
-import { ServiceLogo } from '../components/ServiceLogo'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
 import { api } from '../lib/api'
@@ -13,13 +11,6 @@ const DB_TABS = [
   { id: 'configuration', label: 'Configuration' },
   { id: 'environment', label: 'Environment Variables' },
   { id: 'backups', label: 'Backups' },
-  { id: 'danger', label: 'Danger' },
-]
-
-const SVC_TABS = [
-  { id: 'configuration', label: 'Configuration' },
-  { id: 'deploy', label: 'Deploy' },
-  { id: 'environment', label: 'Environment Variables' },
   { id: 'danger', label: 'Danger' },
 ]
 
@@ -462,183 +453,6 @@ export function DatabaseDetailPage() {
   )
 }
 
-export function ServiceDetailPage() {
-  const { projectId, envId, svcId } = useParams({ strict: false }) as {
-    projectId?: string
-    envId?: string
-    svcId: string
-  }
-  const search = useSearch({ strict: false }) as { deploy?: string }
-  const qc = useQueryClient()
-  const [tab, setTab] = useState(search.deploy === '1' ? 'deploy' : 'configuration')
-  const [deployLines, setDeployLines] = useState<string[]>([])
-  const [deployBusy, setDeployBusy] = useState(false)
-  const [deployError, setDeployError] = useState('')
-  const abortRef = useRef<AbortController | null>(null)
-  const autoDeployed = useRef(false)
-
-  useEffect(() => {
-    setTab(search.deploy === '1' ? 'deploy' : 'configuration')
-    setDeployLines([])
-    setDeployError('')
-    setDeployBusy(false)
-    autoDeployed.current = false
-    abortRef.current?.abort()
-  }, [svcId])
-
-  const svc = useQuery({ queryKey: ['service', svcId], queryFn: () => api.getService(svcId) })
-  const templates = useQuery({ queryKey: ['templates'], queryFn: api.templates })
-
-  const runDeploy = async () => {
-    abortRef.current?.abort()
-    const ac = new AbortController()
-    abortRef.current = ac
-    setTab('deploy')
-    setDeployBusy(true)
-    setDeployError('')
-    setDeployLines([])
-    try {
-      await api.deployServiceStream(
-        svcId,
-        (ev) => {
-          const prefix = ev.stage ? `[${ev.stage}] ` : ''
-          setDeployLines((prev) => [...prev, `${prefix}${ev.line}`])
-        },
-        ac.signal,
-      )
-      void qc.invalidateQueries({ queryKey: ['service', svcId] })
-      void qc.invalidateQueries({ queryKey: ['services'] })
-    } catch (e) {
-      if ((e as Error).name === 'AbortError') return
-      const msg = e instanceof Error ? e.message : 'Deploy failed'
-      setDeployError(msg)
-      setDeployLines((prev) => (prev.some((l) => l.includes(msg)) ? prev : [...prev, `[error] ${msg}`]))
-      void qc.invalidateQueries({ queryKey: ['service', svcId] })
-    } finally {
-      setDeployBusy(false)
-    }
-  }
-
-  useEffect(() => {
-    if (search.deploy !== '1' || !svc.data || autoDeployed.current || deployBusy) return
-    autoDeployed.current = true
-    void runDeploy()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search.deploy, svc.data])
-
-  const back =
-    projectId && envId ? (
-      <Link
-        to="/projects/$projectId/environments/$envId"
-        params={{ projectId, envId }}
-        className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
-      >
-        ← Resources
-      </Link>
-    ) : (
-      <Link
-        to="/services"
-        className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
-      >
-        ← Services
-      </Link>
-    )
-
-  if (svc.isLoading) return <PageSkeleton cards={2} />
-  if (svc.error || !svc.data) {
-    return (
-      <div className="space-y-4">
-        <p className="text-error-500">{svc.error?.message || 'Service not found'}</p>
-        {back}
-      </div>
-    )
-  }
-
-  const s = svc.data
-  const logo = (templates.data?.templates || []).find((t) => t.type === s.service_type)?.logo
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          {back}
-          <div className="mt-2 flex items-center gap-3">
-            <ServiceLogo src={logo} name={s.name} className="h-11 w-11" />
-            <div>
-              <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
-                {s.name}
-              </h1>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {s.service_type} · {s.status}
-              </p>
-            </div>
-          </div>
-        </div>
-        <Btn primary onClick={() => void runDeploy()} disabled={deployBusy}>
-          {deployBusy ? 'Deploying…' : 'Deploy'}
-        </Btn>
-      </div>
-
-      <ResourceTabs tabs={SVC_TABS} active={tab} onChange={setTab} />
-
-      {tab === 'configuration' && (
-        <TabPanel>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Meta label="Status" value={s.status} />
-            <Meta label="Type" value={s.service_type} />
-            <Meta label="Description" value={s.description || '—'} />
-          </div>
-        </TabPanel>
-      )}
-
-      {tab === 'deploy' && (
-        <TabPanel>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Live output from `docker compose up` on the target server.
-            </p>
-            <Btn primary onClick={() => void runDeploy()} disabled={deployBusy}>
-              {deployBusy ? 'Deploying…' : 'Run deploy'}
-            </Btn>
-          </div>
-          <DeployLogPanel
-            lines={deployLines}
-            busy={deployBusy}
-            emptyHint="Click Deploy to stream compose output here…"
-          />
-          {deployError && <p className="mt-3 text-sm text-error-500">{deployError}</p>}
-        </TabPanel>
-      )}
-
-      {tab === 'environment' && (
-        <TabPanel>
-          <EnvVarsEditor resourceType="service" resourceId={svcId} />
-        </TabPanel>
-      )}
-
-      {tab === 'danger' && (
-        <TabPanel>
-          <div className="panel-card space-y-3 border-error-200 p-5 dark:border-error-500/30">
-            <h2 className="text-sm font-semibold text-error-500">Redeploy</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Runs `docker compose up` again on the target server. Permanent delete is not exposed yet.
-            </p>
-            <Btn primary onClick={() => void runDeploy()} disabled={deployBusy}>
-              {deployBusy ? 'Deploying…' : 'Force deploy'}
-            </Btn>
-          </div>
-          {(deployBusy || deployLines.length > 0) && (
-            <div className="mt-4">
-              <DeployLogPanel lines={deployLines} busy={deployBusy} />
-            </div>
-          )}
-          {deployError && <p className="mt-3 text-sm text-error-500">{deployError}</p>}
-        </TabPanel>
-      )}
-    </div>
-  )
-}
-
 function Sparkline({
   values,
   maxHint,
@@ -741,6 +555,8 @@ export function ServerDetailPage() {
   const [destName, setDestName] = useState('')
   const [destKind, setDestKind] = useState('standalone')
   const [destNetwork, setDestNetwork] = useState('goolify')
+  const [wildcardDomain, setWildcardDomain] = useState('')
+  const [magicDomain, setMagicDomain] = useState('sslip.io')
   useEffect(() => {
     setTab('overview')
     setDestName('')
@@ -749,6 +565,11 @@ export function ServerDetailPage() {
   }, [serverId])
 
   const server = useQuery({ queryKey: ['server', serverId], queryFn: () => api.getServer(serverId) })
+  useEffect(() => {
+    if (!server.data) return
+    setWildcardDomain(server.data.wildcard_domain || '')
+    setMagicDomain(server.data.magic_domain || 'sslip.io')
+  }, [server.data])
   const destinations = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
   const metrics = useQuery({
     queryKey: ['server-metrics', serverId],
@@ -776,8 +597,12 @@ export function ServerDetailPage() {
     },
   })
   const patchSettings = useMutation({
-    mutationFn: (body: { is_build_server?: boolean; is_swarm_manager?: boolean }) =>
-      api.patchServerSettings(serverId, body),
+    mutationFn: (body: {
+      is_build_server?: boolean
+      is_swarm_manager?: boolean
+      wildcard_domain?: string
+      magic_domain?: string
+    }) => api.patchServerSettings(serverId, body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['server', serverId] })
       void qc.invalidateQueries({ queryKey: ['servers'] })
@@ -962,6 +787,50 @@ export function ServerDetailPage() {
                 </span>
               </span>
             </label>
+            <div className="border-t border-gray-200 pt-4 dark:border-gray-800">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Free domains</h3>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Auto-generated hostnames use your wildcard domain, or free{' '}
+                <code className="text-xs">
+                  {'*.' + s.ip + '.' + (magicDomain || 'sslip.io')}
+                </code>{' '}
+                when empty.
+              </p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="block text-sm">
+                  <span className="mb-1 block text-gray-500 dark:text-gray-400">Wildcard domain</span>
+                  <input
+                    value={wildcardDomain}
+                    onChange={(e) => setWildcardDomain(e.target.value)}
+                    placeholder="apps.example.com"
+                    className="w-full panel-field rounded-lg px-3 py-2"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block text-gray-500 dark:text-gray-400">Magic DNS provider</span>
+                  <select
+                    value={magicDomain}
+                    onChange={(e) => setMagicDomain(e.target.value)}
+                    className="w-full panel-field rounded-lg px-3 py-2"
+                  >
+                    <option value="sslip.io">sslip.io</option>
+                    <option value="nip.io">nip.io</option>
+                  </select>
+                </label>
+              </div>
+              <button
+                type="button"
+                className="mt-3 inline-flex h-8 items-center rounded-md bg-brand-600 px-2.5 text-xs font-medium text-white hover:bg-brand-500"
+                onClick={() =>
+                  patchSettings.mutate({
+                    wildcard_domain: wildcardDomain,
+                    magic_domain: magicDomain,
+                  })
+                }
+              >
+                {patchSettings.isPending ? 'Saving…' : 'Save domain settings'}
+              </button>
+            </div>
             {patchSettings.error && (
               <p className="text-sm text-error-500">{patchSettings.error.message}</p>
             )}

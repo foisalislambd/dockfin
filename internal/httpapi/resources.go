@@ -11,6 +11,7 @@ import (
 	"github.com/goolify/goolify/internal/crypto"
 	"github.com/goolify/goolify/internal/database"
 	"github.com/goolify/goolify/internal/git"
+	"github.com/goolify/goolify/internal/proxy"
 	"github.com/goolify/goolify/internal/sshx"
 	"github.com/goolify/goolify/internal/store"
 	"github.com/goolify/goolify/internal/worker"
@@ -186,6 +187,18 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
+	// Auto-assign free sslip.io/nip.io domain when FQDN left empty.
+	if created.FQDN == "" && created.DestinationID != nil {
+		if srv, err := a.resolveServerForDomain(r.Context(), created.TeamID, nil, created.DestinationID); err == nil {
+			if fqdn := generateResourceFQDN(created.Name, created.ID, srv); fqdn != "" {
+				created.FQDN = fqdn
+				if err := a.Store.UpdateApplication(r.Context(), created); err != nil {
+					mapStoreErr(w, err)
+					return
+				}
+			}
+		}
+	}
 	writeJSON(w, http.StatusCreated, created)
 }
 
@@ -200,7 +213,20 @@ func (a *API) handleGetApplication(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, app)
+	writeJSON(w, http.StatusOK, appWithLinks(app))
+}
+
+func appWithLinks(app *store.Application) map[string]any {
+	links := proxy.CollectLinks(app.FQDN, "")
+	// Encode full app then overlay links — keep all existing fields.
+	b, _ := json.Marshal(app)
+	var out map[string]any
+	_ = json.Unmarshal(b, &out)
+	if out == nil {
+		out = map[string]any{}
+	}
+	out["links"] = links
+	return out
 }
 
 func (a *API) handleDeleteApplication(w http.ResponseWriter, r *http.Request) {

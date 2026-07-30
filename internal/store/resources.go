@@ -143,6 +143,7 @@ type Service struct {
 	ServiceType      string     `json:"service_type"`
 	DockerComposeRaw string     `json:"docker_compose_raw"`
 	DockerCompose    string     `json:"docker_compose,omitempty"`
+	FQDN             string     `json:"fqdn"`
 	Status           string     `json:"status"`
 	CreatedAt        time.Time  `json:"created_at"`
 }
@@ -584,20 +585,23 @@ func (s *Store) CreateService(ctx context.Context, svc *Service) (*Service, erro
 	if prepared == "" {
 		prepared = svc.DockerComposeRaw
 	}
+	if svc.ID == uuid.Nil {
+		svc.ID = uuid.New()
+	}
 	err := s.Pool.QueryRow(ctx, `
-		INSERT INTO services (team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, docker_compose)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-		RETURNING id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, docker_compose, status, created_at
-	`, svc.TeamID, svc.EnvironmentID, svc.ServerID, svc.DestinationID, svc.Name, svc.Description, svc.ServiceType, svc.DockerComposeRaw, prepared).Scan(
+		INSERT INTO services (id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, docker_compose, fqdn)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+		RETURNING id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, docker_compose, COALESCE(fqdn,''), status, created_at
+	`, svc.ID, svc.TeamID, svc.EnvironmentID, svc.ServerID, svc.DestinationID, svc.Name, svc.Description, svc.ServiceType, svc.DockerComposeRaw, prepared, svc.FQDN).Scan(
 		&svc.ID, &svc.TeamID, &svc.EnvironmentID, &svc.ServerID, &svc.DestinationID, &svc.Name, &svc.Description,
-		&svc.ServiceType, &svc.DockerComposeRaw, &svc.DockerCompose, &svc.Status, &svc.CreatedAt,
+		&svc.ServiceType, &svc.DockerComposeRaw, &svc.DockerCompose, &svc.FQDN, &svc.Status, &svc.CreatedAt,
 	)
 	return svc, err
 }
 
 func (s *Store) ListServices(ctx context.Context, teamID uuid.UUID, environmentID *uuid.UUID) ([]Service, error) {
 	q := `
-		SELECT id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, COALESCE(docker_compose, ''), status, created_at
+		SELECT id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, COALESCE(docker_compose, ''), COALESCE(fqdn,''), status, created_at
 		FROM services WHERE team_id=$1 AND deleted_at IS NULL`
 	args := []any{teamID}
 	if environmentID != nil {
@@ -615,7 +619,7 @@ func (s *Store) ListServices(ctx context.Context, teamID uuid.UUID, environmentI
 		var svc Service
 		if err := rows.Scan(
 			&svc.ID, &svc.TeamID, &svc.EnvironmentID, &svc.ServerID, &svc.DestinationID, &svc.Name, &svc.Description,
-			&svc.ServiceType, &svc.DockerComposeRaw, &svc.DockerCompose, &svc.Status, &svc.CreatedAt,
+			&svc.ServiceType, &svc.DockerComposeRaw, &svc.DockerCompose, &svc.FQDN, &svc.Status, &svc.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -627,11 +631,11 @@ func (s *Store) ListServices(ctx context.Context, teamID uuid.UUID, environmentI
 func (s *Store) GetService(ctx context.Context, teamID, id uuid.UUID) (*Service, error) {
 	var svc Service
 	err := s.Pool.QueryRow(ctx, `
-		SELECT id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, COALESCE(docker_compose, ''), status, created_at
+		SELECT id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, COALESCE(docker_compose, ''), COALESCE(fqdn,''), status, created_at
 		FROM services WHERE id=$1 AND team_id=$2 AND deleted_at IS NULL
 	`, id, teamID).Scan(
 		&svc.ID, &svc.TeamID, &svc.EnvironmentID, &svc.ServerID, &svc.DestinationID, &svc.Name, &svc.Description,
-		&svc.ServiceType, &svc.DockerComposeRaw, &svc.DockerCompose, &svc.Status, &svc.CreatedAt,
+		&svc.ServiceType, &svc.DockerComposeRaw, &svc.DockerCompose, &svc.FQDN, &svc.Status, &svc.CreatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
@@ -641,6 +645,25 @@ func (s *Store) GetService(ctx context.Context, teamID, id uuid.UUID) (*Service,
 
 func (s *Store) UpdateServiceCompose(ctx context.Context, id uuid.UUID, prepared string) error {
 	_, err := s.Pool.Exec(ctx, `UPDATE services SET docker_compose=$2, updated_at=NOW() WHERE id=$1`, id, prepared)
+	return err
+}
+
+func (s *Store) UpdateServiceMeta(ctx context.Context, teamID, id uuid.UUID, name, description string) (*Service, error) {
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE services SET name=$3, description=$4, updated_at=NOW()
+		WHERE id=$1 AND team_id=$2 AND deleted_at IS NULL
+	`, id, teamID, name, description)
+	if err != nil {
+		return nil, err
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, ErrNotFound
+	}
+	return s.GetService(ctx, teamID, id)
+}
+
+func (s *Store) UpdateServiceFQDN(ctx context.Context, id uuid.UUID, fqdn string) error {
+	_, err := s.Pool.Exec(ctx, `UPDATE services SET fqdn=$2, updated_at=NOW() WHERE id=$1`, id, fqdn)
 	return err
 }
 

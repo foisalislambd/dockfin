@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/goolify/goolify/internal/proxy"
 	"github.com/goolify/goolify/internal/services"
 	"github.com/goolify/goolify/internal/sshx"
 	"github.com/goolify/goolify/internal/store"
@@ -43,6 +45,7 @@ func (a *API) handleCreateService(w http.ResponseWriter, r *http.Request) {
 		ServiceType      string `json:"service_type"`
 		DockerComposeRaw string `json:"docker_compose_raw"`
 		Template         string `json:"template"`
+		FQDN             string `json:"fqdn"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -67,9 +70,10 @@ func (a *API) handleCreateService(w http.ResponseWriter, r *http.Request) {
 	if svcType == "" {
 		svcType = "custom"
 	}
+	teamID := currentTeamID(r)
 	svc := &store.Service{
-		TeamID: currentTeamID(r), EnvironmentID: envID, Name: body.Name, Description: body.Description,
-		ServiceType: svcType, DockerComposeRaw: compose,
+		TeamID: teamID, EnvironmentID: envID, Name: body.Name, Description: body.Description,
+		ServiceType: svcType, DockerComposeRaw: compose, FQDN: strings.TrimSpace(body.FQDN),
 	}
 	if body.ServerID != "" {
 		id, err := uuid.Parse(body.ServerID)
@@ -90,8 +94,22 @@ func (a *API) handleCreateService(w http.ResponseWriter, r *http.Request) {
 
 	opts := services.PrepareOpts{BaseURL: "http://127.0.0.1"}
 	if svc.DestinationID != nil {
-		if dest, err := a.Store.GetDestination(r.Context(), currentTeamID(r), *svc.DestinationID); err == nil {
+		if dest, err := a.Store.GetDestination(r.Context(), teamID, *svc.DestinationID); err == nil {
 			opts.Network = dest.Network
+		}
+	}
+	if srv, err := a.resolveServerForDomain(r.Context(), teamID, svc.ServerID, svc.DestinationID); err == nil {
+		// Pre-assign ID so FQDN short-id is stable before insert.
+		svc.ID = uuid.New()
+		if svc.FQDN == "" {
+			svc.FQDN = generateResourceFQDN(svc.Name, svc.ID, srv)
+		}
+		if svc.FQDN != "" {
+			host := strings.TrimSpace(strings.Split(svc.FQDN, ",")[0])
+			opts.BaseURL = proxy.PublicURL(host)
+			opts.FQDN = host
+			opts.RouterName = svc.Name
+			opts.ServiceID = svc.ID.String()
 		}
 	}
 	prepared, _, err := services.PrepareCompose(compose, opts)
@@ -106,7 +124,7 @@ func (a *API) handleCreateService(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, created)
+	writeJSON(w, http.StatusCreated, serviceWithLinks(created))
 }
 
 func (a *API) handleGetService(w http.ResponseWriter, r *http.Request) {
@@ -120,7 +138,77 @@ func (a *API) handleGetService(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, svc)
+	writeJSON(w, http.StatusOK, serviceWithLinks(svc))
+}
+
+func serviceWithLinks(svc *store.Service) map[string]any {
+	compose := svc.DockerCompose
+	if compose == "" {
+		compose = svc.DockerComposeRaw
+	}
+	links := proxy.CollectLinks(svc.FQDN, compose)
+	if len(links) == 0 && svc.FQDN != "" {
+		links = proxy.CollectLinks(svc.FQDN, "")
+	}
+	units := services.ParseComposeUnits(compose)
+	assigned := map[string]bool{}
+	unitRows := make([]map[string]any, 0, len(units))
+	for _, u := range units {
+		unitLinks := matchUnitLinks(u.Name, links)
+		for _, l := range unitLinks {
+			assigned[l.URL] = true
+		}
+		unitRows = append(unitRows, map[string]any{
+			"name":   u.Name,
+			"image":  u.Image,
+			"links":  unitLinks,
+			"status": svc.Status,
+		})
+	}
+	if len(unitRows) > 0 {
+		var leftover []proxy.ResourceLink
+		for _, l := range links {
+			if !assigned[l.URL] {
+				leftover = append(leftover, l)
+			}
+		}
+		if len(leftover) > 0 {
+			existing, _ := unitRows[0]["links"].([]proxy.ResourceLink)
+			unitRows[0]["links"] = append(existing, leftover...)
+		}
+	}
+	return map[string]any{
+		"id":                 svc.ID,
+		"team_id":            svc.TeamID,
+		"environment_id":     svc.EnvironmentID,
+		"server_id":          svc.ServerID,
+		"destination_id":     svc.DestinationID,
+		"name":               svc.Name,
+		"description":        svc.Description,
+		"service_type":       svc.ServiceType,
+		"docker_compose_raw": svc.DockerComposeRaw,
+		"docker_compose":     svc.DockerCompose,
+		"fqdn":               svc.FQDN,
+		"status":             svc.Status,
+		"created_at":         svc.CreatedAt,
+		"links":              links,
+		"units":              unitRows,
+	}
+}
+
+func matchUnitLinks(unitName string, links []proxy.ResourceLink) []proxy.ResourceLink {
+	needle := strings.ToUpper(strings.ReplaceAll(unitName, "-", "_"))
+	var out []proxy.ResourceLink
+	for _, l := range links {
+		label := strings.ToUpper(strings.ReplaceAll(l.Label, " ", "_"))
+		if label == "WEB" {
+			continue
+		}
+		if label == needle || strings.HasPrefix(label, needle+"_") || strings.HasPrefix(needle, label+"_") {
+			out = append(out, l)
+		}
+	}
+	return out
 }
 
 func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
@@ -207,15 +295,44 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 
 	emit("prepare", "Preparing docker compose…")
 	composeYAML := svc.DockerCompose
-	if composeYAML == "" || composeYAML == svc.DockerComposeRaw || looksLikeUnpreparedCompose(svc.DockerComposeRaw, composeYAML) {
+	rawCompose := svc.DockerComposeRaw
+	if rawCompose == "" {
+		rawCompose = composeYAML
+	}
+
+	// Always assign a free domain before deploy when missing.
+	if svc.FQDN == "" {
+		if srv, err := a.Store.GetServer(r.Context(), teamID, serverID); err == nil {
+			if fqdn := generateResourceFQDN(svc.Name, svc.ID, srv); fqdn != "" {
+				svc.FQDN = fqdn
+				_ = a.Store.UpdateServiceFQDN(r.Context(), id, fqdn)
+				emit("prepare", fmt.Sprintf("Assigned free domain %s", fqdn))
+			}
+		}
+	}
+
+	fqdnHost := strings.TrimSpace(strings.Split(svc.FQDN, ",")[0])
+	needPrepare := composeYAML == "" || composeYAML == svc.DockerComposeRaw || looksLikeUnpreparedCompose(svc.DockerComposeRaw, composeYAML)
+	if fqdnHost != "" && composeYAML != "" && !strings.Contains(composeYAML, fqdnHost) {
+		// Stored compose still has 127.0.0.1 / old host — re-bake with domain.
+		needPrepare = true
+	}
+
+	if needPrepare {
 		opts := services.PrepareOpts{
-			ServiceID: id.String(),
-			BaseURL:   "http://127.0.0.1",
+			ServiceID:   id.String(),
+			BaseURL:     "http://127.0.0.1",
+			RouterName:  svc.Name,
+			ExistingEnv: services.ExtractMagicEnv(composeYAML),
 		}
 		if dest != nil {
 			opts.Network = dest.Network
 		}
-		prepared, _, err := services.PrepareCompose(svc.DockerComposeRaw, opts)
+		if svc.FQDN != "" {
+			opts.BaseURL = proxy.PublicURL(svc.FQDN)
+			opts.FQDN = fqdnHost
+		}
+		prepared, _, err := services.PrepareCompose(rawCompose, opts)
 		if err != nil {
 			if stream {
 				finishErr(fmt.Sprintf("prepare compose: %v", err))
@@ -226,9 +343,16 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		}
 		composeYAML = prepared
 		_ = a.Store.UpdateServiceCompose(r.Context(), id, prepared)
-		emit("prepare", "Compose prepared (volumes + magic env)")
+		if svc.FQDN != "" {
+			emit("prepare", fmt.Sprintf("Compose prepared · domain %s", svc.FQDN))
+		} else {
+			emit("prepare", "Compose prepared (volumes + magic env)")
+		}
 	} else {
 		emit("prepare", "Using stored compose")
+		if svc.FQDN != "" {
+			emit("prepare", fmt.Sprintf("Public URL: %s", proxy.PublicURL(svc.FQDN)))
+		}
 	}
 
 	_ = a.Store.UpdateServiceStatus(r.Context(), id, "deploying")
@@ -291,6 +415,111 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 
 	_ = a.Store.UpdateServiceStatus(r.Context(), id, "running")
 	finishOK()
+}
+
+func (a *API) handlePatchService(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "serviceID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var body struct {
+		Name        *string `json:"name"`
+		Description *string `json:"description"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	teamID := currentTeamID(r)
+	svc, err := a.Store.GetService(r.Context(), teamID, id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	name, desc := svc.Name, svc.Description
+	if body.Name != nil {
+		name = strings.TrimSpace(*body.Name)
+		if name == "" {
+			writeError(w, http.StatusBadRequest, "name required")
+			return
+		}
+	}
+	if body.Description != nil {
+		desc = *body.Description
+	}
+	updated, err := a.Store.UpdateServiceMeta(r.Context(), teamID, id, name, desc)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, serviceWithLinks(updated))
+}
+
+func (a *API) handleStopService(w http.ResponseWriter, r *http.Request) {
+	a.runServiceComposeAction(w, r, "stop", "exited")
+}
+
+func (a *API) handleRestartService(w http.ResponseWriter, r *http.Request) {
+	a.runServiceComposeAction(w, r, "restart", "running")
+}
+
+func (a *API) runServiceComposeAction(w http.ResponseWriter, r *http.Request, action, statusOnOK string) {
+	id, err := uuid.Parse(chi.URLParam(r, "serviceID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	teamID := currentTeamID(r)
+	svc, err := a.Store.GetService(r.Context(), teamID, id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	serverID, dest, err := a.resolveServiceTarget(r.Context(), teamID, svc)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	_ = dest
+	client, err := a.dialServer(r, serverID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	remoteDir := "/data/goolify/services/" + id.String()
+	composePath := remoteDir + "/docker-compose.yml"
+	project := "goolify-svc-" + id.String()[:8]
+	_, errOut, err := sshx.RunArgs(client, "docker", "compose", "-p", project, "-f", composePath, action)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("%s failed: %v %s", action, err, errOut))
+		return
+	}
+	_ = a.Store.UpdateServiceStatus(r.Context(), id, statusOnOK)
+	svc.Status = statusOnOK
+	writeJSON(w, http.StatusOK, serviceWithLinks(svc))
+}
+
+func (a *API) resolveServiceTarget(ctx context.Context, teamID uuid.UUID, svc *store.Service) (uuid.UUID, *store.Destination, error) {
+	var serverID uuid.UUID
+	var dest *store.Destination
+	switch {
+	case svc.ServerID != nil:
+		serverID = *svc.ServerID
+		if svc.DestinationID != nil {
+			dest, _ = a.Store.GetDestination(ctx, teamID, *svc.DestinationID)
+		}
+	case svc.DestinationID != nil:
+		var err error
+		dest, err = a.Store.GetDestination(ctx, teamID, *svc.DestinationID)
+		if err != nil {
+			return uuid.Nil, nil, err
+		}
+		serverID = dest.ServerID
+	default:
+		return uuid.Nil, nil, fmt.Errorf("service has no server or destination")
+	}
+	return serverID, dest, nil
 }
 
 func looksLikeUnpreparedCompose(raw, prepared string) bool {

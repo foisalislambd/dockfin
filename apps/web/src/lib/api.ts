@@ -202,6 +202,12 @@ export const api = {
       `/api/v1/services${environment_id ? `?environment_id=${environment_id}` : ''}`,
     ),
   getService: (id: string) => request<Service>(`/api/v1/services/${id}`),
+  updateService: (id: string, body: { name?: string; description?: string }) =>
+    request<Service>(`/api/v1/services/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  stopService: (id: string) =>
+    request<Service>(`/api/v1/services/${id}/stop`, { method: 'POST' }),
+  restartService: (id: string) =>
+    request<Service>(`/api/v1/services/${id}/restart`, { method: 'POST' }),
   templates: () => request<{ templates: Template[] }>('/api/v1/services/templates'),
   createService: (body: Record<string, unknown>) =>
     request<Service>('/api/v1/services', { method: 'POST', body: JSON.stringify(body) }),
@@ -367,10 +373,25 @@ export const api = {
 
   patchServerSettings: (
     id: string,
-    body: { is_build_server?: boolean; is_swarm_manager?: boolean },
+    body: {
+      is_build_server?: boolean
+      is_swarm_manager?: boolean
+      wildcard_domain?: string
+      magic_domain?: string
+    },
   ) =>
     request<{ status: string }>(`/api/v1/servers/${id}/settings`, {
       method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  generateDomain: (body: {
+    name: string
+    destination_id?: string
+    server_id?: string
+    resource_id?: string
+  }) =>
+    request<{ fqdn: string; url: string }>('/api/v1/domains/generate', {
+      method: 'POST',
       body: JSON.stringify(body),
     }),
   createDestination: (
@@ -427,6 +448,8 @@ export type Server = {
   description?: string
   is_build_server?: boolean
   is_swarm_manager?: boolean
+  wildcard_domain?: string
+  magic_domain?: string
 }
 export type GitSource = {
   id: string
@@ -443,6 +466,27 @@ export type GitSource = {
 export type Key = { id: string; name: string; fingerprint: string; public_key: string }
 export type Project = { id: string; name: string; description: string }
 export type Environment = { id: string; name: string; project_id: string; description?: string }
+export type Service = {
+  id: string
+  name: string
+  service_type: string
+  status: string
+  environment_id: string
+  description?: string
+  destination_id?: string | null
+  server_id?: string | null
+  fqdn?: string
+  docker_compose?: string
+  docker_compose_raw?: string
+  links?: { label: string; url: string }[]
+  units?: ServiceUnit[]
+}
+export type ServiceUnit = {
+  name: string
+  image: string
+  status?: string
+  links?: { label: string; url: string }[]
+}
 export type Application = {
   id: string
   name: string
@@ -459,6 +503,7 @@ export type Application = {
   destination_id?: string | null
   git_source_id?: string | null
   is_build_server_enabled?: boolean
+  links?: { label: string; url: string }[]
 }
 export type Deployment = {
   id: string
@@ -497,16 +542,6 @@ export type Database = {
   is_public?: boolean
   public_port?: number | null
   destination_id?: string | null
-}
-export type Service = {
-  id: string
-  name: string
-  service_type: string
-  status: string
-  environment_id: string
-  description?: string
-  destination_id?: string | null
-  server_id?: string | null
 }
 export type Template = {
   type: string

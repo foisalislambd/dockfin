@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
+import { LinksMenu, LinksPanel } from '../components/LinksMenu'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
 import { api } from '../lib/api'
 import { Btn, Input } from './Servers'
 
 const APP_TABS = [
+  { id: 'links', label: 'Links' },
   { id: 'configuration', label: 'Configuration' },
   { id: 'environment', label: 'Environment Variables' },
   { id: 'deployments', label: 'Deployments' },
@@ -43,7 +45,7 @@ export function ApplicationDetailPage() {
     queryFn: () => api.envVars('application', appId, true),
   })
 
-  const [tab, setTab] = useState('configuration')
+  const [tab, setTab] = useState('links')
   const [cfg, setCfg] = useState({
     name: '',
     description: '',
@@ -291,6 +293,7 @@ export function ApplicationDetailPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <LinksMenu links={a.links || []} />
           {activeDep && <Btn onClick={() => cancel.mutate(activeDep.id)}>Cancel deploy</Btn>}
           <Btn primary onClick={() => deploy.mutate({})}>
             Deploy
@@ -306,6 +309,12 @@ export function ApplicationDetailPage() {
 
       <ResourceTabs tabs={APP_TABS} active={tab} onChange={setTab} />
 
+      {tab === 'links' && (
+        <TabPanel>
+          <LinksPanel links={a.links || []} />
+        </TabPanel>
+      )}
+
       {tab === 'configuration' && (
         <TabPanel>
           <form
@@ -317,12 +326,40 @@ export function ApplicationDetailPage() {
           >
             <div className="grid gap-4 sm:grid-cols-2">
               <Input label="Name" value={cfg.name} onChange={(v) => setCfg({ ...cfg, name: v })} />
-              <Input
-                label="FQDN"
-                value={cfg.fqdn}
-                onChange={(v) => setCfg({ ...cfg, fqdn: v })}
-                required={false}
-              />
+              <div className="space-y-2">
+                <Input
+                  label="FQDN"
+                  value={cfg.fqdn}
+                  onChange={(v) => setCfg({ ...cfg, fqdn: v })}
+                  required={false}
+                />
+                <button
+                  type="button"
+                  className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                  onClick={() => {
+                    void api
+                      .generateDomain({
+                        name: cfg.name || a.name,
+                        destination_id: cfg.destination_id || a.destination_id || undefined,
+                        resource_id: a.id,
+                      })
+                      .then((d) => setCfg((c) => ({ ...c, fqdn: d.fqdn })))
+                      .catch(() => undefined)
+                  }}
+                >
+                  Generate free domain (sslip.io / nip.io)
+                </button>
+                {cfg.fqdn ? (
+                  <a
+                    href={`http://${cfg.fqdn.split(',')[0].trim()}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block text-xs text-gray-500 hover:text-brand-600 dark:text-gray-400"
+                  >
+                    Open {cfg.fqdn.split(',')[0].trim()}
+                  </a>
+                ) : null}
+              </div>
               <Input
                 label="Description"
                 value={cfg.description}
