@@ -496,6 +496,7 @@ export type Database = {
   image?: string
   is_public?: boolean
   public_port?: number | null
+  destination_id?: string | null
 }
 export type Service = {
   id: string
@@ -504,6 +505,8 @@ export type Service = {
   status: string
   environment_id: string
   description?: string
+  destination_id?: string | null
+  server_id?: string | null
 }
 export type Template = {
   type: string
