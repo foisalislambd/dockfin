@@ -160,6 +160,52 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	stream := r.URL.Query().Get("stream") == "1" ||
+		strings.Contains(r.Header.Get("Accept"), "text/event-stream")
+
+	var emit func(stage, line string)
+	var finishOK func()
+	var finishErr func(msg string)
+
+	if stream {
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			writeError(w, http.StatusInternalServerError, "streaming unsupported")
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.Header().Set("X-Accel-Buffering", "no")
+		w.WriteHeader(http.StatusOK)
+		flusher.Flush()
+
+		emit = func(stage, line string) {
+			payload, _ := json.Marshal(map[string]string{"stage": stage, "line": line})
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", payload)
+			flusher.Flush()
+		}
+		finishOK = func() {
+			payload, _ := json.Marshal(map[string]string{"stage": "done", "line": "Deploy finished", "status": "running"})
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", payload)
+			flusher.Flush()
+		}
+		finishErr = func(msg string) {
+			payload, _ := json.Marshal(map[string]string{"stage": "error", "line": msg, "status": "failed"})
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", payload)
+			flusher.Flush()
+		}
+	} else {
+		emit = func(stage, line string) {}
+		finishOK = func() {
+			writeJSON(w, http.StatusOK, map[string]string{"status": "running"})
+		}
+		finishErr = func(msg string) {
+			writeError(w, http.StatusInternalServerError, msg)
+		}
+	}
+
+	emit("prepare", "Preparing docker compose…")
 	composeYAML := svc.DockerCompose
 	if composeYAML == "" || composeYAML == svc.DockerComposeRaw || looksLikeUnpreparedCompose(svc.DockerComposeRaw, composeYAML) {
 		opts := services.PrepareOpts{
@@ -171,48 +217,80 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		}
 		prepared, _, err := services.PrepareCompose(svc.DockerComposeRaw, opts)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, fmt.Sprintf("prepare compose: %v", err))
+			if stream {
+				finishErr(fmt.Sprintf("prepare compose: %v", err))
+			} else {
+				writeError(w, http.StatusBadRequest, fmt.Sprintf("prepare compose: %v", err))
+			}
 			return
 		}
 		composeYAML = prepared
 		_ = a.Store.UpdateServiceCompose(r.Context(), id, prepared)
+		emit("prepare", "Compose prepared (volumes + magic env)")
+	} else {
+		emit("prepare", "Using stored compose")
 	}
 
+	_ = a.Store.UpdateServiceStatus(r.Context(), id, "deploying")
+	emit("connect", "Connecting to server over SSH…")
 	client, err := a.dialServer(r, serverID)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		_ = a.Store.UpdateServiceStatus(r.Context(), id, "exited")
+		if stream {
+			finishErr(err.Error())
+		} else {
+			writeError(w, http.StatusBadRequest, err.Error())
+		}
 		return
 	}
+
 	if dest != nil && dest.Network != "" {
+		emit("network", fmt.Sprintf("Ensuring Docker network %q…", dest.Network))
 		if _, _, err := sshx.RunArgs(client, "docker", "network", "inspect", dest.Network); err != nil {
-			_, errOut, err := sshx.RunArgs(client, "docker", "network", "create", dest.Network)
+			err = sshx.RunArgsStreaming(client, func(line string) { emit("network", line) }, "docker", "network", "create", dest.Network)
 			if err != nil {
-				writeError(w, http.StatusInternalServerError, fmt.Sprintf("create network: %v %s", err, errOut))
+				_ = a.Store.UpdateServiceStatus(r.Context(), id, "exited")
+				finishErr(fmt.Sprintf("create network: %v", err))
 				return
 			}
+		} else {
+			emit("network", "Network already exists")
 		}
 	}
+
 	remoteDir := "/data/goolify/services/" + id.String()
+	emit("setup", fmt.Sprintf("Creating remote dir %s", remoteDir))
 	_, errOut, err := sshx.RunArgs(client, "mkdir", "-p", remoteDir)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("mkdir: %v %s", err, errOut))
+		_ = a.Store.UpdateServiceStatus(r.Context(), id, "exited")
+		finishErr(fmt.Sprintf("mkdir: %v %s", err, errOut))
 		return
 	}
+
 	composePath := remoteDir + "/docker-compose.yml"
+	emit("setup", "Writing docker-compose.yml…")
 	writeCmd := fmt.Sprintf("cat > %s <<'GOOLIFY_COMPOSE_EOF'\n%s\nGOOLIFY_COMPOSE_EOF", composePath, composeYAML)
 	_, errOut, err = sshx.Run(client, writeCmd)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("write compose: %v %s", err, errOut))
+		_ = a.Store.UpdateServiceStatus(r.Context(), id, "exited")
+		finishErr(fmt.Sprintf("write compose: %v %s", err, errOut))
 		return
 	}
+	emit("setup", "Compose file written")
+
 	project := "goolify-svc-" + id.String()[:8]
-	_, errOut, err = sshx.RunArgs(client, "docker", "compose", "-p", project, "-f", composePath, "up", "-d", "--remove-orphans")
+	emit("compose", fmt.Sprintf("docker compose -p %s up -d --remove-orphans", project))
+	err = sshx.RunArgsStreaming(client, func(line string) {
+		emit("compose", line)
+	}, "docker", "compose", "-p", project, "-f", composePath, "up", "-d", "--remove-orphans")
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("compose up: %v %s", err, errOut))
+		_ = a.Store.UpdateServiceStatus(r.Context(), id, "exited")
+		finishErr(fmt.Sprintf("compose up: %v", err))
 		return
 	}
+
 	_ = a.Store.UpdateServiceStatus(r.Context(), id, "running")
-	writeJSON(w, http.StatusOK, map[string]string{"status": "running"})
+	finishOK()
 }
 
 func looksLikeUnpreparedCompose(raw, prepared string) bool {
@@ -222,7 +300,7 @@ func looksLikeUnpreparedCompose(raw, prepared string) bool {
 	if strings.Contains(prepared, "$SERVICE_") {
 		return true
 	}
-	if regexp.MustCompile(`(?m)^\s*-\s+SERVICE_(URL|FQDN|PASSWORD|USER)_`).MatchString(prepared) {
+	if regexp.MustCompile(`(?m)^\s*-\s+SERVICE_(URL|FQDN|PASSWORD|USER)_[A-Z0-9_]+\s*$`).MatchString(prepared) {
 		return true
 	}
 	return hasNamedVolumeMounts(raw) && !hasTopLevelVolumes(prepared)

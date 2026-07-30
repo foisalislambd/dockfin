@@ -259,10 +259,9 @@ export function DatabasesPage() {
 }
 
 export function ServicesPage() {
-  const qc = useQueryClient()
+  const nav = useNavigate()
   const services = useQuery({ queryKey: ['services'], queryFn: () => api.services() })
   const templates = useQuery({ queryKey: ['templates'], queryFn: api.templates })
-  const [deployError, setDeployError] = useState('')
   const logoByType = useMemo(() => {
     const m = new Map<string, string>()
     for (const t of templates.data?.templates || []) {
@@ -284,7 +283,6 @@ export function ServicesPage() {
           </Link>
         }
       />
-      {deployError && <p className="text-sm text-error-500">{deployError}</p>}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {services.isLoading ? (
           <div className="col-span-full">
@@ -316,11 +314,11 @@ export function ServicesPage() {
               <Btn
                 primary
                 onClick={() => {
-                  setDeployError('')
-                  void api
-                    .deployService(s.id)
-                    .then(() => qc.invalidateQueries({ queryKey: ['services'] }))
-                    .catch((e: Error) => setDeployError(e.message))
+                  void nav({
+                    to: '/services/$svcId',
+                    params: { svcId: s.id },
+                    search: { deploy: '1' },
+                  })
                 }}
               >
                 Deploy

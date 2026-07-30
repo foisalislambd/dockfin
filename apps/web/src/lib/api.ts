@@ -207,6 +207,67 @@ export const api = {
     request<Service>('/api/v1/services', { method: 'POST', body: JSON.stringify(body) }),
   deployService: (id: string) =>
     request(`/api/v1/services/${id}/deploy`, { method: 'POST' }),
+  /** Live SSE deploy — calls onLine for each event; resolves with final status. */
+  deployServiceStream: async (
+    id: string,
+    onLine: (ev: { stage: string; line: string; status?: string }) => void,
+    signal?: AbortSignal,
+  ): Promise<{ status: string }> => {
+    const res = await fetch(`${API_BASE}/api/v1/services/${id}/deploy?stream=1`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { Accept: 'text/event-stream' },
+      signal,
+    })
+    if (!res.ok || !res.body) {
+      let msg = res.statusText
+      try {
+        const body = await res.json()
+        msg = body.error || msg
+      } catch {
+        /* ignore */
+      }
+      throw new ApiError(res.status, msg)
+    }
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let finalStatus = 'running'
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const parts = buffer.split('\n\n')
+      buffer = parts.pop() || ''
+      for (const chunk of parts) {
+        const dataLine = chunk
+          .split('\n')
+          .map((l) => l.trim())
+          .find((l) => l.startsWith('data:'))
+        if (!dataLine) continue
+        const raw = dataLine.replace(/^data:\s?/, '')
+        try {
+          const ev = JSON.parse(raw) as { stage?: string; line?: string; status?: string }
+          onLine({
+            stage: ev.stage || '',
+            line: ev.line || raw,
+            status: ev.status,
+          })
+          if (ev.status === 'failed') {
+            finalStatus = 'failed'
+            throw new ApiError(500, ev.line || 'Deploy failed')
+          }
+          if (ev.status === 'running' || ev.stage === 'done') {
+            finalStatus = 'running'
+          }
+        } catch (e) {
+          if (e instanceof ApiError) throw e
+          onLine({ stage: '', line: raw })
+        }
+      }
+    }
+    return { status: finalStatus }
+  },
 
   destinations: () => request<{ destinations: Destination[] }>('/api/v1/destinations'),
 

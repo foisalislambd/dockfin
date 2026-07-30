@@ -1,10 +1,12 @@
 package sshx
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"sync"
@@ -131,6 +133,48 @@ func Run(client *ssh.Client, command string) (stdout, stderr string, err error) 
 	return outBuf.String(), errBuf.String(), err
 }
 
+// LineFn receives each stdout/stderr line as it arrives.
+type LineFn func(line string)
+
+// RunStreaming runs a remote command and streams combined stdout/stderr lines to onLine.
+func RunStreaming(client *ssh.Client, command string, onLine LineFn) error {
+	session, err := client.NewSession()
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	stderr, err := session.StderrPipe()
+	if err != nil {
+		return err
+	}
+
+	if err := session.Start(command); err != nil {
+		return err
+	}
+
+	var wg sync.WaitGroup
+	scan := func(r io.Reader) {
+		defer wg.Done()
+		sc := bufio.NewScanner(r)
+		sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+		for sc.Scan() {
+			if onLine != nil {
+				onLine(sc.Text())
+			}
+		}
+	}
+	wg.Add(2)
+	go scan(stdout)
+	go scan(stderr)
+	wg.Wait()
+	return session.Wait()
+}
+
 func RunArgs(client *ssh.Client, argv ...string) (stdout, stderr string, err error) {
 	if len(argv) == 0 {
 		return "", "", fmt.Errorf("empty argv")
@@ -140,6 +184,18 @@ func RunArgs(client *ssh.Client, argv ...string) (stdout, stderr string, err err
 		parts[i] = shellQuote(a)
 	}
 	return Run(client, strings.Join(parts, " "))
+}
+
+// RunArgsStreaming is RunArgs with live line streaming.
+func RunArgsStreaming(client *ssh.Client, onLine LineFn, argv ...string) error {
+	if len(argv) == 0 {
+		return fmt.Errorf("empty argv")
+	}
+	parts := make([]string, len(argv))
+	for i, a := range argv {
+		parts[i] = shellQuote(a)
+	}
+	return RunStreaming(client, strings.Join(parts, " "), onLine)
 }
 
 func shellQuote(s string) string {

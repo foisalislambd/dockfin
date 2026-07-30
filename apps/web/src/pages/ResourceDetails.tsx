@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
+import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
+import { useEffect, useRef, useState } from 'react'
+import { DeployLogPanel } from '../components/DeployLogPanel'
 import { ServerTerminal } from '../components/Terminal'
 import { ServiceLogo } from '../components/ServiceLogo'
 import { MetricsSkeleton, PageSkeleton } from '../components/ui/Skeleton'
@@ -17,6 +18,7 @@ const DB_TABS = [
 
 const SVC_TABS = [
   { id: 'configuration', label: 'Configuration' },
+  { id: 'deploy', label: 'Deploy' },
   { id: 'environment', label: 'Environment Variables' },
   { id: 'danger', label: 'Danger' },
 ]
@@ -466,18 +468,63 @@ export function ServiceDetailPage() {
     envId?: string
     svcId: string
   }
+  const search = useSearch({ strict: false }) as { deploy?: string }
   const qc = useQueryClient()
-  const [tab, setTab] = useState('configuration')
+  const [tab, setTab] = useState(search.deploy === '1' ? 'deploy' : 'configuration')
+  const [deployLines, setDeployLines] = useState<string[]>([])
+  const [deployBusy, setDeployBusy] = useState(false)
+  const [deployError, setDeployError] = useState('')
+  const abortRef = useRef<AbortController | null>(null)
+  const autoDeployed = useRef(false)
+
   useEffect(() => {
-    setTab('configuration')
+    setTab(search.deploy === '1' ? 'deploy' : 'configuration')
+    setDeployLines([])
+    setDeployError('')
+    setDeployBusy(false)
+    autoDeployed.current = false
+    abortRef.current?.abort()
   }, [svcId])
+
   const svc = useQuery({ queryKey: ['service', svcId], queryFn: () => api.getService(svcId) })
   const templates = useQuery({ queryKey: ['templates'], queryFn: api.templates })
 
-  const deploy = useMutation({
-    mutationFn: () => api.deployService(svcId),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['service', svcId] }),
-  })
+  const runDeploy = async () => {
+    abortRef.current?.abort()
+    const ac = new AbortController()
+    abortRef.current = ac
+    setTab('deploy')
+    setDeployBusy(true)
+    setDeployError('')
+    setDeployLines([])
+    try {
+      await api.deployServiceStream(
+        svcId,
+        (ev) => {
+          const prefix = ev.stage ? `[${ev.stage}] ` : ''
+          setDeployLines((prev) => [...prev, `${prefix}${ev.line}`])
+        },
+        ac.signal,
+      )
+      void qc.invalidateQueries({ queryKey: ['service', svcId] })
+      void qc.invalidateQueries({ queryKey: ['services'] })
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return
+      const msg = e instanceof Error ? e.message : 'Deploy failed'
+      setDeployError(msg)
+      setDeployLines((prev) => (prev.some((l) => l.includes(msg)) ? prev : [...prev, `[error] ${msg}`]))
+      void qc.invalidateQueries({ queryKey: ['service', svcId] })
+    } finally {
+      setDeployBusy(false)
+    }
+  }
+
+  useEffect(() => {
+    if (search.deploy !== '1' || !svc.data || autoDeployed.current || deployBusy) return
+    autoDeployed.current = true
+    void runDeploy()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.deploy, svc.data])
 
   const back =
     projectId && envId ? (
@@ -527,8 +574,8 @@ export function ServiceDetailPage() {
             </div>
           </div>
         </div>
-        <Btn primary onClick={() => deploy.mutate()}>
-          Deploy
+        <Btn primary onClick={() => void runDeploy()} disabled={deployBusy}>
+          {deployBusy ? 'Deploying…' : 'Deploy'}
         </Btn>
       </div>
 
@@ -541,7 +588,25 @@ export function ServiceDetailPage() {
             <Meta label="Type" value={s.service_type} />
             <Meta label="Description" value={s.description || '—'} />
           </div>
-          {deploy.error && <p className="mt-4 text-sm text-error-500">{deploy.error.message}</p>}
+        </TabPanel>
+      )}
+
+      {tab === 'deploy' && (
+        <TabPanel>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Live output from `docker compose up` on the target server.
+            </p>
+            <Btn primary onClick={() => void runDeploy()} disabled={deployBusy}>
+              {deployBusy ? 'Deploying…' : 'Run deploy'}
+            </Btn>
+          </div>
+          <DeployLogPanel
+            lines={deployLines}
+            busy={deployBusy}
+            emptyHint="Click Deploy to stream compose output here…"
+          />
+          {deployError && <p className="mt-3 text-sm text-error-500">{deployError}</p>}
         </TabPanel>
       )}
 
@@ -558,10 +623,16 @@ export function ServiceDetailPage() {
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Runs `docker compose up` again on the target server. Permanent delete is not exposed yet.
             </p>
-            <Btn primary onClick={() => deploy.mutate()}>
-              Force deploy
+            <Btn primary onClick={() => void runDeploy()} disabled={deployBusy}>
+              {deployBusy ? 'Deploying…' : 'Force deploy'}
             </Btn>
           </div>
+          {(deployBusy || deployLines.length > 0) && (
+            <div className="mt-4">
+              <DeployLogPanel lines={deployLines} busy={deployBusy} />
+            </div>
+          )}
+          {deployError && <p className="mt-3 text-sm text-error-500">{deployError}</p>}
         </TabPanel>
       )}
     </div>
