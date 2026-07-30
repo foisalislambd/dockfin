@@ -280,7 +280,7 @@ func (a *API) handleStartProxy(w http.ResponseWriter, r *http.Request) {
 	if dests, err := a.Store.ListDestinations(r.Context(), teamID, &id); err == nil && len(dests) > 0 && dests[0].Network != "" {
 		network = dests[0].Network
 	}
-	if err := proxy.StartProxy(client, srv.ProxyType, a.Cfg.TraefikImage, a.Cfg.CaddyImage, network); err != nil {
+	if err := proxy.StartProxy(client, srv.ProxyType, a.Cfg.TraefikImage, a.Cfg.CaddyImage, network, a.Cfg.AcmeEmail); err != nil {
 		msg := err.Error()
 		if strings.Contains(msg, "disabled") || strings.Contains(msg, "unsupported") {
 			writeError(w, http.StatusBadRequest, msg)

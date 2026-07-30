@@ -120,7 +120,8 @@ func GenerateFQDN(resourceName string, resourceID uuid.UUID, serverIP, wildcardD
 	return prefix + "." + base
 }
 
-// PublicURL returns http://fqdn (magic domains default to HTTP; LE optional later).
+// PublicURL returns a browser URL for an FQDN.
+// Non-local hosts use https:// (Traefik + Let's Encrypt); localhost stays http://.
 func PublicURL(fqdn string) string {
 	fqdn = strings.TrimSpace(fqdn)
 	if fqdn == "" {
@@ -129,7 +130,15 @@ func PublicURL(fqdn string) string {
 	if strings.HasPrefix(fqdn, "http://") || strings.HasPrefix(fqdn, "https://") {
 		return strings.TrimRight(fqdn, "/")
 	}
-	return "http://" + fqdn
+	host := fqdn
+	if i := strings.IndexByte(host, '/'); i >= 0 {
+		host = host[:i]
+	}
+	host = strings.ToLower(host)
+	if host == "127.0.0.1" || host == "localhost" || strings.HasPrefix(host, "127.0.0.1:") || strings.HasPrefix(host, "localhost:") {
+		return "http://" + fqdn
+	}
+	return "https://" + fqdn
 }
 
 func normalizeIPForMagic(ip string) string {

@@ -57,7 +57,10 @@ func TestGenerateFQDN(t *testing.T) {
 }
 
 func TestPublicURL(t *testing.T) {
-	if got := PublicURL("foo.1.2.3.4.sslip.io"); got != "http://foo.1.2.3.4.sslip.io" {
+	if got := PublicURL("foo.1.2.3.4.sslip.io"); got != "https://foo.1.2.3.4.sslip.io" {
 		t.Fatalf("got %q", got)
+	}
+	if got := PublicURL("127.0.0.1"); got != "http://127.0.0.1" {
+		t.Fatalf("localhost got %q", got)
 	}
 }

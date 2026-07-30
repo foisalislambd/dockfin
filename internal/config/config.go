@@ -24,6 +24,7 @@ type Config struct {
 	SessionTTL     time.Duration
 	TraefikImage   string
 	CaddyImage     string
+	AcmeEmail      string
 }
 
 func Load() (*Config, error) {
@@ -42,6 +43,7 @@ func Load() (*Config, error) {
 		SessionTTL:    7 * 24 * time.Hour,
 		TraefikImage:  getenv("GOOLIFY_TRAEFIK_IMAGE", "traefik:v3.6"),
 		CaddyImage:    getenv("GOOLIFY_CADDY_IMAGE", "lucaslorentz/caddy-docker-proxy:2.9-alpine"),
+		AcmeEmail:     getenv("GOOLIFY_ACME_EMAIL", "admin@sslip.io"),
 	}
 
 	origins := getenv("GOOLIFY_CORS_ORIGINS", "http://localhost:5173")

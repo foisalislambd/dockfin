@@ -10,13 +10,16 @@ import (
 
 const TraefikContainer = "goolify-proxy"
 
-func StartTraefik(client *ssh.Client, image, network string) error {
+func StartTraefik(client *ssh.Client, image, network, acmeEmail string) error {
 	if network == "" {
 		network = "goolify"
 	}
 	if image == "" {
 		// Docker Engine 29+ requires Traefik ≥ v3.6 (API negotiation).
 		image = "traefik:v3.6"
+	}
+	if acmeEmail == "" {
+		acmeEmail = "admin@sslip.io"
 	}
 	if err := sshx.EnsureNetwork(client, network); err != nil {
 		return err
@@ -42,7 +45,7 @@ func StartTraefik(client *ssh.Client, image, network string) error {
 		"--entrypoints.https.address=:443",
 		"--certificatesresolvers.letsencrypt.acme.httpchallenge=true",
 		"--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=http",
-		"--certificatesresolvers.letsencrypt.acme.email=admin@localhost",
+		"--certificatesresolvers.letsencrypt.acme.email=" + acmeEmail,
 		"--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json",
 		"--api.dashboard=false",
 	}

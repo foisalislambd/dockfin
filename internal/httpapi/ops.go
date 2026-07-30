@@ -329,9 +329,12 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 
 	fqdnHost := strings.TrimSpace(strings.Split(svc.FQDN, ",")[0])
 	needPrepare := composeYAML == "" || composeYAML == svc.DockerComposeRaw || looksLikeUnpreparedCompose(svc.DockerComposeRaw, composeYAML)
-	if fqdnHost != "" && composeYAML != "" && !strings.Contains(composeYAML, fqdnHost) {
-		// Stored compose still has 127.0.0.1 / old host — re-bake with domain.
-		needPrepare = true
+	if fqdnHost != "" && composeYAML != "" {
+		wantURL := proxy.PublicURL(fqdnHost)
+		// Re-bake when host missing OR scheme outdated (http→https).
+		if !strings.Contains(composeYAML, fqdnHost) || !strings.Contains(composeYAML, wantURL) {
+			needPrepare = true
+		}
 	}
 	if proxy.FQDNUsesUnusableMagicIP(composeYAML) {
 		needPrepare = true

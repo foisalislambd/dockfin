@@ -33,7 +33,7 @@ services:
 	out, env, err := PrepareCompose(raw, PrepareOpts{
 		ServiceID: "test",
 		Network:   "goolify",
-		BaseURL:   "http://wp.example.com",
+		BaseURL:   "https://wp.example.com",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -56,13 +56,13 @@ services:
 	if strings.Contains(out, "$SERVICE_USER_WORDPRESS") {
 		t.Fatalf("user not substituted:\n%s", out)
 	}
-	if env["SERVICE_URL_WORDPRESS"] != "http://wp.example.com" {
+	if env["SERVICE_URL_WORDPRESS"] != "https://wp.example.com" {
 		t.Fatalf("url env: %#v", env["SERVICE_URL_WORDPRESS"])
 	}
 	if env["SERVICE_PASSWORD_WORDPRESS"] == "" || env["SERVICE_PASSWORD_ROOT"] == "" {
 		t.Fatalf("passwords missing: %#v", env)
 	}
-	if !strings.Contains(out, "SERVICE_URL_WORDPRESS=http://wp.example.com") {
+	if !strings.Contains(out, "SERVICE_URL_WORDPRESS=https://wp.example.com") {
 		t.Fatalf("bare SERVICE_URL not expanded to KEY=value:\n%s", out)
 	}
 	if !strings.Contains(out, "goolify") {
@@ -76,6 +76,12 @@ services:
 	}
 	if !strings.Contains(out, "Host(`wp.example.com`)") {
 		t.Fatalf("expected Host rule:\n%s", out)
+	}
+	if !strings.Contains(out, "entrypoints: https") && !strings.Contains(out, "entrypoints: \"https\"") {
+		t.Fatalf("expected https entrypoint:\n%s", out)
+	}
+	if !strings.Contains(out, "certresolver: letsencrypt") {
+		t.Fatalf("expected letsencrypt certresolver:\n%s", out)
 	}
 	if !strings.Contains(out, "loadbalancer.server.port: \"80\"") && !strings.Contains(out, "loadbalancer.server.port: \"80\"") {
 		if !strings.Contains(out, "loadbalancer.server.port") {
@@ -96,7 +102,7 @@ func TestPrepareComposePortSuffixAndCompanionKeys(t *testing.T) {
     image: redis
 `
 	out, env, err := PrepareCompose(raw, PrepareOpts{
-		BaseURL:    "http://n8n.1.2.3.4.sslip.io",
+		BaseURL:    "https://n8n.1.2.3.4.sslip.io",
 		FQDN:       "n8n.1.2.3.4.sslip.io",
 		Network:    "goolify",
 		RouterName: "n8n",
@@ -104,16 +110,16 @@ func TestPrepareComposePortSuffixAndCompanionKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if env["SERVICE_URL_N8N_5678"] != "http://n8n.1.2.3.4.sslip.io" {
+	if env["SERVICE_URL_N8N_5678"] != "https://n8n.1.2.3.4.sslip.io" {
 		t.Fatalf("port url: %#v", env["SERVICE_URL_N8N_5678"])
 	}
-	if env["SERVICE_URL_N8N"] != "http://n8n.1.2.3.4.sslip.io" {
+	if env["SERVICE_URL_N8N"] != "https://n8n.1.2.3.4.sslip.io" {
 		t.Fatalf("companion url missing: %#v", env)
 	}
 	if env["SERVICE_FQDN_N8N"] != "n8n.1.2.3.4.sslip.io" {
 		t.Fatalf("companion fqdn missing: %#v", env)
 	}
-	if !strings.Contains(out, "N8N_EDITOR_BASE_URL=http://n8n.1.2.3.4.sslip.io") {
+	if !strings.Contains(out, "N8N_EDITOR_BASE_URL=https://n8n.1.2.3.4.sslip.io") {
 		t.Fatalf("companion not substituted:\n%s", out)
 	}
 	if !strings.Contains(out, "loadbalancer.server.port: \"5678\"") {

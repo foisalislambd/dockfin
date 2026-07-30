@@ -25,7 +25,7 @@ services:
 	if urls["http://wp.1.2.3.4.sslip.io"] == "" {
 		t.Fatalf("missing wp url: %#v", links)
 	}
-	if urls["http://extra.example.com"] == "" {
+	if urls["https://extra.example.com"] == "" {
 		t.Fatalf("missing extra: %#v", links)
 	}
 	if urls["http://n8n.1.2.3.4.sslip.io"] != "N8N" {

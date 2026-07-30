@@ -102,13 +102,13 @@ func safeCaddyPort(port string) bool {
 }
 
 // StartProxy starts Traefik or Caddy based on proxyType.
-func StartProxy(client *ssh.Client, proxyType, traefikImage, caddyImage, network string) error {
+func StartProxy(client *ssh.Client, proxyType, traefikImage, caddyImage, network, acmeEmail string) error {
 	if network == "" {
 		network = "goolify"
 	}
 	switch strings.ToLower(proxyType) {
 	case "", "traefik":
-		return StartTraefik(client, traefikImage, network)
+		return StartTraefik(client, traefikImage, network, acmeEmail)
 	case "caddy":
 		return StartCaddy(client, caddyImage, network)
 	case "none":

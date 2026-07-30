@@ -97,8 +97,8 @@ func normalizeLinkURL(raw string) string {
 	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
 		return strings.TrimRight(raw, "/")
 	}
-	// host or host:port
-	return "http://" + strings.TrimRight(raw, "/")
+	// host or host:port — prefer https for public hosts (matches PublicURL).
+	return PublicURL(strings.TrimRight(raw, "/"))
 }
 
 func hostFromURL(u string) string {

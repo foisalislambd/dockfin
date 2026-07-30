@@ -548,9 +548,22 @@ func injectProxyLabels(doc map[string]any, opts PrepareOpts) {
 	}
 	labels := map[string]string{
 		"traefik.enable": "true",
-		fmt.Sprintf("traefik.http.routers.%s.rule", router):                      fmt.Sprintf("Host(`%s`)", fqdn),
-		fmt.Sprintf("traefik.http.routers.%s.entrypoints", router):               "http",
 		fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port", router): port,
+	}
+	useHTTPS := strings.HasPrefix(strings.ToLower(strings.TrimSpace(opts.BaseURL)), "https://")
+	if useHTTPS {
+		labels[fmt.Sprintf("traefik.http.routers.%s.rule", router)] = fmt.Sprintf("Host(`%s`)", fqdn)
+		labels[fmt.Sprintf("traefik.http.routers.%s.entrypoints", router)] = "https"
+		labels[fmt.Sprintf("traefik.http.routers.%s.tls", router)] = "true"
+		labels[fmt.Sprintf("traefik.http.routers.%s.tls.certresolver", router)] = "letsencrypt"
+		labels[fmt.Sprintf("traefik.http.routers.%s-http.rule", router)] = fmt.Sprintf("Host(`%s`)", fqdn)
+		labels[fmt.Sprintf("traefik.http.routers.%s-http.entrypoints", router)] = "http"
+		labels[fmt.Sprintf("traefik.http.routers.%s-http.middlewares", router)] = router + "-redirect"
+		labels[fmt.Sprintf("traefik.http.middlewares.%s-redirect.redirectscheme.scheme", router)] = "https"
+		labels[fmt.Sprintf("traefik.http.middlewares.%s-redirect.redirectscheme.permanent", router)] = "true"
+	} else {
+		labels[fmt.Sprintf("traefik.http.routers.%s.rule", router)] = fmt.Sprintf("Host(`%s`)", fqdn)
+		labels[fmt.Sprintf("traefik.http.routers.%s.entrypoints", router)] = "http"
 	}
 	if opts.Network != "" {
 		labels["traefik.docker.network"] = opts.Network
