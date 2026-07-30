@@ -298,7 +298,7 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-40 grid place-items-center bg-black/50 p-4 dark:bg-black/70" onClick={onClose}>
       <div
-        className="panel-card w-full max-w-md p-5"
+        className="panel-modal w-full max-w-md p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">

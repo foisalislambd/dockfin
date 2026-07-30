@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -85,6 +87,20 @@ func (a *API) handleCreateService(w http.ResponseWriter, r *http.Request) {
 		}
 		svc.DestinationID = &id
 	}
+
+	opts := services.PrepareOpts{BaseURL: "http://127.0.0.1"}
+	if svc.DestinationID != nil {
+		if dest, err := a.Store.GetDestination(r.Context(), currentTeamID(r), *svc.DestinationID); err == nil {
+			opts.Network = dest.Network
+		}
+	}
+	prepared, _, err := services.PrepareCompose(compose, opts)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid compose: %v", err))
+		return
+	}
+	svc.DockerCompose = prepared
+
 	created, err := a.Store.CreateService(r.Context(), svc)
 	if err != nil {
 		mapStoreErr(w, err)
@@ -119,16 +135,21 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	if svc.DockerComposeRaw == "" {
+	if svc.DockerComposeRaw == "" && svc.DockerCompose == "" {
 		writeError(w, http.StatusBadRequest, "service has no docker compose content")
 		return
 	}
 	var serverID uuid.UUID
+	var dest *store.Destination
 	switch {
 	case svc.ServerID != nil:
 		serverID = *svc.ServerID
+		if svc.DestinationID != nil {
+			dest, _ = a.Store.GetDestination(r.Context(), teamID, *svc.DestinationID)
+		}
 	case svc.DestinationID != nil:
-		dest, err := a.Store.GetDestination(r.Context(), teamID, *svc.DestinationID)
+		var err error
+		dest, err = a.Store.GetDestination(r.Context(), teamID, *svc.DestinationID)
 		if err != nil {
 			mapStoreErr(w, err)
 			return
@@ -138,10 +159,38 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "service has no server or destination")
 		return
 	}
+
+	composeYAML := svc.DockerCompose
+	if composeYAML == "" || composeYAML == svc.DockerComposeRaw || looksLikeUnpreparedCompose(svc.DockerComposeRaw, composeYAML) {
+		opts := services.PrepareOpts{
+			ServiceID: id.String(),
+			BaseURL:   "http://127.0.0.1",
+		}
+		if dest != nil {
+			opts.Network = dest.Network
+		}
+		prepared, _, err := services.PrepareCompose(svc.DockerComposeRaw, opts)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("prepare compose: %v", err))
+			return
+		}
+		composeYAML = prepared
+		_ = a.Store.UpdateServiceCompose(r.Context(), id, prepared)
+	}
+
 	client, err := a.dialServer(r, serverID)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	if dest != nil && dest.Network != "" {
+		if _, _, err := sshx.RunArgs(client, "docker", "network", "inspect", dest.Network); err != nil {
+			_, errOut, err := sshx.RunArgs(client, "docker", "network", "create", dest.Network)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, fmt.Sprintf("create network: %v %s", err, errOut))
+				return
+			}
+		}
 	}
 	remoteDir := "/data/goolify/services/" + id.String()
 	_, errOut, err := sshx.RunArgs(client, "mkdir", "-p", remoteDir)
@@ -150,7 +199,7 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	composePath := remoteDir + "/docker-compose.yml"
-	writeCmd := fmt.Sprintf("cat > %s <<'GOOLIFY_COMPOSE_EOF'\n%s\nGOOLIFY_COMPOSE_EOF", composePath, svc.DockerComposeRaw)
+	writeCmd := fmt.Sprintf("cat > %s <<'GOOLIFY_COMPOSE_EOF'\n%s\nGOOLIFY_COMPOSE_EOF", composePath, composeYAML)
 	_, errOut, err = sshx.Run(client, writeCmd)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("write compose: %v %s", err, errOut))
@@ -164,6 +213,29 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = a.Store.UpdateServiceStatus(r.Context(), id, "running")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "running"})
+}
+
+func looksLikeUnpreparedCompose(raw, prepared string) bool {
+	if prepared == "" || prepared == raw {
+		return true
+	}
+	if strings.Contains(prepared, "$SERVICE_") {
+		return true
+	}
+	if regexp.MustCompile(`(?m)^\s*-\s+SERVICE_(URL|FQDN|PASSWORD|USER)_`).MatchString(prepared) {
+		return true
+	}
+	return hasNamedVolumeMounts(raw) && !hasTopLevelVolumes(prepared)
+}
+
+func hasTopLevelVolumes(compose string) bool {
+	return regexp.MustCompile(`(?m)^volumes:\s*$`).MatchString(compose) ||
+		strings.Contains(compose, "\nvolumes:\n") ||
+		strings.HasPrefix(compose, "volumes:\n")
+}
+
+func hasNamedVolumeMounts(raw string) bool {
+	return regexp.MustCompile(`(?m)^\s*-\s+([a-zA-Z][a-zA-Z0-9_.-]*):/`).MatchString(raw)
 }
 
 func (a *API) handleListServiceTemplates(w http.ResponseWriter, r *http.Request) {

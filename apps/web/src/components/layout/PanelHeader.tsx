@@ -65,11 +65,14 @@ export function PanelHeader() {
 
       {paletteOpen && (
         <div
-          className="fixed inset-0 z-50 grid place-items-start bg-gray-900/50 pt-[15vh]"
+          className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 dark:bg-black/70"
           onClick={() => setPaletteOpen(false)}
         >
-          <div className="panel-card w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="border-b border-gray-200 px-4 py-3 text-sm text-gray-500 dark:text-gray-400 dark:border-gray-800">
+          <div
+            className="panel-modal w-full max-w-lg overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="border-b border-gray-200 px-4 py-3 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
               Jump to…
             </div>
             <ul>

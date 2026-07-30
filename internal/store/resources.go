@@ -142,6 +142,7 @@ type Service struct {
 	Description      string     `json:"description"`
 	ServiceType      string     `json:"service_type"`
 	DockerComposeRaw string     `json:"docker_compose_raw"`
+	DockerCompose    string     `json:"docker_compose,omitempty"`
 	Status           string     `json:"status"`
 	CreatedAt        time.Time  `json:"created_at"`
 }
@@ -579,20 +580,24 @@ func (s *Store) UpdateDatabaseStatus(ctx context.Context, id uuid.UUID, status s
 }
 
 func (s *Store) CreateService(ctx context.Context, svc *Service) (*Service, error) {
+	prepared := svc.DockerCompose
+	if prepared == "" {
+		prepared = svc.DockerComposeRaw
+	}
 	err := s.Pool.QueryRow(ctx, `
 		INSERT INTO services (team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, docker_compose)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8)
-		RETURNING id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, status, created_at
-	`, svc.TeamID, svc.EnvironmentID, svc.ServerID, svc.DestinationID, svc.Name, svc.Description, svc.ServiceType, svc.DockerComposeRaw).Scan(
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		RETURNING id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, docker_compose, status, created_at
+	`, svc.TeamID, svc.EnvironmentID, svc.ServerID, svc.DestinationID, svc.Name, svc.Description, svc.ServiceType, svc.DockerComposeRaw, prepared).Scan(
 		&svc.ID, &svc.TeamID, &svc.EnvironmentID, &svc.ServerID, &svc.DestinationID, &svc.Name, &svc.Description,
-		&svc.ServiceType, &svc.DockerComposeRaw, &svc.Status, &svc.CreatedAt,
+		&svc.ServiceType, &svc.DockerComposeRaw, &svc.DockerCompose, &svc.Status, &svc.CreatedAt,
 	)
 	return svc, err
 }
 
 func (s *Store) ListServices(ctx context.Context, teamID uuid.UUID, environmentID *uuid.UUID) ([]Service, error) {
 	q := `
-		SELECT id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, status, created_at
+		SELECT id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, COALESCE(docker_compose, ''), status, created_at
 		FROM services WHERE team_id=$1 AND deleted_at IS NULL`
 	args := []any{teamID}
 	if environmentID != nil {
@@ -610,7 +615,7 @@ func (s *Store) ListServices(ctx context.Context, teamID uuid.UUID, environmentI
 		var svc Service
 		if err := rows.Scan(
 			&svc.ID, &svc.TeamID, &svc.EnvironmentID, &svc.ServerID, &svc.DestinationID, &svc.Name, &svc.Description,
-			&svc.ServiceType, &svc.DockerComposeRaw, &svc.Status, &svc.CreatedAt,
+			&svc.ServiceType, &svc.DockerComposeRaw, &svc.DockerCompose, &svc.Status, &svc.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -622,16 +627,21 @@ func (s *Store) ListServices(ctx context.Context, teamID uuid.UUID, environmentI
 func (s *Store) GetService(ctx context.Context, teamID, id uuid.UUID) (*Service, error) {
 	var svc Service
 	err := s.Pool.QueryRow(ctx, `
-		SELECT id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, status, created_at
+		SELECT id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, COALESCE(docker_compose, ''), status, created_at
 		FROM services WHERE id=$1 AND team_id=$2 AND deleted_at IS NULL
 	`, id, teamID).Scan(
 		&svc.ID, &svc.TeamID, &svc.EnvironmentID, &svc.ServerID, &svc.DestinationID, &svc.Name, &svc.Description,
-		&svc.ServiceType, &svc.DockerComposeRaw, &svc.Status, &svc.CreatedAt,
+		&svc.ServiceType, &svc.DockerComposeRaw, &svc.DockerCompose, &svc.Status, &svc.CreatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	return &svc, err
+}
+
+func (s *Store) UpdateServiceCompose(ctx context.Context, id uuid.UUID, prepared string) error {
+	_, err := s.Pool.Exec(ctx, `UPDATE services SET docker_compose=$2, updated_at=NOW() WHERE id=$1`, id, prepared)
+	return err
 }
 
 func (s *Store) ListQueuedDeployments(ctx context.Context, limit int) ([]Deployment, error) {
