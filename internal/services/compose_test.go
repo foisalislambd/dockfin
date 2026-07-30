@@ -77,16 +77,51 @@ services:
 	if !strings.Contains(out, "Host(`wp.example.com`)") {
 		t.Fatalf("expected Host rule:\n%s", out)
 	}
-	if !strings.Contains(out, "entrypoints: https") && !strings.Contains(out, "entrypoints: \"https\"") {
-		t.Fatalf("expected https entrypoint:\n%s", out)
-	}
-	if !strings.Contains(out, "certresolver: letsencrypt") {
-		t.Fatalf("expected letsencrypt certresolver:\n%s", out)
-	}
-	if !strings.Contains(out, "loadbalancer.server.port: \"80\"") && !strings.Contains(out, "loadbalancer.server.port: \"80\"") {
-		if !strings.Contains(out, "loadbalancer.server.port") {
-			t.Fatalf("expected traefik port:\n%s", out)
+	if !strings.Contains(out, "entrypoints: https") && !strings.Contains(out, `entrypoints: "https"`) && !strings.Contains(out, "entrypoints: https") {
+		if !strings.Contains(out, "certresolver: letsencrypt") {
+			t.Fatalf("expected https/letsencrypt labels:\n%s", out)
 		}
+	}
+	if !strings.Contains(out, "loadbalancer.server.port") {
+		t.Fatalf("expected traefik port:\n%s", out)
+	}
+}
+
+func TestPrepareComposeMagicDomainHTTP(t *testing.T) {
+	raw := `services:
+  n8n:
+    image: n8nio/n8n
+    environment:
+      - SERVICE_URL_N8N_5678
+      - N8N_EDITOR_BASE_URL=${SERVICE_URL_N8N}
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-https}
+`
+	out, env, err := PrepareCompose(raw, PrepareOpts{
+		BaseURL:    "http://n8n.1.2.3.4.sslip.io",
+		FQDN:       "n8n.1.2.3.4.sslip.io",
+		Network:    "goolify",
+		RouterName: "n8n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env["SERVICE_URL_N8N"] != "http://n8n.1.2.3.4.sslip.io" {
+		t.Fatalf("url: %#v", env["SERVICE_URL_N8N"])
+	}
+	if env["N8N_PROTOCOL"] != "http" || env["N8N_SECURE_COOKIE"] != "false" {
+		t.Fatalf("http compat: %#v", env)
+	}
+	if !strings.Contains(out, "N8N_PROTOCOL=http") {
+		t.Fatalf("expected N8N_PROTOCOL=http baked:\n%s", out)
+	}
+	if !strings.Contains(out, "N8N_SECURE_COOKIE=false") {
+		t.Fatalf("expected N8N_SECURE_COOKIE=false:\n%s", out)
+	}
+	if strings.Contains(out, "certresolver") || strings.Contains(out, "entrypoints: https") {
+		t.Fatalf("magic http must not use TLS labels:\n%s", out)
+	}
+	if !strings.Contains(out, "entrypoints: http") && !strings.Contains(out, `entrypoints: "http"`) {
+		t.Fatalf("expected http entrypoint:\n%s", out)
 	}
 }
 
@@ -102,7 +137,7 @@ func TestPrepareComposePortSuffixAndCompanionKeys(t *testing.T) {
     image: redis
 `
 	out, env, err := PrepareCompose(raw, PrepareOpts{
-		BaseURL:    "https://n8n.1.2.3.4.sslip.io",
+		BaseURL:    "http://n8n.1.2.3.4.sslip.io",
 		FQDN:       "n8n.1.2.3.4.sslip.io",
 		Network:    "goolify",
 		RouterName: "n8n",
@@ -110,16 +145,16 @@ func TestPrepareComposePortSuffixAndCompanionKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if env["SERVICE_URL_N8N_5678"] != "https://n8n.1.2.3.4.sslip.io" {
+	if env["SERVICE_URL_N8N_5678"] != "http://n8n.1.2.3.4.sslip.io" {
 		t.Fatalf("port url: %#v", env["SERVICE_URL_N8N_5678"])
 	}
-	if env["SERVICE_URL_N8N"] != "https://n8n.1.2.3.4.sslip.io" {
+	if env["SERVICE_URL_N8N"] != "http://n8n.1.2.3.4.sslip.io" {
 		t.Fatalf("companion url missing: %#v", env)
 	}
 	if env["SERVICE_FQDN_N8N"] != "n8n.1.2.3.4.sslip.io" {
 		t.Fatalf("companion fqdn missing: %#v", env)
 	}
-	if !strings.Contains(out, "N8N_EDITOR_BASE_URL=https://n8n.1.2.3.4.sslip.io") {
+	if !strings.Contains(out, "N8N_EDITOR_BASE_URL=http://n8n.1.2.3.4.sslip.io") {
 		t.Fatalf("companion not substituted:\n%s", out)
 	}
 	if !strings.Contains(out, "loadbalancer.server.port: \"5678\"") {

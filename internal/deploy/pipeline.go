@@ -209,8 +209,9 @@ func (p *Pipeline) proxyLabelArgs(app *store.Application, proxyType string) []st
 	case "none":
 		return nil
 	default:
-		// Magic/custom domains terminate TLS at Traefik (Let's Encrypt).
-		labels = proxy.TraefikLabelsHTTPS(app.Name, host, port, true)
+		// Coolify: TLS only when URL scheme is https (magic sslip stays http).
+		forceHTTPS := app.IsForceHTTPS || strings.HasPrefix(proxy.PublicURL(host), "https://")
+		labels = proxy.TraefikLabelsHTTPS(app.Name, host, port, forceHTTPS)
 	}
 	var args []string
 	for _, l := range labels {

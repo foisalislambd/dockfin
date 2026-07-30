@@ -49,6 +49,7 @@ func PrepareCompose(raw string, opts PrepareOpts) (string, map[string]string, er
 	}
 	expandMagicInDoc(doc, env)
 	persistMagicSecrets(doc, env)
+	injectCompatEnv(doc, env)
 	opts.Port = DetectProxyPort(raw, opts.Port)
 	injectProxyLabels(doc, opts)
 
@@ -133,6 +134,13 @@ func collectAndGenerateMagic(raw string, opts PrepareOpts) map[string]string {
 		if hasPort {
 			ensureMagicPair(env, name, port, baseURL, fqdn)
 		}
+	}
+
+	// Coolify uses http:// for sslip magic domains. n8n's template defaults
+	// N8N_PROTOCOL to https which breaks secure cookies on HTTP — align protocol.
+	if strings.HasPrefix(strings.ToLower(baseURL), "http://") {
+		env["N8N_PROTOCOL"] = "http"
+		env["N8N_SECURE_COOKIE"] = "false"
 	}
 	return env
 }
@@ -398,6 +406,153 @@ func substituteMagic(s string, magic map[string]string) string {
 		}
 		return m
 	})
+}
+
+// injectCompatEnv writes HTTP-compat keys into services that already reference them
+// (e.g. n8n), and resolves ${N8N_PROTOCOL:-https}-style Coolify template defaults.
+func injectCompatEnv(doc map[string]any, env map[string]string) {
+	compat := map[string]string{}
+	for _, k := range []string{"N8N_PROTOCOL", "N8N_SECURE_COOKIE"} {
+		if v := strings.TrimSpace(env[k]); v != "" {
+			compat[k] = v
+		}
+	}
+	if len(compat) == 0 {
+		return
+	}
+	services, _ := doc["services"].(map[string]any)
+	if services == nil {
+		return
+	}
+	for name, svcAny := range services {
+		svc, ok := svcAny.(map[string]any)
+		if !ok {
+			continue
+		}
+		if !envMentionsKeys(svc["environment"], []string{"N8N_PROTOCOL", "N8N_EDITOR_BASE_URL", "N8N_HOST", "WEBHOOK_URL"}) {
+			continue
+		}
+		svc["environment"] = mergeCompatEnv(svc["environment"], compat)
+		services[name] = svc
+	}
+	doc["services"] = services
+}
+
+func envMentionsKeys(envAny any, keys []string) bool {
+	has := map[string]bool{}
+	switch list := envAny.(type) {
+	case []any:
+		for _, item := range list {
+			s, ok := item.(string)
+			if !ok {
+				continue
+			}
+			name := s
+			if i := strings.IndexByte(s, '='); i > 0 {
+				name = s[:i]
+			}
+			has[name] = true
+			for _, k := range keys {
+				if strings.Contains(s, k) {
+					has[k] = true
+				}
+			}
+		}
+	case map[string]any:
+		for k := range list {
+			has[k] = true
+		}
+	}
+	for _, k := range keys {
+		if has[k] {
+			return true
+		}
+	}
+	return false
+}
+
+func mergeCompatEnv(envAny any, compat map[string]string) any {
+	reDefault := regexp.MustCompile(`\$\{([A-Z0-9_]+):-[^}]*\}`)
+	applyLine := func(s string) string {
+		s = strings.TrimSpace(s)
+		if i := strings.IndexByte(s, '='); i > 0 {
+			key := s[:i]
+			if v, ok := compat[key]; ok {
+				return key + "=" + v
+			}
+		}
+		// N8N_PROTOCOL=${N8N_PROTOCOL:-https}
+		if i := strings.IndexByte(s, '='); i > 0 {
+			key, val := s[:i], s[i+1:]
+			if _, ok := compat[key]; ok {
+				if m := reDefault.FindStringSubmatch(val); len(m) == 2 {
+					if v, ok := compat[m[1]]; ok {
+						return key + "=" + v
+					}
+				}
+			}
+		}
+		return reDefault.ReplaceAllStringFunc(s, func(m string) string {
+			sub := reDefault.FindStringSubmatch(m)
+			if len(sub) == 2 {
+				if v, ok := compat[sub[1]]; ok {
+					return v
+				}
+			}
+			return m
+		})
+	}
+
+	keys := make([]string, 0, len(compat))
+	for k := range compat {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	switch list := envAny.(type) {
+	case []any:
+		have := map[string]bool{}
+		out := make([]any, 0, len(list)+len(keys))
+		for _, item := range list {
+			s, ok := item.(string)
+			if !ok {
+				out = append(out, item)
+				continue
+			}
+			s = applyLine(s)
+			out = append(out, s)
+			if i := strings.IndexByte(s, '='); i > 0 {
+				have[s[:i]] = true
+			}
+		}
+		for _, k := range keys {
+			if !have[k] {
+				out = append(out, k+"="+compat[k])
+			}
+		}
+		return out
+	case map[string]any:
+		out := map[string]any{}
+		for k, v := range list {
+			if vs, ok := v.(string); ok {
+				out[k] = applyLine(k + "=" + vs)[len(k)+1:]
+			} else {
+				out[k] = v
+			}
+		}
+		for _, k := range keys {
+			out[k] = compat[k]
+		}
+		return out
+	case nil:
+		out := make([]any, 0, len(keys))
+		for _, k := range keys {
+			out = append(out, k+"="+compat[k])
+		}
+		return out
+	default:
+		return envAny
+	}
 }
 
 func ensureNamedVolumes(doc map[string]any) {

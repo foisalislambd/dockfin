@@ -57,10 +57,19 @@ func TestGenerateFQDN(t *testing.T) {
 }
 
 func TestPublicURL(t *testing.T) {
-	if got := PublicURL("foo.1.2.3.4.sslip.io"); got != "https://foo.1.2.3.4.sslip.io" {
-		t.Fatalf("got %q", got)
+	if got := PublicURL("foo.1.2.3.4.sslip.io"); got != "http://foo.1.2.3.4.sslip.io" {
+		t.Fatalf("magic got %q", got)
+	}
+	if got := PublicURL("app.example.com"); got != "https://app.example.com" {
+		t.Fatalf("custom got %q", got)
 	}
 	if got := PublicURL("127.0.0.1"); got != "http://127.0.0.1" {
 		t.Fatalf("localhost got %q", got)
+	}
+	if !SslipHTTPSWarning("https://foo.1.2.3.4.sslip.io") {
+		t.Fatal("expected sslip https warning")
+	}
+	if SslipHTTPSWarning("http://foo.1.2.3.4.sslip.io") {
+		t.Fatal("http sslip should not warn")
 	}
 }

@@ -120,8 +120,24 @@ func GenerateFQDN(resourceName string, resourceID uuid.UUID, serverIP, wildcardD
 	return prefix + "." + base
 }
 
-// PublicURL returns a browser URL for an FQDN.
-// Non-local hosts use https:// (Traefik + Let's Encrypt); localhost stays http://.
+// IsMagicDomainHost reports sslip.io / nip.io free-DNS hostnames (Coolify magic domains).
+func IsMagicDomainHost(host string) bool {
+	host = strings.ToLower(strings.TrimSpace(host))
+	host = strings.TrimPrefix(strings.TrimPrefix(host, "https://"), "http://")
+	if i := strings.IndexByte(host, '/'); i >= 0 {
+		host = host[:i]
+	}
+	if i := strings.IndexByte(host, ':'); i >= 0 {
+		host = host[:i]
+	}
+	return strings.HasSuffix(host, ".sslip.io") || host == "sslip.io" ||
+		strings.HasSuffix(host, ".nip.io") || host == "nip.io"
+}
+
+// PublicURL returns a browser URL for an FQDN — Coolify-compatible.
+// Magic domains (sslip.io / nip.io) and localhost stay http:// (Coolify sslip() is always http;
+// https+sslip is discouraged because Let's Encrypt rate-limits those public domains).
+// Custom hostnames default to https://.
 func PublicURL(fqdn string) string {
 	fqdn = strings.TrimSpace(fqdn)
 	if fqdn == "" {
@@ -134,11 +150,31 @@ func PublicURL(fqdn string) string {
 	if i := strings.IndexByte(host, '/'); i >= 0 {
 		host = host[:i]
 	}
-	host = strings.ToLower(host)
-	if host == "127.0.0.1" || host == "localhost" || strings.HasPrefix(host, "127.0.0.1:") || strings.HasPrefix(host, "localhost:") {
+	hostLower := strings.ToLower(host)
+	if hostLower == "127.0.0.1" || hostLower == "localhost" ||
+		strings.HasPrefix(hostLower, "127.0.0.1:") || strings.HasPrefix(hostLower, "localhost:") ||
+		IsMagicDomainHost(hostLower) {
 		return "http://" + fqdn
 	}
 	return "https://" + fqdn
+}
+
+// SslipHTTPSWarning is true when a domain list uses https with sslip (Coolify warning.sslipdomain).
+func SslipHTTPSWarning(domains string) bool {
+	for _, part := range strings.Split(domains, ",") {
+		part = strings.ToLower(strings.TrimSpace(part))
+		if part == "" {
+			continue
+		}
+		if strings.Contains(part, "https") && strings.Contains(part, "sslip") {
+			return true
+		}
+		// Bare host stored as FQDN but linked as https
+		if IsMagicDomainHost(part) && strings.HasPrefix(PublicURL(part), "https://") {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeIPForMagic(ip string) string {

@@ -86,6 +86,10 @@ export function LinksPanel({ links }: { links: ResourceLink[] }) {
       l.url.includes('localhost') ||
       l.url.includes('.0.0.0.0.'),
   )
+  // Coolify warning.sslipdomain — https + sslip is rate-limited by Let's Encrypt.
+  const hasSslipHttps = items.some(
+    (l) => l.url.startsWith('https://') && l.url.includes('sslip'),
+  )
   if (!items.length) {
     return (
       <div className="panel-card p-6 text-sm text-gray-500 dark:text-gray-400">
@@ -104,6 +108,13 @@ export function LinksPanel({ links }: { links: ResourceLink[] }) {
           This link uses <code>127.0.0.1</code> / localhost — your browser will try to open your own
           PC, not the server. Set the server&apos;s <strong>Public IP</strong> (Servers → Settings),
           run Validate, then Redeploy this service.
+        </div>
+      )}
+      {hasSslipHttps && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+          sslip.io with <strong>https</strong> is not recommended (Let&apos;s Encrypt rate-limits this
+          public domain). Coolify-style free domains use <code>http://</code> — for HTTPS, use your
+          own domain.
         </div>
       )}
       <ul className="divide-y divide-gray-200 overflow-hidden rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
