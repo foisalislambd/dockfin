@@ -54,6 +54,17 @@ Open http://localhost:5173 — register, run Onboarding, deploy.
 sudo bash scripts/install.sh
 ```
 
+## One-click VPS smoke test
+
+Install and run a self-SSH deploy smoke test on a fresh Ubuntu VPS:
+
+```bash
+# After cloning the repo on the VPS:
+sudo bash scripts/vps-oneclick-test.sh
+```
+
+Details: [docs/VPS-SMOKE-TEST.md](docs/VPS-SMOKE-TEST.md)
+
 ## Architecture
 
 ```

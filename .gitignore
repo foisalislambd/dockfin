@@ -34,3 +34,6 @@ coverage.out
 # Generated
 # keep openapi hand-written; ignore generated clients if large
 tmp/
+
+
+coolify
