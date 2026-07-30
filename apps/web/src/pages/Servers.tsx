@@ -29,7 +29,6 @@ export function ServersPage() {
     <div className="space-y-6">
       <Header
         title="Servers"
-        subtitle="SSH-managed Docker hosts. No agent required."
         actions={
           <>
             <Btn onClick={() => setShowKey(true)}>Add SSH key</Btn>
@@ -198,18 +197,16 @@ function KeyForm({ onSubmit, error }: { onSubmit: (name: string, key: string) =>
 
 export function Header({
   title,
-  subtitle,
   actions,
 }: {
   title: string
-  subtitle: string
+  subtitle?: string
   actions?: React.ReactNode
 }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
         <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">{title}</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>
       </div>
       <div className="flex gap-2">{actions}</div>
     </div>

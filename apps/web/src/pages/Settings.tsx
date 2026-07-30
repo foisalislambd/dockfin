@@ -5,13 +5,9 @@ export function SettingsPage() {
     <div className="space-y-6">
       <Header
         title="Settings"
-        subtitle="Instance configuration for this Goolify installation."
       />
       <div className="rounded-xl border border-gray-200 dark:border-gray-800 panel-card bg-white dark:bg-white/3/60 p-6">
         <h2 className="text-lg font-medium">Instance settings</h2>
-        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-          Coming soon — domain defaults, registry credentials, and team preferences will live here.
-        </p>
         <dl className="mt-6 grid gap-4 sm:grid-cols-2">
           <div>
             <dt className="text-xs text-gray-500 dark:text-gray-400">API</dt>

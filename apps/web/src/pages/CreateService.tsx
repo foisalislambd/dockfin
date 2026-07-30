@@ -60,7 +60,6 @@ export function CreateServicePage() {
   return (
     <CreatePageShell
       title="New service"
-      subtitle="Pick a one-click template and deploy it to a destination."
       backTo="/services"
       backLabel="Back to services"
     >
@@ -143,7 +142,6 @@ export function CreateServicePage() {
                   }`}
                 >
                   <div className="text-sm font-medium text-gray-900 dark:text-white">{t.name}</div>
-                  <div className="mt-0.5 line-clamp-2 text-xs text-gray-500">{t.description}</div>
                   {t.category && (
                     <div className="mt-2 text-[10px] font-semibold tracking-wide text-gray-400 uppercase">
                       {t.category}

@@ -50,17 +50,11 @@ export function DashboardPage() {
         <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
           Welcome{user?.name ? `, ${user.name}` : ''}
         </h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Your self-hosted PaaS at a glance. Add a server, then deploy.
-        </p>
-      </div>
+        </div>
 
       {!servers.isLoading && !hasServers && (
         <div className="panel-card border-brand-200 bg-brand-50/60 p-6 dark:border-brand-500/30 dark:bg-brand-500/10">
           <h2 className="text-lg font-medium text-gray-900 dark:text-white">Welcome — no servers yet</h2>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Run onboarding to add an SSH key, connect a host, start the proxy, and create your first project.
-          </p>
           <Link
             to="/onboarding"
             className="mt-4 inline-flex h-8 items-center rounded-md bg-brand-500 px-2.5 text-xs font-medium text-white hover:bg-brand-600"

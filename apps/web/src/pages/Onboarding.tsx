@@ -108,7 +108,6 @@ export function OnboardingPage() {
     <div className="space-y-8">
       <Header
         title="Onboarding"
-        subtitle="Get from zero to a deployable project in five steps."
         actions={
           <Link to="/dashboard" className="text-sm text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:text-brand-400">
             Skip to dashboard

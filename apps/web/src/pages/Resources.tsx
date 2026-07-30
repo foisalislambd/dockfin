@@ -24,7 +24,6 @@ export function ProjectsPage() {
     <div className="space-y-6">
       <Header
         title="Projects"
-        subtitle="Group applications, databases, and services by environment."
         actions={
           <Btn primary onClick={() => setShow(true)}>
             New project
@@ -35,7 +34,6 @@ export function ProjectsPage() {
         {(projects.data?.projects || []).map((p) => (
           <div key={p.id} className="panel-card p-5">
             <div className="font-medium text-gray-900 dark:text-white">{p.name}</div>
-            <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">{p.description || 'No description'}</div>
           </div>
         ))}
       </div>
@@ -68,7 +66,6 @@ export function ApplicationsPage() {
     <div className="space-y-6">
       <Header
         title="Applications"
-        subtitle="Dockerfile, compose, nixpacks, and image deploys."
         actions={
           <Link
             to="/applications/new"
@@ -149,7 +146,6 @@ export function DatabasesPage() {
     <div className="space-y-6">
       <Header
         title="Databases"
-        subtitle="Postgres, MySQL, MariaDB, MongoDB, Redis, KeyDB, Dragonfly, ClickHouse."
         actions={
           <Link
             to="/databases/new"
@@ -207,7 +203,6 @@ export function ServicesPage() {
     <div className="space-y-6">
       <Header
         title="Services"
-        subtitle="One-click compose stacks and custom services."
         actions={
           <Link
             to="/services/new"
@@ -260,7 +255,6 @@ export function ServicesPage() {
           {(templates.data?.templates || []).slice(0, 8).map((t) => (
             <div key={t.type} className="panel-card px-3 py-3 text-sm">
               <div className="font-medium text-gray-900 dark:text-white">{t.name}</div>
-              <div className="mt-1 line-clamp-2 text-gray-500 dark:text-gray-400">{t.description}</div>
             </div>
           ))}
         </div>

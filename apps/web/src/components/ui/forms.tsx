@@ -4,13 +4,12 @@ import type { ReactNode } from 'react'
 
 export function CreatePageShell({
   title,
-  subtitle,
   backTo,
   backLabel,
   children,
 }: {
   title: string
-  subtitle: string
+  subtitle?: string
   backTo: string
   backLabel: string
   children: ReactNode
@@ -28,7 +27,6 @@ export function CreatePageShell({
           {backLabel}
         </button>
         <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">{title}</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>
       </div>
       <div className="panel-card p-4 sm:p-5">{children}</div>
     </div>
@@ -126,12 +124,11 @@ export function FormActions({
 export function ChoiceCard({
   active,
   title,
-  description,
   onClick,
 }: {
   active: boolean
   title: string
-  description: string
+  description?: string
   onClick: () => void
 }) {
   return (
@@ -149,7 +146,6 @@ export function ChoiceCard({
       >
         {title}
       </div>
-      <div className="mt-0.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{description}</div>
     </button>
   )
 }

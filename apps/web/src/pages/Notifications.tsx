@@ -64,7 +64,6 @@ export function NotificationsPage() {
     <div className="space-y-6">
       <Header
         title="Notifications"
-        subtitle="Discord, Slack, and generic webhooks for deploy events."
       />
       {error && <p className="text-sm text-error-500">{error}</p>}
       {saved && <p className="text-sm text-brand-600 dark:text-brand-400">{saved}</p>}

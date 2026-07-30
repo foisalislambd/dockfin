@@ -63,7 +63,6 @@ export function CreateApplicationPage() {
   return (
     <CreatePageShell
       title="New application"
-      subtitle="Configure build pack, destination, and networking for a new deployable app."
       backTo="/applications"
       backLabel="Back to applications"
     >
@@ -108,7 +107,6 @@ export function CreateApplicationPage() {
                 key={bp.id}
                 active={form.build_pack === bp.id}
                 title={bp.title}
-                description={bp.description}
                 onClick={() => setForm({ ...form, build_pack: bp.id })}
               />
             ))}

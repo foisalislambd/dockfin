@@ -151,7 +151,7 @@ export function ApplicationDetailPage() {
 
       {(streamId || activeDep) && (
         <section className="space-y-2">
-          <Header title="Live logs" subtitle={`Deployment ${streamId || activeDep?.id}`} />
+          <Header title="Live logs" />
           <pre
             ref={logRef}
             className="max-h-80 overflow-auto rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 font-mono text-xs leading-relaxed text-gray-500 dark:text-gray-400"

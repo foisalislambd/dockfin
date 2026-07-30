@@ -62,7 +62,6 @@ export function CreateDatabasePage() {
     return (
       <CreatePageShell
         title="Database created"
-        subtitle="Copy this password now — it will not be shown again."
         backTo="/databases"
         backLabel="Back to databases"
       >
@@ -86,7 +85,6 @@ export function CreateDatabasePage() {
   return (
     <CreatePageShell
       title="New database"
-      subtitle="Provision a managed database container on a destination."
       backTo="/databases"
       backLabel="Back to databases"
     >
@@ -128,7 +126,6 @@ export function CreateDatabasePage() {
                 key={eng.id}
                 active={form.engine === eng.id}
                 title={eng.title}
-                description={eng.description}
                 onClick={() => setForm({ ...form, engine: eng.id })}
               />
             ))}
