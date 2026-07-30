@@ -25,8 +25,9 @@ export function CreateDatabasePage() {
   const nav = useNavigate()
   const qc = useQueryClient()
   const params = useParams({ strict: false }) as { projectId?: string; envId?: string }
-  const search = useSearch({ strict: false }) as { environment_id?: string }
+  const search = useSearch({ strict: false }) as { environment_id?: string; engine?: string }
   const prefillEnv = params.envId || search.environment_id || ''
+  const prefillEngine = search.engine || ''
   const dests = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
   const envs = useQuery({ queryKey: ['all-environments'], queryFn: fetchAllEnvironments })
   const envTouched = useRef(false)
@@ -34,7 +35,7 @@ export function CreateDatabasePage() {
   const [createdId, setCreatedId] = useState<string | null>(null)
   const [form, setForm] = useState({
     name: '',
-    engine: 'postgresql',
+    engine: prefillEngine || 'postgresql',
     environment_id: prefillEnv,
     destination_id: '',
   })
@@ -47,8 +48,9 @@ export function CreateDatabasePage() {
       ...f,
       environment_id: envTouched.current ? f.environment_id : f.environment_id || prefillEnv || pick,
       destination_id: f.destination_id || dests.data?.destinations?.[0]?.id || '',
+      engine: prefillEngine || f.engine,
     }))
-  }, [envs.data, dests.data, prefillEnv])
+  }, [envs.data, dests.data, prefillEnv, prefillEngine])
 
   const nested = Boolean(params.projectId && params.envId)
   const backEnvId = form.environment_id || params.envId || ''
@@ -56,11 +58,9 @@ export function CreateDatabasePage() {
     (envs.data || []).find((e) => e.id === backEnvId)?.project_id || params.projectId || ''
   const backTo =
     nested && backProjectId && backEnvId
-      ? `/projects/${backProjectId}/environments/${backEnvId}`
-      : nested && params.projectId && params.envId
-        ? `/projects/${params.projectId}/environments/${params.envId}`
-        : '/databases'
-  const backLabel = nested ? 'Back to resources' : 'Back to databases'
+      ? `/projects/${backProjectId}/environments/${backEnvId}/new`
+      : '/projects'
+  const backLabel = nested ? 'Back to New Resource' : 'Back to projects'
 
   const goToDetail = (id: string, environmentId = form.environment_id) => {
     const envMeta = (envs.data || []).find((e) => e.id === environmentId)
@@ -72,7 +72,7 @@ export function CreateDatabasePage() {
         params: { projectId, envId, dbId: id },
       })
     } else if (id) {
-      void nav({ to: '/databases/$dbId', params: { dbId: id } })
+      void nav({ to: '/projects' })
     }
   }
 

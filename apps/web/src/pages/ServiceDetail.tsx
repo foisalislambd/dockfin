@@ -166,10 +166,10 @@ export function ServiceDetailPage() {
       </Link>
     ) : (
       <Link
-        to="/services"
+        to="/projects"
         className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
       >
-        ← Services
+        ← Projects
       </Link>
     )
 

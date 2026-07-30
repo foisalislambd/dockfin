@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { api, LAST_ENV_KEY } from '../lib/api'
 import { Btn, Header, Input, Modal } from './Servers'
@@ -21,6 +21,19 @@ export function ProjectShowPage() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
 
+  // Coolify navigateTo(): single environment → resources directly
+  useEffect(() => {
+    const list = envs.data?.environments
+    if (!list || list.length !== 1) return
+    const env = list[0]
+    localStorage.setItem(LAST_ENV_KEY, env.id)
+    void nav({
+      to: '/projects/$projectId/environments/$envId',
+      params: { projectId, envId: env.id },
+      replace: true,
+    })
+  }, [envs.data, projectId, nav])
+
   const create = useMutation({
     mutationFn: () => api.createEnvironment(projectId, name, description),
     onSuccess: (env) => {
@@ -37,7 +50,7 @@ export function ProjectShowPage() {
     },
   })
 
-  if (project.isLoading) {
+  if (project.isLoading || envs.isLoading) {
     return <PageSkeleton cards={1} />
   }
   if (project.error || !project.data) {
@@ -51,10 +64,18 @@ export function ProjectShowPage() {
     )
   }
 
+  // While redirecting single-env projects, keep skeleton
+  if ((envs.data?.environments || []).length === 1) {
+    return <PageSkeleton cards={1} />
+  }
+
   return (
     <div className="space-y-6">
       <div>
-        <Link to="/projects" className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400">
+        <Link
+          to="/projects"
+          className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
+        >
           ← Projects
         </Link>
         <Header
@@ -80,7 +101,9 @@ export function ProjectShowPage() {
             <div className="min-w-0">
               <div className="font-semibold text-gray-900 dark:text-white">{env.name}</div>
               {env.description && (
-                <div className="mt-1 truncate text-sm text-gray-500 dark:text-gray-400">{env.description}</div>
+                <div className="mt-1 truncate text-sm text-gray-500 dark:text-gray-400">
+                  {env.description}
+                </div>
               )}
             </div>
           </Link>

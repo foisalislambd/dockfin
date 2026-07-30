@@ -15,7 +15,7 @@ import { AuthSkeleton } from './components/ui/Skeleton'
 import { LoginPage, RegisterPage } from './pages/Auth'
 import { DashboardPage } from './pages/Dashboard'
 import { ServersPage } from './pages/Servers'
-import { ApplicationsPage, DatabasesPage, ProjectsPage, ServicesPage } from './pages/Resources'
+import { ProjectsPage } from './pages/Resources'
 import { CreateApplicationPage } from './pages/CreateApplication'
 import { CreateDatabasePage } from './pages/CreateDatabase'
 import { CreateServicePage } from './pages/CreateService'
@@ -141,6 +141,10 @@ const newResourceRoute = createRoute({
 const nestedCreateAppRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/projects/$projectId/environments/$envId/applications/new',
+  validateSearch: (s: Record<string, unknown>) => ({
+    build_pack: typeof s.build_pack === 'string' ? s.build_pack : undefined,
+    environment_id: typeof s.environment_id === 'string' ? s.environment_id : undefined,
+  }),
   component: CreateApplicationPage,
 })
 
@@ -159,6 +163,10 @@ const nestedDeploymentRoute = createRoute({
 const nestedCreateDbRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/projects/$projectId/environments/$envId/databases/new',
+  validateSearch: (s: Record<string, unknown>) => ({
+    engine: typeof s.engine === 'string' ? s.engine : undefined,
+    environment_id: typeof s.environment_id === 'string' ? s.environment_id : undefined,
+  }),
   component: CreateDatabasePage,
 })
 
@@ -183,13 +191,17 @@ const nestedSvcDetailRoute = createRoute({
 const applicationsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/applications',
-  component: ApplicationsPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/projects' })
+  },
 })
 
 const createApplicationRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/applications/new',
-  component: CreateApplicationPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/projects' })
+  },
 })
 
 const applicationDetailRoute = createRoute({
@@ -207,13 +219,17 @@ const deploymentShowRoute = createRoute({
 const databasesRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/databases',
-  component: DatabasesPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/projects' })
+  },
 })
 
 const createDatabaseRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/databases/new',
-  component: CreateDatabasePage,
+  beforeLoad: () => {
+    throw redirect({ to: '/projects' })
+  },
 })
 
 const databaseDetailRoute = createRoute({
@@ -225,13 +241,17 @@ const databaseDetailRoute = createRoute({
 const servicesRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/services',
-  component: ServicesPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/projects' })
+  },
 })
 
 const createServiceRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/services/new',
-  component: CreateServicePage,
+  beforeLoad: () => {
+    throw redirect({ to: '/projects' })
+  },
 })
 
 const serviceDetailRoute = createRoute({

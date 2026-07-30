@@ -99,7 +99,10 @@ export function OnboardingPage() {
       localStorage.setItem(LAST_ENV_KEY, data.environment.id)
       setMessage('Project created. Production environment saved.')
       setError('')
-      void navigate({ to: '/applications' })
+      void navigate({
+        to: '/projects/$projectId/environments/$envId',
+        params: { projectId: data.project.id, envId: data.environment.id },
+      })
     },
     onError: (e: Error) => setError(e.message),
   })

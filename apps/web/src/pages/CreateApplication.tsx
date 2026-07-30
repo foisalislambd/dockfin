@@ -18,17 +18,13 @@ const BUILD_PACKS = [
   { id: 'static', title: 'Static', description: 'Static site / SPA build output.' },
 ]
 
-function useEnvPrefill() {
-  const params = useParams({ strict: false }) as { projectId?: string; envId?: string }
-  const search = useSearch({ strict: false }) as { environment_id?: string }
-  return params.envId || search.environment_id || ''
-}
-
 export function CreateApplicationPage() {
   const nav = useNavigate()
   const qc = useQueryClient()
   const params = useParams({ strict: false }) as { projectId?: string; envId?: string }
-  const prefillEnv = useEnvPrefill()
+  const search = useSearch({ strict: false }) as { environment_id?: string; build_pack?: string }
+  const prefillEnv = params.envId || search.environment_id || ''
+  const prefillPack = search.build_pack || ''
   const dests = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
   const envs = useQuery({ queryKey: ['all-environments'], queryFn: fetchAllEnvironments })
   const envTouched = useRef(false)
@@ -36,7 +32,7 @@ export function CreateApplicationPage() {
     name: '',
     environment_id: prefillEnv,
     destination_id: '',
-    build_pack: 'dockerimage',
+    build_pack: prefillPack || 'dockerimage',
     docker_registry_image_name: 'nginx',
     docker_registry_image_tag: 'alpine',
     ports_exposes: '80',
@@ -52,8 +48,9 @@ export function CreateApplicationPage() {
       ...f,
       environment_id: envTouched.current ? f.environment_id : f.environment_id || prefillEnv || pick,
       destination_id: f.destination_id || dests.data?.destinations?.[0]?.id || '',
+      build_pack: prefillPack || f.build_pack,
     }))
-  }, [envs.data, dests.data, prefillEnv])
+  }, [envs.data, dests.data, prefillEnv, prefillPack])
 
   const nested = Boolean(params.projectId && params.envId)
   const backEnvId = form.environment_id || params.envId || ''
@@ -61,11 +58,9 @@ export function CreateApplicationPage() {
     (envs.data || []).find((e) => e.id === backEnvId)?.project_id || params.projectId || ''
   const backTo =
     nested && backProjectId && backEnvId
-      ? `/projects/${backProjectId}/environments/${backEnvId}`
-      : nested && params.projectId && params.envId
-        ? `/projects/${params.projectId}/environments/${params.envId}`
-        : '/applications'
-  const backLabel = nested ? 'Back to resources' : 'Back to applications'
+      ? `/projects/${backProjectId}/environments/${backEnvId}/new`
+      : '/projects'
+  const backLabel = nested ? 'Back to New Resource' : 'Back to projects'
 
   const create = useMutation({
     mutationFn: () => api.createApplication(form),
@@ -81,7 +76,7 @@ export function CreateApplicationPage() {
           params: { projectId, envId, appId: app.id },
         })
       } else {
-        void nav({ to: '/applications/$appId', params: { appId: app.id } })
+        void nav({ to: '/projects' })
       }
     },
   })

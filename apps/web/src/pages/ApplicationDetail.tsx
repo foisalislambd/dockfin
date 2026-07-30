@@ -177,7 +177,7 @@ export function ApplicationDetailPage() {
       if (nested && projectId && envId) {
         void nav({ to: '/projects/$projectId/environments/$envId', params: { projectId, envId } })
       } else {
-        void nav({ to: '/applications' })
+        void nav({ to: '/projects' })
       }
     },
   })
@@ -245,10 +245,10 @@ export function ApplicationDetailPage() {
       </Link>
     ) : (
       <Link
-        to="/applications"
+        to="/projects"
         className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
       >
-        ← Applications
+        ← Projects
       </Link>
     )
 

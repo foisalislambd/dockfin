@@ -341,7 +341,7 @@ export function DatabaseDetailPage() {
       if (projectId && envId) {
         void nav({ to: '/projects/$projectId/environments/$envId', params: { projectId, envId } })
       } else {
-        void nav({ to: '/databases' })
+        void nav({ to: '/projects' })
       }
     },
   })
@@ -357,10 +357,10 @@ export function DatabaseDetailPage() {
       </Link>
     ) : (
       <Link
-        to="/databases"
+        to="/projects"
         className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
       >
-        ← Databases
+        ← Projects
       </Link>
     )
 

@@ -87,14 +87,14 @@ export function DashboardPage() {
         <StatCard
           label="Applications"
           value={apps.data?.applications?.length ?? '—'}
-          to="/applications"
+          to="/projects"
           icon={<Rocket className="h-4 w-4 text-violet-600 dark:text-violet-400" />}
           iconBg="bg-violet-50 dark:bg-violet-500/15"
         />
         <StatCard
           label="Databases"
           value={dbs.data?.databases?.length ?? '—'}
-          to="/databases"
+          to="/projects"
           icon={<Database className="h-4 w-4 text-amber-600 dark:text-amber-400" />}
           iconBg="bg-amber-50 dark:bg-amber-500/15"
         />

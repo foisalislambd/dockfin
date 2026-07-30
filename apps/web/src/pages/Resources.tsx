@@ -23,7 +23,11 @@ export function ProjectsPage() {
       setShow(false)
       setName('')
       setDescription('')
-      void nav({ to: '/projects/$projectId', params: { projectId: data.project.id } })
+      // Coolify: land in the new production environment resources
+      void nav({
+        to: '/projects/$projectId/environments/$envId',
+        params: { projectId: data.project.id, envId: data.environment.id },
+      })
     },
   })
 
@@ -53,15 +57,28 @@ export function ProjectsPage() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
           {(projects.data?.projects || []).map((p) => {
             const envId = envByProject.get(p.id)
+            // Coolify navigateTo(): single env → resources; else environments list
+            const projectHref = envId
+              ? ({
+                  to: '/projects/$projectId/environments/$envId' as const,
+                  params: { projectId: p.id, envId },
+                })
+              : ({
+                  to: '/projects/$projectId' as const,
+                  params: { projectId: p.id },
+                })
             return (
               <div
                 key={p.id}
                 className="panel-card flex min-h-[4.5rem] items-center justify-between gap-4 px-5 py-4"
               >
                 <Link
-                  to="/projects/$projectId"
-                  params={{ projectId: p.id }}
+                  to={projectHref.to}
+                  params={projectHref.params}
                   className="min-w-0 flex-1"
+                  onClick={() => {
+                    if (envId) localStorage.setItem(LAST_ENV_KEY, envId)
+                  }}
                 >
                   <div className="truncate text-base font-semibold text-gray-900 dark:text-white">
                     {p.name}

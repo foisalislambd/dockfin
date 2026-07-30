@@ -173,10 +173,13 @@ export function EnvironmentResourcesPage() {
 
       {empty && (
         <div className="panel-card p-10 text-center">
-          <p className="text-sm text-gray-500 dark:text-gray-400">No resources in this environment yet.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Deploy resources, like Applications, Databases, Services…
+          </p>
           <Link
             to="/projects/$projectId/environments/$envId/new"
             params={{ projectId, envId }}
+            onClick={() => localStorage.setItem(LAST_ENV_KEY, envId)}
             className="mt-4 inline-flex h-8 items-center rounded-md bg-brand-500 px-3 text-xs font-medium text-white hover:bg-brand-600"
           >
             + New resource

@@ -61,11 +61,9 @@ export function CreateServicePage() {
     (envs.data || []).find((e) => e.id === backEnvId)?.project_id || params.projectId || ''
   const backTo =
     nested && backProjectId && backEnvId
-      ? `/projects/${backProjectId}/environments/${backEnvId}`
-      : nested && params.projectId && params.envId
-        ? `/projects/${params.projectId}/environments/${params.envId}`
-        : '/services'
-  const backLabel = nested ? 'Back to resources' : 'Back to services'
+      ? `/projects/${backProjectId}/environments/${backEnvId}/new`
+      : '/projects'
+  const backLabel = nested ? 'Back to New Resource' : 'Back to projects'
 
   const create = useMutation({
     mutationFn: () => api.createService(form),
@@ -81,7 +79,7 @@ export function CreateServicePage() {
           params: { projectId, envId, svcId: svc.id },
         })
       } else {
-        void nav({ to: '/services/$svcId', params: { svcId: svc.id } })
+        void nav({ to: '/projects' })
       }
     },
   })
