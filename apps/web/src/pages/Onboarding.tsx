@@ -110,7 +110,7 @@ export function OnboardingPage() {
         title="Onboarding"
         subtitle="Get from zero to a deployable project in five steps."
         actions={
-          <Link to="/dashboard" className="text-sm text-[var(--color-muted)] hover:text-[var(--color-accent)]">
+          <Link to="/dashboard" className="text-sm text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:text-brand-400">
             Skip to dashboard
           </Link>
         }
@@ -127,10 +127,10 @@ export function OnboardingPage() {
               }}
               className={`rounded-lg px-3 py-1.5 text-sm transition ${
                 i === step
-                  ? 'bg-[var(--color-accent)] text-[var(--color-ink)]'
+                  ? 'bg-brand-500 text-white'
                   : i < step
-                    ? 'border border-[var(--color-accent)]/40 text-[var(--color-accent)]'
-                    : 'border border-[var(--color-line)] text-[var(--color-muted)]'
+                    ? 'border border-brand-500/40 text-brand-600 dark:text-brand-400'
+                    : 'border border-gray-200 dark:border-gray-800 text-gray-500 dark:text-gray-400'
               }`}
             >
               {i + 1}. {label}
@@ -139,10 +139,10 @@ export function OnboardingPage() {
         ))}
       </ol>
 
-      {message && <p className="text-sm text-[var(--color-accent)]">{message}</p>}
-      {error && <p className="text-sm text-[var(--color-danger)]">{error}</p>}
+      {message && <p className="text-sm text-brand-600 dark:text-brand-400">{message}</p>}
+      {error && <p className="text-sm text-error-500">{error}</p>}
 
-      <div className="rounded-xl border border-[var(--color-line)] bg-[var(--color-panel)]/60 p-6">
+      <div className="rounded-xl border border-gray-200 dark:border-gray-800 panel-card bg-white dark:bg-white/3/60 p-6">
         {step === 0 && (
           <form
             className="max-w-lg space-y-3"
@@ -151,7 +151,7 @@ export function OnboardingPage() {
               createKey.mutate()
             }}
           >
-            <p className="text-sm text-[var(--color-muted)]">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               Upload an SSH private key used to reach your Docker hosts.
               {keys.data?.private_keys?.length
                 ? ` You already have ${keys.data.private_keys.length} key(s).`
@@ -159,13 +159,13 @@ export function OnboardingPage() {
             </p>
             <Input label="Key name" value={keyName} onChange={setKeyName} />
             <label className="block text-sm">
-              <span className="mb-1 block text-[var(--color-muted)]">Private key (PEM)</span>
+              <span className="mb-1 block text-gray-500 dark:text-gray-400">Private key (PEM)</span>
               <textarea
                 required
                 rows={6}
                 value={privateKey}
                 onChange={(e) => setPrivateKey(e.target.value)}
-                className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2 font-mono text-xs"
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2 font-mono text-xs"
               />
             </label>
             <div className="flex gap-2">
@@ -197,7 +197,7 @@ export function OnboardingPage() {
               createServer.mutate()
             }}
           >
-            <p className="text-sm text-[var(--color-muted)]">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               Add a server reachable over SSH with Docker installed.
             </p>
             <Input
@@ -216,20 +216,20 @@ export function OnboardingPage() {
               onChange={(v) => setServerForm({ ...serverForm, user_name: v })}
             />
             <label className="block text-sm">
-              <span className="mb-1 block text-[var(--color-muted)]">Port</span>
+              <span className="mb-1 block text-gray-500 dark:text-gray-400">Port</span>
               <input
                 type="number"
                 value={serverForm.port}
                 onChange={(e) => setServerForm({ ...serverForm, port: Number(e.target.value) })}
-                className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2"
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
               />
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-[var(--color-muted)]">SSH key</span>
+              <span className="mb-1 block text-gray-500 dark:text-gray-400">SSH key</span>
               <select
                 value={serverForm.private_key_id}
                 onChange={(e) => setServerForm({ ...serverForm, private_key_id: e.target.value })}
-                className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2"
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
               >
                 <option value="">None</option>
                 {(keys.data?.private_keys || []).map((k) => (
@@ -259,15 +259,15 @@ export function OnboardingPage() {
 
         {step === 2 && (
           <div className="max-w-lg space-y-3">
-            <p className="text-sm text-[var(--color-muted)]">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               Validate SSH connectivity and Docker on the host.
             </p>
             <label className="block text-sm">
-              <span className="mb-1 block text-[var(--color-muted)]">Server</span>
+              <span className="mb-1 block text-gray-500 dark:text-gray-400">Server</span>
               <select
                 value={selectedServer || firstUsable?.id || ''}
                 onChange={(e) => setSelectedServer(e.target.value)}
-                className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2"
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
               >
                 {(servers.data?.servers || []).map((s) => (
                   <option key={s.id} value={s.id}>
@@ -290,15 +290,15 @@ export function OnboardingPage() {
 
         {step === 3 && (
           <div className="max-w-lg space-y-3">
-            <p className="text-sm text-[var(--color-muted)]">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               Start the Traefik reverse proxy on the selected server.
             </p>
             <label className="block text-sm">
-              <span className="mb-1 block text-[var(--color-muted)]">Server</span>
+              <span className="mb-1 block text-gray-500 dark:text-gray-400">Server</span>
               <select
                 value={selectedServer || firstUsable?.id || ''}
                 onChange={(e) => setSelectedServer(e.target.value)}
-                className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2"
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
               >
                 {(servers.data?.servers || []).map((s) => (
                   <option key={s.id} value={s.id}>
@@ -321,7 +321,7 @@ export function OnboardingPage() {
               createProject.mutate()
             }}
           >
-            <p className="text-sm text-[var(--color-muted)]">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               Create a project (includes a production environment). You have{' '}
               {projects.data?.projects?.length ?? 0} project(s) already.
             </p>

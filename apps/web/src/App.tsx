@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider, useAuth } from './lib/auth'
+import { ThemeProvider } from './components/theme/ThemeProvider'
 import { AppShell } from './components/AppShell'
 import { LoginPage, RegisterPage } from './pages/Auth'
 import { DashboardPage } from './pages/Dashboard'
@@ -24,9 +25,11 @@ const queryClient = new QueryClient()
 
 function RootComponent() {
   return (
-    <AuthProvider>
-      <Outlet />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <Outlet />
+      </AuthProvider>
+    </ThemeProvider>
   )
 }
 
@@ -34,7 +37,7 @@ function RequireAuth() {
   const { user, loading } = useAuth()
   if (loading) {
     return (
-      <div className="grid min-h-screen place-items-center text-[var(--color-muted)]">Loading…</div>
+      <div className="grid min-h-dvh place-items-center text-gray-500 dark:text-gray-400">Loading…</div>
     )
   }
   if (!user) {

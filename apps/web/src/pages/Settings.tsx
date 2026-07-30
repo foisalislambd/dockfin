@@ -7,18 +7,18 @@ export function SettingsPage() {
         title="Settings"
         subtitle="Instance configuration for this Goolify installation."
       />
-      <div className="rounded-xl border border-[var(--color-line)] bg-[var(--color-panel)]/60 p-6">
+      <div className="rounded-xl border border-gray-200 dark:border-gray-800 panel-card bg-white dark:bg-white/3/60 p-6">
         <h2 className="text-lg font-medium">Instance settings</h2>
-        <p className="mt-2 text-sm text-[var(--color-muted)]">
+        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
           Coming soon — domain defaults, registry credentials, and team preferences will live here.
         </p>
         <dl className="mt-6 grid gap-4 sm:grid-cols-2">
           <div>
-            <dt className="text-xs text-[var(--color-muted)]">API</dt>
+            <dt className="text-xs text-gray-500 dark:text-gray-400">API</dt>
             <dd className="mt-1 font-mono text-sm">/api/v1</dd>
           </div>
           <div>
-            <dt className="text-xs text-[var(--color-muted)]">Config path (hosts)</dt>
+            <dt className="text-xs text-gray-500 dark:text-gray-400">Config path (hosts)</dt>
             <dd className="mt-1 font-mono text-sm">/data/goolify</dd>
           </div>
         </dl>

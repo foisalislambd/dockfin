@@ -105,13 +105,13 @@ export function ApplicationDetailPage() {
   })
 
   if (app.isLoading) {
-    return <p className="text-[var(--color-muted)]">Loading…</p>
+    return <p className="text-gray-500 dark:text-gray-400">Loading…</p>
   }
   if (app.error || !app.data) {
     return (
       <div className="space-y-4">
-        <p className="text-[var(--color-danger)]">{app.error?.message || 'Application not found'}</p>
-        <Link to="/applications" className="text-[var(--color-accent)]">
+        <p className="text-error-500">{app.error?.message || 'Application not found'}</p>
+        <Link to="/applications" className="text-brand-600 dark:text-brand-400">
           ← Applications
         </Link>
       </div>
@@ -124,11 +124,11 @@ export function ApplicationDetailPage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <Link to="/applications" className="text-sm text-[var(--color-muted)] hover:text-[var(--color-accent)]">
+          <Link to="/applications" className="text-sm text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:text-brand-400">
             ← Applications
           </Link>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">{a.name}</h1>
-          <p className="mt-2 text-[var(--color-muted)]">
+          <p className="mt-2 text-gray-500 dark:text-gray-400">
             {a.build_pack} · {a.status}
             {a.fqdn ? ` · ${a.fqdn}` : ''}
           </p>
@@ -154,7 +154,7 @@ export function ApplicationDetailPage() {
           <Header title="Live logs" subtitle={`Deployment ${streamId || activeDep?.id}`} />
           <pre
             ref={logRef}
-            className="max-h-80 overflow-auto rounded-xl border border-[var(--color-line)] bg-[var(--color-ink)] p-4 font-mono text-xs leading-relaxed text-[var(--color-muted)]"
+            className="max-h-80 overflow-auto rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 font-mono text-xs leading-relaxed text-gray-500 dark:text-gray-400"
           >
             {logs.length ? logs.join('\n') : 'Waiting for log events…'}
           </pre>
@@ -163,9 +163,9 @@ export function ApplicationDetailPage() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium">Deployments</h2>
-        <div className="overflow-hidden rounded-xl border border-[var(--color-line)]">
+        <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
           <table className="w-full text-left text-sm">
-            <thead className="bg-[var(--color-panel)] text-[var(--color-muted)]">
+            <thead className="panel-card bg-white dark:bg-white/3 text-gray-500 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-3">ID</th>
                 <th className="px-4 py-3">Status</th>
@@ -176,17 +176,17 @@ export function ApplicationDetailPage() {
             </thead>
             <tbody>
               {(deps.data?.deployments || []).map((d) => (
-                <tr key={d.id} className="border-t border-[var(--color-line)]">
+                <tr key={d.id} className="border-t border-gray-200 dark:border-gray-800">
                   <td className="px-4 py-3 font-mono text-xs">{d.id.slice(0, 8)}…</td>
                   <td className="px-4 py-3">{d.status}</td>
                   <td className="px-4 py-3">{d.current_stage || '—'}</td>
-                  <td className="px-4 py-3 text-[var(--color-muted)]">
+                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
                     {new Date(d.created_at).toLocaleString()}
                   </td>
                   <td className="px-4 py-3 space-x-2">
                     <button
                       type="button"
-                      className="text-[var(--color-accent)]"
+                      className="text-brand-600 dark:text-brand-400"
                       onClick={() => {
                         setStreamId(d.id)
                         setLogs([])
@@ -197,7 +197,7 @@ export function ApplicationDetailPage() {
                     {(d.status === 'queued' || d.status === 'in_progress') && (
                       <button
                         type="button"
-                        className="text-[var(--color-danger)]"
+                        className="text-error-500"
                         onClick={() => cancel.mutate(d.id)}
                       >
                         Cancel
@@ -208,7 +208,7 @@ export function ApplicationDetailPage() {
               ))}
               {!deps.data?.deployments?.length && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-muted)]">
+                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     No deployments yet.
                   </td>
                 </tr>
@@ -220,9 +220,9 @@ export function ApplicationDetailPage() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium">Environment variables</h2>
-        <div className="overflow-hidden rounded-xl border border-[var(--color-line)]">
+        <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
           <table className="w-full text-left text-sm">
-            <thead className="bg-[var(--color-panel)] text-[var(--color-muted)]">
+            <thead className="panel-card bg-white dark:bg-white/3 text-gray-500 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-3">Key</th>
                 <th className="px-4 py-3">Value</th>
@@ -231,12 +231,12 @@ export function ApplicationDetailPage() {
             </thead>
             <tbody>
               {(envVars.data?.environment_variables || []).map((v) => (
-                <tr key={v.id} className="border-t border-[var(--color-line)]">
+                <tr key={v.id} className="border-t border-gray-200 dark:border-gray-800">
                   <td className="px-4 py-3 font-mono text-xs">{v.key}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-[var(--color-muted)]">
+                  <td className="px-4 py-3 font-mono text-xs text-gray-500 dark:text-gray-400">
                     {v.value ?? '••••'}
                   </td>
-                  <td className="px-4 py-3 text-xs text-[var(--color-muted)]">
+                  <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
                     {[v.is_runtime && 'runtime', v.is_buildtime && 'build', v.is_literal && 'literal']
                       .filter(Boolean)
                       .join(', ') || '—'}
@@ -245,7 +245,7 @@ export function ApplicationDetailPage() {
               ))}
               {!envVars.data?.environment_variables?.length && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-6 text-center text-[var(--color-muted)]">
+                  <td colSpan={3} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
                     No env vars yet.
                   </td>
                 </tr>
@@ -270,20 +270,20 @@ export function ApplicationDetailPage() {
             Add
           </Btn>
           {addEnv.error && (
-            <p className="w-full text-sm text-[var(--color-danger)]">{addEnv.error.message}</p>
+            <p className="w-full text-sm text-error-500">{addEnv.error.message}</p>
           )}
         </form>
       </section>
 
-      {deploy.error && <p className="text-sm text-[var(--color-danger)]">{deploy.error.message}</p>}
+      {deploy.error && <p className="text-sm text-error-500">{deploy.error.message}</p>}
     </div>
   )
 }
 
 function Meta({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[var(--color-line)] bg-[var(--color-panel)]/60 p-4">
-      <div className="text-xs text-[var(--color-muted)]">{label}</div>
+    <div className="rounded-xl border border-gray-200 dark:border-gray-800 panel-card bg-white dark:bg-white/3/60 p-4">
+      <div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
       <div className="mt-1 font-medium">{value}</div>
     </div>
   )

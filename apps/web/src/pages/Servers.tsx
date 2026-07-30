@@ -40,9 +40,9 @@ export function ServersPage() {
         }
       />
 
-      <div className="overflow-hidden rounded-xl border border-[var(--color-line)]">
+      <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
         <table className="w-full text-left text-sm">
-          <thead className="bg-[var(--color-panel)] text-[var(--color-muted)]">
+          <thead className="panel-card bg-white dark:bg-white/3 text-gray-500 dark:text-gray-400">
             <tr>
               <th className="px-4 py-3 font-medium">Name</th>
               <th className="px-4 py-3 font-medium">Host</th>
@@ -53,7 +53,7 @@ export function ServersPage() {
           </thead>
           <tbody>
             {(servers.data?.servers || []).map((s) => (
-              <tr key={s.id} className="border-t border-[var(--color-line)]">
+              <tr key={s.id} className="border-t border-gray-200 dark:border-gray-800">
                 <td className="px-4 py-3">{s.name}</td>
                 <td className="px-4 py-3 font-mono text-xs">
                   {s.user_name}@{s.ip}:{s.port}
@@ -64,14 +64,14 @@ export function ServersPage() {
                 <td className="px-4 py-3">{s.proxy_status}</td>
                 <td className="px-4 py-3 space-x-2">
                   <button
-                    className="text-[var(--color-accent)]"
+                    className="text-brand-600 dark:text-brand-400"
                     type="button"
                     onClick={() => void api.validateServer(s.id).then(() => qc.invalidateQueries({ queryKey: ['servers'] }))}
                   >
                     Validate
                   </button>
                   <button
-                    className="text-[var(--color-accent)]"
+                    className="text-brand-600 dark:text-brand-400"
                     type="button"
                     onClick={() => void api.startProxy(s.id).then(() => qc.invalidateQueries({ queryKey: ['servers'] }))}
                   >
@@ -82,7 +82,7 @@ export function ServersPage() {
             ))}
             {!servers.data?.servers?.length && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-muted)]">
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                   No servers yet.
                 </td>
               </tr>
@@ -135,20 +135,20 @@ function ServerForm({
       <Input label="IP / hostname" value={ip} onChange={setIp} />
       <Input label="SSH user" value={user} onChange={setUser} />
       <label className="block text-sm">
-        <span className="mb-1 block text-[var(--color-muted)]">Port</span>
+        <span className="mb-1 block text-gray-500 dark:text-gray-400">Port</span>
         <input
           type="number"
           value={port}
           onChange={(e) => setPort(Number(e.target.value))}
-          className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2"
+          className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
         />
       </label>
       <label className="block text-sm">
-        <span className="mb-1 block text-[var(--color-muted)]">SSH key</span>
+        <span className="mb-1 block text-gray-500 dark:text-gray-400">SSH key</span>
         <select
           value={keyId}
           onChange={(e) => setKeyId(e.target.value)}
-          className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2"
+          className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
         >
           <option value="">None</option>
           {keys.map((k) => (
@@ -158,7 +158,7 @@ function ServerForm({
           ))}
         </select>
       </label>
-      {error && <p className="text-sm text-[var(--color-danger)]">{error}</p>}
+      {error && <p className="text-sm text-error-500">{error}</p>}
       <Btn primary type="submit">
         Create
       </Btn>
@@ -179,16 +179,16 @@ function KeyForm({ onSubmit, error }: { onSubmit: (name: string, key: string) =>
     >
       <Input label="Name" value={name} onChange={setName} />
       <label className="block text-sm">
-        <span className="mb-1 block text-[var(--color-muted)]">Private key (PEM)</span>
+        <span className="mb-1 block text-gray-500 dark:text-gray-400">Private key (PEM)</span>
         <textarea
           required
           rows={6}
           value={key}
           onChange={(e) => setKey(e.target.value)}
-          className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2 font-mono text-xs"
+          className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2 font-mono text-xs"
         />
       </label>
-      {error && <p className="text-sm text-[var(--color-danger)]">{error}</p>}
+      {error && <p className="text-sm text-error-500">{error}</p>}
       <Btn primary type="submit">
         Save key
       </Btn>
@@ -209,7 +209,7 @@ export function Header({
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
-        <p className="mt-2 text-[var(--color-muted)]">{subtitle}</p>
+        <p className="mt-2 text-gray-500 dark:text-gray-400">{subtitle}</p>
       </div>
       <div className="flex gap-2">{actions}</div>
     </div>
@@ -233,8 +233,8 @@ export function Btn({
       onClick={onClick}
       className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
         primary
-          ? 'bg-[var(--color-accent)] text-[var(--color-ink)] hover:bg-[var(--color-accent-2)]'
-          : 'border border-[var(--color-line)] hover:border-[var(--color-accent)]'
+          ? 'bg-brand-500 text-white hover:bg-brand-600'
+          : 'border border-gray-200 dark:border-gray-800 hover:border-brand-500'
       }`}
     >
       {children}
@@ -254,12 +254,12 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-40 grid place-items-center bg-black/50 p-4" onClick={onClose}>
       <div
-        className="w-full max-w-md rounded-xl border border-[var(--color-line)] bg-[var(--color-panel)] p-5"
+        className="w-full max-w-md rounded-xl border border-gray-200 dark:border-gray-800 panel-card bg-white dark:bg-white/3 p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-medium">{title}</h3>
-          <button type="button" onClick={onClose} className="text-[var(--color-muted)]">
+          <button type="button" onClick={onClose} className="text-gray-500 dark:text-gray-400">
             ✕
           </button>
         </div>
@@ -282,12 +282,12 @@ export function Input({
 }) {
   return (
     <label className="block text-sm">
-      <span className="mb-1 block text-[var(--color-muted)]">{label}</span>
+      <span className="mb-1 block text-gray-500 dark:text-gray-400">{label}</span>
       <input
         required={required}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2 outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+        className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2 outline-none focus:ring-1 focus:ring-brand-500"
       />
     </label>
   )
@@ -295,8 +295,8 @@ export function Input({
 
 export function Status({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 ${ok ? 'text-[var(--color-accent)]' : 'text-[var(--color-warn)]'}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${ok ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-warn)]'}`} />
+    <span className={`inline-flex items-center gap-1.5 ${ok ? 'text-brand-600 dark:text-brand-400' : 'text-[var(--color-warn)]'}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${ok ? 'bg-brand-500' : 'bg-[var(--color-warn)]'}`} />
       {label}
     </span>
   )

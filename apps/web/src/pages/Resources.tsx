@@ -33,9 +33,9 @@ export function ProjectsPage() {
       />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {(projects.data?.projects || []).map((p) => (
-          <div key={p.id} className="rounded-xl border border-[var(--color-line)] bg-[var(--color-panel)]/60 p-5">
+          <div key={p.id} className="rounded-xl border border-gray-200 dark:border-gray-800 panel-card bg-white dark:bg-white/3/60 p-5">
             <div className="font-medium">{p.name}</div>
-            <div className="mt-1 text-sm text-[var(--color-muted)]">{p.description || 'No description'}</div>
+            <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">{p.description || 'No description'}</div>
           </div>
         ))}
       </div>
@@ -49,7 +49,7 @@ export function ProjectsPage() {
             }}
           >
             <Input label="Name" value={name} onChange={setName} />
-            {create.error && <p className="text-sm text-[var(--color-danger)]">{create.error.message}</p>}
+            {create.error && <p className="text-sm text-error-500">{create.error.message}</p>}
             <Btn primary type="submit">
               Create
             </Btn>
@@ -116,9 +116,9 @@ export function ApplicationsPage() {
           </Btn>
         }
       />
-      <div className="overflow-hidden rounded-xl border border-[var(--color-line)]">
+      <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
         <table className="w-full text-left text-sm">
-          <thead className="bg-[var(--color-panel)] text-[var(--color-muted)]">
+          <thead className="panel-card bg-white dark:bg-white/3 text-gray-500 dark:text-gray-400">
             <tr>
               <th className="px-4 py-3">Name</th>
               <th className="px-4 py-3">Build</th>
@@ -129,9 +129,9 @@ export function ApplicationsPage() {
           </thead>
           <tbody>
             {(apps.data?.applications || []).map((a) => (
-              <tr key={a.id} className="border-t border-[var(--color-line)]">
+              <tr key={a.id} className="border-t border-gray-200 dark:border-gray-800">
                 <td className="px-4 py-3">
-                  <Link to="/applications/$appId" params={{ appId: a.id }} className="text-[var(--color-accent)] hover:underline">
+                  <Link to="/applications/$appId" params={{ appId: a.id }} className="text-brand-600 dark:text-brand-400 hover:underline">
                     {a.name}
                   </Link>
                 </td>
@@ -139,12 +139,12 @@ export function ApplicationsPage() {
                 <td className="px-4 py-3">{a.status}</td>
                 <td className="px-4 py-3">{a.fqdn || '—'}</td>
                 <td className="px-4 py-3 space-x-3">
-                  <Link to="/applications/$appId" params={{ appId: a.id }} className="text-[var(--color-muted)] hover:text-[var(--color-accent)]">
+                  <Link to="/applications/$appId" params={{ appId: a.id }} className="text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:text-brand-400">
                     Open
                   </Link>
                   <button
                     type="button"
-                    className="text-[var(--color-accent)]"
+                    className="text-brand-600 dark:text-brand-400"
                     onClick={() =>
                       void api.deployApplication(a.id).then(() => qc.invalidateQueries({ queryKey: ['applications'] }))
                     }
@@ -156,7 +156,7 @@ export function ApplicationsPage() {
             ))}
             {!apps.data?.applications?.length && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-muted)]">
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                   No applications yet.
                 </td>
               </tr>
@@ -176,12 +176,12 @@ export function ApplicationsPage() {
           >
             <Input label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
             <label className="block text-sm">
-              <span className="mb-1 block text-[var(--color-muted)]">Environment</span>
+              <span className="mb-1 block text-gray-500 dark:text-gray-400">Environment</span>
               <select
                 required
                 value={form.environment_id}
                 onChange={(e) => setForm({ ...form, environment_id: e.target.value })}
-                className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2"
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
               >
                 <option value="">Select…</option>
                 {(envs.data || []).map((e) => (
@@ -191,18 +191,18 @@ export function ApplicationsPage() {
                 ))}
               </select>
               {!envs.data?.length && (
-                <span className="mt-1 block text-xs text-[var(--color-muted)]">
+                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
                   Create a project first to get an environment.
                 </span>
               )}
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-[var(--color-muted)]">Destination</span>
+              <span className="mb-1 block text-gray-500 dark:text-gray-400">Destination</span>
               <select
                 required
                 value={form.destination_id}
                 onChange={(e) => setForm({ ...form, destination_id: e.target.value })}
-                className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2"
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
               >
                 <option value="">Select…</option>
                 {(dests.data?.destinations || []).map((d) => (
@@ -213,11 +213,11 @@ export function ApplicationsPage() {
               </select>
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-[var(--color-muted)]">Build pack</span>
+              <span className="mb-1 block text-gray-500 dark:text-gray-400">Build pack</span>
               <select
                 value={form.build_pack}
                 onChange={(e) => setForm({ ...form, build_pack: e.target.value })}
-                className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2"
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
               >
                 <option value="dockerimage">Docker Image</option>
                 <option value="dockerfile">Dockerfile</option>
@@ -248,7 +248,7 @@ export function ApplicationsPage() {
             )}
             <Input label="Port" value={form.ports_exposes} onChange={(v) => setForm({ ...form, ports_exposes: v })} />
             <Input label="FQDN (optional)" value={form.fqdn} onChange={(v) => setForm({ ...form, fqdn: v })} required={false} />
-            {create.error && <p className="text-sm text-[var(--color-danger)]">{create.error.message}</p>}
+            {create.error && <p className="text-sm text-error-500">{create.error.message}</p>}
             <Btn primary type="submit">
               Create
             </Btn>
@@ -313,12 +313,12 @@ export function DatabasesPage() {
       />
 
       {createdPassword && (
-        <div className="rounded-xl border border-[var(--color-warn)]/50 bg-[var(--color-panel)]/80 p-4">
+        <div className="rounded-xl border border-[var(--color-warn)]/50 panel-card bg-white dark:bg-white/3/80 p-4">
           <div className="text-sm font-medium text-[var(--color-warn)]">Save this password now — it won’t be shown again.</div>
           <code className="mt-2 block break-all font-mono text-sm">{createdPassword}</code>
           <button
             type="button"
-            className="mt-3 text-sm text-[var(--color-muted)] hover:text-[var(--color-accent)]"
+            className="mt-3 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:text-brand-400"
             onClick={() => setCreatedPassword(null)}
           >
             Dismiss
@@ -328,9 +328,9 @@ export function DatabasesPage() {
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {(dbs.data?.databases || []).map((d) => (
-          <div key={d.id} className="rounded-xl border border-[var(--color-line)] bg-[var(--color-panel)]/60 p-5">
+          <div key={d.id} className="rounded-xl border border-gray-200 dark:border-gray-800 panel-card bg-white dark:bg-white/3/60 p-5">
             <div className="font-medium">{d.name}</div>
-            <div className="mt-1 font-mono text-xs text-[var(--color-muted)]">{d.engine}</div>
+            <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{d.engine}</div>
             <div className="mt-3 text-sm">{d.status}</div>
             <div className="mt-4 flex gap-2">
               <Btn
@@ -362,12 +362,12 @@ export function DatabasesPage() {
           >
             <Input label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
             <label className="block text-sm">
-              <span className="mb-1 block text-[var(--color-muted)]">Environment</span>
+              <span className="mb-1 block text-gray-500 dark:text-gray-400">Environment</span>
               <select
                 required
                 value={form.environment_id}
                 onChange={(e) => setForm({ ...form, environment_id: e.target.value })}
-                className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2"
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
               >
                 <option value="">Select…</option>
                 {(envs.data || []).map((e) => (
@@ -378,12 +378,12 @@ export function DatabasesPage() {
               </select>
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-[var(--color-muted)]">Destination</span>
+              <span className="mb-1 block text-gray-500 dark:text-gray-400">Destination</span>
               <select
                 required
                 value={form.destination_id}
                 onChange={(e) => setForm({ ...form, destination_id: e.target.value })}
-                className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2"
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
               >
                 <option value="">Select…</option>
                 {(dests.data?.destinations || []).map((d) => (
@@ -394,11 +394,11 @@ export function DatabasesPage() {
               </select>
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-[var(--color-muted)]">Engine</span>
+              <span className="mb-1 block text-gray-500 dark:text-gray-400">Engine</span>
               <select
                 value={form.engine}
                 onChange={(e) => setForm({ ...form, engine: e.target.value })}
-                className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2"
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
               >
                 {['postgresql', 'mysql', 'mariadb', 'mongodb', 'redis', 'keydb', 'dragonfly', 'clickhouse'].map((e) => (
                   <option key={e} value={e}>
@@ -407,7 +407,7 @@ export function DatabasesPage() {
                 ))}
               </select>
             </label>
-            {create.error && <p className="text-sm text-[var(--color-danger)]">{create.error.message}</p>}
+            {create.error && <p className="text-sm text-error-500">{create.error.message}</p>}
             <Btn primary type="submit">
               Create
             </Btn>
@@ -470,12 +470,12 @@ export function ServicesPage() {
           </Btn>
         }
       />
-      {deployError && <p className="text-sm text-[var(--color-danger)]">{deployError}</p>}
+      {deployError && <p className="text-sm text-error-500">{deployError}</p>}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {(services.data?.services || []).map((s) => (
-          <div key={s.id} className="rounded-xl border border-[var(--color-line)] bg-[var(--color-panel)]/60 p-5">
+          <div key={s.id} className="rounded-xl border border-gray-200 dark:border-gray-800 panel-card bg-white dark:bg-white/3/60 p-5">
             <div className="font-medium">{s.name}</div>
-            <div className="mt-1 text-sm text-[var(--color-muted)]">{s.service_type}</div>
+            <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">{s.service_type}</div>
             <div className="mt-3 text-sm">{s.status}</div>
             <div className="mt-4">
               <Btn
@@ -498,9 +498,9 @@ export function ServicesPage() {
         <h2 className="mb-3 text-lg font-medium">Catalog</h2>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {(templates.data?.templates || []).map((t) => (
-            <div key={t.type} className="rounded-lg border border-[var(--color-line)] px-3 py-3 text-sm">
+            <div key={t.type} className="rounded-lg border border-gray-200 dark:border-gray-800 px-3 py-3 text-sm">
               <div className="font-medium">{t.name}</div>
-              <div className="text-[var(--color-muted)]">{t.description}</div>
+              <div className="text-gray-500 dark:text-gray-400">{t.description}</div>
             </div>
           ))}
         </div>
@@ -516,12 +516,12 @@ export function ServicesPage() {
           >
             <Input label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
             <label className="block text-sm">
-              <span className="mb-1 block text-[var(--color-muted)]">Environment</span>
+              <span className="mb-1 block text-gray-500 dark:text-gray-400">Environment</span>
               <select
                 required
                 value={form.environment_id}
                 onChange={(e) => setForm({ ...form, environment_id: e.target.value })}
-                className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2"
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
               >
                 <option value="">Select…</option>
                 {(envs.data || []).map((e) => (
@@ -532,11 +532,11 @@ export function ServicesPage() {
               </select>
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-[var(--color-muted)]">Destination</span>
+              <span className="mb-1 block text-gray-500 dark:text-gray-400">Destination</span>
               <select
                 value={form.destination_id}
                 onChange={(e) => setForm({ ...form, destination_id: e.target.value })}
-                className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2"
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
               >
                 <option value="">Optional…</option>
                 {(dests.data?.destinations || []).map((d) => (
@@ -547,11 +547,11 @@ export function ServicesPage() {
               </select>
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-[var(--color-muted)]">Template</span>
+              <span className="mb-1 block text-gray-500 dark:text-gray-400">Template</span>
               <select
                 value={form.template}
                 onChange={(e) => setForm({ ...form, template: e.target.value })}
-                className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2"
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
               >
                 {(templates.data?.templates || []).map((t) => (
                   <option key={t.type} value={t.type}>
@@ -560,7 +560,7 @@ export function ServicesPage() {
                 ))}
               </select>
             </label>
-            {create.error && <p className="text-sm text-[var(--color-danger)]">{create.error.message}</p>}
+            {create.error && <p className="text-sm text-error-500">{create.error.message}</p>}
             <Btn primary type="submit">
               Create
             </Btn>

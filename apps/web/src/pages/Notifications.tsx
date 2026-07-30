@@ -66,20 +66,20 @@ export function NotificationsPage() {
         title="Notifications"
         subtitle="Discord, Slack, and generic webhooks for deploy events."
       />
-      {error && <p className="text-sm text-[var(--color-danger)]">{error}</p>}
-      {saved && <p className="text-sm text-[var(--color-accent)]">{saved}</p>}
+      {error && <p className="text-sm text-error-500">{error}</p>}
+      {saved && <p className="text-sm text-brand-600 dark:text-brand-400">{saved}</p>}
       <div className="space-y-4">
         {CHANNELS.map((ch) => {
           const row = local[ch.id]
           return (
             <div
               key={ch.id}
-              className="rounded-xl border border-[var(--color-line)] bg-[var(--color-panel)]/60 p-5"
+              className="rounded-xl border border-gray-200 dark:border-gray-800 panel-card bg-white dark:bg-white/3/60 p-5"
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-medium">{ch.label}</h2>
-                  <p className="text-sm text-[var(--color-muted)]">Channel: {ch.id}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Channel: {ch.id}</p>
                 </div>
                 <label className="flex items-center gap-2 text-sm">
                   <input
@@ -97,7 +97,7 @@ export function NotificationsPage() {
                 </label>
               </div>
               <label className="mt-4 block text-sm">
-                <span className="mb-1 block text-[var(--color-muted)]">Config (JSON)</span>
+                <span className="mb-1 block text-gray-500 dark:text-gray-400">Config (JSON)</span>
                 <textarea
                   rows={4}
                   value={row.config}
@@ -108,7 +108,7 @@ export function NotificationsPage() {
                       [ch.id]: { ...row, config: e.target.value },
                     })
                   }
-                  className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2 font-mono text-xs"
+                  className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2 font-mono text-xs"
                 />
               </label>
               <div className="mt-3">

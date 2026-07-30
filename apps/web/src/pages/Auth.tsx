@@ -1,14 +1,65 @@
-import { useState, useEffect } from 'react'
-import type { FormEvent } from 'react'
+import { useState, useEffect, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
+import { Eye, EyeOff, Lock, Mail, User } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { appConfig } from '../config/app.config'
+import { ThemeToggle } from '../components/theme/ThemeToggle'
 
-function LoginPageInner() {
+const inputClass =
+  'h-11 w-full rounded-lg border border-gray-200 bg-white pl-10 pr-4 text-sm text-gray-900 shadow-sm transition placeholder:text-gray-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white'
+
+function BrandPanel({ className = '' }: { className?: string }) {
+  const { brand } = appConfig
+  return (
+    <div
+      className={`relative flex flex-col items-center justify-center overflow-hidden bg-brand-950 px-8 py-12 text-center sm:px-10 ${className}`}
+    >
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-brand-500/35 blur-3xl" />
+        <div className="absolute -right-16 bottom-0 h-80 w-80 rounded-full bg-brand-600/25 blur-3xl" />
+      </div>
+      <div className="relative z-10 w-full max-w-md">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-500 text-xl font-bold text-white shadow-lg shadow-brand-500/25 sm:h-16 sm:w-16 sm:text-2xl">
+          {brand.letter}
+        </div>
+        <h2 className="mt-6 text-2xl font-semibold tracking-tight text-white sm:text-3xl">{brand.name}</h2>
+        <p className="mt-3 text-sm leading-relaxed text-brand-100/90 sm:text-base">{brand.loginDescription}</p>
+        <ul className="mt-8 space-y-3 text-left text-sm text-brand-100/85">
+          {brand.loginFeatures.map((item) => (
+            <li key={item} className="flex items-center gap-3">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-500/30 text-xs text-brand-200">
+                ✓
+              </span>
+              {item}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
+}
+
+function AuthShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="relative grid min-h-dvh w-full lg:grid-cols-2">
+      <div className="absolute top-4 right-4 z-10 sm:top-6 sm:right-6">
+        <ThemeToggle />
+      </div>
+      <div className="flex min-h-dvh flex-col justify-center px-5 py-10 sm:px-10 lg:px-14 xl:px-16">
+        <div className="mx-auto w-full max-w-[400px]">{children}</div>
+      </div>
+      <BrandPanel className="hidden min-h-dvh lg:flex" />
+    </div>
+  )
+}
+
+export function LoginPage() {
   const nav = useNavigate()
   const { refresh, user, loading } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -32,31 +83,74 @@ function LoginPageInner() {
   }
 
   return (
-    <AuthLayout title="Welcome back" subtitle="Sign in to your self-hosted control plane.">
-      <form onSubmit={onSubmit} className="space-y-4">
-        <Field label="Email" type="email" value={email} onChange={setEmail} />
-        <Field label="Password" type="password" value={password} onChange={setPassword} />
-        {error && <p className="text-sm text-[var(--color-danger)]">{error}</p>}
+    <AuthShell>
+      <div className="mb-6 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500 text-base font-bold text-white lg:hidden">
+        {appConfig.brand.letter}
+      </div>
+      <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-[1.75rem]">
+        Sign in
+      </h1>
+      <p className="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+        Sign in to your self-hosted control plane.
+      </p>
+      <form onSubmit={onSubmit} className="mt-8 space-y-5">
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
+          <div className="relative">
+            <Mail className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
+          <div className="relative">
+            <Lock className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type={showPassword ? 'text' : 'password'}
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={`${inputClass} pr-11`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute top-1/2 right-3 -translate-y-1/2 rounded-md p-0.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+        {error && (
+          <p className="text-sm text-error-500" role="alert">
+            {error}
+          </p>
+        )}
         <button
           type="submit"
           disabled={busy}
-          className="w-full rounded-lg bg-[var(--color-accent)] px-4 py-2.5 font-medium text-[var(--color-ink)] transition hover:bg-[var(--color-accent-2)] disabled:opacity-60"
+          className="flex h-11 w-full items-center justify-center rounded-lg bg-brand-500 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 focus:ring-2 focus:ring-brand-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         >
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
-      <p className="mt-6 text-sm text-[var(--color-muted)]">
+      <p className="mt-8 text-center text-sm text-gray-500">
         No account?{' '}
-        <Link to="/register" className="text-[var(--color-accent)]">
+        <Link to="/register" className="font-medium text-brand-600 hover:text-brand-500">
           Create one
         </Link>
       </p>
-    </AuthLayout>
+    </AuthShell>
   )
-}
-
-export function LoginPage() {
-  return <LoginPageInner />
 }
 
 export function RegisterPage() {
@@ -88,81 +182,74 @@ export function RegisterPage() {
   }
 
   return (
-    <AuthLayout title="Create your Goolify" subtitle="Full open-source PaaS. No cloud lock-in.">
-      <form onSubmit={onSubmit} className="space-y-4">
-        <Field label="Name" value={name} onChange={setName} />
-        <Field label="Email" type="email" value={email} onChange={setEmail} />
-        <Field label="Password" type="password" value={password} onChange={setPassword} />
-        {error && <p className="text-sm text-[var(--color-danger)]">{error}</p>}
+    <AuthShell>
+      <div className="mb-6 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500 text-base font-bold text-white lg:hidden">
+        {appConfig.brand.letter}
+      </div>
+      <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-[1.75rem]">
+        Create account
+      </h1>
+      <p className="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+        Full open-source PaaS. No cloud lock-in.
+      </p>
+      <form onSubmit={onSubmit} className="mt-8 space-y-5">
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
+          <div className="relative">
+            <User className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
+          <div className="relative">
+            <Mail className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
+          <div className="relative">
+            <Lock className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+        </div>
+        {error && (
+          <p className="text-sm text-error-500" role="alert">
+            {error}
+          </p>
+        )}
         <button
           type="submit"
           disabled={busy}
-          className="w-full rounded-lg bg-[var(--color-accent)] px-4 py-2.5 font-medium text-[var(--color-ink)] transition hover:bg-[var(--color-accent-2)] disabled:opacity-60"
+          className="flex h-11 w-full items-center justify-center rounded-lg bg-brand-500 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 disabled:opacity-60"
         >
           {busy ? 'Creating…' : 'Create account'}
         </button>
       </form>
-      <p className="mt-6 text-sm text-[var(--color-muted)]">
+      <p className="mt-8 text-center text-sm text-gray-500">
         Already have an account?{' '}
-        <Link to="/login" className="text-[var(--color-accent)]">
+        <Link to="/login" className="font-medium text-brand-600 hover:text-brand-500">
           Sign in
         </Link>
       </p>
-    </AuthLayout>
-  )
-}
-
-function AuthLayout({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string
-  subtitle: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="mx-auto grid min-h-screen max-w-6xl items-center gap-10 px-4 py-10 lg:grid-cols-2">
-      <div>
-        <p className="mb-3 text-sm uppercase tracking-[0.2em] text-[var(--color-accent)]">Goolify</p>
-        <h1 className="max-w-md text-4xl font-semibold tracking-tight text-[var(--color-text)] md:text-5xl">
-          Deploy on your servers.
-        </h1>
-        <p className="mt-4 max-w-md text-[var(--color-muted)]">
-          A modern Coolify alternative — Go control plane, React dashboard, PostgreSQL. SSH + Docker,
-          no vendor lock-in.
-        </p>
-      </div>
-      <div className="rounded-2xl border border-[var(--color-line)] bg-[var(--color-panel)]/90 p-6 shadow-xl backdrop-blur">
-        <h2 className="text-xl font-semibold">{title}</h2>
-        <p className="mt-1 mb-6 text-sm text-[var(--color-muted)]">{subtitle}</p>
-        {children}
-      </div>
-    </div>
-  )
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  type = 'text',
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  type?: string
-}) {
-  return (
-    <label className="block text-sm">
-      <span className="mb-1.5 block text-[var(--color-muted)]">{label}</span>
-      <input
-        type={type}
-        required
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2 outline-none ring-[var(--color-accent)] focus:ring-1"
-      />
-    </label>
+    </AuthShell>
   )
 }
