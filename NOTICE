@@ -1,0 +1,15 @@
+# Notice
+
+Goolify  
+Copyright 2026 Goolify Contributors
+
+Licensed under the Apache License, Version 2.0.  
+See the LICENSE file for details.
+
+## Third-party acknowledgements
+
+- Product inspiration: [Coolify](https://github.com/coollabsio/coolify) by Coolify / coollabsio (separate project, separate license)
+- One-click service templates may be adapted from Coolify’s public compose catalog when present under `coolify/templates/compose`
+- Traefik, Docker, nixpacks, and other runtime images are trademarks of their respective owners
+
+This product is not affiliated with or endorsed by Coolify or coollabsio.

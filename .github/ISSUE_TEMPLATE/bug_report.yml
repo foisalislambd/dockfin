@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a bug in Goolify
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting an issue. Please search existing issues first.
+        For security vulnerabilities, see SECURITY.md — do not file them here.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Clear and concise description of the bug.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Goolify version / commit
+      placeholder: e.g. main @ abc1234
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: Ubuntu 24.04, Docker 27.x, Go 1.23
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Redact secrets before pasting.
+      render: shell

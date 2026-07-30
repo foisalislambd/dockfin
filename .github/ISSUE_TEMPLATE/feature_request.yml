@@ -1,0 +1,32 @@
+name: Feature request
+description: Suggest a feature or Coolify-parity improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / use case
+      description: What are you trying to accomplish?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: input
+    id: coolify
+    attributes:
+      label: Coolify reference (optional)
+      placeholder: Feature name or docs URL in Coolify
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to help implement this
