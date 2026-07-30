@@ -57,6 +57,41 @@ func (a *API) handleGetProject(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, p)
 }
 
+func (a *API) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "projectID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var body struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+	if err := decodeJSON(r, &body); err != nil || body.Name == "" {
+		writeError(w, http.StatusBadRequest, "name required")
+		return
+	}
+	p, err := a.Store.UpdateProject(r.Context(), currentTeamID(r), id, body.Name, body.Description)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, p)
+}
+
+func (a *API) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "projectID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if err := a.Store.DeleteProject(r.Context(), currentTeamID(r), id); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 func (a *API) handleListEnvironments(w http.ResponseWriter, r *http.Request) {
 	pid, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
@@ -91,6 +126,74 @@ func (a *API) handleCreateEnvironment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, env)
+}
+
+func (a *API) handleGetEnvironment(w http.ResponseWriter, r *http.Request) {
+	pid, err := uuid.Parse(chi.URLParam(r, "projectID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	eid, err := uuid.Parse(chi.URLParam(r, "envID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid environment id")
+		return
+	}
+	env, err := a.Store.GetEnvironment(r.Context(), currentTeamID(r), eid)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if env.ProjectID != pid {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, env)
+}
+
+func (a *API) handleUpdateEnvironment(w http.ResponseWriter, r *http.Request) {
+	pid, err := uuid.Parse(chi.URLParam(r, "projectID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	eid, err := uuid.Parse(chi.URLParam(r, "envID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid environment id")
+		return
+	}
+	var body struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+	if err := decodeJSON(r, &body); err != nil || body.Name == "" {
+		writeError(w, http.StatusBadRequest, "name required")
+		return
+	}
+	env, err := a.Store.UpdateEnvironment(r.Context(), currentTeamID(r), pid, eid, body.Name, body.Description)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, env)
+}
+
+func (a *API) handleDeleteEnvironment(w http.ResponseWriter, r *http.Request) {
+	pid, err := uuid.Parse(chi.URLParam(r, "projectID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	eid, err := uuid.Parse(chi.URLParam(r, "envID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid environment id")
+		return
+	}
+	if err := a.Store.DeleteEnvironment(r.Context(), currentTeamID(r), pid, eid); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (a *API) handleListApplications(w http.ResponseWriter, r *http.Request) {

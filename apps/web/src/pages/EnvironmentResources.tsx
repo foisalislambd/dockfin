@@ -159,14 +159,23 @@ export function EnvironmentResourcesPage() {
         <Header
           title="Resources"
           actions={
-            <Link
-              to="/projects/$projectId/environments/$envId/new"
-              params={{ projectId, envId }}
-              onClick={() => localStorage.setItem(LAST_ENV_KEY, envId)}
-              className="inline-flex h-8 items-center rounded-md bg-brand-500 px-2.5 text-xs font-medium text-white hover:bg-brand-600"
-            >
-              + New
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                to="/projects/$projectId/environments/$envId/edit"
+                params={{ projectId, envId }}
+                className="inline-flex h-8 items-center rounded-md border border-gray-200 px-2.5 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-white/5"
+              >
+                Settings
+              </Link>
+              <Link
+                to="/projects/$projectId/environments/$envId/new"
+                params={{ projectId, envId }}
+                onClick={() => localStorage.setItem(LAST_ENV_KEY, envId)}
+                className="inline-flex h-8 items-center rounded-md bg-brand-500 px-2.5 text-xs font-medium text-white hover:bg-brand-600"
+              >
+                + New
+              </Link>
+            </div>
           }
         />
       </div>

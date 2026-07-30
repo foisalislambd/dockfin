@@ -23,6 +23,7 @@ import { ApplicationDetailPage } from './pages/ApplicationDetail'
 import { OnboardingPage } from './pages/Onboarding'
 import { NotificationsPage } from './pages/Notifications'
 import { ProjectShowPage } from './pages/ProjectShow'
+import { ProjectEditPage, EnvironmentEditPage } from './pages/ProjectEdit'
 import { EnvironmentResourcesPage } from './pages/EnvironmentResources'
 import { NewResourcePage } from './pages/NewResource'
 import { DatabaseDetailPage, ServerDetailPage } from './pages/ResourceDetails'
@@ -126,10 +127,22 @@ const projectShowRoute = createRoute({
   component: ProjectShowPage,
 })
 
+const projectEditRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/projects/$projectId/edit',
+  component: ProjectEditPage,
+})
+
 const envResourcesRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/projects/$projectId/environments/$envId',
   component: EnvironmentResourcesPage,
+})
+
+const envEditRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/projects/$projectId/environments/$envId/edit',
+  component: EnvironmentEditPage,
 })
 
 const newResourceRoute = createRoute({
@@ -325,7 +338,9 @@ const routeTree = rootRoute.addChildren([
     serverDetailRoute,
     projectsRoute,
     projectShowRoute,
+    projectEditRoute,
     envResourcesRoute,
+    envEditRoute,
     newResourceRoute,
     nestedCreateAppRoute,
     nestedAppDetailRoute,

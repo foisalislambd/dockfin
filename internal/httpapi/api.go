@@ -133,8 +133,13 @@ func (a *API) Router() http.Handler {
 				r.Get("/", a.handleListProjects)
 				r.Post("/", a.handleCreateProject)
 				r.Get("/{projectID}", a.handleGetProject)
+				r.Patch("/{projectID}", a.handleUpdateProject)
+				r.Delete("/{projectID}", a.handleDeleteProject)
 				r.Get("/{projectID}/environments", a.handleListEnvironments)
 				r.Post("/{projectID}/environments", a.handleCreateEnvironment)
+				r.Get("/{projectID}/environments/{envID}", a.handleGetEnvironment)
+				r.Patch("/{projectID}/environments/{envID}", a.handleUpdateEnvironment)
+				r.Delete("/{projectID}/environments/{envID}", a.handleDeleteEnvironment)
 			})
 
 			r.Route("/applications", func(r chi.Router) {
@@ -365,6 +370,8 @@ func mapStoreErr(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not found")
+	case errors.Is(err, store.ErrNotEmpty):
+		writeError(w, http.StatusConflict, "has resources defined, please delete them first")
 	case errors.Is(err, store.ErrConflict):
 		writeError(w, http.StatusConflict, "conflict")
 	case errors.Is(err, store.ErrUnauthorized):

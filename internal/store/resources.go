@@ -16,6 +16,7 @@ type Project struct {
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
 	CreatedAt   time.Time `json:"created_at"`
+	IsEmpty     bool      `json:"is_empty"`
 }
 
 type Environment struct {
@@ -25,6 +26,7 @@ type Environment struct {
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
 	CreatedAt   time.Time `json:"created_at"`
+	IsEmpty     bool      `json:"is_empty"`
 }
 
 type Application struct {
@@ -173,6 +175,8 @@ func (s *Store) CreateProject(ctx context.Context, teamID uuid.UUID, name, desc 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, nil, err
 	}
+	p.IsEmpty = true
+	e.IsEmpty = true
 	return &p, &e, nil
 }
 
@@ -190,6 +194,11 @@ func (s *Store) ListProjects(ctx context.Context, teamID uuid.UUID) ([]Project, 
 		if err := rows.Scan(&p.ID, &p.TeamID, &p.Name, &p.Description, &p.CreatedAt); err != nil {
 			return nil, err
 		}
+		empty, err := s.ProjectIsEmpty(ctx, teamID, p.ID)
+		if err != nil {
+			return nil, err
+		}
+		p.IsEmpty = empty
 		out = append(out, p)
 	}
 	return out, rows.Err()
@@ -203,7 +212,15 @@ func (s *Store) GetProject(ctx context.Context, teamID, id uuid.UUID) (*Project,
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
-	return &p, err
+	if err != nil {
+		return nil, err
+	}
+	empty, err := s.ProjectIsEmpty(ctx, teamID, id)
+	if err != nil {
+		return nil, err
+	}
+	p.IsEmpty = empty
+	return &p, nil
 }
 
 func (s *Store) ListEnvironments(ctx context.Context, teamID, projectID uuid.UUID) ([]Environment, error) {
@@ -221,6 +238,11 @@ func (s *Store) ListEnvironments(ctx context.Context, teamID, projectID uuid.UUI
 		if err := rows.Scan(&e.ID, &e.TeamID, &e.ProjectID, &e.Name, &e.Description, &e.CreatedAt); err != nil {
 			return nil, err
 		}
+		empty, err := s.EnvironmentIsEmpty(ctx, teamID, e.ID)
+		if err != nil {
+			return nil, err
+		}
+		e.IsEmpty = empty
 		out = append(out, e)
 	}
 	return out, rows.Err()
@@ -232,7 +254,128 @@ func (s *Store) CreateEnvironment(ctx context.Context, teamID, projectID uuid.UU
 		INSERT INTO environments (team_id, project_id, name, description) VALUES ($1,$2,$3,$4)
 		RETURNING id, team_id, project_id, name, description, created_at
 	`, teamID, projectID, name, desc).Scan(&e.ID, &e.TeamID, &e.ProjectID, &e.Name, &e.Description, &e.CreatedAt)
-	return &e, err
+	if err != nil {
+		return nil, err
+	}
+	e.IsEmpty = true
+	return &e, nil
+}
+
+// ProjectIsEmpty mirrors Coolify Project::isEmpty — no apps/dbs/services in any env.
+func (s *Store) ProjectIsEmpty(ctx context.Context, teamID, projectID uuid.UUID) (bool, error) {
+	var n int
+	err := s.Pool.QueryRow(ctx, `
+		SELECT
+			(SELECT COUNT(*) FROM applications a
+			 JOIN environments e ON e.id = a.environment_id
+			 WHERE e.project_id=$1 AND a.team_id=$2)
+			+
+			(SELECT COUNT(*) FROM databases d
+			 JOIN environments e ON e.id = d.environment_id
+			 WHERE e.project_id=$1 AND d.team_id=$2)
+			+
+			(SELECT COUNT(*) FROM services svc
+			 JOIN environments e ON e.id = svc.environment_id
+			 WHERE e.project_id=$1 AND svc.team_id=$2)
+	`, projectID, teamID).Scan(&n)
+	return n == 0, err
+}
+
+// EnvironmentIsEmpty is true when the environment has no apps/dbs/services.
+func (s *Store) EnvironmentIsEmpty(ctx context.Context, teamID, envID uuid.UUID) (bool, error) {
+	var n int
+	err := s.Pool.QueryRow(ctx, `
+		SELECT
+			(SELECT COUNT(*) FROM applications WHERE environment_id=$1 AND team_id=$2)
+			+
+			(SELECT COUNT(*) FROM databases WHERE environment_id=$1 AND team_id=$2)
+			+
+			(SELECT COUNT(*) FROM services WHERE environment_id=$1 AND team_id=$2)
+	`, envID, teamID).Scan(&n)
+	return n == 0, err
+}
+
+func (s *Store) UpdateProject(ctx context.Context, teamID, id uuid.UUID, name, description string) (*Project, error) {
+	var p Project
+	err := s.Pool.QueryRow(ctx, `
+		UPDATE projects SET name=$3, description=$4, updated_at=NOW()
+		WHERE id=$1 AND team_id=$2
+		RETURNING id, team_id, name, description, created_at
+	`, id, teamID, name, description).Scan(&p.ID, &p.TeamID, &p.Name, &p.Description, &p.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	empty, err := s.ProjectIsEmpty(ctx, teamID, id)
+	if err != nil {
+		return nil, err
+	}
+	p.IsEmpty = empty
+	return &p, nil
+}
+
+func (s *Store) DeleteProject(ctx context.Context, teamID, id uuid.UUID) error {
+	empty, err := s.ProjectIsEmpty(ctx, teamID, id)
+	if err != nil {
+		return err
+	}
+	if !empty {
+		return ErrNotEmpty
+	}
+	tag, err := s.Pool.Exec(ctx, `DELETE FROM projects WHERE id=$1 AND team_id=$2`, id, teamID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) UpdateEnvironment(ctx context.Context, teamID, projectID, envID uuid.UUID, name, description string) (*Environment, error) {
+	var e Environment
+	err := s.Pool.QueryRow(ctx, `
+		UPDATE environments SET name=$4, description=$5, updated_at=NOW()
+		WHERE id=$1 AND project_id=$2 AND team_id=$3
+		RETURNING id, team_id, project_id, name, description, created_at
+	`, envID, projectID, teamID, name, description).Scan(
+		&e.ID, &e.TeamID, &e.ProjectID, &e.Name, &e.Description, &e.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	empty, err := s.EnvironmentIsEmpty(ctx, teamID, envID)
+	if err != nil {
+		return nil, err
+	}
+	e.IsEmpty = empty
+	return &e, nil
+}
+
+func (s *Store) DeleteEnvironment(ctx context.Context, teamID, projectID, envID uuid.UUID) error {
+	empty, err := s.EnvironmentIsEmpty(ctx, teamID, envID)
+	if err != nil {
+		return err
+	}
+	if !empty {
+		return ErrNotEmpty
+	}
+	// Coolify: refuse deleting the last environment? Coolify allows if empty.
+	tag, err := s.Pool.Exec(ctx, `
+		DELETE FROM environments WHERE id=$1 AND project_id=$2 AND team_id=$3
+	`, envID, projectID, teamID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *Store) CreateApplication(ctx context.Context, app *Application) (*Application, error) {

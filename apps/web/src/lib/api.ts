@@ -99,12 +99,30 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ name, description }),
     }),
+  updateProject: (id: string, name: string, description = '') =>
+    request<Project>(`/api/v1/projects/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name, description }),
+    }),
+  deleteProject: (id: string) =>
+    request<{ status: string }>(`/api/v1/projects/${id}`, { method: 'DELETE' }),
   environments: (projectId: string) =>
     request<{ environments: Environment[] }>(`/api/v1/projects/${projectId}/environments`),
+  getEnvironment: (projectId: string, envId: string) =>
+    request<Environment>(`/api/v1/projects/${projectId}/environments/${envId}`),
   createEnvironment: (projectId: string, name: string, description = '') =>
     request<Environment>(`/api/v1/projects/${projectId}/environments`, {
       method: 'POST',
       body: JSON.stringify({ name, description }),
+    }),
+  updateEnvironment: (projectId: string, envId: string, name: string, description = '') =>
+    request<Environment>(`/api/v1/projects/${projectId}/environments/${envId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name, description }),
+    }),
+  deleteEnvironment: (projectId: string, envId: string) =>
+    request<{ status: string }>(`/api/v1/projects/${projectId}/environments/${envId}`, {
+      method: 'DELETE',
     }),
 
   applications: (environment_id?: string) =>
@@ -466,8 +484,19 @@ export type GitSource = {
   created_at: string
 }
 export type Key = { id: string; name: string; fingerprint: string; public_key: string }
-export type Project = { id: string; name: string; description: string }
-export type Environment = { id: string; name: string; project_id: string; description?: string }
+export type Project = {
+  id: string
+  name: string
+  description: string
+  is_empty?: boolean
+}
+export type Environment = {
+  id: string
+  name: string
+  project_id: string
+  description?: string
+  is_empty?: boolean
+}
 export type Service = {
   id: string
   name: string

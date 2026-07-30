@@ -109,7 +109,7 @@ export function ProjectsPage() {
                     </Link>
                   )}
                   <Link
-                    to="/projects/$projectId"
+                    to="/projects/$projectId/edit"
                     params={{ projectId: p.id }}
                     className="text-brand-600 hover:underline dark:text-brand-400"
                   >

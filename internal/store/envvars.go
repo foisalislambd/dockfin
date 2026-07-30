@@ -253,5 +253,13 @@ func (s *Store) GetEnvironment(ctx context.Context, teamID, id uuid.UUID) (*Envi
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
-	return &e, err
+	if err != nil {
+		return nil, err
+	}
+	empty, err := s.EnvironmentIsEmpty(ctx, teamID, id)
+	if err != nil {
+		return nil, err
+	}
+	e.IsEmpty = empty
+	return &e, nil
 }
