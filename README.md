@@ -33,7 +33,7 @@ Goolify is inspired by Coolify’s product model (`Team → Project → Environm
 - **Env vars** — per-resource + shared (`{{team.KEY}}`, `{{project.KEY}}`, …)
 - **Git webhooks** — GitHub/GitLab HMAC verification, PR preview hooks
 - **Databases** — PostgreSQL, MySQL, MariaDB, MongoDB, Redis, KeyDB, Dragonfly, ClickHouse
-- **Services** — custom compose + catalog (loads Coolify-compatible templates when present)
+- **Services** — custom compose + **~360** one-click templates in `templates/compose/` (Coolify-compatible)
 - **Ops** — notifications (Discord/Slack/webhook), scheduled tasks/backups APIs, sentinel metrics ingest
 - **DX** — onboarding wizard, `glfy` CLI, one-click VPS smoke test, Docker Compose for local DB
 

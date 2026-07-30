@@ -1,0 +1,141 @@
+# documentation: https://formbricks.com/docs/self-hosting/setup/docker
+# slogan: Open Source Survey Platform
+# category: productivity
+# tags: form, builder, forms, survey
+# logo: svgs/formbricks.png
+# port: 3000
+
+services:
+  formbricks:
+    image: ghcr.io/formbricks/formbricks:4.5.0 # Released on Jan 5 2026
+    environment:
+      - SERVICE_URL_FORMBRICKS_3000
+      - WEBAPP_URL=$SERVICE_URL_FORMBRICKS
+      - DATABASE_URL=postgres://$SERVICE_USER_POSTGRESQL:$SERVICE_PASSWORD_POSTGRESQL@postgresql:5432/${POSTGRESQL_DATABASE:-formbricks}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRESQL}
+      - NEXTAUTH_SECRET=$SERVICE_BASE64_NEXTAUTH
+      - NEXTAUTH_URL=$SERVICE_URL_FORMBRICKS
+      - ENCRYPTION_KEY=$SERVICE_BASE64_ENCRYPTION
+      - CRON_SECRET=$SERVICE_BASE64_CRON
+      - ENTERPRISE_LICENSE_KEY=${ENTERPRISE_LICENSE_KEY}
+      - MAIL_FROM=${MAIL_FROM:-test@example.com}
+      - SMTP_HOST=${SMTP_HOST:-test.example.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-test}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-test}
+      - SMTP_SECURE_ENABLED=${SMTP_SECURE_ENABLED:-0}
+      - SMTP_REJECT_UNAUTHORIZED_TLS=${SMTP_REJECT_UNAUTHORIZED_TLS:-1}
+      - SHORT_URL_BASE=${SHORT_URL_BASE}
+      - EMAIL_VERIFICATION_DISABLED=${EMAIL_VERIFICATION_DISABLED:-1}
+      - PASSWORD_RESET_DISABLED=${PASSWORD_RESET_DISABLED:-1}
+      - EMAIL_AUTH_DISABLED=${EMAIL_AUTH_DISABLED:-0}
+      - INVITE_DISABLED=${INVITE_DISABLED:-0}
+      - ASSET_PREFIX_URL=${ASSET_PREFIX_URL}
+      - UNSPLASH_ACCESS_KEY=${UNSPLASH_ACCESS_KEY}
+      - GITHUB_ID=${GITHUB_ID}
+      - GITHUB_SECRET=${GITHUB_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - AZUREAD_CLIENT_ID=${AZUREAD_CLIENT_ID}
+      - AZUREAD_CLIENT_SECRET=${AZUREAD_CLIENT_SECRET}
+      - AZUREAD_TENANT_ID=${AZUREAD_TENANT_ID}
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET}
+      - OIDC_ISSUER=${OIDC_ISSUER}
+      - OIDC_DISPLAY_NAME=${OIDC_DISPLAY_NAME}
+      - OIDC_SIGNING_ALGORITHM=${OIDC_SIGNING_ALGORITHM}
+      - NOTION_OAUTH_CLIENT_ID=${NOTION_OAUTH_CLIENT_ID}
+      - NOTION_OAUTH_CLIENT_SECRET=${NOTION_OAUTH_CLIENT_SECRET}
+      - GOOGLE_SHEETS_CLIENT_ID=${GOOGLE_SHEETS_CLIENT_ID}
+      - GOOGLE_SHEETS_CLIENT_SECRET=${GOOGLE_SHEETS_CLIENT_SECRET}
+      - GOOGLE_SHEETS_REDIRECT_URL=${GOOGLE_SHEETS_REDIRECT_URL}
+      - AIRTABLE_CLIENT_ID=${AIRTABLE_CLIENT_ID}
+      - SLACK_CLIENT_ID=${SLACK_CLIENT_ID}
+      - SLACK_CLIENT_SECRET=${SLACK_CLIENT_SECRET}
+      - PRIVACY_URL=${PRIVACY_URL}
+      - TERMS_URL=${TERMS_URL}
+      - IMPRINT_URL=${IMPRINT_URL}
+      - RATE_LIMITING_DISABLED=${RATE_LIMITING_DISABLED:-0}
+      - OPENTELEMETRY_LISTENER_URL=${OPENTELEMETRY_LISTENER_URL}
+      - 'REDIS_URL=redis://valkey:6379'
+      - DEFAULT_ORGANIZATION_ID=${DEFAULT_ORGANIZATION_ID}
+      - DEFAULT_ORGANIZATION_ROLE=${DEFAULT_ORGANIZATION_ROLE:-owner}
+      - S3_ACCESS_KEY=$SERVICE_USER_MINIO
+      - S3_SECRET_KEY=${SERVICE_PASSWORD_MINIO}
+      - S3_REGION=us-east-1
+      - S3_BUCKET_NAME=formbricks
+      - S3_ENDPOINT_URL=$MINIO_SERVER_URL # This has to be publically accessible by frombricks frontend, using http://minio:9000 doesn't work!!
+      - 'S3_FORCE_PATH_STYLE=1'
+    volumes:
+      - formbricks-uploads:/apps/web/uploads/
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:3000"]
+      interval: 2s
+      timeout: 10s
+      retries: 15
+
+  postgresql:
+    image: pgvector/pgvector:pg16
+    volumes:
+      - formbricks-postgresql-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRESQL}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRESQL}
+      - POSTGRES_DB=${POSTGRESQL_DATABASE:-formbricks}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 20s
+      retries: 10
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    command: valkey-server --appendonly yes
+    volumes:
+      - formbricks-valkey:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'valkey-cli ping | grep PONG'
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 3s
+
+  minio:
+    image: ghcr.io/coollabsio/minio:RELEASE.2025-10-15T17-29-55Z # Released on 15 October 2025
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_SERVER_URL=$MINIO_SERVER_URL
+      - MINIO_BROWSER_REDIRECT_URL=$MINIO_BROWSER_REDIRECT_URL
+      - MINIO_ROOT_USER=$SERVICE_USER_MINIO
+      - MINIO_ROOT_PASSWORD=$SERVICE_PASSWORD_MINIO
+    volumes:
+      - formbricks-minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 20s
+      retries: 10
+      
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+        mc alias set local http://minio:9000 ${SERVICE_USER_MINIO} ${SERVICE_PASSWORD_MINIO} &&
+        mc mb -p local/formbricks || true &&
+        mc anonymous set private local/formbricks
+      "
+    restart: "no"
+    exclude_from_hc: true

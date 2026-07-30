@@ -1,0 +1,72 @@
+# documentation: https://distribution.github.io/distribution/
+# slogan: The Docker Registry lets you distribute Docker images.
+# category: devtools
+# tags: registry,images,docker
+# logo: svgs/docker-registry.png
+# port: 5000
+
+services:
+  registry:
+    image: registry:3
+    environment:
+      - SERVICE_URL_REGISTRY_5000
+      - USERNAME=${SERVICE_USER_REGISTRY}
+      - PASSWORD=${SERVICE_PASSWORD_REGISTRY}
+      - REGISTRY_AUTH=htpasswd
+      - REGISTRY_AUTH_HTPASSWD_REALM=Registry Realm
+      - REGISTRY_AUTH_HTPASSWD_PATH=/auth/registry.password
+    command: ["/entrypoint.sh"]
+    volumes:
+      - registry-data:/var/lib/registry
+      - type: bind
+        source: ./etc/entrypoint.sh
+        target: /entrypoint.sh
+        mode: "0755"
+        content: |
+          #!/usr/bin/env sh
+          set -e 
+
+          if [ -z "$USERNAME" ] || [ -z "$PASSWORD" ]; then
+              echo "Error: USERNAME and PASSWORD environment variables must be set"
+              exit 1
+          fi
+
+          apk add --no-cache apache2-utils
+          mkdir -p "$(dirname "$REGISTRY_AUTH_HTPASSWD_PATH")"
+          chmod 755 "$(dirname "$REGISTRY_AUTH_HTPASSWD_PATH")"
+          htpasswd -Bbc "$REGISTRY_AUTH_HTPASSWD_PATH" "$USERNAME" "$PASSWORD"
+          registry serve /etc/docker/registry/config.yml
+      - type: bind
+        source: ./config/config.yml
+        target: /etc/docker/registry/config.yml
+        isDirectory: false
+        content: >-
+          version: 0.1
+
+          log:
+            fields:
+              service: registry
+          storage:
+            cache:
+              blobdescriptor: inmemory
+            filesystem:
+              rootdirectory: /var/lib/registry
+          http:
+            addr: :5000
+            headers:
+              X-Content-Type-Options: [nosniff]
+          health:
+            storagedriver:
+              enabled: true
+              interval: 10s
+              threshold: 3
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - "-q"
+        - "--spider"     
+        - "http://localhost:5000/"  
+      interval: 5s
+      timeout: 20s
+      retries: 10
