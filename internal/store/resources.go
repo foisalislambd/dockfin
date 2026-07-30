@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -162,6 +163,9 @@ func (s *Store) CreateProject(ctx context.Context, teamID uuid.UUID, name, desc 
 		RETURNING id, team_id, name, description, created_at
 	`, teamID, name, desc).Scan(&p.ID, &p.TeamID, &p.Name, &p.Description, &p.CreatedAt)
 	if err != nil {
+		if strings.Contains(err.Error(), "projects_team_id_name") || strings.Contains(err.Error(), "duplicate") {
+			return nil, nil, ErrConflict
+		}
 		return nil, nil, err
 	}
 	var e Environment
@@ -249,12 +253,18 @@ func (s *Store) ListEnvironments(ctx context.Context, teamID, projectID uuid.UUI
 }
 
 func (s *Store) CreateEnvironment(ctx context.Context, teamID, projectID uuid.UUID, name, desc string) (*Environment, error) {
+	if _, err := s.GetProject(ctx, teamID, projectID); err != nil {
+		return nil, err
+	}
 	var e Environment
 	err := s.Pool.QueryRow(ctx, `
 		INSERT INTO environments (team_id, project_id, name, description) VALUES ($1,$2,$3,$4)
 		RETURNING id, team_id, project_id, name, description, created_at
 	`, teamID, projectID, name, desc).Scan(&e.ID, &e.TeamID, &e.ProjectID, &e.Name, &e.Description, &e.CreatedAt)
 	if err != nil {
+		if strings.Contains(err.Error(), "environments_project_id_name") || strings.Contains(err.Error(), "duplicate") {
+			return nil, ErrConflict
+		}
 		return nil, err
 	}
 	e.IsEmpty = true
@@ -306,6 +316,9 @@ func (s *Store) UpdateProject(ctx context.Context, teamID, id uuid.UUID, name, d
 		return nil, ErrNotFound
 	}
 	if err != nil {
+		if strings.Contains(err.Error(), "projects_team_id_name") || strings.Contains(err.Error(), "duplicate") {
+			return nil, ErrConflict
+		}
 		return nil, err
 	}
 	empty, err := s.ProjectIsEmpty(ctx, teamID, id)
@@ -347,6 +360,9 @@ func (s *Store) UpdateEnvironment(ctx context.Context, teamID, projectID, envID 
 		return nil, ErrNotFound
 	}
 	if err != nil {
+		if strings.Contains(err.Error(), "environments_project_id_name") || strings.Contains(err.Error(), "duplicate") {
+			return nil, ErrConflict
+		}
 		return nil, err
 	}
 	empty, err := s.EnvironmentIsEmpty(ctx, teamID, envID)

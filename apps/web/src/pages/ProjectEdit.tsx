@@ -54,7 +54,7 @@ export function ProjectEditPage() {
     )
   }
 
-  const isEmpty = project.data.is_empty
+  const isEmpty = project.data.is_empty === true
   const nameMatches = confirmName.trim() === project.data.name
 
   return (
@@ -197,7 +197,7 @@ export function EnvironmentEditPage() {
     )
   }
 
-  const isEmpty = env.data.is_empty
+  const isEmpty = env.data.is_empty === true
   const nameMatches = confirmName.trim() === env.data.name
 
   return (
