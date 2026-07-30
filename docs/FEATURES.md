@@ -56,7 +56,7 @@
 - [x] Notification settings + deploy webhooks
 - [x] Sentinel metrics ingest (token auth)
 - [x] Terminal/exec helper
-- [x] Onboarding + app detail + notifications UI
+- [x] App detail + notifications UI
 - [x] Full xterm browser terminal
 - [x] Metrics charts UI polish
 - [x] Application / database delete (danger zone)

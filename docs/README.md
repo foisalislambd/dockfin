@@ -28,7 +28,7 @@ cd apps/web && npm install && npm run dev
 
 ## First deploy happy path
 
-1. Open the UI → **Onboarding** (or Dashboard CTA)
+1. Open the UI → **Servers** (add this host / SSH key) → **Projects**
 2. Add an SSH private key
 3. Add a server → **Validate** → **Start Traefik proxy**
 4. Create a project (production environment is created automatically)

@@ -606,11 +606,6 @@ export function SettingsPage() {
             </Link>
           </li>
           <li>
-            <Link to="/onboarding" className="text-brand-600 hover:underline dark:text-brand-400">
-              Onboarding wizard
-            </Link>
-          </li>
-          <li>
             <Link to="/notifications" className="text-brand-600 hover:underline dark:text-brand-400">
               Notifications
             </Link>

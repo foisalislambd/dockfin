@@ -60,11 +60,14 @@ export function DashboardPage() {
       {!hasServers && (
         <div className="panel-card border-brand-200 bg-brand-50/60 p-6 dark:border-brand-500/30 dark:bg-brand-500/10">
           <h2 className="text-lg font-medium text-gray-900 dark:text-white">Welcome — no servers yet</h2>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+            Add this VPS (or another host) under Servers, then create a project to deploy.
+          </p>
           <Link
-            to="/onboarding"
+            to="/servers"
             className="mt-4 inline-flex h-8 items-center rounded-md bg-brand-500 px-2.5 text-xs font-medium text-white hover:bg-brand-600"
           >
-            Start onboarding
+            Go to Servers
           </Link>
         </div>
       )}

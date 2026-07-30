@@ -20,7 +20,6 @@ import { CreateApplicationPage } from './pages/CreateApplication'
 import { CreateDatabasePage } from './pages/CreateDatabase'
 import { CreateServicePage } from './pages/CreateService'
 import { ApplicationDetailPage } from './pages/ApplicationDetail'
-import { OnboardingPage } from './pages/Onboarding'
 import { NotificationsPage } from './pages/Notifications'
 import { ProjectShowPage } from './pages/ProjectShow'
 import { ProjectEditPage, EnvironmentEditPage } from './pages/ProjectEdit'
@@ -95,12 +94,6 @@ const dashboardRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/dashboard',
   component: DashboardPage,
-})
-
-const onboardingRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: '/onboarding',
-  component: OnboardingPage,
 })
 
 const serversRoute = createRoute({
@@ -333,7 +326,6 @@ const routeTree = rootRoute.addChildren([
   registerRoute,
   appRoute.addChildren([
     dashboardRoute,
-    onboardingRoute,
     serversRoute,
     serverDetailRoute,
     projectsRoute,

@@ -35,7 +35,7 @@ Goolify is inspired by Coolify’s product model (`Team → Project → Environm
 - **Databases** — PostgreSQL, MySQL, MariaDB, MongoDB, Redis, KeyDB, Dragonfly, ClickHouse
 - **Services** — custom compose + **~360** one-click templates in `templates/compose/` (Coolify-compatible)
 - **Ops** — notifications (Discord/Slack/webhook), scheduled tasks/backups APIs, sentinel metrics ingest
-- **DX** — onboarding wizard, `glfy` CLI, one-click VPS smoke test, Docker Compose for local DB
+- **DX** — `glfy` CLI, one-click VPS smoke test, Docker Compose for local DB
 
 See the full checklist: [docs/FEATURES.md](docs/FEATURES.md)
 
@@ -100,7 +100,7 @@ npm install
 npm run dev
 ```
 
-UI: http://localhost:5173 — register an account, open **Onboarding**, add a server, deploy.
+UI: http://localhost:5173 — register an account, add a server under **Servers**, create a **Project**, deploy.
 
 ---
 

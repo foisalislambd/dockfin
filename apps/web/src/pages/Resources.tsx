@@ -127,11 +127,7 @@ export function ProjectsPage() {
             <button type="button" className="font-medium text-brand-600 dark:text-brand-400" onClick={() => setShow(true)}>
               Add
             </button>{' '}
-            your first project or go to{' '}
-            <Link to="/onboarding" className="underline dark:text-white">
-              onboarding
-            </Link>
-            .
+            your first project.
           </p>
         </div>
       )}

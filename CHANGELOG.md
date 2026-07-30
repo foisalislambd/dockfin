@@ -11,7 +11,7 @@ once `1.0.0` is tagged.
 ### Added
 
 - Go control plane (`goolify serve` / `migrate`) with Chi HTTP API
-- React + Vite dashboard (auth, servers, projects, apps, databases, services, onboarding)
+- React + Vite dashboard (auth, servers, projects, apps, databases, services)
 - PostgreSQL schema via Goose migrations (embedded)
 - SSH pool with host-key TOFU / fingerprint persistence
 - Deploy pipeline: dockerfile, dockercompose, dockerimage, nixpacks, static
