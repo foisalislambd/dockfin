@@ -64,7 +64,7 @@ See the full checklist: [docs/FEATURES.md](docs/FEATURES.md)
 
 ### Prerequisites
 
-- Go 1.23+
+- Go 1.26+
 - Node.js 22+
 - Docker (for Postgres/Redis) or a local PostgreSQL 16
 

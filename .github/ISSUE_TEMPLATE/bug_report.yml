@@ -47,7 +47,7 @@ body:
     id: env
     attributes:
       label: Environment
-      placeholder: Ubuntu 24.04, Docker 27.x, Go 1.23
+      placeholder: Ubuntu 24.04, Docker 27.x, Go 1.26
   - type: textarea
     id: logs
     attributes:

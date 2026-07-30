@@ -10,7 +10,7 @@ Participation is governed by our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ### Requirements
 
-- Go 1.23+
+- Go 1.26+
 - Node.js 22+
 - Docker (recommended for Postgres/Redis)
 

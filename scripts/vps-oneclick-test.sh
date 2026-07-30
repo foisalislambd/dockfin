@@ -71,10 +71,22 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 docker compose version >/dev/null 2>&1 || fail "docker compose plugin missing"
 
-# Go 1.23+
-if ! command -v go >/dev/null 2>&1 || [[ "$(go env GOVERSION 2>/dev/null | sed 's/go//;s/\..*//')" -lt 1 ]]; then
-  log "Installing Go 1.23.6..."
-  curl -fsSL https://go.dev/dl/go1.23.6.linux-amd64.tar.gz -o /tmp/go.tgz
+# Go 1.26+
+need_go=0
+if ! command -v go >/dev/null 2>&1; then
+  need_go=1
+else
+  ver="$(go env GOVERSION 2>/dev/null | sed 's/^go//')"
+  major="${ver%%.*}"
+  rest="${ver#*.}"
+  minor="${rest%%.*}"
+  if [[ "${major}" -lt 1 ]] || [[ "${major}" -eq 1 && "${minor}" -lt 26 ]]; then
+    need_go=1
+  fi
+fi
+if [[ "${need_go}" -eq 1 ]]; then
+  log "Installing Go 1.26.5..."
+  curl -fsSL https://go.dev/dl/go1.26.5.linux-amd64.tar.gz -o /tmp/go.tgz
   rm -rf /usr/local/go
   tar -C /usr/local -xzf /tmp/go.tgz
   export PATH="/usr/local/go/bin:${PATH}"
