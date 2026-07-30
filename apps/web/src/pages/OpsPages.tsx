@@ -133,6 +133,7 @@ export function TeamPage() {
       setAcceptToken('')
       await refresh()
       void qc.invalidateQueries({ queryKey: ['team-members'] })
+      void qc.invalidateQueries({ queryKey: ['team-invitations'] })
     },
   })
 

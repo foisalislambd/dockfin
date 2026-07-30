@@ -56,6 +56,11 @@ export function isNavActive(pathname: string, href: string) {
   if (href === '/dashboard') return pathname === '/dashboard' || pathname === '/'
   if (href === '/projects') return pathname === '/projects' || pathname.startsWith('/projects/')
   if (href === '/servers') return pathname === '/servers' || pathname.startsWith('/servers/')
-  if (href === '/security/private-keys') return pathname.startsWith('/security/')
+  if (href === '/security/private-keys') {
+    return pathname === '/security/private-keys' || pathname.startsWith('/security/private-keys/')
+  }
+  if (href === '/security/api-tokens') {
+    return pathname === '/security/api-tokens' || pathname.startsWith('/security/api-tokens/')
+  }
   return pathname === href || pathname.startsWith(`${href}/`)
 }

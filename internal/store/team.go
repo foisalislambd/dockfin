@@ -145,8 +145,14 @@ func (s *Store) ListTeamMembers(ctx context.Context, teamID uuid.UUID) ([]TeamMe
 }
 
 func (s *Store) RemoveTeamMember(ctx context.Context, teamID, userID uuid.UUID) error {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
 	var role string
-	err := s.Pool.QueryRow(ctx, `SELECT role FROM team_members WHERE team_id=$1 AND user_id=$2`, teamID, userID).Scan(&role)
+	err = tx.QueryRow(ctx, `SELECT role FROM team_members WHERE team_id=$1 AND user_id=$2 FOR UPDATE`, teamID, userID).Scan(&role)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
@@ -155,19 +161,21 @@ func (s *Store) RemoveTeamMember(ctx context.Context, teamID, userID uuid.UUID) 
 	}
 	if role == "owner" {
 		var owners int
-		_ = s.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM team_members WHERE team_id=$1 AND role='owner'`, teamID).Scan(&owners)
+		if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM team_members WHERE team_id=$1 AND role='owner' FOR UPDATE`, teamID).Scan(&owners); err != nil {
+			return err
+		}
 		if owners <= 1 {
 			return errors.New("cannot remove the last owner")
 		}
 	}
-	tag, err := s.Pool.Exec(ctx, `DELETE FROM team_members WHERE team_id=$1 AND user_id=$2`, teamID, userID)
+	tag, err := tx.Exec(ctx, `DELETE FROM team_members WHERE team_id=$1 AND user_id=$2`, teamID, userID)
 	if err != nil {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (s *Store) CreateInvitation(ctx context.Context, teamID, invitedBy uuid.UUID, email, role, token string, expiresAt time.Time) (*TeamInvitation, error) {
@@ -264,14 +272,16 @@ func (s *Store) AcceptInvitation(ctx context.Context, token string, userID uuid.
 	}
 	var t Team
 	err = tx.QueryRow(ctx, `
-		SELECT id, name, description, personal, created_at FROM teams WHERE id=$1
-	`, inv.TeamID).Scan(&t.ID, &t.Name, &t.Description, &t.Personal, &t.CreatedAt)
+		SELECT t.id, t.name, t.description, t.personal, t.created_at, tm.role
+		FROM teams t
+		JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = $2
+		WHERE t.id=$1
+	`, inv.TeamID, userID).Scan(&t.ID, &t.Name, &t.Description, &t.Personal, &t.CreatedAt, &t.Role)
 	if err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
-	t.Role = inv.Role
 	return &t, nil
 }

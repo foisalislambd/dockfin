@@ -254,13 +254,16 @@ func (a *API) requireTeam(next http.Handler) http.Handler {
 		user := r.Context().Value(ctxUser).(*store.User)
 		sess := r.Context().Value(ctxSession).(*store.Session)
 		teamID := sess.CurrentTeamID
-		if hdr := r.Header.Get("X-Team-ID"); hdr != "" {
-			id, err := uuid.Parse(hdr)
-			if err != nil {
-				writeError(w, http.StatusBadRequest, "invalid X-Team-ID")
-				return
+		// Cookie/session auth may override team via header. API tokens are bound to one team.
+		if sess.ID != uuid.Nil {
+			if hdr := r.Header.Get("X-Team-ID"); hdr != "" {
+				id, err := uuid.Parse(hdr)
+				if err != nil {
+					writeError(w, http.StatusBadRequest, "invalid X-Team-ID")
+					return
+				}
+				teamID = &id
 			}
-			teamID = &id
 		}
 		if teamID == nil {
 			writeError(w, http.StatusBadRequest, "no team selected")
