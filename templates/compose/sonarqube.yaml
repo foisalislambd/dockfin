@@ -3,6 +3,7 @@
 # slogan: SonarQube is a self-managed, automatic code review tool that systematically helps you deliver Clean Code
 # category: productivity
 # tags: sonarqube, code-review, clean-code, quality, code-quality, code-analysis, code-smells, code-coverage, code-security
+# logo: svgs/sonarqube.svg
 
 services:
   sonarqube:

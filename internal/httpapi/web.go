@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/goolify/goolify/internal/services"
 )
 
 func resolveWebDir(configured string) string {
@@ -24,6 +25,13 @@ func resolveWebDir(configured string) string {
 }
 
 func (a *API) mountWebOrRoot(r chi.Router) {
+	if dir := services.ResolveLogosDir(); dir != "" {
+		fileServer := http.StripPrefix("/svgs/", http.FileServer(http.Dir(dir)))
+		r.Get("/svgs/*", func(w http.ResponseWriter, req *http.Request) {
+			fileServer.ServeHTTP(w, req)
+		})
+	}
+
 	webDir := resolveWebDir(a.Cfg.WebDir)
 	if webDir != "" {
 		fileServer := http.FileServer(http.Dir(webDir))

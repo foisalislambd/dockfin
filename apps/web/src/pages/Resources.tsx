@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { ServiceLogo } from '../components/ServiceLogo'
 import { api, LAST_ENV_KEY } from '../lib/api'
 import { Btn, Header, Input, Modal } from './Servers'
 
@@ -247,6 +248,13 @@ export function ServicesPage() {
   const services = useQuery({ queryKey: ['services'], queryFn: () => api.services() })
   const templates = useQuery({ queryKey: ['templates'], queryFn: api.templates })
   const [deployError, setDeployError] = useState('')
+  const logoByType = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const t of templates.data?.templates || []) {
+      if (t.logo) m.set(t.type, t.logo)
+    }
+    return m
+  }, [templates.data])
 
   return (
     <div className="space-y-6">
@@ -265,15 +273,24 @@ export function ServicesPage() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {(services.data?.services || []).map((s) => (
           <div key={s.id} className="panel-card p-5">
-            <Link
-              to="/services/$svcId"
-              params={{ svcId: s.id }}
-              className="font-medium text-gray-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-400"
-            >
-              {s.name}
-            </Link>
-            <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">{s.service_type}</div>
-            <div className="mt-3 text-sm text-gray-600 dark:text-gray-300">{s.status}</div>
+            <div className="flex items-start gap-3">
+              <ServiceLogo
+                src={logoByType.get(s.service_type)}
+                name={s.name}
+                className="h-10 w-10"
+              />
+              <div className="min-w-0 flex-1">
+                <Link
+                  to="/services/$svcId"
+                  params={{ svcId: s.id }}
+                  className="font-medium text-gray-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-400"
+                >
+                  {s.name}
+                </Link>
+                <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">{s.service_type}</div>
+                <div className="mt-2 text-sm text-gray-600 dark:text-gray-300">{s.status}</div>
+              </div>
+            </div>
             <div className="mt-4">
               <Btn
                 primary
@@ -308,8 +325,9 @@ export function ServicesPage() {
         </div>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {(templates.data?.templates || []).slice(0, 8).map((t) => (
-            <div key={t.type} className="panel-card px-3 py-3 text-sm">
-              <div className="font-medium text-gray-900 dark:text-white">{t.name}</div>
+            <div key={t.type} className="panel-card flex items-center gap-3 px-3 py-3 text-sm">
+              <ServiceLogo src={t.logo} name={t.name} className="h-8 w-8" />
+              <div className="truncate font-medium text-gray-900 dark:text-white">{t.name}</div>
             </div>
           ))}
         </div>

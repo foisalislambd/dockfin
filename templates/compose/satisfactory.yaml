@@ -2,7 +2,7 @@
 # slogan: Satisfactory Dedicated Server for hosting your own Satisfactory game sessions.
 # category: games
 # tags: satisfactory, game-server, dedicated-server, steam, self-hosted, gaming
-# logo: svgs/satisfactory.jpg
+# logo: svgs/satisfactory.svg
 # ports: 7777 tcp/udp, 8888 tcp
 
 services:

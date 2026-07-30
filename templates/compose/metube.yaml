@@ -3,6 +3,7 @@
 # category: media
 # tags: youtube, download, videos, playlist
 # port: 8081
+# logo: svgs/metube.svg
 
 services:
   metube:

@@ -2,7 +2,7 @@
 # slogan: Golang WhatsApp - Built with Go for efficient memory use
 # category: messaging
 # tags: whatsapp,golang,multidevice,api,go-whatsapp
-# logo: svgs/gowa.svg
+# logo: svgs/gowa.png
 # port: 3000
 
 services:

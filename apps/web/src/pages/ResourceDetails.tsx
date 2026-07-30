@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { ServerTerminal } from '../components/Terminal'
+import { ServiceLogo } from '../components/ServiceLogo'
 import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
 import { api } from '../lib/api'
 import { Btn, Input } from './Servers'
@@ -470,6 +471,7 @@ export function ServiceDetailPage() {
     setTab('configuration')
   }, [svcId])
   const svc = useQuery({ queryKey: ['service', svcId], queryFn: () => api.getService(svcId) })
+  const templates = useQuery({ queryKey: ['templates'], queryFn: api.templates })
 
   const deploy = useMutation({
     mutationFn: () => api.deployService(svcId),
@@ -505,16 +507,24 @@ export function ServiceDetailPage() {
   }
 
   const s = svc.data
+  const logo = (templates.data?.templates || []).find((t) => t.type === s.service_type)?.logo
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           {back}
-          <h1 className="mt-2 text-xl font-semibold tracking-tight text-gray-900 dark:text-white">{s.name}</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {s.service_type} · {s.status}
-          </p>
+          <div className="mt-2 flex items-center gap-3">
+            <ServiceLogo src={logo} name={s.name} className="h-11 w-11" />
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
+                {s.name}
+              </h1>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {s.service_type} · {s.status}
+              </p>
+            </div>
+          </div>
         </div>
         <Btn primary onClick={() => deploy.mutate()}>
           Deploy

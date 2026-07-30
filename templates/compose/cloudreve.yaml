@@ -2,7 +2,7 @@
 # slogan: A self-hosted file management and sharing system.
 # category: storage
 # tags: file sharing,cloud storage,self-hosted,open-source
-# logo: svgs/cloudreve.svg
+# logo: svgs/cloudreve.png
 # port: 5212
 
 services:

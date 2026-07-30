@@ -3,6 +3,7 @@
 # category: productivity
 # tags: links, shortener, sharing, url, short, link, sharing
 # port: 8080
+# logo: svgs/shlink.svg
 
 services:
   shlink:

@@ -2,7 +2,7 @@
 # slogan: Docker multi-arch Image for Terraria Server.
 # category: games
 # tags: terraria
-# logo: svgs/terraria.svg
+# logo: svgs/terraria.png
 # port: 7777
 
 services:

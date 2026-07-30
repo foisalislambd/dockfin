@@ -444,7 +444,13 @@ export type Service = {
   environment_id: string
   description?: string
 }
-export type Template = { type: string; name: string; description: string; category?: string }
+export type Template = {
+  type: string
+  name: string
+  description: string
+  category?: string
+  logo?: string
+}
 export type Destination = {
   id: string
   name: string

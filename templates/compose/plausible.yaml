@@ -4,6 +4,7 @@
 # category: analytics
 # tags: analytics, privacy, google, alternative
 # port: 8000
+# logo: svgs/plausible.svg
 
 services:
   plausible:
