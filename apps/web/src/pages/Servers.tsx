@@ -206,10 +206,10 @@ export function Header({
   actions?: React.ReactNode
 }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4">
+    <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
-        <p className="mt-2 text-gray-500 dark:text-gray-400">{subtitle}</p>
+        <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">{title}</h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>
       </div>
       <div className="flex gap-2">{actions}</div>
     </div>
@@ -231,10 +231,10 @@ export function Btn({
     <button
       type={type}
       onClick={onClick}
-      className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
+      className={`inline-flex h-8 items-center rounded-md px-2.5 text-xs font-medium transition ${
         primary
           ? 'bg-brand-500 text-white hover:bg-brand-600'
-          : 'border border-gray-200 dark:border-gray-800 hover:border-brand-500'
+          : 'border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5'
       }`}
     >
       {children}

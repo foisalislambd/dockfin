@@ -7,7 +7,7 @@ import { appConfig } from '../config/app.config'
 import { ThemeToggle } from '../components/theme/ThemeToggle'
 
 const inputClass =
-  'h-11 w-full rounded-lg border border-gray-200 bg-white pl-10 pr-4 text-sm text-gray-900 shadow-sm transition placeholder:text-gray-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white'
+  'h-9 w-full rounded-md border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-900 shadow-sm transition placeholder:text-gray-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white'
 
 function BrandPanel({ className = '' }: { className?: string }) {
   const { brand } = appConfig
@@ -84,20 +84,20 @@ export function LoginPage() {
 
   return (
     <AuthShell>
-      <div className="mb-6 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500 text-base font-bold text-white lg:hidden">
+      <div className="mb-5 flex h-9 w-9 items-center justify-center rounded-lg bg-brand-500 text-sm font-bold text-white lg:hidden">
         {appConfig.brand.letter}
       </div>
-      <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-[1.75rem]">
+      <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
         Sign in
       </h1>
-      <p className="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+      <p className="mt-1.5 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
         Sign in to your self-hosted control plane.
       </p>
-      <form onSubmit={onSubmit} className="mt-8 space-y-5">
+      <form onSubmit={onSubmit} className="mt-6 space-y-4">
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
+          <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Email</label>
           <div className="relative">
-            <Mail className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Mail className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
             <input
               type="email"
               required
@@ -109,9 +109,9 @@ export function LoginPage() {
           </div>
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
+          <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Password</label>
           <div className="relative">
-            <Lock className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Lock className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
             <input
               type={showPassword ? 'text' : 'password'}
               required
@@ -138,12 +138,12 @@ export function LoginPage() {
         <button
           type="submit"
           disabled={busy}
-          className="flex h-11 w-full items-center justify-center rounded-lg bg-brand-500 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 focus:ring-2 focus:ring-brand-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex h-9 w-full items-center justify-center rounded-md bg-brand-500 text-sm font-medium text-white shadow-sm transition hover:bg-brand-600 focus:ring-2 focus:ring-brand-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         >
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
-      <p className="mt-8 text-center text-sm text-gray-500">
+      <p className="mt-6 text-center text-sm text-gray-500">
         No account?{' '}
         <Link to="/register" className="font-medium text-brand-600 hover:text-brand-500">
           Create one
@@ -183,20 +183,20 @@ export function RegisterPage() {
 
   return (
     <AuthShell>
-      <div className="mb-6 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500 text-base font-bold text-white lg:hidden">
+      <div className="mb-5 flex h-9 w-9 items-center justify-center rounded-lg bg-brand-500 text-sm font-bold text-white lg:hidden">
         {appConfig.brand.letter}
       </div>
-      <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-[1.75rem]">
+      <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
         Create account
       </h1>
       <p className="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
         Full open-source PaaS. No cloud lock-in.
       </p>
-      <form onSubmit={onSubmit} className="mt-8 space-y-5">
+      <form onSubmit={onSubmit} className="mt-6 space-y-4">
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
+          <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Name</label>
           <div className="relative">
-            <User className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <User className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
             <input
               required
               value={name}
@@ -206,9 +206,9 @@ export function RegisterPage() {
           </div>
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
+          <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Email</label>
           <div className="relative">
-            <Mail className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Mail className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
             <input
               type="email"
               required
@@ -219,9 +219,9 @@ export function RegisterPage() {
           </div>
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
+          <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Password</label>
           <div className="relative">
-            <Lock className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Lock className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
             <input
               type="password"
               required
@@ -239,12 +239,12 @@ export function RegisterPage() {
         <button
           type="submit"
           disabled={busy}
-          className="flex h-11 w-full items-center justify-center rounded-lg bg-brand-500 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 disabled:opacity-60"
+          className="flex h-9 w-full items-center justify-center rounded-md bg-brand-500 text-sm font-medium text-white shadow-sm transition hover:bg-brand-600 disabled:opacity-60"
         >
           {busy ? 'Creating…' : 'Create account'}
         </button>
       </form>
-      <p className="mt-8 text-center text-sm text-gray-500">
+      <p className="mt-6 text-center text-sm text-gray-500">
         Already have an account?{' '}
         <Link to="/login" className="font-medium text-brand-600 hover:text-brand-500">
           Sign in

@@ -41,15 +41,15 @@ export function PanelSidebar() {
           onClick={closeMobileSidebar}
           className={`flex min-w-0 flex-1 items-center gap-3 ${!showLabels ? 'justify-center' : ''}`}
         >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-base font-bold text-white">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500 text-sm font-bold text-white">
             {brand.letter}
           </span>
           {showLabels && (
             <div className="min-w-0">
-              <p className="truncate text-[15px] font-semibold text-gray-900 dark:text-white">
+              <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
                 {brand.name}
               </p>
-              <p className="truncate text-xs text-gray-500">{brand.tagline}</p>
+              <p className="truncate text-[11px] text-gray-500">{brand.tagline}</p>
             </div>
           )}
         </Link>
@@ -57,20 +57,15 @@ export function PanelSidebar() {
           <button
             type="button"
             onClick={closeMobileSidebar}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10"
             aria-label="Close menu"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
         )}
       </div>
 
-      <nav className="no-scrollbar flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-5">
-        {showLabels && (
-          <p className="mb-2 px-3 text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
-            Menu
-          </p>
-        )}
+      <nav className="no-scrollbar flex flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 py-3">
         {navItems.map((item) => {
           const active = isNavActive(pathname, item.href)
           const Icon = item.icon
@@ -81,14 +76,14 @@ export function PanelSidebar() {
               onClick={closeMobileSidebar}
               title={!showLabels ? item.name : undefined}
               aria-current={active ? 'page' : undefined}
-              className={`group relative flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
+              className={`group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
                 active
-                  ? 'bg-brand-500 text-white shadow-md shadow-brand-500/25'
+                  ? 'bg-brand-500 text-white shadow-sm shadow-brand-500/25'
                   : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/8'
               } ${!showLabels ? 'justify-center px-0' : ''}`}
             >
               <Icon
-                className={`h-[22px] w-[22px] shrink-0 ${
+                className={`h-[18px] w-[18px] shrink-0 ${
                   active
                     ? 'text-white'
                     : 'text-gray-500 group-hover:text-gray-700 dark:text-gray-400'
@@ -100,21 +95,21 @@ export function PanelSidebar() {
         })}
       </nav>
 
-      <div className="shrink-0 space-y-1 border-t border-gray-200 p-3 dark:border-gray-800">
+      <div className="shrink-0 space-y-1 border-t border-gray-200 p-2.5 dark:border-gray-800">
         {isDesktop && (
           <button
             type="button"
             onClick={toggleSidebar}
-            className={`flex w-full items-center gap-3 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/5 ${!showLabels ? 'justify-center' : ''}`}
+            className={`flex w-full items-center gap-2.5 rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/5 ${!showLabels ? 'justify-center' : ''}`}
             aria-label={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
           >
             {isExpanded ? (
               <>
-                <ChevronLeft className="h-5 w-5 shrink-0" />
+                <ChevronLeft className="h-4 w-4 shrink-0" />
                 <span>Collapse</span>
               </>
             ) : (
-              <ChevronRight className="h-5 w-5 shrink-0" />
+              <ChevronRight className="h-4 w-4 shrink-0" />
             )}
           </button>
         )}

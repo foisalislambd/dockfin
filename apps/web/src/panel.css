@@ -20,7 +20,7 @@
 }
 
 .panel-topbar {
-  height: 4rem;
+  height: 3.25rem;
   flex-shrink: 0;
   border-bottom: 1px solid #e4e7ec;
 }
@@ -43,18 +43,18 @@
 }
 
 .panel-card-body {
-  padding: 1rem;
+  padding: 0.875rem;
 }
 
 @media (min-width: 640px) {
   .panel-card-body {
-    padding: 1.25rem;
+    padding: 1rem;
   }
 }
 
 @media (min-width: 768px) {
   .panel-card-body {
-    padding: 1.5rem;
+    padding: 1.125rem;
   }
 }
 

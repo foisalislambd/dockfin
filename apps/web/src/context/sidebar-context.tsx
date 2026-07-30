@@ -9,8 +9,8 @@ import {
   type ReactNode,
 } from 'react'
 
-export const SIDEBAR_WIDTH_EXPANDED = 260
-export const SIDEBAR_WIDTH_COLLAPSED = 80
+export const SIDEBAR_WIDTH_EXPANDED = 232
+export const SIDEBAR_WIDTH_COLLAPSED = 72
 
 type SidebarContextValue = {
   isExpanded: boolean

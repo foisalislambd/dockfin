@@ -195,7 +195,7 @@ export type EnvVar = {
 }
 export type Database = { id: string; name: string; engine: string; status: string }
 export type Service = { id: string; name: string; service_type: string; status: string }
-export type Template = { type: string; name: string; description: string }
+export type Template = { type: string; name: string; description: string; category?: string }
 export type Destination = { id: string; name: string; server_id: string; network: string }
 export type NotificationSetting = {
   id: string

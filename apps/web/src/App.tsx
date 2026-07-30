@@ -15,6 +15,9 @@ import { LoginPage, RegisterPage } from './pages/Auth'
 import { DashboardPage } from './pages/Dashboard'
 import { ServersPage } from './pages/Servers'
 import { ApplicationsPage, DatabasesPage, ProjectsPage, ServicesPage } from './pages/Resources'
+import { CreateApplicationPage } from './pages/CreateApplication'
+import { CreateDatabasePage } from './pages/CreateDatabase'
+import { CreateServicePage } from './pages/CreateService'
 import { ApplicationDetailPage } from './pages/ApplicationDetail'
 import { OnboardingPage } from './pages/Onboarding'
 import { NotificationsPage } from './pages/Notifications'
@@ -105,6 +108,12 @@ const applicationsRoute = createRoute({
   component: ApplicationsPage,
 })
 
+const createApplicationRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/applications/new',
+  component: CreateApplicationPage,
+})
+
 const applicationDetailRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/applications/$appId',
@@ -117,10 +126,22 @@ const databasesRoute = createRoute({
   component: DatabasesPage,
 })
 
+const createDatabaseRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/databases/new',
+  component: CreateDatabasePage,
+})
+
 const servicesRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/services',
   component: ServicesPage,
+})
+
+const createServiceRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/services/new',
+  component: CreateServicePage,
 })
 
 const notificationsRoute = createRoute({
@@ -145,9 +166,12 @@ const routeTree = rootRoute.addChildren([
     serversRoute,
     projectsRoute,
     applicationsRoute,
+    createApplicationRoute,
     applicationDetailRoute,
     databasesRoute,
+    createDatabaseRoute,
     servicesRoute,
+    createServiceRoute,
     notificationsRoute,
     settingsRoute,
   ]),

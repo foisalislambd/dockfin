@@ -25,11 +25,11 @@ function StatCard({
           <p className="truncate text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
             {label}
           </p>
-          <p className="mt-1 text-xl font-semibold tracking-tight text-gray-900 sm:text-2xl dark:text-white">
+          <p className="mt-1 text-lg font-semibold tracking-tight text-gray-900 sm:text-xl dark:text-white">
             {value}
           </p>
         </div>
-        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>{icon}</div>
+        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>{icon}</div>
       </div>
     </Link>
   )
@@ -47,7 +47,7 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
+        <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
           Welcome{user?.name ? `, ${user.name}` : ''}
         </h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -63,7 +63,7 @@ export function DashboardPage() {
           </p>
           <Link
             to="/onboarding"
-            className="mt-4 inline-flex rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600"
+            className="mt-4 inline-flex h-8 items-center rounded-md bg-brand-500 px-2.5 text-xs font-medium text-white hover:bg-brand-600"
           >
             Start onboarding
           </Link>
@@ -75,28 +75,28 @@ export function DashboardPage() {
           label="Servers"
           value={servers.data?.servers?.length ?? '—'}
           to="/servers"
-          icon={<Server className="h-5 w-5 text-brand-600 dark:text-brand-400" />}
+          icon={<Server className="h-4 w-4 text-brand-600 dark:text-brand-400" />}
           iconBg="bg-brand-50 dark:bg-brand-500/15"
         />
         <StatCard
           label="Projects"
           value={projects.data?.projects?.length ?? '—'}
           to="/projects"
-          icon={<FolderKanban className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
+          icon={<FolderKanban className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
           iconBg="bg-emerald-50 dark:bg-emerald-500/15"
         />
         <StatCard
           label="Applications"
           value={apps.data?.applications?.length ?? '—'}
           to="/applications"
-          icon={<Rocket className="h-5 w-5 text-violet-600 dark:text-violet-400" />}
+          icon={<Rocket className="h-4 w-4 text-violet-600 dark:text-violet-400" />}
           iconBg="bg-violet-50 dark:bg-violet-500/15"
         />
         <StatCard
           label="Databases"
           value={dbs.data?.databases?.length ?? '—'}
           to="/databases"
-          icon={<Database className="h-5 w-5 text-amber-600 dark:text-amber-400" />}
+          icon={<Database className="h-4 w-4 text-amber-600 dark:text-amber-400" />}
           iconBg="bg-amber-50 dark:bg-amber-500/15"
         />
       </div>
