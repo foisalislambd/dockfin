@@ -124,6 +124,18 @@ func TestPrepareComposePortSuffixAndCompanionKeys(t *testing.T) {
 	}
 }
 
+func TestDetectProxyPortMultiSegmentName(t *testing.T) {
+	if got := DetectProxyPort("SERVICE_URL_MY_APP_3000", ""); got != "3000" {
+		t.Fatalf("got %q", got)
+	}
+	if got := DetectProxyPort("SERVICE_URL_N8N_5678", ""); got != "5678" {
+		t.Fatalf("got %q", got)
+	}
+	if got := DetectProxyPort("SERVICE_URL_WORDPRESS", ""); got != "80" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestExtractMagicEnvPreservesPasswords(t *testing.T) {
 	raw := `services:
   wordpress:

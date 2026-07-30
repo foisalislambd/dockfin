@@ -40,7 +40,7 @@ func Load() (*Config, error) {
 		DataDir:       getenv("GOOLIFY_DATA_DIR", "./data"),
 		WebDir:        getenv("GOOLIFY_WEB_DIR", ""),
 		SessionTTL:    7 * 24 * time.Hour,
-		TraefikImage:  getenv("GOOLIFY_TRAEFIK_IMAGE", "traefik:v3.3"),
+		TraefikImage:  getenv("GOOLIFY_TRAEFIK_IMAGE", "traefik:v3.6"),
 		CaddyImage:    getenv("GOOLIFY_CADDY_IMAGE", "lucaslorentz/caddy-docker-proxy:2.9-alpine"),
 	}
 

@@ -27,6 +27,7 @@ type Server struct {
 	Name               string     `json:"name"`
 	Description        string     `json:"description"`
 	IP                 string     `json:"ip"`
+	PublicIP           string     `json:"public_ip"`
 	Port               int        `json:"port"`
 	UserName           string     `json:"user_name"`
 	IsReachable        bool       `json:"is_reachable"`
@@ -53,14 +54,14 @@ type Destination struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-const serverCols = `id, team_id, private_key_id, name, description, ip, port, user_name,
+const serverCols = `id, team_id, private_key_id, name, description, ip, COALESCE(public_ip,''), port, user_name,
 	is_reachable, is_usable, docker_version, proxy_type, proxy_status,
 	COALESCE(host_key_fingerprint,''), COALESCE(host_key_type,''), created_at`
 
 func scanServer(scan func(dest ...any) error) (*Server, error) {
 	var srv Server
 	err := scan(
-		&srv.ID, &srv.TeamID, &srv.PrivateKeyID, &srv.Name, &srv.Description, &srv.IP, &srv.Port, &srv.UserName,
+		&srv.ID, &srv.TeamID, &srv.PrivateKeyID, &srv.Name, &srv.Description, &srv.IP, &srv.PublicIP, &srv.Port, &srv.UserName,
 		&srv.IsReachable, &srv.IsUsable, &srv.DockerVersion, &srv.ProxyType, &srv.ProxyStatus,
 		&srv.HostKeyFingerprint, &srv.HostKeyType, &srv.CreatedAt,
 	)
@@ -133,11 +134,15 @@ func (s *Store) CreateServer(ctx context.Context, teamID uuid.UUID, keyID *uuid.
 	}
 	defer tx.Rollback(ctx)
 
+	publicIP := ""
+	if n := strings.TrimSpace(ip); n != "" && n != "127.0.0.1" && n != "localhost" && n != "::1" {
+		publicIP = n
+	}
 	row := tx.QueryRow(ctx, `
-		INSERT INTO servers (team_id, private_key_id, name, description, ip, port, user_name, proxy_type)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+		INSERT INTO servers (team_id, private_key_id, name, description, ip, public_ip, port, user_name, proxy_type)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 		RETURNING `+serverCols+`
-	`, teamID, keyID, name, desc, ip, port, user, proxyType)
+	`, teamID, keyID, name, desc, ip, publicIP, port, user, proxyType)
 	srv, err := scanServer(row.Scan)
 	if err != nil {
 		return nil, err
@@ -335,6 +340,20 @@ func (s *Store) SetServerSwarmManager(ctx context.Context, teamID, serverID uuid
 	return nil
 }
 
+func (s *Store) SetServerPublicIP(ctx context.Context, teamID, serverID uuid.UUID, publicIP string) error {
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE servers SET public_ip=$3
+		WHERE id=$1 AND team_id=$2
+	`, serverID, teamID, strings.TrimSpace(publicIP))
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (s *Store) SetServerDomainSettings(ctx context.Context, teamID, serverID uuid.UUID, wildcardDomain, magicDomain string) error {
 	magicDomain = strings.ToLower(strings.TrimSpace(magicDomain))
 	if magicDomain != "nip.io" {
@@ -355,9 +374,7 @@ func (s *Store) SetServerDomainSettings(ctx context.Context, teamID, serverID uu
 
 func (s *Store) ListBuildServers(ctx context.Context, teamID uuid.UUID) ([]Server, error) {
 	rows, err := s.Pool.Query(ctx, `
-		SELECT s.id, s.team_id, s.private_key_id, s.name, s.description, s.ip, s.port, s.user_name,
-			s.is_reachable, s.is_usable, s.docker_version, s.proxy_type, s.proxy_status,
-			COALESCE(s.host_key_fingerprint,''), COALESCE(s.host_key_type,''), s.created_at
+		SELECT `+serverCols+`
 		FROM servers s
 		JOIN server_settings ss ON ss.server_id = s.id
 		WHERE s.team_id=$1 AND ss.is_build_server=TRUE

@@ -80,6 +80,12 @@ export function LinksMenu({ links, className = '' }: { links: ResourceLink[]; cl
 
 export function LinksPanel({ links }: { links: ResourceLink[] }) {
   const items = links || []
+  const hasLocalhost = items.some(
+    (l) =>
+      l.url.includes('127.0.0.1') ||
+      l.url.includes('localhost') ||
+      l.url.includes('.0.0.0.0.'),
+  )
   if (!items.length) {
     return (
       <div className="panel-card p-6 text-sm text-gray-500 dark:text-gray-400">
@@ -93,6 +99,13 @@ export function LinksPanel({ links }: { links: ResourceLink[] }) {
       <p className="text-sm text-gray-500 dark:text-gray-400">
         Open these URLs to access your deployed service (proxy must be running).
       </p>
+      {hasLocalhost && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+          This link uses <code>127.0.0.1</code> / localhost — your browser will try to open your own
+          PC, not the server. Set the server&apos;s <strong>Public IP</strong> (Servers → Settings),
+          run Validate, then Redeploy this service.
+        </div>
+      )}
       <ul className="divide-y divide-gray-200 overflow-hidden rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
         {items.map((l) => (
           <li

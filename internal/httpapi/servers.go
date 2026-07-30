@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -216,10 +217,46 @@ func (a *API) handleValidateServer(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = sshx.EnsureNetwork(client, "goolify")
 	proxyStatus := proxy.ProxyStatus(client)
+
+	publicIP := strings.TrimSpace(srv.PublicIP)
+	// Only auto-fill when public_ip is missing/unusable. Do not overwrite a good
+	// value just because SSH IP is loopback (Validate used to fight manual Public IP).
+	needDetect := publicIP == "" || proxy.IsUnusableMagicIP(publicIP)
+	if needDetect {
+		if detected := detectServerPublicIP(client); detected != "" {
+			publicIP = detected
+			_ = a.Store.SetServerPublicIP(r.Context(), teamID, id, publicIP)
+			srv.PublicIP = publicIP
+		} else if publicIP == "" && !proxy.IsUnusableMagicIP(srv.IP) {
+			// SSH IP is already usable for magic DNS (non-loopback).
+			publicIP = srv.IP
+			_ = a.Store.SetServerPublicIP(r.Context(), teamID, id, publicIP)
+			srv.PublicIP = publicIP
+		}
+	}
+
 	_ = a.Store.UpdateServerStatus(r.Context(), id, true, true, version, proxyStatus)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"reachable": true, "usable": true, "docker_version": version, "proxy_status": proxyStatus,
+		"public_ip": publicIP,
+		"magic_ip":  proxy.PreferMagicIP(srv.IP, publicIP),
 	})
+}
+
+func detectServerPublicIP(client *ssh.Client) string {
+	out, _, err := sshx.RunArgs(client, "sh", "-c",
+		`curl -4 -fsS --max-time 5 https://api.ipify.org 2>/dev/null || curl -4 -fsS --max-time 5 https://ifconfig.me/ip 2>/dev/null || curl -4 -fsS --max-time 5 https://icanhazip.com 2>/dev/null`)
+	if err != nil {
+		return ""
+	}
+	ip := strings.TrimSpace(out)
+	if proxy.IsUnusableMagicIP(ip) {
+		return ""
+	}
+	if net.ParseIP(ip) == nil {
+		return ""
+	}
+	return ip
 }
 
 func (a *API) handleStartProxy(w http.ResponseWriter, r *http.Request) {
@@ -304,6 +341,7 @@ func (a *API) handlePatchServerSettings(w http.ResponseWriter, r *http.Request) 
 		IsSwarmManager  *bool   `json:"is_swarm_manager"`
 		WildcardDomain  *string `json:"wildcard_domain"`
 		MagicDomain     *string `json:"magic_domain"`
+		PublicIP        *string `json:"public_ip"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -322,6 +360,17 @@ func (a *API) handlePatchServerSettings(w http.ResponseWriter, r *http.Request) 
 	}
 	if body.IsSwarmManager != nil {
 		if err := a.Store.SetServerSwarmManager(r.Context(), teamID, id, *body.IsSwarmManager); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+	}
+	if body.PublicIP != nil {
+		ip := strings.TrimSpace(*body.PublicIP)
+		if ip != "" && proxy.IsUnusableMagicIP(ip) {
+			writeError(w, http.StatusBadRequest, "public_ip cannot be localhost/loopback — use the server's reachable public IP")
+			return
+		}
+		if err := a.Store.SetServerPublicIP(r.Context(), teamID, id, ip); err != nil {
 			mapStoreErr(w, err)
 			return
 		}

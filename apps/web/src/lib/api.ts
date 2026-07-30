@@ -378,6 +378,7 @@ export const api = {
       is_swarm_manager?: boolean
       wildcard_domain?: string
       magic_domain?: string
+      public_ip?: string
     },
   ) =>
     request<{ status: string }>(`/api/v1/servers/${id}/settings`, {
@@ -450,6 +451,7 @@ export type Server = {
   is_swarm_manager?: boolean
   wildcard_domain?: string
   magic_domain?: string
+  public_ip?: string
 }
 export type GitSource = {
   id: string

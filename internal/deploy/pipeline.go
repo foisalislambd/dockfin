@@ -39,7 +39,38 @@ func (p *Pipeline) log(stage, line string) {
 	}
 }
 
+// repairAppFQDN assigns or replaces free domains that embed loopback magic IPs
+// (same rules as one-click service deploy).
+func (p *Pipeline) repairAppFQDN(ctx context.Context, req *Request) {
+	if req == nil || req.App == nil || req.Server == nil {
+		return
+	}
+	needs := req.App.FQDN == "" || proxy.FQDNUsesUnusableMagicIP(req.App.FQDN)
+	if !needs {
+		return
+	}
+	magicIP := proxy.PreferMagicIP(req.Server.IP, req.Server.PublicIP)
+	fqdn := proxy.GenerateFQDN(req.App.Name, req.App.ID, magicIP, req.Server.WildcardDomain, req.Server.MagicDomain)
+	if fqdn == "" || fqdn == req.App.FQDN {
+		if proxy.FQDNUsesUnusableMagicIP(req.App.FQDN) {
+			p.log("prepare", "Warning: server has no public IP — app domain still points at localhost")
+		}
+		return
+	}
+	if req.App.FQDN == "" {
+		p.log("prepare", "Assigned free domain "+fqdn)
+	} else {
+		p.log("prepare", fmt.Sprintf("Updating domain %s → %s", req.App.FQDN, fqdn))
+	}
+	req.App.FQDN = fqdn
+	if p.Store != nil {
+		_ = p.Store.UpdateApplication(ctx, req.App)
+	}
+}
+
 func (p *Pipeline) Run(ctx context.Context, req Request) error {
+	p.repairAppFQDN(ctx, &req)
+
 	p.log("prepare", "Connecting to deploy server via SSH…")
 	deployClient, err := p.dialServer(ctx, req.Server, req.PrivateKey)
 	if err != nil {

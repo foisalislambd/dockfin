@@ -30,7 +30,8 @@ func generateResourceFQDN(name string, id uuid.UUID, srv *store.Server) string {
 	if srv == nil {
 		return ""
 	}
-	return proxy.GenerateFQDN(name, id, srv.IP, srv.WildcardDomain, srv.MagicDomain)
+	magicIP := proxy.PreferMagicIP(srv.IP, srv.PublicIP)
+	return proxy.GenerateFQDN(name, id, magicIP, srv.WildcardDomain, srv.MagicDomain)
 }
 
 func (a *API) handleGenerateDomain(w http.ResponseWriter, r *http.Request) {

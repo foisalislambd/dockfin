@@ -557,6 +557,7 @@ export function ServerDetailPage() {
   const [destNetwork, setDestNetwork] = useState('goolify')
   const [wildcardDomain, setWildcardDomain] = useState('')
   const [magicDomain, setMagicDomain] = useState('sslip.io')
+  const [publicIP, setPublicIP] = useState('')
   useEffect(() => {
     setTab('overview')
     setDestName('')
@@ -569,6 +570,7 @@ export function ServerDetailPage() {
     if (!server.data) return
     setWildcardDomain(server.data.wildcard_domain || '')
     setMagicDomain(server.data.magic_domain || 'sslip.io')
+    setPublicIP(server.data.public_ip || '')
   }, [server.data])
   const destinations = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
   const metrics = useQuery({
@@ -602,6 +604,7 @@ export function ServerDetailPage() {
       is_swarm_manager?: boolean
       wildcard_domain?: string
       magic_domain?: string
+      public_ip?: string
     }) => api.patchServerSettings(serverId, body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['server', serverId] })
@@ -792,11 +795,29 @@ export function ServerDetailPage() {
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 Auto-generated hostnames use your wildcard domain, or free{' '}
                 <code className="text-xs">
-                  {'*.' + s.ip + '.' + (magicDomain || 'sslip.io')}
-                </code>{' '}
-                when empty.
+                  {'*.' +
+                    (publicIP || (s.ip !== '127.0.0.1' && s.ip !== 'localhost' ? s.ip : 'PUBLIC_IP')) +
+                    '.' +
+                    (magicDomain || 'sslip.io')}
+                </code>
+                . Never use 127.0.0.1 — browsers would open localhost on the visitor&apos;s PC.
               </p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="block text-sm sm:col-span-2">
+                  <span className="mb-1 block text-gray-500 dark:text-gray-400">
+                    Public IP (for sslip.io / nip.io)
+                  </span>
+                  <input
+                    value={publicIP}
+                    onChange={(e) => setPublicIP(e.target.value)}
+                    placeholder={s.ip === '127.0.0.1' ? 'e.g. 178.18.243.148' : s.ip}
+                    className="w-full panel-field rounded-lg px-3 py-2"
+                  />
+                  <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                    SSH can stay on 127.0.0.1 for local servers. Run Validate to auto-detect, or set
+                    the VPS public IP here.
+                  </span>
+                </label>
                 <label className="block text-sm">
                   <span className="mb-1 block text-gray-500 dark:text-gray-400">Wildcard domain</span>
                   <input
@@ -825,6 +846,7 @@ export function ServerDetailPage() {
                   patchSettings.mutate({
                     wildcard_domain: wildcardDomain,
                     magic_domain: magicDomain,
+                    public_ip: publicIP,
                   })
                 }
               >

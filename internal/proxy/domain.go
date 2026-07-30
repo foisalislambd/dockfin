@@ -13,16 +13,71 @@ var nonHost = regexp.MustCompile(`[^a-z0-9-]+`)
 
 // MagicDomainBase returns the free DNS base for a server IP.
 // provider is "sslip.io" (default) or "nip.io".
+// Loopback / unspecified IPs are rejected — browsers would hit the client machine.
 func MagicDomainBase(ip, provider string) string {
 	provider = strings.ToLower(strings.TrimSpace(provider))
 	if provider != "nip.io" {
 		provider = "sslip.io"
+	}
+	if IsUnusableMagicIP(ip) {
+		return ""
 	}
 	hostIP := normalizeIPForMagic(ip)
 	if hostIP == "" {
 		return ""
 	}
 	return hostIP + "." + provider
+}
+
+// IsUnusableMagicIP reports IPs that must not be used in sslip.io / nip.io domains.
+func IsUnusableMagicIP(ip string) bool {
+	ip = strings.TrimSpace(ip)
+	if ip == "" {
+		return true
+	}
+	parsed := net.ParseIP(strings.Trim(ip, "[]"))
+	if parsed == nil {
+		return true
+	}
+	return parsed.IsLoopback() || parsed.IsUnspecified() || parsed.IsLinkLocalUnicast()
+}
+
+// PreferMagicIP picks a publicly reachable IP for free domains.
+// Prefer explicit publicIP; fall back to SSH IP when it is not loopback.
+func PreferMagicIP(sshIP, publicIP string) string {
+	for _, candidate := range []string{publicIP, sshIP} {
+		// Check usability on the raw IP — normalizeIPForMagic turns IPv6 into
+		// dashed sslip form which net.ParseIP would reject.
+		if IsUnusableMagicIP(candidate) {
+			continue
+		}
+		if n := normalizeIPForMagic(candidate); n != "" {
+			return n
+		}
+	}
+	return ""
+}
+
+// FQDNUsesUnusableMagicIP is true when fqdn embeds loopback (e.g. *.127.0.0.1.sslip.io).
+func FQDNUsesUnusableMagicIP(fqdn string) bool {
+	fqdn = strings.ToLower(strings.TrimSpace(fqdn))
+	fqdn = strings.TrimPrefix(strings.TrimPrefix(fqdn, "https://"), "http://")
+	if i := strings.IndexByte(fqdn, '/'); i >= 0 {
+		fqdn = fqdn[:i]
+	}
+	if strings.Contains(fqdn, ".127.0.0.1.") ||
+		strings.Contains(fqdn, ".0.0.0.0.") ||
+		strings.Contains(fqdn, ".localhost.") ||
+		strings.Contains(fqdn, ".--1.") || // IPv6 ::1 → --1 in sslip/nip form
+		strings.Contains(fqdn, ".0-0-0-0.") {
+		return true
+	}
+	if strings.HasSuffix(fqdn, ".127.0.0.1") || fqdn == "127.0.0.1" ||
+		strings.HasSuffix(fqdn, ".0.0.0.0") || fqdn == "0.0.0.0" ||
+		fqdn == "localhost" {
+		return true
+	}
+	return false
 }
 
 // WildcardHost extracts the hostname from a wildcard domain setting.

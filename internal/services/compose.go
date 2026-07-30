@@ -194,9 +194,12 @@ func DetectProxyPort(raw, explicit string) string {
 	if p := strings.TrimSpace(explicit); p != "" {
 		return p
 	}
-	re := regexp.MustCompile(`SERVICE_(?:URL|FQDN)_[A-Z0-9]+_(\d+)\b`)
-	if m := re.FindStringSubmatch(raw); len(m) == 2 {
-		return m[1]
+	// Match full keys including multi-segment names (SERVICE_URL_MY_APP_3000).
+	re := regexp.MustCompile(`SERVICE_(?:URL|FQDN)_[A-Z0-9_]+`)
+	for _, key := range re.FindAllString(raw, -1) {
+		if _, port, hasPort := parseServiceURLNamePort(key); hasPort {
+			return port
+		}
 	}
 	return "80"
 }

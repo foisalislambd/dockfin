@@ -300,13 +300,29 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		rawCompose = composeYAML
 	}
 
-	// Always assign a free domain before deploy when missing.
-	if svc.FQDN == "" {
-		if srv, err := a.Store.GetServer(r.Context(), teamID, serverID); err == nil {
+	// Assign or repair free domain (never keep *.127.0.0.1.sslip.io — browsers hit localhost).
+	if srv, err := a.Store.GetServer(r.Context(), teamID, serverID); err == nil {
+		if publicIP := strings.TrimSpace(srv.PublicIP); publicIP == "" || proxy.IsUnusableMagicIP(publicIP) {
+			// Best-effort detect before generating domain.
+			if client, derr := a.dialServer(r, serverID); derr == nil {
+				if detected := detectServerPublicIP(client); detected != "" {
+					_ = a.Store.SetServerPublicIP(r.Context(), teamID, serverID, detected)
+					srv.PublicIP = detected
+				}
+			}
+		}
+		needsFQDN := svc.FQDN == "" || proxy.FQDNUsesUnusableMagicIP(svc.FQDN)
+		if needsFQDN {
 			if fqdn := generateResourceFQDN(svc.Name, svc.ID, srv); fqdn != "" {
+				if fqdn != svc.FQDN {
+					emit("prepare", fmt.Sprintf("Updating domain %s → %s", svc.FQDN, fqdn))
+				} else {
+					emit("prepare", fmt.Sprintf("Assigned free domain %s", fqdn))
+				}
 				svc.FQDN = fqdn
 				_ = a.Store.UpdateServiceFQDN(r.Context(), id, fqdn)
-				emit("prepare", fmt.Sprintf("Assigned free domain %s", fqdn))
+			} else if proxy.FQDNUsesUnusableMagicIP(svc.FQDN) {
+				emit("prepare", "Warning: server has no public IP — domain still points at localhost. Set Public IP on the server or run Validate.")
 			}
 		}
 	}
@@ -315,6 +331,9 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 	needPrepare := composeYAML == "" || composeYAML == svc.DockerComposeRaw || looksLikeUnpreparedCompose(svc.DockerComposeRaw, composeYAML)
 	if fqdnHost != "" && composeYAML != "" && !strings.Contains(composeYAML, fqdnHost) {
 		// Stored compose still has 127.0.0.1 / old host — re-bake with domain.
+		needPrepare = true
+	}
+	if proxy.FQDNUsesUnusableMagicIP(composeYAML) {
 		needPrepare = true
 	}
 
