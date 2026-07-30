@@ -185,18 +185,26 @@ GOOLIFY_MASTER_KEY=${MASTER_KEY}
 GOOLIFY_SESSION_SECRET=${SESSION_SECRET}
 GOOLIFY_CORS_ORIGINS=${PUBLIC_API_URL},http://127.0.0.1:${API_PORT}
 GOOLIFY_PUBLIC_URL=${PUBLIC_API_URL}
+GOOLIFY_COOKIE_SECURE=0
 GOOLIFY_DATA_DIR=${WORKDIR}/data
 GOOLIFY_TEMPLATES_DIR=${SRC}/templates/compose
 GOOLIFY_WEB_DIR=${SRC}/apps/web/dist
 EOF
 fi
 
-# Refresh public URL if .env already existed from an older run
-if [[ -n "${PUBLIC_IP}" ]] && [[ -f .env ]]; then
-  if grep -q '^GOOLIFY_PUBLIC_URL=' .env; then
-    sed -i "s|^GOOLIFY_PUBLIC_URL=.*|GOOLIFY_PUBLIC_URL=${PUBLIC_API_URL}|" .env
+# Refresh public URL / cookie secure if .env already existed from an older run
+if [[ -f .env ]]; then
+  if [[ -n "${PUBLIC_IP}" ]]; then
+    if grep -q '^GOOLIFY_PUBLIC_URL=' .env; then
+      sed -i "s|^GOOLIFY_PUBLIC_URL=.*|GOOLIFY_PUBLIC_URL=${PUBLIC_API_URL}|" .env
+    else
+      echo "GOOLIFY_PUBLIC_URL=${PUBLIC_API_URL}" >> .env
+    fi
+  fi
+  if grep -q '^GOOLIFY_COOKIE_SECURE=' .env; then
+    sed -i 's|^GOOLIFY_COOKIE_SECURE=.*|GOOLIFY_COOKIE_SECURE=0|' .env
   else
-    echo "GOOLIFY_PUBLIC_URL=${PUBLIC_API_URL}" >> .env
+    echo 'GOOLIFY_COOKIE_SECURE=0' >> .env
   fi
 fi
 

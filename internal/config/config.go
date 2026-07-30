@@ -53,7 +53,15 @@ func Load() (*Config, error) {
 		cfg.CORSOrigins = append(cfg.CORSOrigins, cfg.PublicURL)
 	}
 
-	cfg.CookieSecure = cfg.Env == "production"
+	// Secure cookies only over HTTPS. HTTP VPS IPs (http://x.x.x.x:8080) must not set Secure.
+	switch strings.ToLower(strings.TrimSpace(getenv("GOOLIFY_COOKIE_SECURE", ""))) {
+	case "1", "true", "yes":
+		cfg.CookieSecure = true
+	case "0", "false", "no":
+		cfg.CookieSecure = false
+	default:
+		cfg.CookieSecure = strings.HasPrefix(strings.ToLower(cfg.PublicURL), "https://")
+	}
 
 	if len(cfg.MasterKey) < 32 {
 		return nil, fmt.Errorf("GOOLIFY_MASTER_KEY must be at least 32 characters")

@@ -1,4 +1,5 @@
 import {
+  Navigate,
   Outlet,
   RouterProvider,
   createRootRoute,
@@ -37,7 +38,8 @@ function RequireAuth() {
     )
   }
   if (!user) {
-    throw redirect({ to: '/login' })
+    // Navigate (don't throw redirect) — thrown redirects surface as "Something went wrong!"
+    return <Navigate to="/login" />
   }
   return <AppShell />
 }
@@ -66,7 +68,7 @@ const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   beforeLoad: () => {
-    throw redirect({ to: '/dashboard' })
+    throw redirect({ to: '/login' })
   },
 })
 
