@@ -83,7 +83,7 @@ export function GitSourcesPage() {
               onChange={(e) => setPrivateKey(e.target.value)}
               rows={6}
               required
-              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 font-mono text-xs dark:border-gray-800 dark:bg-gray-900"
+              className="panel-field w-full rounded-lg px-3 py-2 font-mono text-xs"
             />
           </label>
           {create.error && <p className="text-sm text-error-500">{create.error.message}</p>}
@@ -98,7 +98,7 @@ export function GitSourcesPage() {
           <GitSourceCard key={gs.id} source={gs} onDelete={() => remove.mutate(gs.id)} />
         ))}
         {!sources.data?.git_sources?.length && !sources.isLoading && (
-          <div className="panel-card col-span-full p-8 text-center text-sm text-gray-500">
+          <div className="panel-card col-span-full p-8 text-center text-sm text-gray-500 dark:text-gray-400">
             No GitHub Apps configured yet.
           </div>
         )}
@@ -160,7 +160,7 @@ export function GitSourceDetailPage() {
     },
   })
 
-  if (source.isLoading) return <p className="text-gray-500">Loading…</p>
+  if (source.isLoading) return <p className="text-gray-500 dark:text-gray-400">Loading…</p>
   if (source.error || !source.data) {
     return <p className="text-error-500">{source.error?.message || 'Not found'}</p>
   }
@@ -194,11 +194,11 @@ export function GitSourceDetailPage() {
       <div className="panel-card space-y-4 p-5">
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <div className="text-xs text-gray-500">App ID</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">App ID</div>
             <div className="font-mono text-sm">{gs.app_id}</div>
           </div>
           <div>
-            <div className="text-xs text-gray-500">Provider</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">Provider</div>
             <div className="text-sm">{gs.provider}</div>
           </div>
         </div>
@@ -234,7 +234,7 @@ export function GitSourceDetailPage() {
               )
             })}
             {!repos.data?.repositories?.length && !repos.isLoading && (
-              <li className="px-4 py-8 text-center text-sm text-gray-500">No repositories visible.</li>
+              <li className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">No repositories visible.</li>
             )}
           </ul>
         </div>

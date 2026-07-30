@@ -120,7 +120,7 @@ export function CreateDatabasePage() {
         }}
       >
         <section className="space-y-4">
-          <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">Basics</h2>
+          <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">Basics</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <FormInput label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="app-db" />
             <FormSelect
@@ -150,7 +150,7 @@ export function CreateDatabasePage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">Engine</h2>
+          <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">Engine</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {ENGINES.map((eng) => (
               <ChoiceCard

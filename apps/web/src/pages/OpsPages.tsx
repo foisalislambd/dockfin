@@ -61,7 +61,7 @@ export function StoragesPage() {
           </div>
         ))}
         {!storages.data?.s3_storages?.length && (
-          <div className="panel-card col-span-full p-8 text-center text-sm text-gray-500">No S3 storages yet.</div>
+          <div className="panel-card col-span-full p-8 text-center text-sm text-gray-500 dark:text-gray-400">No S3 storages yet.</div>
         )}
       </div>
 
@@ -198,7 +198,7 @@ export function TeamPage() {
               {(members.data?.members || []).map((m) => (
                 <tr key={m.user_id} className="border-t border-gray-200 dark:border-gray-800">
                   <td className="px-3 py-2">{m.name}</td>
-                  <td className="px-3 py-2 text-gray-500">{m.email}</td>
+                  <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{m.email}</td>
                   <td className="px-3 py-2">{m.role}</td>
                   <td className="px-3 py-2">
                     {canManage && m.user_id !== user?.id && (
@@ -242,7 +242,7 @@ export function TeamPage() {
               <select
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value)}
-                className="h-9 rounded-lg border border-gray-200 bg-white px-2 dark:border-gray-800 dark:bg-gray-900"
+                className="panel-field h-9 rounded-lg px-2"
               >
                 <option value="member">member</option>
                 <option value="admin">admin</option>
@@ -274,7 +274,7 @@ export function TeamPage() {
                   <tr key={inv.id} className="border-t border-gray-200 dark:border-gray-800">
                     <td className="px-3 py-2">{inv.email}</td>
                     <td className="px-3 py-2">{inv.role}</td>
-                    <td className="px-3 py-2 text-gray-500">
+                    <td className="px-3 py-2 text-gray-500 dark:text-gray-400">
                       {new Date(inv.expires_at).toLocaleDateString()}
                     </td>
                     <td className="px-3 py-2">
@@ -294,7 +294,7 @@ export function TeamPage() {
                 ))}
                 {!invitations.data?.invitations?.length && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
+                    <td colSpan={4} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
                       No pending invitations.
                     </td>
                   </tr>
@@ -388,7 +388,7 @@ export function ApiTokensPage() {
                 <td className="px-3 py-2 font-medium">{t.name}</td>
                 <td className="px-3 py-2 font-mono text-xs">{t.token_prefix}…</td>
                 <td className="px-3 py-2 text-xs">{(t.abilities || []).join(', ')}</td>
-                <td className="px-3 py-2 text-gray-500">{new Date(t.created_at).toLocaleString()}</td>
+                <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{new Date(t.created_at).toLocaleString()}</td>
                 <td className="px-3 py-2">
                   <button
                     type="button"
@@ -408,7 +408,7 @@ export function ApiTokensPage() {
             ))}
             {!tokens.data?.api_tokens?.length && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                   No API tokens yet.
                 </td>
               </tr>
@@ -664,7 +664,7 @@ export function PrivateKeysPage() {
             ))}
             {!keys.data?.private_keys?.length && (
               <tr>
-                <td colSpan={2} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={2} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                   No private keys yet.
                 </td>
               </tr>
@@ -690,7 +690,7 @@ export function PrivateKeysPage() {
                 rows={6}
                 value={key}
                 onChange={(e) => setKey(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 font-mono text-xs dark:border-gray-800 dark:bg-gray-900"
+                className="panel-field w-full rounded-lg px-3 py-2 font-mono text-xs"
               />
             </label>
             {create.error && <p className="text-sm text-error-500">{create.error.message}</p>}

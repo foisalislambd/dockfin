@@ -110,7 +110,7 @@ export function ServerTerminal({ serverId }: Props) {
             onChange={(e) => setContainer(e.target.value)}
             placeholder="leave empty for host shell"
             disabled={status === 'open' || status === 'connecting'}
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 font-mono text-sm dark:border-gray-800 dark:bg-gray-900"
+            className="panel-field w-full rounded-lg px-3 py-2 font-mono text-sm"
           />
         </label>
         {status === 'open' ? (

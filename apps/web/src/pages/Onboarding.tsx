@@ -164,7 +164,7 @@ export function OnboardingPage() {
                 rows={6}
                 value={privateKey}
                 onChange={(e) => setPrivateKey(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2 font-mono text-xs"
+                className="panel-field w-full rounded-lg px-3 py-2 font-mono text-xs"
               />
             </label>
             <div className="flex gap-2">
@@ -220,7 +220,7 @@ export function OnboardingPage() {
                 type="number"
                 value={serverForm.port}
                 onChange={(e) => setServerForm({ ...serverForm, port: Number(e.target.value) })}
-                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
+                className="panel-field w-full rounded-lg px-3 py-2"
               />
             </label>
             <label className="block text-sm">
@@ -228,7 +228,7 @@ export function OnboardingPage() {
               <select
                 value={serverForm.private_key_id}
                 onChange={(e) => setServerForm({ ...serverForm, private_key_id: e.target.value })}
-                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
+                className="panel-field w-full rounded-lg px-3 py-2"
               >
                 <option value="">None</option>
                 {(keys.data?.private_keys || []).map((k) => (
@@ -266,7 +266,7 @@ export function OnboardingPage() {
               <select
                 value={selectedServer || firstUsable?.id || ''}
                 onChange={(e) => setSelectedServer(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
+                className="panel-field w-full rounded-lg px-3 py-2"
               >
                 {(servers.data?.servers || []).map((s) => (
                   <option key={s.id} value={s.id}>
@@ -297,7 +297,7 @@ export function OnboardingPage() {
               <select
                 value={selectedServer || firstUsable?.id || ''}
                 onChange={(e) => setSelectedServer(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
+                className="panel-field w-full rounded-lg px-3 py-2"
               >
                 {(servers.data?.servers || []).map((s) => (
                   <option key={s.id} value={s.id}>

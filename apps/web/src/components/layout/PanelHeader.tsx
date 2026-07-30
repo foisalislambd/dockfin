@@ -49,7 +49,7 @@ export function PanelHeader() {
             <button
               type="button"
               onClick={() => setPaletteOpen(true)}
-              className="relative flex h-8 w-full items-center rounded-md border border-gray-200 bg-gray-50 py-1.5 pr-3 pl-9 text-left text-xs text-gray-500 transition hover:border-gray-300 dark:border-gray-800 dark:bg-white/5"
+              className="relative flex h-8 w-full items-center rounded-md border border-gray-200 bg-gray-50 py-1.5 pr-3 pl-9 text-left text-xs text-gray-500 dark:text-gray-400 transition hover:border-gray-300 dark:border-gray-800 dark:bg-white/5"
             >
               <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
               Jump to… <span className="ml-auto text-[10px] text-gray-400">⌘K</span>
@@ -69,7 +69,7 @@ export function PanelHeader() {
           onClick={() => setPaletteOpen(false)}
         >
           <div className="panel-card w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="border-b border-gray-200 px-4 py-3 text-sm text-gray-500 dark:border-gray-800">
+            <div className="border-b border-gray-200 px-4 py-3 text-sm text-gray-500 dark:text-gray-400 dark:border-gray-800">
               Jump to…
             </div>
             <ul>

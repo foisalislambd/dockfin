@@ -4,18 +4,25 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
   --font-sans: "Geist", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, monospace;
   --font-panel-sans: "Outfit", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
 
+  /* TailAdmin / ZenPanel brand + gray scale (from react/ design) */
   --color-brand-50: #ecf3ff;
   --color-brand-100: #dde9ff;
+  --color-brand-200: #c2d6ff;
   --color-brand-300: #9cb9ff;
   --color-brand-400: #7592ff;
   --color-brand-500: #465fff;
   --color-brand-600: #3641f5;
+  --color-brand-700: #2a31d8;
   --color-brand-800: #252dae;
   --color-brand-950: #161950;
+
+  --color-gray-25: #fcfcfd;
   --color-gray-50: #f9fafb;
   --color-gray-100: #f2f4f7;
   --color-gray-200: #e4e7ec;
@@ -26,15 +33,42 @@
   --color-gray-700: #344054;
   --color-gray-800: #1d2939;
   --color-gray-900: #101828;
+  --color-gray-950: #0c111d;
+
   --color-success-50: #ecfdf3;
   --color-success-500: #12b76a;
   --color-success-600: #039855;
   --color-error-50: #fef3f2;
   --color-error-500: #f04438;
+  --color-warning-50: #fffaeb;
+  --color-warning-500: #f79009;
 }
 
 @layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
+    color-scheme: light;
+  }
+
+  .dark {
+    --background: 222 47% 6%;
+    --foreground: 210 40% 98%;
+    color-scheme: dark;
+  }
+
+  html {
+    @apply h-full;
+  }
+
   body {
-    @apply bg-gray-50 text-gray-900 antialiased dark:bg-gray-900 dark:text-white;
+    @apply min-h-full bg-background text-foreground antialiased;
+  }
+
+  /* Native form controls inherit dark scheme */
+  input,
+  textarea,
+  select {
+    color-scheme: inherit;
   }
 }

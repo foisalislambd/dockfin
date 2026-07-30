@@ -95,7 +95,7 @@ export function CreateApplicationPage() {
     <CreatePageShell title="New application" backTo={backTo} backLabel={backLabel}>
       <form className="space-y-6" onSubmit={onSubmit}>
         <section className="space-y-4">
-          <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">Basics</h2>
+          <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">Basics</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <FormInput label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="my-app" />
             <FormSelect
@@ -130,7 +130,7 @@ export function CreateApplicationPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">Build pack</h2>
+          <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">Build pack</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {BUILD_PACKS.map((bp) => (
               <ChoiceCard
@@ -144,7 +144,7 @@ export function CreateApplicationPage() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">Source</h2>
+          <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">Source</h2>
           {form.build_pack === 'dockerimage' ? (
             <div className="grid gap-4 sm:grid-cols-2">
               <FormInput

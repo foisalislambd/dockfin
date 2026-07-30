@@ -1,3 +1,5 @@
+/* Panel shell — mirrors react/src/admin.css (ZenPanel / TailAdmin) */
+
 .panel-shell {
   font-family: var(--font-panel-sans), ui-sans-serif, system-ui, sans-serif;
   background-color: #f9fafb;
@@ -56,6 +58,36 @@
   .panel-card-body {
     padding: 1.125rem;
   }
+}
+
+/* Shared form field surface — elevated vs page bg in dark mode */
+.panel-field {
+  border: 1px solid #e4e7ec;
+  background-color: #ffffff;
+  color: #101828;
+}
+
+.panel-field::placeholder {
+  color: #98a2b3;
+}
+
+.dark .panel-field {
+  border-color: #1d2939;
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #f9fafb;
+}
+
+.dark .panel-field option {
+  background-color: #101828;
+  color: #f9fafb;
+}
+
+.panel-muted {
+  color: #667085;
+}
+
+.dark .panel-muted {
+  color: #98a2b3;
 }
 
 .panel-scrollbar::-webkit-scrollbar {

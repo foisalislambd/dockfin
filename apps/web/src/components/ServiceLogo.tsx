@@ -30,7 +30,7 @@ export function ServiceLogo({ src, name, className, imgClassName }: Props) {
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white dark:bg-white/10',
+        'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-50 dark:bg-white/10',
         className,
       )}
     >

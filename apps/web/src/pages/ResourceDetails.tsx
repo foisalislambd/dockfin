@@ -146,7 +146,7 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
             ))}
             {!executions.data?.backup_executions?.length && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                   No backup runs yet.
                 </td>
               </tr>
@@ -179,7 +179,7 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
             ))}
             {!mine.length && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={4} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                   No scheduled backups for this database.
                 </td>
               </tr>
@@ -199,7 +199,7 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
           <input
             value={frequency}
             onChange={(e) => setFrequency(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 font-mono text-sm dark:border-gray-800 dark:bg-gray-900"
+            className="panel-field w-full rounded-lg px-3 py-2 font-mono text-sm"
           />
         </label>
         <label className="block text-sm">
@@ -207,7 +207,7 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
           <input
             value={retention}
             onChange={(e) => setRetention(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-900"
+            className="panel-field w-full rounded-lg px-3 py-2 text-sm"
           />
         </label>
         <label className="block text-sm sm:col-span-2">
@@ -215,7 +215,7 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
           <select
             value={s3Id}
             onChange={(e) => setS3Id(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-900"
+            className="panel-field w-full rounded-lg px-3 py-2 text-sm"
           >
             <option value="">None</option>
             {(storages.data?.s3_storages || []).map((s) => (
@@ -278,7 +278,7 @@ function EnvVarsEditor({ resourceType, resourceId }: { resourceType: string; res
             {(vars.data?.environment_variables || []).map((v) => (
               <tr key={v.id} className="border-t border-gray-200 dark:border-gray-800">
                 <td className="px-3 py-2 font-mono text-xs">{v.key}</td>
-                <td className="px-3 py-2 font-mono text-xs text-gray-500">{v.value ?? '••••'}</td>
+                <td className="px-3 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">{v.value ?? '••••'}</td>
                 <td className="px-3 py-2">
                   <button type="button" className="text-error-500" onClick={() => del.mutate(v.id)}>
                     Delete
@@ -288,7 +288,7 @@ function EnvVarsEditor({ resourceType, resourceId }: { resourceType: string; res
             ))}
             {!vars.data?.environment_variables?.length && (
               <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={3} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                   No env vars yet.
                 </td>
               </tr>
@@ -577,7 +577,7 @@ function Sparkline({
   color?: string
 }) {
   if (!values.length) {
-    return <div className="flex h-16 items-center text-sm text-gray-500">No data</div>
+    return <div className="flex h-16 items-center text-sm text-gray-500 dark:text-gray-400">No data</div>
   }
   const w = 280
   const h = 64
@@ -634,7 +634,7 @@ function ServerMetricsView({
               ? `${((latest.memory_used_bytes / latest.memory_total_bytes) * 100).toFixed(0)}%`
               : '—'}
           </div>
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-gray-500 dark:text-gray-400">
             {latest ? `${fmtGiB(latest.memory_used_bytes)} / ${fmtGiB(latest.memory_total_bytes)}` : ''}
           </div>
           <Sparkline values={memPct} maxHint={100} color="#2563eb" />
@@ -646,14 +646,14 @@ function ServerMetricsView({
               ? `${((latest.disk_used_bytes / latest.disk_total_bytes) * 100).toFixed(0)}%`
               : '—'}
           </div>
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-gray-500 dark:text-gray-400">
             {latest ? `${fmtGiB(latest.disk_used_bytes)} / ${fmtGiB(latest.disk_total_bytes)}` : ''}
           </div>
           <Sparkline values={diskPct} maxHint={100} color="#d97706" />
         </div>
       </div>
       {!metrics.length && (
-        <div className="panel-card p-6 text-center text-sm text-gray-500">
+        <div className="panel-card p-6 text-center text-sm text-gray-500 dark:text-gray-400">
           No metrics yet. Ensure Sentinel is configured and posting to the ingest endpoint.
         </div>
       )}
@@ -825,7 +825,7 @@ export function ServerDetailPage() {
               </div>
             ))}
             {!serverDests.length && (
-              <div className="panel-card col-span-full p-8 text-center text-sm text-gray-500">
+              <div className="panel-card col-span-full p-8 text-center text-sm text-gray-500 dark:text-gray-400">
                 No destinations on this server yet.
               </div>
             )}
@@ -845,7 +845,7 @@ export function ServerDetailPage() {
                 <select
                   value={destKind}
                   onChange={(e) => setDestKind(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-800 dark:bg-gray-900"
+                  className="w-full panel-field rounded-lg px-3 py-2"
                 >
                   <option value="standalone">Standalone</option>
                   <option value="swarm">Swarm</option>

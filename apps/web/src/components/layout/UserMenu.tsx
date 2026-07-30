@@ -62,7 +62,7 @@ export function UserMenu() {
           </span>
         </span>
         <ChevronDown
-          className={`hidden h-3.5 w-3.5 shrink-0 text-gray-500 transition md:block ${open ? 'rotate-180' : ''}`}
+          className={`hidden h-3.5 w-3.5 shrink-0 text-gray-500 dark:text-gray-400 transition md:block ${open ? 'rotate-180' : ''}`}
           aria-hidden
         />
       </button>
@@ -75,7 +75,7 @@ export function UserMenu() {
         >
           <div className="border-b border-gray-100 px-3 py-2.5 dark:border-gray-800">
             <p className="truncate text-xs font-medium text-gray-800 dark:text-white/90">{user?.name}</p>
-            <p className="truncate text-[11px] text-gray-500">{user?.email}</p>
+            <p className="truncate text-[11px] text-gray-500 dark:text-gray-400">{user?.email}</p>
             {team && (
               <p className="mt-1 truncate text-[11px] text-gray-400">
                 Team: <span className="text-gray-600 dark:text-gray-300">{team.name}</span>

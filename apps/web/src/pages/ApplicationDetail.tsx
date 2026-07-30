@@ -367,7 +367,7 @@ export function ApplicationDetailPage() {
                 <select
                   value={cfg.destination_id}
                   onChange={(e) => setCfg({ ...cfg, destination_id: e.target.value })}
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-800 dark:bg-gray-900"
+                  className="w-full panel-field rounded-lg px-3 py-2"
                 >
                   <option value="">Select…</option>
                   {(dests.data?.destinations || []).map((d) => (
@@ -383,7 +383,7 @@ export function ApplicationDetailPage() {
                   <select
                     value={cfg.git_source_id}
                     onChange={(e) => setCfg({ ...cfg, git_source_id: e.target.value })}
-                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-800 dark:bg-gray-900"
+                    className="w-full panel-field rounded-lg px-3 py-2"
                   >
                     <option value="">None (public HTTPS clone)</option>
                     {(gitSources.data?.git_sources || []).map((gs) => (
@@ -450,7 +450,7 @@ export function ApplicationDetailPage() {
                 ))}
                 {!envVars.data?.environment_variables?.length && (
                   <tr>
-                    <td colSpan={3} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={3} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                       No env vars yet.
                     </td>
                   </tr>
@@ -523,7 +523,7 @@ export function ApplicationDetailPage() {
                 ))}
                 {!deps.data?.deployments?.length && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                       No deployments yet.
                     </td>
                   </tr>
@@ -591,7 +591,7 @@ export function ApplicationDetailPage() {
                   ))}
                   {!tasks.data?.scheduled_tasks?.length && (
                     <tr>
-                      <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={4} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                         No scheduled tasks yet.
                       </td>
                     </tr>
@@ -612,7 +612,7 @@ export function ApplicationDetailPage() {
                   value={taskName}
                   onChange={(e) => setTaskName(e.target.value)}
                   required
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-900"
+                  className="panel-field w-full rounded-lg px-3 py-2 text-sm"
                 />
               </label>
               <label className="block text-sm">
@@ -621,7 +621,7 @@ export function ApplicationDetailPage() {
                   value={taskFrequency}
                   onChange={(e) => setTaskFrequency(e.target.value)}
                   required
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 font-mono text-sm dark:border-gray-800 dark:bg-gray-900"
+                  className="panel-field w-full rounded-lg px-3 py-2 font-mono text-sm"
                 />
               </label>
               <label className="block text-sm sm:col-span-2">
@@ -631,7 +631,7 @@ export function ApplicationDetailPage() {
                   onChange={(e) => setTaskCommand(e.target.value)}
                   required
                   placeholder="php artisan schedule:run"
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 font-mono text-sm dark:border-gray-800 dark:bg-gray-900"
+                  className="panel-field w-full rounded-lg px-3 py-2 font-mono text-sm"
                 />
               </label>
               {createTask.error && (

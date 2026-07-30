@@ -85,7 +85,7 @@ export function ProjectShowPage() {
           </Link>
         ))}
         {!envs.data?.environments?.length && (
-          <div className="panel-card col-span-full p-8 text-center text-sm text-gray-500">
+          <div className="panel-card col-span-full p-8 text-center text-sm text-gray-500 dark:text-gray-400">
             No environments found.
           </div>
         )}

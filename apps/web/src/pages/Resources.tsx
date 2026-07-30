@@ -231,7 +231,7 @@ export function DatabasesPage() {
           </Link>
         ))}
         {!dbs.data?.databases?.length && (
-          <div className="panel-card col-span-full p-8 text-center text-sm text-gray-500">
+          <div className="panel-card col-span-full p-8 text-center text-sm text-gray-500 dark:text-gray-400">
             No databases yet.{' '}
             <Link to="/databases/new" className="font-medium text-brand-600 dark:text-brand-400">
               Create one
@@ -308,7 +308,7 @@ export function ServicesPage() {
           </div>
         ))}
         {!services.data?.services?.length && (
-          <div className="panel-card col-span-full p-8 text-center text-sm text-gray-500">
+          <div className="panel-card col-span-full p-8 text-center text-sm text-gray-500 dark:text-gray-400">
             No services yet.{' '}
             <Link to="/services/new" className="font-medium text-brand-600 dark:text-brand-400">
               Create one

@@ -7,7 +7,7 @@ import { appConfig } from '../config/app.config'
 import { ThemeToggle } from '../components/theme/ThemeToggle'
 
 const inputClass =
-  'h-9 w-full rounded-md border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-900 shadow-sm transition placeholder:text-gray-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white'
+  'panel-field h-9 w-full rounded-md pl-9 pr-3 text-sm shadow-sm transition placeholder:text-gray-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20 focus:outline-none'
 
 function BrandPanel({ className = '' }: { className?: string }) {
   const { brand } = appConfig
@@ -18,6 +18,7 @@ function BrandPanel({ className = '' }: { className?: string }) {
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-brand-500/35 blur-3xl" />
         <div className="absolute -right-16 bottom-0 h-80 w-80 rounded-full bg-brand-600/25 blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 h-48 w-48 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-400/10 blur-2xl" />
       </div>
       <div className="relative z-10 w-full max-w-md">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-500 text-xl font-bold text-white shadow-lg shadow-brand-500/25 sm:h-16 sm:w-16 sm:text-2xl">
@@ -45,7 +46,7 @@ function BrandPanel({ className = '' }: { className?: string }) {
 
 function AuthShell({ children }: { children: ReactNode }) {
   return (
-    <div className="relative grid min-h-dvh w-full lg:grid-cols-2">
+    <div className="relative grid min-h-dvh w-full bg-white dark:bg-gray-900 lg:grid-cols-2">
       <div className="absolute top-4 right-4 z-10 sm:top-6 sm:right-6">
         <ThemeToggle />
       </div>
@@ -123,7 +124,7 @@ export function LoginPage() {
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute top-1/2 right-3 -translate-y-1/2 rounded-md p-0.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10"
+              className="absolute top-1/2 right-3 -translate-y-1/2 rounded-md p-0.5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -143,9 +144,9 @@ export function LoginPage() {
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
-      <p className="mt-6 text-center text-sm text-gray-500">
+      <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
         No account?{' '}
-        <Link to="/register" className="font-medium text-brand-600 hover:text-brand-500">
+        <Link to="/register" className="font-medium text-brand-600 hover:text-brand-500 dark:text-brand-400 dark:hover:text-brand-300">
           Create one
         </Link>
       </p>
@@ -241,9 +242,9 @@ export function RegisterPage() {
           {busy ? 'Creating…' : 'Create account'}
         </button>
       </form>
-      <p className="mt-6 text-center text-sm text-gray-500">
+      <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
         Already have an account?{' '}
-        <Link to="/login" className="font-medium text-brand-600 hover:text-brand-500">
+        <Link to="/login" className="font-medium text-brand-600 hover:text-brand-500 dark:text-brand-400 dark:hover:text-brand-300">
           Sign in
         </Link>
       </p>

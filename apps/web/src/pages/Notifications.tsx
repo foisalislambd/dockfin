@@ -107,7 +107,7 @@ export function NotificationsPage() {
                       [ch.id]: { ...row, config: e.target.value },
                     })
                   }
-                  className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2 font-mono text-xs"
+                  className="panel-field w-full rounded-lg px-3 py-2 font-mono text-xs"
                 />
               </label>
               <div className="mt-3">

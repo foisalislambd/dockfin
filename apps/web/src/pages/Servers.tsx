@@ -70,7 +70,7 @@ export function ServersPage() {
                   <Status ok={s.is_usable} label={s.is_usable ? `Docker ${s.docker_version || 'ok'}` : s.is_reachable ? 'No Docker' : 'Unreachable'} />
                 </td>
                 <td className="px-4 py-3">
-                  <span className="text-xs text-gray-500">{s.proxy_type || 'traefik'}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{s.proxy_type || 'traefik'}</span>
                   {s.proxy_status ? ` · ${s.proxy_status}` : ''}
                 </td>
                 <td className="px-4 py-3 space-x-2">
@@ -174,7 +174,7 @@ function ServerForm({
           type="number"
           value={port}
           onChange={(e) => setPort(Number(e.target.value))}
-          className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
+          className="panel-field w-full rounded-lg px-3 py-2"
         />
       </label>
       <label className="block text-sm">
@@ -182,7 +182,7 @@ function ServerForm({
         <select
           value={proxyType}
           onChange={(e) => setProxyType(e.target.value)}
-          className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
+          className="panel-field w-full rounded-lg px-3 py-2"
         >
           <option value="traefik">Traefik</option>
           <option value="caddy">Caddy</option>
@@ -194,7 +194,7 @@ function ServerForm({
         <select
           value={keyId}
           onChange={(e) => setKeyId(e.target.value)}
-          className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
+          className="panel-field w-full rounded-lg px-3 py-2"
         >
           <option value="">None</option>
           {keys.map((k) => (
@@ -231,7 +231,7 @@ function KeyForm({ onSubmit, error }: { onSubmit: (name: string, key: string) =>
           rows={6}
           value={key}
           onChange={(e) => setKey(e.target.value)}
-          className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2 font-mono text-xs"
+          className="panel-field w-full rounded-lg px-3 py-2 font-mono text-xs"
         />
       </label>
       {error && <p className="text-sm text-error-500">{error}</p>}
@@ -278,7 +278,7 @@ export function Btn({
       className={`inline-flex h-8 items-center rounded-md px-2.5 text-xs font-medium transition ${
         primary
           ? 'bg-brand-500 text-white hover:bg-brand-600'
-          : 'border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5'
+          : 'border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-white/5'
       }`}
     >
       {children}
@@ -296,14 +296,18 @@ export function Modal({
   onClose: () => void
 }) {
   return (
-    <div className="fixed inset-0 z-40 grid place-items-center bg-black/50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-40 grid place-items-center bg-black/50 p-4 dark:bg-black/70" onClick={onClose}>
       <div
-        className="w-full max-w-md rounded-xl border border-gray-200 dark:border-gray-800 panel-card bg-white dark:bg-white/3 p-5"
+        className="panel-card w-full max-w-md p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-medium">{title}</h3>
-          <button type="button" onClick={onClose} className="text-gray-500 dark:text-gray-400">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white">{title}</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-1 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10"
+          >
             ✕
           </button>
         </div>
@@ -331,7 +335,7 @@ export function Input({
         required={required}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2 outline-none focus:ring-1 focus:ring-brand-500"
+        className="panel-field w-full rounded-lg px-3 py-2 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
       />
     </label>
   )

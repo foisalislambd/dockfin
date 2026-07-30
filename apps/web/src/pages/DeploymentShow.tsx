@@ -128,7 +128,7 @@ export function DeploymentShowPage() {
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Live logs</h2>
         <pre
           ref={logRef}
-          className="max-h-[32rem] overflow-auto rounded-xl border border-gray-200 bg-white p-4 font-mono text-xs leading-relaxed text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
+          className="max-h-[32rem] overflow-auto rounded-xl border border-gray-200 bg-white p-4 font-mono text-xs leading-relaxed text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300"
         >
           {logs.length ? logs.join('\n') : busy ? 'Waiting for log events…' : 'No log lines.'}
         </pre>

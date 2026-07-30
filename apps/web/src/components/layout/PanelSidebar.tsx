@@ -49,7 +49,7 @@ export function PanelSidebar() {
               <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
                 {brand.name}
               </p>
-              <p className="truncate text-[11px] text-gray-500">{brand.tagline}</p>
+              <p className="truncate text-[11px] text-gray-500 dark:text-gray-400">{brand.tagline}</p>
             </div>
           )}
         </Link>
@@ -57,7 +57,7 @@ export function PanelSidebar() {
           <button
             type="button"
             onClick={closeMobileSidebar}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10"
             aria-label="Close menu"
           >
             <X className="h-4 w-4" />
@@ -107,7 +107,7 @@ export function PanelSidebar() {
           <button
             type="button"
             onClick={toggleSidebar}
-            className={`flex w-full items-center gap-2.5 rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/5 ${!showLabels ? 'justify-center' : ''}`}
+            className={`flex w-full items-center gap-2.5 rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-800 dark:text-gray-400 dark:hover:bg-white/5 ${!showLabels ? 'justify-center' : ''}`}
             aria-label={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
           >
             {isExpanded ? (

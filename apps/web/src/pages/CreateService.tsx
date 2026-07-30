@@ -104,7 +104,7 @@ export function CreateServicePage() {
         }}
       >
         <section className="space-y-4">
-          <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">Basics</h2>
+          <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">Basics</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <FormInput
               label="Name"
@@ -146,13 +146,13 @@ export function CreateServicePage() {
 
         <section className="space-y-3">
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">Template</h2>
+            <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">Template</h2>
             <input
               type="search"
               value={searchQ}
               onChange={(e) => setSearchQ(e.target.value)}
               placeholder="Search catalog…"
-              className="h-8 w-full max-w-sm rounded-md border border-gray-200 bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
+              className="panel-field h-8 w-full max-w-sm rounded-md px-3 text-sm"
             />
           </div>
           {selected && (
@@ -181,7 +181,7 @@ export function CreateServicePage() {
                   className={`flex items-start gap-3 rounded-lg border p-2.5 text-left transition ${
                     active
                       ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500/30 dark:bg-brand-500/10'
-                      : 'border-gray-200 hover:border-gray-300 dark:border-gray-700'
+                      : 'border-gray-200 hover:border-gray-300 dark:border-gray-800'
                   }`}
                 >
                   <ServiceLogo src={t.logo} name={t.name} className="h-9 w-9" />
@@ -198,7 +198,7 @@ export function CreateServicePage() {
             })}
           </div>
           {!filtered.length && (
-            <p className="text-sm text-gray-500">No templates match your search.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">No templates match your search.</p>
           )}
         </section>
 
