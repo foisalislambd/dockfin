@@ -3,13 +3,14 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { ServiceLogo } from '../components/ServiceLogo'
 import { PageSkeleton } from '../components/ui/Skeleton'
-import { api, LAST_ENV_KEY } from '../lib/api'
+import { api, fetchAllEnvironments, LAST_ENV_KEY } from '../lib/api'
 import { Btn, Header, Input, Modal } from './Servers'
 
 export function ProjectsPage() {
   const qc = useQueryClient()
   const nav = useNavigate()
   const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
+  const envs = useQuery({ queryKey: ['all-environments'], queryFn: fetchAllEnvironments })
   const [show, setShow] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -26,6 +27,14 @@ export function ProjectsPage() {
     },
   })
 
+  const envByProject = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const e of envs.data || []) {
+      if (!m.has(e.project_id)) m.set(e.project_id, e.id)
+    }
+    return m
+  }, [envs.data])
+
   if (projects.isLoading) return <PageSkeleton cards={2} />
 
   return (
@@ -41,32 +50,58 @@ export function ProjectsPage() {
       <p className="text-sm text-gray-500 dark:text-gray-400">All your projects are here.</p>
 
       {(projects.data?.projects || []).length > 0 ? (
-        <div className="grid gap-4 xl:grid-cols-2">
-          {(projects.data?.projects || []).map((p) => (
-            <div key={p.id} className="panel-card relative flex items-center gap-4 p-5">
-              <Link
-                to="/projects/$projectId"
-                params={{ projectId: p.id }}
-                className="absolute inset-0"
-                aria-label={`Open ${p.name}`}
-              />
-              <div className="relative z-10 flex min-w-0 flex-1 flex-col">
-                <div className="font-semibold text-gray-900 dark:text-white">{p.name}</div>
-                {p.description && (
-                  <div className="mt-1 truncate text-sm text-gray-500 dark:text-gray-400">{p.description}</div>
-                )}
-              </div>
-              <div className="relative z-10 flex shrink-0 items-center gap-3 text-xs font-semibold">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+          {(projects.data?.projects || []).map((p) => {
+            const envId = envByProject.get(p.id)
+            return (
+              <div
+                key={p.id}
+                className="panel-card flex min-h-[4.5rem] items-center justify-between gap-4 px-5 py-4"
+              >
                 <Link
                   to="/projects/$projectId"
                   params={{ projectId: p.id }}
-                  className="hover:underline text-brand-600 dark:text-brand-400"
+                  className="min-w-0 flex-1"
                 >
-                  Open
+                  <div className="truncate text-base font-semibold text-gray-900 dark:text-white">
+                    {p.name}
+                  </div>
+                  {p.description ? (
+                    <div className="mt-0.5 truncate text-sm text-gray-500 dark:text-gray-400">
+                      {p.description}
+                    </div>
+                  ) : null}
                 </Link>
+                <div className="flex shrink-0 items-center gap-4 text-sm font-medium">
+                  {envId ? (
+                    <Link
+                      to="/projects/$projectId/environments/$envId/new"
+                      params={{ projectId: p.id, envId }}
+                      onClick={() => localStorage.setItem(LAST_ENV_KEY, envId)}
+                      className="text-brand-600 hover:underline dark:text-brand-400"
+                    >
+                      + Add Resource
+                    </Link>
+                  ) : (
+                    <Link
+                      to="/projects/$projectId"
+                      params={{ projectId: p.id }}
+                      className="text-brand-600 hover:underline dark:text-brand-400"
+                    >
+                      + Add Resource
+                    </Link>
+                  )}
+                  <Link
+                    to="/projects/$projectId"
+                    params={{ projectId: p.id }}
+                    className="text-brand-600 hover:underline dark:text-brand-400"
+                  >
+                    Settings
+                  </Link>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       ) : (
         <div className="panel-card p-8 text-sm text-gray-500 dark:text-gray-400">
