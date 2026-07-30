@@ -102,6 +102,7 @@ func (a *API) Router() http.Handler {
 				r.Post("/{serverID}/proxy/start", a.handleStartProxy)
 				r.Post("/{serverID}/proxy/stop", a.handleStopProxy)
 				r.Post("/{serverID}/exec", a.handleServerExec)
+				r.Get("/{serverID}/metrics", a.handleListServerMetrics)
 			})
 
 			r.Get("/destinations", a.handleListDestinations)
@@ -147,6 +148,9 @@ func (a *API) Router() http.Handler {
 				r.Get("/{dbID}", a.handleGetDatabase)
 				r.Post("/{dbID}/start", a.handleStartDatabase)
 				r.Post("/{dbID}/stop", a.handleStopDatabase)
+				r.Get("/{dbID}/backups", a.handleListDatabaseBackups)
+				r.Post("/{dbID}/backups", a.handleRunDatabaseBackup)
+				r.Post("/{dbID}/backups/restore", a.handleRestoreDatabaseBackup)
 			})
 
 			r.Route("/services", func(r chi.Router) {

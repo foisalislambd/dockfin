@@ -799,3 +799,113 @@ func (s *Store) ListScheduledBackups(ctx context.Context, teamID uuid.UUID) ([]S
 	}
 	return out, rows.Err()
 }
+
+type BackupExecution struct {
+	ID                uuid.UUID  `json:"id"`
+	TeamID            uuid.UUID  `json:"team_id"`
+	ScheduledBackupID *uuid.UUID `json:"scheduled_backup_id,omitempty"`
+	ResourceType      string     `json:"resource_type"`
+	ResourceID        uuid.UUID  `json:"resource_id"`
+	Status            string     `json:"status"`
+	SizeBytes         int64      `json:"size_bytes"`
+	Filename          string     `json:"filename"`
+	ErrorMessage      string     `json:"error_message"`
+	StartedAt         time.Time  `json:"started_at"`
+	FinishedAt        *time.Time `json:"finished_at,omitempty"`
+}
+
+func (s *Store) CreateBackupExecution(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID, filename string) (*BackupExecution, error) {
+	var b BackupExecution
+	err := s.Pool.QueryRow(ctx, `
+		INSERT INTO backup_executions (team_id, resource_type, resource_id, status, filename)
+		VALUES ($1,$2,$3,'running',$4)
+		RETURNING id, team_id, scheduled_backup_id, resource_type, resource_id, status, size_bytes, filename, error_message, started_at, finished_at
+	`, teamID, resourceType, resourceID, filename).Scan(
+		&b.ID, &b.TeamID, &b.ScheduledBackupID, &b.ResourceType, &b.ResourceID, &b.Status, &b.SizeBytes, &b.Filename, &b.ErrorMessage, &b.StartedAt, &b.FinishedAt,
+	)
+	return &b, err
+}
+
+func (s *Store) FinishBackupExecution(ctx context.Context, id uuid.UUID, status string, sizeBytes int64, errMsg string) error {
+	_, err := s.Pool.Exec(ctx, `
+		UPDATE backup_executions
+		SET status=$2, size_bytes=$3, error_message=$4, finished_at=NOW()
+		WHERE id=$1
+	`, id, status, sizeBytes, errMsg)
+	return err
+}
+
+func (s *Store) ListBackupExecutions(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID) ([]BackupExecution, error) {
+	rows, err := s.Pool.Query(ctx, `
+		SELECT id, team_id, scheduled_backup_id, resource_type, resource_id, status, size_bytes, filename, error_message, started_at, finished_at
+		FROM backup_executions
+		WHERE team_id=$1 AND resource_type=$2 AND resource_id=$3
+		ORDER BY started_at DESC
+		LIMIT 50
+	`, teamID, resourceType, resourceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []BackupExecution
+	for rows.Next() {
+		var b BackupExecution
+		if err := rows.Scan(&b.ID, &b.TeamID, &b.ScheduledBackupID, &b.ResourceType, &b.ResourceID, &b.Status, &b.SizeBytes, &b.Filename, &b.ErrorMessage, &b.StartedAt, &b.FinishedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) GetBackupExecution(ctx context.Context, teamID, id uuid.UUID) (*BackupExecution, error) {
+	var b BackupExecution
+	err := s.Pool.QueryRow(ctx, `
+		SELECT id, team_id, scheduled_backup_id, resource_type, resource_id, status, size_bytes, filename, error_message, started_at, finished_at
+		FROM backup_executions WHERE id=$1 AND team_id=$2
+	`, id, teamID).Scan(
+		&b.ID, &b.TeamID, &b.ScheduledBackupID, &b.ResourceType, &b.ResourceID, &b.Status, &b.SizeBytes, &b.Filename, &b.ErrorMessage, &b.StartedAt, &b.FinishedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return &b, err
+}
+
+type ServerMetric struct {
+	CPUPercent       float64   `json:"cpu_percent"`
+	MemoryUsedBytes  int64     `json:"memory_used_bytes"`
+	MemoryTotalBytes int64     `json:"memory_total_bytes"`
+	DiskUsedBytes    int64     `json:"disk_used_bytes"`
+	DiskTotalBytes   int64     `json:"disk_total_bytes"`
+	RecordedAt       time.Time `json:"recorded_at"`
+}
+
+func (s *Store) ListServerMetrics(ctx context.Context, teamID, serverID uuid.UUID, limit int) ([]ServerMetric, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 60
+	}
+	rows, err := s.Pool.Query(ctx, `
+		SELECT cpu_percent, memory_used_bytes, memory_total_bytes, disk_used_bytes, disk_total_bytes, recorded_at
+		FROM server_metrics
+		WHERE team_id=$1 AND server_id=$2
+		ORDER BY recorded_at DESC
+		LIMIT $3
+	`, teamID, serverID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ServerMetric
+	for rows.Next() {
+		var m ServerMetric
+		if err := rows.Scan(&m.CPUPercent, &m.MemoryUsedBytes, &m.MemoryTotalBytes, &m.DiskUsedBytes, &m.DiskTotalBytes, &m.RecordedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
+	}
+	return out, rows.Err()
+}

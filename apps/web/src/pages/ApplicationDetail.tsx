@@ -9,6 +9,7 @@ const APP_TABS = [
   { id: 'configuration', label: 'Configuration' },
   { id: 'environment', label: 'Environment Variables' },
   { id: 'deployments', label: 'Deployments' },
+  { id: 'tasks', label: 'Scheduled Tasks' },
   { id: 'webhooks', label: 'Webhooks' },
   { id: 'rollback', label: 'Rollback' },
   { id: 'danger', label: 'Danger' },
@@ -55,6 +56,29 @@ export function ApplicationDetailPage() {
   const [envKey, setEnvKey] = useState('')
   const [envValue, setEnvValue] = useState('')
   const [webhookSecret, setWebhookSecret] = useState<string | null>(null)
+  const [taskName, setTaskName] = useState('')
+  const [taskCommand, setTaskCommand] = useState('')
+  const [taskFrequency, setTaskFrequency] = useState('0 * * * *')
+
+  const tasks = useQuery({
+    queryKey: ['scheduled-tasks', appId],
+    queryFn: () => api.scheduledTasks({ resource_type: 'application', resource_id: appId }),
+  })
+  const createTask = useMutation({
+    mutationFn: () =>
+      api.createScheduledTask({
+        resource_type: 'application',
+        resource_id: appId,
+        name: taskName,
+        command: taskCommand,
+        frequency: taskFrequency,
+      }),
+    onSuccess: () => {
+      setTaskName('')
+      setTaskCommand('')
+      void qc.invalidateQueries({ queryKey: ['scheduled-tasks', appId] })
+    },
+  })
 
   // Reset local UI state whenever the route resource changes (component may be reused).
   useEffect(() => {
@@ -62,6 +86,9 @@ export function ApplicationDetailPage() {
     setEnvKey('')
     setEnvValue('')
     setWebhookSecret(null)
+    setTaskName('')
+    setTaskCommand('')
+    setTaskFrequency('0 * * * *')
     setCfg({
       name: '',
       description: '',
@@ -478,6 +505,90 @@ export function ApplicationDetailPage() {
               </div>
             )}
             {webhook.error && <p className="text-sm text-error-500">{webhook.error.message}</p>}
+          </div>
+        </TabPanel>
+      )}
+
+      {tab === 'tasks' && (
+        <TabPanel>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Cron-style schedules stored for this application. A runner must execute them on the
+              target host.
+            </p>
+            <div className="panel-card overflow-hidden">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+                  <tr>
+                    <th className="px-3 py-2">Name</th>
+                    <th className="px-3 py-2">Command</th>
+                    <th className="px-3 py-2">Frequency</th>
+                    <th className="px-3 py-2">Enabled</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(tasks.data?.scheduled_tasks || []).map((t) => (
+                    <tr key={t.id} className="border-t border-gray-200 dark:border-gray-800">
+                      <td className="px-3 py-2">{t.name}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{t.command}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{t.frequency}</td>
+                      <td className="px-3 py-2">{t.enabled ? 'yes' : 'no'}</td>
+                    </tr>
+                  ))}
+                  {!tasks.data?.scheduled_tasks?.length && (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                        No scheduled tasks yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <form
+              className="panel-card grid gap-3 p-4 sm:grid-cols-2"
+              onSubmit={(e) => {
+                e.preventDefault()
+                createTask.mutate()
+              }}
+            >
+              <label className="block text-sm">
+                <span className="mb-1 block text-gray-500 dark:text-gray-400">Name</span>
+                <input
+                  value={taskName}
+                  onChange={(e) => setTaskName(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-900"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block text-gray-500 dark:text-gray-400">Cron frequency</span>
+                <input
+                  value={taskFrequency}
+                  onChange={(e) => setTaskFrequency(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 font-mono text-sm dark:border-gray-800 dark:bg-gray-900"
+                />
+              </label>
+              <label className="block text-sm sm:col-span-2">
+                <span className="mb-1 block text-gray-500 dark:text-gray-400">Command</span>
+                <input
+                  value={taskCommand}
+                  onChange={(e) => setTaskCommand(e.target.value)}
+                  required
+                  placeholder="php artisan schedule:run"
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 font-mono text-sm dark:border-gray-800 dark:bg-gray-900"
+                />
+              </label>
+              {createTask.error && (
+                <p className="text-sm text-error-500 sm:col-span-2">{createTask.error.message}</p>
+              )}
+              <div className="sm:col-span-2">
+                <Btn primary type="submit">
+                  {createTask.isPending ? 'Saving…' : 'Add task'}
+                </Btn>
+              </div>
+            </form>
           </div>
         </TabPanel>
       )}

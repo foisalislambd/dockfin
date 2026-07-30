@@ -41,7 +41,7 @@
 - [x] Remote start/stop over SSH
 - [x] S3 storage + scheduled backup APIs
 - [x] Backup dump helper
-- [ ] Full restore UI
+- [x] Full restore UI
 
 ## Services
 - [x] Catalog loader (builtin + coolify/templates/compose)
@@ -55,7 +55,7 @@
 - [x] Terminal/exec helper
 - [x] Onboarding + app detail + notifications UI
 - [ ] Full xterm browser terminal
-- [ ] Metrics charts UI polish
+- [x] Metrics charts UI polish
 
 ## Polish
 - [x] Command palette (⌘K)

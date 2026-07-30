@@ -20,6 +20,7 @@ const SVC_TABS = [
 
 const SERVER_TABS = [
   { id: 'overview', label: 'Overview' },
+  { id: 'metrics', label: 'Metrics' },
   { id: 'proxy', label: 'Proxy' },
   { id: 'destinations', label: 'Destinations' },
   { id: 'terminal', label: 'Terminal' },
@@ -29,6 +30,14 @@ const SERVER_TABS = [
 function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
   const qc = useQueryClient()
   const backups = useQuery({ queryKey: ['scheduled-backups'], queryFn: api.scheduledBackups })
+  const executions = useQuery({
+    queryKey: ['db-backups', dbId],
+    queryFn: () => api.databaseBackups(dbId),
+    refetchInterval: (q) => {
+      const list = q.state.data?.backup_executions || []
+      return list.some((b) => b.status === 'running') ? 2000 : false
+    },
+  })
   const storages = useQuery({ queryKey: ['s3-storages'], queryFn: api.s3Storages })
   const [s3Id, setS3Id] = useState('')
   const [frequency, setFrequency] = useState('0 0 * * *')
@@ -47,10 +56,104 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
       }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['scheduled-backups'] }),
   })
+  const runNow = useMutation({
+    mutationFn: () => api.runDatabaseBackup(dbId),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['db-backups', dbId] }),
+  })
+  const restore = useMutation({
+    mutationFn: (executionId: string) =>
+      api.restoreDatabaseBackup(dbId, { execution_id: executionId }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['db-backups', dbId] }),
+  })
+  useEffect(() => {
+    restore.reset()
+    runNow.reset()
+  }, [dbId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const formatBytes = (n: number) => {
+    if (!n) return '—'
+    if (n < 1024) return `${n} B`
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`
+  }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Manual dumps write to `/data/goolify/backups` on the server (PostgreSQL).
+        </p>
+        <Btn primary onClick={() => runNow.mutate()}>
+          {runNow.isPending ? 'Dumping…' : 'Run backup now'}
+        </Btn>
+      </div>
+      {runNow.error && <p className="text-sm text-error-500">{runNow.error.message}</p>}
+      {restore.error && <p className="text-sm text-error-500">{restore.error.message}</p>}
+      {restore.isSuccess && (
+        <p className="text-sm text-emerald-600 dark:text-emerald-400">Restore completed.</p>
+      )}
+
       <div className="panel-card overflow-hidden">
+        <div className="border-b border-gray-200 px-3 py-2 text-sm font-medium dark:border-gray-800">
+          Backup history
+        </div>
+        <table className="w-full text-left text-sm">
+          <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+            <tr>
+              <th className="px-3 py-2">Started</th>
+              <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2">Size</th>
+              <th className="px-3 py-2">File</th>
+              <th className="px-3 py-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(executions.data?.backup_executions || []).map((b) => (
+              <tr key={b.id} className="border-t border-gray-200 dark:border-gray-800">
+                <td className="px-3 py-2 font-mono text-xs">
+                  {new Date(b.started_at).toLocaleString()}
+                </td>
+                <td className="px-3 py-2">
+                  {b.status}
+                  {b.error_message ? (
+                    <span className="ml-2 text-xs text-error-500">{b.error_message}</span>
+                  ) : null}
+                </td>
+                <td className="px-3 py-2">{formatBytes(b.size_bytes)}</td>
+                <td className="px-3 py-2 font-mono text-xs">{b.filename || '—'}</td>
+                <td className="px-3 py-2">
+                  {b.status === 'finished' && (
+                    <button
+                      type="button"
+                      className="text-brand-600 dark:text-brand-400"
+                      disabled={restore.isPending}
+                      onClick={() => {
+                        if (window.confirm('Restore this dump into the running database?')) {
+                          restore.mutate(b.id)
+                        }
+                      }}
+                    >
+                      Restore
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {!executions.data?.backup_executions?.length && (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                  No backup runs yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="panel-card overflow-hidden">
+        <div className="border-b border-gray-200 px-3 py-2 text-sm font-medium dark:border-gray-800">
+          Schedules
+        </div>
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
             <tr>
@@ -419,6 +522,100 @@ export function ServiceDetailPage() {
   )
 }
 
+function Sparkline({
+  values,
+  maxHint,
+  color = '#0d9488',
+}: {
+  values: number[]
+  maxHint?: number
+  color?: string
+}) {
+  if (!values.length) {
+    return <div className="flex h-16 items-center text-sm text-gray-500">No data</div>
+  }
+  const w = 280
+  const h = 64
+  const max = Math.max(maxHint || 0, ...values, 1)
+  const pts = values
+    .map((v, i) => {
+      const x = values.length === 1 ? 0 : (i / (values.length - 1)) * w
+      const y = h - (v / max) * (h - 4) - 2
+      return `${x},${y}`
+    })
+    .join(' ')
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="h-16 w-full" preserveAspectRatio="none">
+      <polyline fill="none" stroke={color} strokeWidth="2" points={pts} />
+    </svg>
+  )
+}
+
+function ServerMetricsView({
+  metrics,
+  loading,
+}: {
+  metrics: import('../lib/api').ServerMetric[]
+  loading: boolean
+}) {
+  if (loading) return <p className="text-gray-500 dark:text-gray-400">Loading metrics…</p>
+  const latest = metrics[metrics.length - 1]
+  const cpu = metrics.map((m) => m.cpu_percent)
+  const memPct = metrics.map((m) =>
+    m.memory_total_bytes > 0 ? (m.memory_used_bytes / m.memory_total_bytes) * 100 : 0,
+  )
+  const diskPct = metrics.map((m) =>
+    m.disk_total_bytes > 0 ? (m.disk_used_bytes / m.disk_total_bytes) * 100 : 0,
+  )
+  const fmtGiB = (n: number) => `${(n / (1024 ** 3)).toFixed(1)} GiB`
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        Recent samples from Sentinel ingest. Deploy the agent on the server to populate charts.
+      </p>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="panel-card p-4">
+          <div className="text-xs text-gray-500 dark:text-gray-400">CPU</div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums text-gray-900 dark:text-white">
+            {latest ? `${latest.cpu_percent.toFixed(1)}%` : '—'}
+          </div>
+          <Sparkline values={cpu} maxHint={100} color="#0d9488" />
+        </div>
+        <div className="panel-card p-4">
+          <div className="text-xs text-gray-500 dark:text-gray-400">Memory</div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums text-gray-900 dark:text-white">
+            {latest && latest.memory_total_bytes
+              ? `${((latest.memory_used_bytes / latest.memory_total_bytes) * 100).toFixed(0)}%`
+              : '—'}
+          </div>
+          <div className="text-xs text-gray-500">
+            {latest ? `${fmtGiB(latest.memory_used_bytes)} / ${fmtGiB(latest.memory_total_bytes)}` : ''}
+          </div>
+          <Sparkline values={memPct} maxHint={100} color="#2563eb" />
+        </div>
+        <div className="panel-card p-4">
+          <div className="text-xs text-gray-500 dark:text-gray-400">Disk</div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums text-gray-900 dark:text-white">
+            {latest && latest.disk_total_bytes
+              ? `${((latest.disk_used_bytes / latest.disk_total_bytes) * 100).toFixed(0)}%`
+              : '—'}
+          </div>
+          <div className="text-xs text-gray-500">
+            {latest ? `${fmtGiB(latest.disk_used_bytes)} / ${fmtGiB(latest.disk_total_bytes)}` : ''}
+          </div>
+          <Sparkline values={diskPct} maxHint={100} color="#d97706" />
+        </div>
+      </div>
+      {!metrics.length && (
+        <div className="panel-card p-6 text-center text-sm text-gray-500">
+          No metrics yet. Ensure Sentinel is configured and posting to the ingest endpoint.
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ServerDetailPage() {
   const { serverId } = useParams({ strict: false }) as { serverId: string }
   const nav = useNavigate()
@@ -434,6 +631,11 @@ export function ServerDetailPage() {
 
   const server = useQuery({ queryKey: ['server', serverId], queryFn: () => api.getServer(serverId) })
   const destinations = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
+  const metrics = useQuery({
+    queryKey: ['server-metrics', serverId],
+    queryFn: () => api.serverMetrics(serverId, 60),
+    refetchInterval: tab === 'metrics' ? 15000 : false,
+  })
 
   const validate = useMutation({
     mutationFn: () => api.validateServer(serverId),
@@ -509,6 +711,13 @@ export function ServerDetailPage() {
             <Meta label="Proxy status" value={s.proxy_status || '—'} />
           </div>
           {validate.error && <p className="mt-4 text-sm text-error-500">{validate.error.message}</p>}
+        </TabPanel>
+      )}
+
+      {tab === 'metrics' && (
+        <TabPanel>
+          <ServerMetricsView metrics={metrics.data?.metrics || []} loading={metrics.isLoading} />
+          {metrics.error && <p className="mt-3 text-sm text-error-500">{metrics.error.message}</p>}
         </TabPanel>
       )}
 

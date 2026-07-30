@@ -280,10 +280,25 @@ func (a *API) handleSentinelMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleListScheduledTasks(w http.ResponseWriter, r *http.Request) {
-	rows, err := a.Store.Pool.Query(r.Context(), `
+	q := `
 		SELECT id, resource_type, resource_id, name, command, frequency, enabled, created_at
-		FROM scheduled_tasks WHERE team_id=$1 ORDER BY name
-	`, currentTeamID(r))
+		FROM scheduled_tasks WHERE team_id=$1`
+	args := []any{currentTeamID(r)}
+	if rt := r.URL.Query().Get("resource_type"); rt != "" {
+		args = append(args, rt)
+		q += fmt.Sprintf(` AND resource_type=$%d`, len(args))
+	}
+	if rid := r.URL.Query().Get("resource_id"); rid != "" {
+		id, err := uuid.Parse(rid)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid resource_id")
+			return
+		}
+		args = append(args, id)
+		q += fmt.Sprintf(` AND resource_id=$%d`, len(args))
+	}
+	q += ` ORDER BY name`
+	rows, err := a.Store.Pool.Query(r.Context(), q, args...)
 	if err != nil {
 		mapStoreErr(w, err)
 		return
@@ -308,6 +323,9 @@ func (a *API) handleListScheduledTasks(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, t)
 	}
+	if out == nil {
+		out = []task{}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"scheduled_tasks": out})
 }
 
@@ -328,14 +346,67 @@ func (a *API) handleCreateScheduledTask(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "resource_id, name, command, frequency required")
 		return
 	}
+	if body.ResourceType == "" {
+		body.ResourceType = "application"
+	}
+	teamID := currentTeamID(r)
+	switch body.ResourceType {
+	case "application":
+		if _, err := a.Store.GetApplication(r.Context(), teamID, rid); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+	case "database":
+		if _, err := a.Store.GetDatabase(r.Context(), teamID, rid); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+	case "service":
+		if _, err := a.Store.GetService(r.Context(), teamID, rid); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+	default:
+		writeError(w, http.StatusBadRequest, "unsupported resource_type")
+		return
+	}
 	var id uuid.UUID
 	err = a.Store.Pool.QueryRow(r.Context(), `
 		INSERT INTO scheduled_tasks (team_id, resource_type, resource_id, name, command, frequency)
 		VALUES ($1,$2,$3,$4,$5,$6) RETURNING id
-	`, currentTeamID(r), body.ResourceType, rid, body.Name, body.Command, body.Frequency).Scan(&id)
+	`, teamID, body.ResourceType, rid, body.Name, body.Command, body.Frequency).Scan(&id)
 	if err != nil {
 		mapStoreErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"id": id})
+}
+
+func (a *API) handleListServerMetrics(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "serverID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	teamID := currentTeamID(r)
+	if _, err := a.Store.GetServer(r.Context(), teamID, id); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	limit := 60
+	if s := r.URL.Query().Get("limit"); s != "" {
+		var n int
+		if _, err := fmt.Sscanf(s, "%d", &n); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	list, err := a.Store.ListServerMetrics(r.Context(), teamID, id, limit)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if list == nil {
+		list = []store.ServerMetric{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"metrics": list})
 }

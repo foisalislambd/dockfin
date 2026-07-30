@@ -268,6 +268,37 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  databaseBackups: (dbId: string) =>
+    request<{ backup_executions: BackupExecution[] }>(`/api/v1/databases/${dbId}/backups`),
+  runDatabaseBackup: (dbId: string) =>
+    request<BackupExecution>(`/api/v1/databases/${dbId}/backups`, { method: 'POST' }),
+  restoreDatabaseBackup: (dbId: string, body: { execution_id?: string; filename?: string }) =>
+    request<{ status: string; filename: string }>(`/api/v1/databases/${dbId}/backups/restore`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  scheduledTasks: (params?: { resource_type?: string; resource_id?: string }) => {
+    const q = new URLSearchParams()
+    if (params?.resource_type) q.set('resource_type', params.resource_type)
+    if (params?.resource_id) q.set('resource_id', params.resource_id)
+    const qs = q.toString()
+    return request<{ scheduled_tasks: ScheduledTask[] }>(
+      `/api/v1/scheduled-tasks${qs ? `?${qs}` : ''}`,
+    )
+  },
+  createScheduledTask: (body: {
+    resource_type?: string
+    resource_id: string
+    name: string
+    command: string
+    frequency: string
+  }) =>
+    request<{ id: string }>('/api/v1/scheduled-tasks', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  serverMetrics: (id: string, limit = 60) =>
+    request<{ metrics: ServerMetric[] }>(`/api/v1/servers/${id}/metrics?limit=${limit}`),
 }
 
 export type Server = {
@@ -399,6 +430,35 @@ export type ScheduledBackup = {
   enabled: boolean
   retention: number
   created_at: string
+}
+export type BackupExecution = {
+  id: string
+  resource_type: string
+  resource_id: string
+  status: string
+  size_bytes: number
+  filename: string
+  error_message: string
+  started_at: string
+  finished_at?: string | null
+}
+export type ScheduledTask = {
+  id: string
+  resource_type: string
+  resource_id: string
+  name: string
+  command: string
+  frequency: string
+  enabled: boolean
+  created_at: string
+}
+export type ServerMetric = {
+  cpu_percent: number
+  memory_used_bytes: number
+  memory_total_bytes: number
+  disk_used_bytes: number
+  disk_total_bytes: number
+  recorded_at: string
 }
 
 /** Fetch all environments across projects for dropdowns. */
