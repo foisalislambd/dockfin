@@ -11,6 +11,7 @@ import (
 	"github.com/goolify/goolify/internal/crypto"
 	"github.com/goolify/goolify/internal/database"
 	"github.com/goolify/goolify/internal/git"
+	"github.com/goolify/goolify/internal/sshx"
 	"github.com/goolify/goolify/internal/store"
 	"github.com/goolify/goolify/internal/worker"
 )
@@ -200,6 +201,33 @@ func (a *API) handleGetApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, app)
+}
+
+func (a *API) handleDeleteApplication(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "appID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	teamID := currentTeamID(r)
+	app, err := a.Store.GetApplication(r.Context(), teamID, id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	// Best-effort remote container removal before DB delete.
+	if app.DestinationID != nil {
+		if dest, err := a.Store.GetDestination(r.Context(), teamID, *app.DestinationID); err == nil {
+			if client, err := a.dialServer(r, dest.ServerID); err == nil {
+				_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", "goolify-"+id.String())
+			}
+		}
+	}
+	if err := a.Store.DeleteApplication(r.Context(), teamID, id); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
 func (a *API) handleDeployApplication(w http.ResponseWriter, r *http.Request) {
@@ -580,4 +608,30 @@ func (a *API) handleStopDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "exited"})
+}
+
+func (a *API) handleDeleteDatabase(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "dbID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	teamID := currentTeamID(r)
+	db, err := a.Store.GetDatabase(r.Context(), teamID, id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if db.DestinationID != nil {
+		if dest, err := a.Store.GetDestination(r.Context(), teamID, *db.DestinationID); err == nil {
+			if client, err := a.dialServer(r, dest.ServerID); err == nil {
+				_ = database.Stop(client, id.String())
+			}
+		}
+	}
+	if err := a.Store.DeleteDatabase(r.Context(), teamID, id); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }

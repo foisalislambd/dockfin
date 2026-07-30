@@ -319,6 +319,7 @@ export function DatabaseDetailPage() {
     envId?: string
     dbId: string
   }
+  const nav = useNavigate()
   const qc = useQueryClient()
   const [tab, setTab] = useState('configuration')
   useEffect(() => {
@@ -333,6 +334,17 @@ export function DatabaseDetailPage() {
   const stop = useMutation({
     mutationFn: () => api.stopDatabase(dbId),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['database', dbId] }),
+  })
+  const remove = useMutation({
+    mutationFn: () => api.deleteDatabase(dbId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['databases'] })
+      if (projectId && envId) {
+        void nav({ to: '/projects/$projectId/environments/$envId', params: { projectId, envId } })
+      } else {
+        void nav({ to: '/databases' })
+      }
+    },
   })
 
   const back =
@@ -410,12 +422,31 @@ export function DatabaseDetailPage() {
 
       {tab === 'danger' && (
         <TabPanel>
-          <div className="panel-card space-y-3 border-error-200 p-5 dark:border-error-500/30">
-            <h2 className="text-sm font-semibold text-error-500">Stop database</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Stops the container on the remote server. Permanent delete is not exposed in the API yet.
-            </p>
-            <Btn onClick={() => stop.mutate()}>Stop now</Btn>
+          <div className="space-y-4">
+            <div className="panel-card space-y-3 border-error-200 p-5 dark:border-error-500/30">
+              <h2 className="text-sm font-semibold text-error-500">Stop database</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Stops the container on the remote server without removing Goolify configuration.
+              </p>
+              <Btn onClick={() => stop.mutate()}>Stop now</Btn>
+            </div>
+            <div className="panel-card space-y-3 border-error-200 p-5 dark:border-error-500/30">
+              <h2 className="text-sm font-semibold text-error-500">Delete database</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Stops the remote container and permanently deletes this database record, schedules,
+                and backup history from Goolify.
+              </p>
+              <Btn
+                onClick={() => {
+                  if (confirm(`Delete database ${d.name}? This cannot be undone.`)) {
+                    remove.mutate()
+                  }
+                }}
+              >
+                {remove.isPending ? 'Deleting…' : 'Delete permanently'}
+              </Btn>
+              {remove.error && <p className="text-sm text-error-500">{remove.error.message}</p>}
+            </div>
           </div>
         </TabPanel>
       )}

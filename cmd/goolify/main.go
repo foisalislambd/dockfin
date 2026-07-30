@@ -14,6 +14,7 @@ import (
 	"github.com/goolify/goolify/internal/crypto"
 	"github.com/goolify/goolify/internal/db"
 	"github.com/goolify/goolify/internal/httpapi"
+	"github.com/goolify/goolify/internal/scheduler"
 	"github.com/goolify/goolify/internal/sshx"
 	"github.com/goolify/goolify/internal/store"
 	"github.com/goolify/goolify/internal/worker"
@@ -111,6 +112,10 @@ func runServe() error {
 	q := worker.NewQueue(st, sshPool, hub, 4)
 	q.Start(ctx, 4)
 	defer q.Stop()
+
+	sched := scheduler.New(st, sshPool, logger)
+	sched.Start(ctx)
+	defer sched.Stop()
 
 	api := &httpapi.API{
 		Cfg:    cfg,

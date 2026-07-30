@@ -298,6 +298,30 @@ func (s *Store) GetApplication(ctx context.Context, teamID, id uuid.UUID) (*Appl
 	return a, err
 }
 
+func (s *Store) DeleteApplication(ctx context.Context, teamID, id uuid.UUID) error {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var exists uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM applications WHERE id=$1 AND team_id=$2`, id, teamID).Scan(&exists)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	_, _ = tx.Exec(ctx, `DELETE FROM environment_variables WHERE team_id=$1 AND resource_type='application' AND resource_id=$2`, teamID, id)
+	_, _ = tx.Exec(ctx, `DELETE FROM scheduled_tasks WHERE team_id=$1 AND resource_type='application' AND resource_id=$2`, teamID, id)
+	_, _ = tx.Exec(ctx, `DELETE FROM scheduled_backups WHERE team_id=$1 AND resource_type='application' AND resource_id=$2`, teamID, id)
+	if _, err := tx.Exec(ctx, `DELETE FROM applications WHERE id=$1 AND team_id=$2`, id, teamID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 func (s *Store) UpdateApplicationStatus(ctx context.Context, id uuid.UUID, status string) error {
 	_, err := s.Pool.Exec(ctx, `UPDATE applications SET status=$2, updated_at=NOW() WHERE id=$1`, id, status)
 	return err
@@ -483,6 +507,31 @@ func (s *Store) GetDatabase(ctx context.Context, teamID, id uuid.UUID) (*Databas
 		return nil, ErrNotFound
 	}
 	return &d, err
+}
+
+func (s *Store) DeleteDatabase(ctx context.Context, teamID, id uuid.UUID) error {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var exists uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM databases WHERE id=$1 AND team_id=$2`, id, teamID).Scan(&exists)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	_, _ = tx.Exec(ctx, `DELETE FROM environment_variables WHERE team_id=$1 AND resource_type='database' AND resource_id=$2`, teamID, id)
+	_, _ = tx.Exec(ctx, `DELETE FROM scheduled_tasks WHERE team_id=$1 AND resource_type='database' AND resource_id=$2`, teamID, id)
+	_, _ = tx.Exec(ctx, `DELETE FROM scheduled_backups WHERE team_id=$1 AND resource_type='database' AND resource_id=$2`, teamID, id)
+	_, _ = tx.Exec(ctx, `DELETE FROM backup_executions WHERE team_id=$1 AND resource_type='database' AND resource_id=$2`, teamID, id)
+	if _, err := tx.Exec(ctx, `DELETE FROM databases WHERE id=$1 AND team_id=$2`, id, teamID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (s *Store) UpdateDatabaseStatus(ctx context.Context, id uuid.UUID, status string) error {
@@ -908,4 +957,115 @@ func (s *Store) ListServerMetrics(ctx context.Context, teamID, serverID uuid.UUI
 		out[i], out[j] = out[j], out[i]
 	}
 	return out, rows.Err()
+}
+
+type ScheduledTaskRow struct {
+	ID           uuid.UUID
+	TeamID       uuid.UUID
+	ResourceType string
+	ResourceID   uuid.UUID
+	Name         string
+	Command      string
+	Frequency    string
+	Container    string
+	Enabled      bool
+}
+
+func (s *Store) ListEnabledScheduledTasks(ctx context.Context) ([]ScheduledTaskRow, error) {
+	rows, err := s.Pool.Query(ctx, `
+		SELECT id, team_id, resource_type, resource_id, name, command, frequency, container_name, enabled
+		FROM scheduled_tasks WHERE enabled=TRUE
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ScheduledTaskRow
+	for rows.Next() {
+		var t ScheduledTaskRow
+		if err := rows.Scan(&t.ID, &t.TeamID, &t.ResourceType, &t.ResourceID, &t.Name, &t.Command, &t.Frequency, &t.Container, &t.Enabled); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) TaskRanThisMinute(ctx context.Context, taskID uuid.UUID, minute time.Time) (bool, error) {
+	var n int
+	err := s.Pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM scheduled_task_executions
+		WHERE scheduled_task_id=$1 AND started_at >= $2 AND started_at < $3
+	`, taskID, minute, minute.Add(time.Minute)).Scan(&n)
+	return n > 0, err
+}
+
+func (s *Store) CreateTaskExecution(ctx context.Context, teamID, taskID uuid.UUID) (uuid.UUID, error) {
+	var id uuid.UUID
+	err := s.Pool.QueryRow(ctx, `
+		INSERT INTO scheduled_task_executions (team_id, scheduled_task_id, status)
+		VALUES ($1,$2,'running') RETURNING id
+	`, teamID, taskID).Scan(&id)
+	return id, err
+}
+
+func (s *Store) FinishTaskExecution(ctx context.Context, id uuid.UUID, status, output string) error {
+	_, err := s.Pool.Exec(ctx, `
+		UPDATE scheduled_task_executions
+		SET status=$2, output=$3, finished_at=NOW()
+		WHERE id=$1
+	`, id, status, output)
+	return err
+}
+
+type ScheduledBackupRow struct {
+	ID           uuid.UUID
+	TeamID       uuid.UUID
+	ResourceType string
+	ResourceID   uuid.UUID
+	S3StorageID  *uuid.UUID
+	Frequency    string
+	Enabled      bool
+	Retention    int
+}
+
+func (s *Store) ListEnabledScheduledBackups(ctx context.Context) ([]ScheduledBackupRow, error) {
+	rows, err := s.Pool.Query(ctx, `
+		SELECT id, team_id, resource_type, resource_id, s3_storage_id, frequency, enabled, retention
+		FROM scheduled_backups WHERE enabled=TRUE
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ScheduledBackupRow
+	for rows.Next() {
+		var b ScheduledBackupRow
+		if err := rows.Scan(&b.ID, &b.TeamID, &b.ResourceType, &b.ResourceID, &b.S3StorageID, &b.Frequency, &b.Enabled, &b.Retention); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) BackupRanThisMinute(ctx context.Context, backupID uuid.UUID, minute time.Time) (bool, error) {
+	var n int
+	err := s.Pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM backup_executions
+		WHERE scheduled_backup_id=$1 AND started_at >= $2 AND started_at < $3
+	`, backupID, minute, minute.Add(time.Minute)).Scan(&n)
+	return n > 0, err
+}
+
+func (s *Store) CreateBackupExecutionScheduled(ctx context.Context, teamID uuid.UUID, scheduledID *uuid.UUID, resourceType string, resourceID uuid.UUID, filename string) (*BackupExecution, error) {
+	var b BackupExecution
+	err := s.Pool.QueryRow(ctx, `
+		INSERT INTO backup_executions (team_id, scheduled_backup_id, resource_type, resource_id, status, filename)
+		VALUES ($1,$2,$3,$4,'running',$5)
+		RETURNING id, team_id, scheduled_backup_id, resource_type, resource_id, status, size_bytes, filename, error_message, started_at, finished_at
+	`, teamID, scheduledID, resourceType, resourceID, filename).Scan(
+		&b.ID, &b.TeamID, &b.ScheduledBackupID, &b.ResourceType, &b.ResourceID, &b.Status, &b.SizeBytes, &b.Filename, &b.ErrorMessage, &b.StartedAt, &b.FinishedAt,
+	)
+	return &b, err
 }

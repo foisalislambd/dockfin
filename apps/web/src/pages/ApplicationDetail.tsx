@@ -158,6 +158,18 @@ export function ApplicationDetailPage() {
     },
   })
 
+  const remove = useMutation({
+    mutationFn: () => api.deleteApplication(appId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['applications'] })
+      if (nested && projectId && envId) {
+        void nav({ to: '/projects/$projectId/environments/$envId', params: { projectId, envId } })
+      } else {
+        void nav({ to: '/applications' })
+      }
+    },
+  })
+
   const cancel = useMutation({
     mutationFn: (id: string) => api.cancelDeployment(id),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['deployments', appId] }),
@@ -513,8 +525,8 @@ export function ApplicationDetailPage() {
         <TabPanel>
           <div className="space-y-4">
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Cron-style schedules stored for this application. A runner must execute them on the
-              target host.
+              Cron schedules run every minute from the Goolify server. Commands execute via{' '}
+              <code className="font-mono text-xs">docker exec</code> in the application container.
             </p>
             <div className="panel-card overflow-hidden">
               <table className="w-full text-left text-sm">
@@ -610,14 +622,32 @@ export function ApplicationDetailPage() {
 
       {tab === 'danger' && (
         <TabPanel>
-          <div className="panel-card space-y-4 border-error-200 p-5 dark:border-error-500/30">
-            <h2 className="text-sm font-semibold text-error-500">Force rebuild</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Queue a deployment with force rebuild enabled. Permanent application delete is not
-              exposed in the API yet.
-            </p>
-            <Btn onClick={() => deploy.mutate({ force: true })}>Force rebuild deploy</Btn>
-            {deploy.error && <p className="text-sm text-error-500">{deploy.error.message}</p>}
+          <div className="space-y-4">
+            <div className="panel-card space-y-4 border-error-200 p-5 dark:border-error-500/30">
+              <h2 className="text-sm font-semibold text-error-500">Force rebuild</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Queue a deployment with force rebuild enabled.
+              </p>
+              <Btn onClick={() => deploy.mutate({ force: true })}>Force rebuild deploy</Btn>
+              {deploy.error && <p className="text-sm text-error-500">{deploy.error.message}</p>}
+            </div>
+            <div className="panel-card space-y-4 border-error-200 p-5 dark:border-error-500/30">
+              <h2 className="text-sm font-semibold text-error-500">Delete application</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Removes the application from Goolify and best-effort deletes its container on the
+                server. This cannot be undone.
+              </p>
+              <Btn
+                onClick={() => {
+                  if (confirm(`Delete application ${a.name}? This cannot be undone.`)) {
+                    remove.mutate()
+                  }
+                }}
+              >
+                {remove.isPending ? 'Deleting…' : 'Delete permanently'}
+              </Btn>
+              {remove.error && <p className="text-sm text-error-500">{remove.error.message}</p>}
+            </div>
           </div>
         </TabPanel>
       )}

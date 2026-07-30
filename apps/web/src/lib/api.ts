@@ -114,6 +114,8 @@ export const api = {
   application: (id: string) => request<Application>(`/api/v1/applications/${id}`),
   createApplication: (body: Record<string, unknown>) =>
     request<Application>('/api/v1/applications', { method: 'POST', body: JSON.stringify(body) }),
+  deleteApplication: (id: string) =>
+    request<{ status: string }>(`/api/v1/applications/${id}`, { method: 'DELETE' }),
   updateApplication: (id: string, body: Record<string, unknown>) =>
     request<Application>(`/api/v1/applications/${id}`, {
       method: 'PATCH',
@@ -192,6 +194,8 @@ export const api = {
     request(`/api/v1/databases/${id}/start`, { method: 'POST' }),
   stopDatabase: (id: string) =>
     request(`/api/v1/databases/${id}/stop`, { method: 'POST' }),
+  deleteDatabase: (id: string) =>
+    request<{ status: string }>(`/api/v1/databases/${id}`, { method: 'DELETE' }),
 
   services: (environment_id?: string) =>
     request<{ services: Service[] }>(

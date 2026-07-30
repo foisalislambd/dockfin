@@ -50,12 +50,14 @@
 
 ## Ops
 - [x] Scheduled tasks API
+- [x] Scheduled task + backup cron runner
 - [x] Notification settings + deploy webhooks
 - [x] Sentinel metrics ingest (token auth)
 - [x] Terminal/exec helper
 - [x] Onboarding + app detail + notifications UI
 - [ ] Full xterm browser terminal
 - [x] Metrics charts UI polish
+- [x] Application / database delete (danger zone)
 
 ## Polish
 - [x] Command palette (⌘K)
