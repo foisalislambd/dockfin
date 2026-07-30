@@ -40,7 +40,7 @@ export function DashboardPage() {
   const servers = useQuery({ queryKey: ['servers'], queryFn: api.servers })
   const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
   const apps = useQuery({ queryKey: ['applications'], queryFn: () => api.applications() })
-  const dbs = useQuery({ queryKey: ['databases'], queryFn: api.databases })
+  const dbs = useQuery({ queryKey: ['databases'], queryFn: () => api.databases() })
 
   const hasServers = (servers.data?.servers?.length ?? 0) > 0
 

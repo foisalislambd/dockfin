@@ -52,6 +52,7 @@ export type CreateServerBody = {
 
 export const api = {
   health: () => request<{ status: string }>('/health'),
+  version: () => request<{ version: string; name: string }>('/api/v1/version'),
   me: () => request<{ user: User; team: Team; teams: Team[] }>('/api/v1/auth/me'),
   login: (email: string, password: string) =>
     request<{ user: User; team: Team; token: string }>('/api/v1/auth/login', {
@@ -64,20 +65,35 @@ export const api = {
       body: JSON.stringify({ name, email, password }),
     }),
   logout: () => request('/api/v1/auth/logout', { method: 'POST' }),
+  switchTeam: (team_id: string) =>
+    request<{ status: string }>('/api/v1/auth/switch-team', {
+      method: 'POST',
+      body: JSON.stringify({ team_id }),
+    }),
+  teams: () => request<{ teams: Team[] }>('/api/v1/teams'),
+
   servers: () => request<{ servers: Server[] }>('/api/v1/servers'),
+  getServer: (id: string) => request<Server>(`/api/v1/servers/${id}`),
   createServer: (body: CreateServerBody) =>
     request<Server>('/api/v1/servers', { method: 'POST', body: JSON.stringify(body) }),
+  deleteServer: (id: string) =>
+    request<{ status: string }>(`/api/v1/servers/${id}`, { method: 'DELETE' }),
   validateServer: (id: string) =>
     request(`/api/v1/servers/${id}/validate`, { method: 'POST' }),
   startProxy: (id: string) =>
     request(`/api/v1/servers/${id}/proxy/start`, { method: 'POST' }),
+  stopProxy: (id: string) =>
+    request(`/api/v1/servers/${id}/proxy/stop`, { method: 'POST' }),
+
   keys: () => request<{ private_keys: Key[] }>('/api/v1/private-keys'),
   createKey: (name: string, private_key: string) =>
     request<Key>('/api/v1/private-keys', {
       method: 'POST',
       body: JSON.stringify({ name, private_key }),
     }),
+
   projects: () => request<{ projects: Project[] }>('/api/v1/projects'),
+  getProject: (id: string) => request<Project>(`/api/v1/projects/${id}`),
   createProject: (name: string, description = '') =>
     request<{ project: Project; environment: Environment }>('/api/v1/projects', {
       method: 'POST',
@@ -85,6 +101,12 @@ export const api = {
     }),
   environments: (projectId: string) =>
     request<{ environments: Environment[] }>(`/api/v1/projects/${projectId}/environments`),
+  createEnvironment: (projectId: string, name: string, description = '') =>
+    request<Environment>(`/api/v1/projects/${projectId}/environments`, {
+      method: 'POST',
+      body: JSON.stringify({ name, description }),
+    }),
+
   applications: (environment_id?: string) =>
     request<{ applications: Application[] }>(
       `/api/v1/applications${environment_id ? `?environment_id=${environment_id}` : ''}`,
@@ -106,6 +128,7 @@ export const api = {
     request<{ deployments: Deployment[] }>(`/api/v1/applications/${appId}/deployments`),
   cancelDeployment: (id: string) =>
     request<{ status: string }>(`/api/v1/deployments/${id}/cancel`, { method: 'POST' }),
+
   envVars: (resourceType: string, resourceId: string, reveal = false) =>
     request<{ environment_variables: EnvVar[] }>(
       `/api/v1/env-vars?resource_type=${encodeURIComponent(resourceType)}&resource_id=${resourceId}${reveal ? '&reveal=1' : ''}`,
@@ -120,7 +143,28 @@ export const api = {
     is_literal?: boolean
     comment?: string
   }) => request<EnvVar>('/api/v1/env-vars', { method: 'POST', body: JSON.stringify(body) }),
-  databases: () => request<{ databases: Database[] }>('/api/v1/databases'),
+
+  sharedEnvVars: (scope_type = 'team', scope_id?: string) =>
+    request<{ shared_environment_variables: SharedEnvVar[] }>(
+      `/api/v1/shared-env-vars?scope_type=${encodeURIComponent(scope_type)}${scope_id ? `&scope_id=${scope_id}` : ''}`,
+    ),
+  upsertSharedEnvVar: (body: {
+    scope_type: string
+    scope_id?: string
+    key: string
+    value: string
+    is_literal?: boolean
+  }) =>
+    request<SharedEnvVar>('/api/v1/shared-env-vars', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  databases: (environment_id?: string) =>
+    request<{ databases: Database[] }>(
+      `/api/v1/databases${environment_id ? `?environment_id=${environment_id}` : ''}`,
+    ),
+  getDatabase: (id: string) => request<Database>(`/api/v1/databases/${id}`),
   createDatabase: (body: Record<string, unknown>) =>
     request<{ database: Database; password: string }>('/api/v1/databases', {
       method: 'POST',
@@ -130,13 +174,37 @@ export const api = {
     request(`/api/v1/databases/${id}/start`, { method: 'POST' }),
   stopDatabase: (id: string) =>
     request(`/api/v1/databases/${id}/stop`, { method: 'POST' }),
-  services: () => request<{ services: Service[] }>('/api/v1/services'),
+
+  services: (environment_id?: string) =>
+    request<{ services: Service[] }>(
+      `/api/v1/services${environment_id ? `?environment_id=${environment_id}` : ''}`,
+    ),
+  getService: (id: string) => request<Service>(`/api/v1/services/${id}`),
   templates: () => request<{ templates: Template[] }>('/api/v1/services/templates'),
   createService: (body: Record<string, unknown>) =>
-    request('/api/v1/services', { method: 'POST', body: JSON.stringify(body) }),
+    request<Service>('/api/v1/services', { method: 'POST', body: JSON.stringify(body) }),
   deployService: (id: string) =>
     request(`/api/v1/services/${id}/deploy`, { method: 'POST' }),
+
   destinations: () => request<{ destinations: Destination[] }>('/api/v1/destinations'),
+
+  s3Storages: () => request<{ s3_storages: S3Storage[] }>('/api/v1/s3-storages'),
+  createS3Storage: (body: {
+    name: string
+    endpoint: string
+    bucket: string
+    region?: string
+    access_key: string
+    secret_key: string
+    path_style?: boolean
+  }) =>
+    request<S3Storage>('/api/v1/s3-storages', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  deleteS3Storage: (id: string) =>
+    request<{ status: string }>(`/api/v1/s3-storages/${id}`, { method: 'DELETE' }),
+
   notifications: () => request<{ notifications: NotificationSetting[] }>('/api/v1/notifications'),
   upsertNotification: (channel: string, body: { enabled: boolean; config: unknown; events?: string[] }) =>
     request<{ status: string }>(`/api/v1/notifications/${channel}`, {
@@ -156,10 +224,11 @@ export type Server = {
   docker_version: string
   proxy_type: string
   proxy_status: string
+  description?: string
 }
 export type Key = { id: string; name: string; fingerprint: string; public_key: string }
 export type Project = { id: string; name: string; description: string }
-export type Environment = { id: string; name: string; project_id: string }
+export type Environment = { id: string; name: string; project_id: string; description?: string }
 export type Application = {
   id: string
   name: string
@@ -193,10 +262,44 @@ export type EnvVar = {
   is_literal: boolean
   comment: string
 }
-export type Database = { id: string; name: string; engine: string; status: string }
-export type Service = { id: string; name: string; service_type: string; status: string }
+export type SharedEnvVar = {
+  id: string
+  scope_type: string
+  scope_id?: string | null
+  key: string
+  value?: string
+  is_literal: boolean
+}
+export type Database = {
+  id: string
+  name: string
+  engine: string
+  status: string
+  environment_id: string
+  description?: string
+  image?: string
+  is_public?: boolean
+  public_port?: number | null
+}
+export type Service = {
+  id: string
+  name: string
+  service_type: string
+  status: string
+  environment_id: string
+  description?: string
+}
 export type Template = { type: string; name: string; description: string; category?: string }
 export type Destination = { id: string; name: string; server_id: string; network: string }
+export type S3Storage = {
+  id: string
+  name: string
+  endpoint: string
+  bucket: string
+  region: string
+  path_style: boolean
+  created_at: string
+}
 export type NotificationSetting = {
   id: string
   channel: string

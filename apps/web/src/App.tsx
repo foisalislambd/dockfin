@@ -21,7 +21,17 @@ import { CreateServicePage } from './pages/CreateService'
 import { ApplicationDetailPage } from './pages/ApplicationDetail'
 import { OnboardingPage } from './pages/Onboarding'
 import { NotificationsPage } from './pages/Notifications'
-import { SettingsPage } from './pages/Settings'
+import { ProjectShowPage } from './pages/ProjectShow'
+import { EnvironmentResourcesPage } from './pages/EnvironmentResources'
+import { NewResourcePage } from './pages/NewResource'
+import { DatabaseDetailPage, ServerDetailPage, ServiceDetailPage } from './pages/ResourceDetails'
+import {
+  PrivateKeysPage,
+  SettingsPage,
+  SharedVariablesPage,
+  StoragesPage,
+  TeamPage,
+} from './pages/OpsPages'
 import './index.css'
 
 const queryClient = new QueryClient()
@@ -44,7 +54,6 @@ function RequireAuth() {
     )
   }
   if (!user) {
-    // Navigate (don't throw redirect) — thrown redirects surface as "Something went wrong!"
     return <Navigate to="/login" />
   }
   return <AppShell />
@@ -96,10 +105,70 @@ const serversRoute = createRoute({
   component: ServersPage,
 })
 
+const serverDetailRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/servers/$serverId',
+  component: ServerDetailPage,
+})
+
 const projectsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/projects',
   component: ProjectsPage,
+})
+
+const projectShowRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/projects/$projectId',
+  component: ProjectShowPage,
+})
+
+const envResourcesRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/projects/$projectId/environments/$envId',
+  component: EnvironmentResourcesPage,
+})
+
+const newResourceRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/projects/$projectId/environments/$envId/new',
+  component: NewResourcePage,
+})
+
+const nestedCreateAppRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/projects/$projectId/environments/$envId/applications/new',
+  component: CreateApplicationPage,
+})
+
+const nestedAppDetailRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/projects/$projectId/environments/$envId/applications/$appId',
+  component: ApplicationDetailPage,
+})
+
+const nestedCreateDbRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/projects/$projectId/environments/$envId/databases/new',
+  component: CreateDatabasePage,
+})
+
+const nestedDbDetailRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/projects/$projectId/environments/$envId/databases/$dbId',
+  component: DatabaseDetailPage,
+})
+
+const nestedCreateSvcRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/projects/$projectId/environments/$envId/services/new',
+  component: CreateServicePage,
+})
+
+const nestedSvcDetailRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/projects/$projectId/environments/$envId/services/$svcId',
+  component: ServiceDetailPage,
 })
 
 const applicationsRoute = createRoute({
@@ -132,6 +201,12 @@ const createDatabaseRoute = createRoute({
   component: CreateDatabasePage,
 })
 
+const databaseDetailRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/databases/$dbId',
+  component: DatabaseDetailPage,
+})
+
 const servicesRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/services',
@@ -142,6 +217,12 @@ const createServiceRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/services/new',
   component: CreateServicePage,
+})
+
+const serviceDetailRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/services/$svcId',
+  component: ServiceDetailPage,
 })
 
 const notificationsRoute = createRoute({
@@ -156,6 +237,30 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 })
 
+const storagesRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/storages',
+  component: StoragesPage,
+})
+
+const teamRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/team',
+  component: TeamPage,
+})
+
+const sharedVariablesRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/shared-variables',
+  component: SharedVariablesPage,
+})
+
+const privateKeysRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/security/private-keys',
+  component: PrivateKeysPage,
+})
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -164,16 +269,32 @@ const routeTree = rootRoute.addChildren([
     dashboardRoute,
     onboardingRoute,
     serversRoute,
+    serverDetailRoute,
     projectsRoute,
+    projectShowRoute,
+    envResourcesRoute,
+    newResourceRoute,
+    nestedCreateAppRoute,
+    nestedAppDetailRoute,
+    nestedCreateDbRoute,
+    nestedDbDetailRoute,
+    nestedCreateSvcRoute,
+    nestedSvcDetailRoute,
     applicationsRoute,
     createApplicationRoute,
     applicationDetailRoute,
     databasesRoute,
     createDatabaseRoute,
+    databaseDetailRoute,
     servicesRoute,
     createServiceRoute,
+    serviceDetailRoute,
     notificationsRoute,
     settingsRoute,
+    storagesRoute,
+    teamRoute,
+    sharedVariablesRoute,
+    privateKeysRoute,
   ]),
 ])
 

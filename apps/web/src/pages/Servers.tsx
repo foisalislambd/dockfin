@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { api } from '../lib/api'
@@ -53,7 +54,15 @@ export function ServersPage() {
           <tbody>
             {(servers.data?.servers || []).map((s) => (
               <tr key={s.id} className="border-t border-gray-200 dark:border-gray-800">
-                <td className="px-4 py-3">{s.name}</td>
+                <td className="px-4 py-3">
+                  <Link
+                    to="/servers/$serverId"
+                    params={{ serverId: s.id }}
+                    className="font-medium text-brand-600 hover:underline dark:text-brand-400"
+                  >
+                    {s.name}
+                  </Link>
+                </td>
                 <td className="px-4 py-3 font-mono text-xs">
                   {s.user_name}@{s.ip}:{s.port}
                 </td>
@@ -62,6 +71,13 @@ export function ServersPage() {
                 </td>
                 <td className="px-4 py-3">{s.proxy_status}</td>
                 <td className="px-4 py-3 space-x-2">
+                  <Link
+                    to="/servers/$serverId"
+                    params={{ serverId: s.id }}
+                    className="text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
+                  >
+                    Open
+                  </Link>
                   <button
                     className="text-brand-600 dark:text-brand-400"
                     type="button"

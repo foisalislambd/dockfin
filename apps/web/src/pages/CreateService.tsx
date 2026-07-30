@@ -1,38 +1,43 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { CreatePageShell, FormActions, FormInput, FormSelect } from '../components/ui/forms'
 import { api, fetchAllEnvironments, LAST_ENV_KEY } from '../lib/api'
 
 export function CreateServicePage() {
   const nav = useNavigate()
   const qc = useQueryClient()
+  const params = useParams({ strict: false }) as { projectId?: string; envId?: string }
+  const search = useSearch({ strict: false }) as { environment_id?: string }
+  const prefillEnv = params.envId || search.environment_id || ''
   const templates = useQuery({ queryKey: ['templates'], queryFn: api.templates })
   const dests = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
   const envs = useQuery({ queryKey: ['all-environments'], queryFn: fetchAllEnvironments })
-  const [search, setSearch] = useState('')
+  const envTouched = useRef(false)
+  const [searchQ, setSearchQ] = useState('')
+  const [formError, setFormError] = useState('')
   const [form, setForm] = useState({
     name: '',
-    environment_id: '',
+    environment_id: prefillEnv,
     destination_id: '',
     template: '',
   })
 
   useEffect(() => {
-    const saved = localStorage.getItem(LAST_ENV_KEY) || ''
+    const saved = prefillEnv || localStorage.getItem(LAST_ENV_KEY) || ''
     const list = envs.data || []
     const pick = (saved && list.find((e) => e.id === saved)?.id) || list[0]?.id || ''
     const firstTpl = templates.data?.templates?.[0]?.type || ''
     setForm((f) => ({
       ...f,
-      environment_id: f.environment_id || pick,
+      environment_id: envTouched.current ? f.environment_id : f.environment_id || prefillEnv || pick,
       destination_id: f.destination_id || dests.data?.destinations?.[0]?.id || '',
       template: f.template || firstTpl,
     }))
-  }, [envs.data, dests.data, templates.data])
+  }, [envs.data, dests.data, templates.data, prefillEnv])
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
+    const q = searchQ.trim().toLowerCase()
     const list = templates.data?.templates || []
     if (!q) return list.slice(0, 48)
     return list
@@ -44,29 +49,56 @@ export function CreateServicePage() {
           (t.category || '').toLowerCase().includes(q),
       )
       .slice(0, 48)
-  }, [templates.data, search])
+  }, [templates.data, searchQ])
 
   const selected = (templates.data?.templates || []).find((t) => t.type === form.template)
 
+  const nested = Boolean(params.projectId && params.envId)
+  const backEnvId = form.environment_id || params.envId || ''
+  const backProjectId =
+    (envs.data || []).find((e) => e.id === backEnvId)?.project_id || params.projectId || ''
+  const backTo =
+    nested && backProjectId && backEnvId
+      ? `/projects/${backProjectId}/environments/${backEnvId}`
+      : nested && params.projectId && params.envId
+        ? `/projects/${params.projectId}/environments/${params.envId}`
+        : '/services'
+  const backLabel = nested ? 'Back to resources' : 'Back to services'
+
   const create = useMutation({
     mutationFn: () => api.createService(form),
-    onSuccess: () => {
+    onSuccess: (svc) => {
       if (form.environment_id) localStorage.setItem(LAST_ENV_KEY, form.environment_id)
       void qc.invalidateQueries({ queryKey: ['services'] })
-      void nav({ to: '/services' })
+      const envMeta = (envs.data || []).find((e) => e.id === form.environment_id)
+      const projectId = envMeta?.project_id || params.projectId
+      const envId = form.environment_id || params.envId
+      if (projectId && envId) {
+        void nav({
+          to: '/projects/$projectId/environments/$envId/services/$svcId',
+          params: { projectId, envId, svcId: svc.id },
+        })
+      } else {
+        void nav({ to: '/services/$svcId', params: { svcId: svc.id } })
+      }
     },
   })
 
   return (
-    <CreatePageShell
-      title="New service"
-      backTo="/services"
-      backLabel="Back to services"
-    >
+    <CreatePageShell title="New service" backTo={backTo} backLabel={backLabel}>
       <form
         className="space-y-6"
         onSubmit={(e: FormEvent) => {
           e.preventDefault()
+          setFormError('')
+          if (!form.template) {
+            setFormError('Select a service template before creating.')
+            return
+          }
+          if (templates.isLoading) {
+            setFormError('Templates are still loading — try again in a moment.')
+            return
+          }
           create.mutate()
         }}
       >
@@ -79,7 +111,14 @@ export function CreateServicePage() {
             placeholder={selected?.name || 'my-service'}
           />
           <div className="grid gap-4 sm:grid-cols-2">
-            <FormSelect label="Environment" value={form.environment_id} onChange={(v) => setForm({ ...form, environment_id: v })}>
+            <FormSelect
+              label="Environment"
+              value={form.environment_id}
+              onChange={(v) => {
+                envTouched.current = true
+                setForm({ ...form, environment_id: v })
+              }}
+            >
               <option value="">Select…</option>
               {(envs.data || []).map((e) => (
                 <option key={e.id} value={e.id}>
@@ -109,8 +148,8 @@ export function CreateServicePage() {
             <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">Template</h2>
             <input
               type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchQ}
+              onChange={(e) => setSearchQ(e.target.value)}
               placeholder="Search catalog…"
               className="h-8 w-full max-w-xs rounded-md border border-gray-200 bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
             />
@@ -156,12 +195,16 @@ export function CreateServicePage() {
           )}
         </section>
 
-        {create.error && (
+        {(formError || create.error) && (
           <p className="text-sm text-error-500" role="alert">
-            {create.error.message}
+            {formError || create.error?.message}
           </p>
         )}
-        <FormActions busy={create.isPending} submitLabel="Create service" cancelTo="/services" />
+        <FormActions
+          busy={create.isPending || templates.isLoading}
+          submitLabel="Create service"
+          cancelTo={backTo}
+        />
       </form>
     </CreatePageShell>
   )

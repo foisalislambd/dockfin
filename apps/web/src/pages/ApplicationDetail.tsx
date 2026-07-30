@@ -5,9 +5,14 @@ import { api } from '../lib/api'
 import { Btn, Header, Input } from './Servers'
 
 export function ApplicationDetailPage() {
-  const { appId } = useParams({ strict: false }) as { appId: string }
+  const { appId, projectId, envId } = useParams({ strict: false }) as {
+    appId: string
+    projectId?: string
+    envId?: string
+  }
   const qc = useQueryClient()
   const app = useQuery({ queryKey: ['application', appId], queryFn: () => api.application(appId) })
+  const nested = Boolean(projectId && envId)
   const deps = useQuery({
     queryKey: ['deployments', appId],
     queryFn: () => api.deployments(appId),
@@ -107,13 +112,26 @@ export function ApplicationDetailPage() {
   if (app.isLoading) {
     return <p className="text-gray-500 dark:text-gray-400">Loading…</p>
   }
+  const backLink =
+    nested && projectId && envId ? (
+      <Link
+        to="/projects/$projectId/environments/$envId"
+        params={{ projectId, envId }}
+        className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
+      >
+        ← Resources
+      </Link>
+    ) : (
+      <Link to="/applications" className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400">
+        ← Applications
+      </Link>
+    )
+
   if (app.error || !app.data) {
     return (
       <div className="space-y-4">
         <p className="text-error-500">{app.error?.message || 'Application not found'}</p>
-        <Link to="/applications" className="text-brand-600 dark:text-brand-400">
-          ← Applications
-        </Link>
+        {backLink}
       </div>
     )
   }
@@ -124,9 +142,7 @@ export function ApplicationDetailPage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <Link to="/applications" className="text-sm text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:text-brand-400">
-            ← Applications
-          </Link>
+          {backLink}
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">{a.name}</h1>
           <p className="mt-2 text-gray-500 dark:text-gray-400">
             {a.build_pack} · {a.status}

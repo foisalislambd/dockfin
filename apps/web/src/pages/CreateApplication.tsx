@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   ChoiceCard,
   CreatePageShell,
@@ -18,14 +18,23 @@ const BUILD_PACKS = [
   { id: 'static', title: 'Static', description: 'Static site / SPA build output.' },
 ]
 
+function useEnvPrefill() {
+  const params = useParams({ strict: false }) as { projectId?: string; envId?: string }
+  const search = useSearch({ strict: false }) as { environment_id?: string }
+  return params.envId || search.environment_id || ''
+}
+
 export function CreateApplicationPage() {
   const nav = useNavigate()
   const qc = useQueryClient()
+  const params = useParams({ strict: false }) as { projectId?: string; envId?: string }
+  const prefillEnv = useEnvPrefill()
   const dests = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
   const envs = useQuery({ queryKey: ['all-environments'], queryFn: fetchAllEnvironments })
+  const envTouched = useRef(false)
   const [form, setForm] = useState({
     name: '',
-    environment_id: '',
+    environment_id: prefillEnv,
     destination_id: '',
     build_pack: 'dockerimage',
     docker_registry_image_name: 'nginx',
@@ -36,22 +45,44 @@ export function CreateApplicationPage() {
   })
 
   useEffect(() => {
-    const saved = localStorage.getItem(LAST_ENV_KEY) || ''
+    const saved = prefillEnv || localStorage.getItem(LAST_ENV_KEY) || ''
     const list = envs.data || []
     const pick = (saved && list.find((e) => e.id === saved)?.id) || list[0]?.id || ''
     setForm((f) => ({
       ...f,
-      environment_id: f.environment_id || pick,
+      environment_id: envTouched.current ? f.environment_id : f.environment_id || prefillEnv || pick,
       destination_id: f.destination_id || dests.data?.destinations?.[0]?.id || '',
     }))
-  }, [envs.data, dests.data])
+  }, [envs.data, dests.data, prefillEnv])
+
+  const nested = Boolean(params.projectId && params.envId)
+  const backEnvId = form.environment_id || params.envId || ''
+  const backProjectId =
+    (envs.data || []).find((e) => e.id === backEnvId)?.project_id || params.projectId || ''
+  const backTo =
+    nested && backProjectId && backEnvId
+      ? `/projects/${backProjectId}/environments/${backEnvId}`
+      : nested && params.projectId && params.envId
+        ? `/projects/${params.projectId}/environments/${params.envId}`
+        : '/applications'
+  const backLabel = nested ? 'Back to resources' : 'Back to applications'
 
   const create = useMutation({
     mutationFn: () => api.createApplication(form),
     onSuccess: (app) => {
       if (form.environment_id) localStorage.setItem(LAST_ENV_KEY, form.environment_id)
       void qc.invalidateQueries({ queryKey: ['applications'] })
-      void nav({ to: '/applications/$appId', params: { appId: app.id } })
+      const envMeta = (envs.data || []).find((e) => e.id === form.environment_id)
+      const projectId = envMeta?.project_id || params.projectId
+      const envId = form.environment_id || params.envId
+      if (projectId && envId) {
+        void nav({
+          to: '/projects/$projectId/environments/$envId/applications/$appId',
+          params: { projectId, envId, appId: app.id },
+        })
+      } else {
+        void nav({ to: '/applications/$appId', params: { appId: app.id } })
+      }
     },
   })
 
@@ -61,11 +92,7 @@ export function CreateApplicationPage() {
   }
 
   return (
-    <CreatePageShell
-      title="New application"
-      backTo="/applications"
-      backLabel="Back to applications"
-    >
+    <CreatePageShell title="New application" backTo={backTo} backLabel={backLabel}>
       <form className="space-y-6" onSubmit={onSubmit}>
         <section className="space-y-4">
           <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">Basics</h2>
@@ -74,7 +101,10 @@ export function CreateApplicationPage() {
             <FormSelect
               label="Environment"
               value={form.environment_id}
-              onChange={(v) => setForm({ ...form, environment_id: v })}
+              onChange={(v) => {
+                envTouched.current = true
+                setForm({ ...form, environment_id: v })
+              }}
               hint={!envs.data?.length ? 'Create a project first' : undefined}
             >
               <option value="">Select…</option>
@@ -161,7 +191,7 @@ export function CreateApplicationPage() {
             {create.error.message}
           </p>
         )}
-        <FormActions busy={create.isPending} submitLabel="Create application" cancelTo="/applications" />
+        <FormActions busy={create.isPending} submitLabel="Create application" cancelTo={backTo} />
       </form>
     </CreatePageShell>
   )

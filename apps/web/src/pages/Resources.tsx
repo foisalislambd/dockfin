@@ -1,22 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { api, LAST_ENV_KEY } from '../lib/api'
 import { Btn, Header, Input, Modal } from './Servers'
 
 export function ProjectsPage() {
   const qc = useQueryClient()
+  const nav = useNavigate()
   const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
   const [show, setShow] = useState(false)
   const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
   const create = useMutation({
-    mutationFn: () => api.createProject(name),
+    mutationFn: () => api.createProject(name, description),
     onSuccess: (data) => {
       localStorage.setItem(LAST_ENV_KEY, data.environment.id)
       void qc.invalidateQueries({ queryKey: ['projects'] })
       void qc.invalidateQueries({ queryKey: ['all-environments'] })
       setShow(false)
       setName('')
+      setDescription('')
+      void nav({ to: '/projects/$projectId', params: { projectId: data.project.id } })
     },
   })
 
@@ -26,19 +30,58 @@ export function ProjectsPage() {
         title="Projects"
         actions={
           <Btn primary onClick={() => setShow(true)}>
-            New project
+            + Add
           </Btn>
         }
       />
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {(projects.data?.projects || []).map((p) => (
-          <div key={p.id} className="panel-card p-5">
-            <div className="font-medium text-gray-900 dark:text-white">{p.name}</div>
-          </div>
-        ))}
-      </div>
+      <p className="text-sm text-gray-500 dark:text-gray-400">All your projects are here.</p>
+
+      {(projects.data?.projects || []).length > 0 ? (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {(projects.data?.projects || []).map((p) => (
+            <div key={p.id} className="panel-card relative flex items-center gap-4 p-5">
+              <Link
+                to="/projects/$projectId"
+                params={{ projectId: p.id }}
+                className="absolute inset-0"
+                aria-label={`Open ${p.name}`}
+              />
+              <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+                <div className="font-semibold text-gray-900 dark:text-white">{p.name}</div>
+                {p.description && (
+                  <div className="mt-1 truncate text-sm text-gray-500 dark:text-gray-400">{p.description}</div>
+                )}
+              </div>
+              <div className="relative z-10 flex shrink-0 items-center gap-3 text-xs font-semibold">
+                <Link
+                  to="/projects/$projectId"
+                  params={{ projectId: p.id }}
+                  className="hover:underline text-brand-600 dark:text-brand-400"
+                >
+                  Open
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="panel-card p-8 text-sm text-gray-500 dark:text-gray-400">
+          <p className="font-medium text-amber-600 dark:text-amber-400">No projects found.</p>
+          <p className="mt-2">
+            <button type="button" className="font-medium text-brand-600 dark:text-brand-400" onClick={() => setShow(true)}>
+              Add
+            </button>{' '}
+            your first project or go to{' '}
+            <Link to="/onboarding" className="underline dark:text-white">
+              onboarding
+            </Link>
+            .
+          </p>
+        </div>
+      )}
+
       {show && (
-        <Modal title="Create project" onClose={() => setShow(false)}>
+        <Modal title="New Project" onClose={() => setShow(false)}>
           <form
             className="space-y-3"
             onSubmit={(e) => {
@@ -47,6 +90,7 @@ export function ProjectsPage() {
             }}
           >
             <Input label="Name" value={name} onChange={setName} />
+            <Input label="Description" value={description} onChange={setDescription} required={false} />
             {create.error && <p className="text-sm text-error-500">{create.error.message}</p>}
             <Btn primary type="submit">
               Create
@@ -140,7 +184,7 @@ export function ApplicationsPage() {
 
 export function DatabasesPage() {
   const qc = useQueryClient()
-  const dbs = useQuery({ queryKey: ['databases'], queryFn: api.databases })
+  const dbs = useQuery({ queryKey: ['databases'], queryFn: () => api.databases() })
 
   return (
     <div className="space-y-6">
@@ -158,11 +202,16 @@ export function DatabasesPage() {
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {(dbs.data?.databases || []).map((d) => (
-          <div key={d.id} className="panel-card p-5">
+          <Link
+            key={d.id}
+            to="/databases/$dbId"
+            params={{ dbId: d.id }}
+            className="panel-card block p-5 transition hover:border-brand-300 dark:hover:border-brand-500/40"
+          >
             <div className="font-medium text-gray-900 dark:text-white">{d.name}</div>
             <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{d.engine}</div>
             <div className="mt-3 text-sm text-gray-600 dark:text-gray-300">{d.status}</div>
-            <div className="mt-4 flex gap-2">
+            <div className="mt-4 flex gap-2" onClick={(e) => e.preventDefault()}>
               <Btn
                 onClick={() =>
                   void api.startDatabase(d.id).then(() => qc.invalidateQueries({ queryKey: ['databases'] }))
@@ -178,7 +227,7 @@ export function DatabasesPage() {
                 Stop
               </Btn>
             </div>
-          </div>
+          </Link>
         ))}
         {!dbs.data?.databases?.length && (
           <div className="panel-card col-span-full p-8 text-center text-sm text-gray-500">
@@ -195,7 +244,7 @@ export function DatabasesPage() {
 
 export function ServicesPage() {
   const qc = useQueryClient()
-  const services = useQuery({ queryKey: ['services'], queryFn: api.services })
+  const services = useQuery({ queryKey: ['services'], queryFn: () => api.services() })
   const templates = useQuery({ queryKey: ['templates'], queryFn: api.templates })
   const [deployError, setDeployError] = useState('')
 
@@ -216,7 +265,13 @@ export function ServicesPage() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {(services.data?.services || []).map((s) => (
           <div key={s.id} className="panel-card p-5">
-            <div className="font-medium text-gray-900 dark:text-white">{s.name}</div>
+            <Link
+              to="/services/$svcId"
+              params={{ svcId: s.id }}
+              className="font-medium text-gray-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-400"
+            >
+              {s.name}
+            </Link>
             <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">{s.service_type}</div>
             <div className="mt-3 text-sm text-gray-600 dark:text-gray-300">{s.status}</div>
             <div className="mt-4">
