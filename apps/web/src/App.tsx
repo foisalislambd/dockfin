@@ -25,6 +25,7 @@ import { ProjectShowPage } from './pages/ProjectShow'
 import { EnvironmentResourcesPage } from './pages/EnvironmentResources'
 import { NewResourcePage } from './pages/NewResource'
 import { DatabaseDetailPage, ServerDetailPage, ServiceDetailPage } from './pages/ResourceDetails'
+import { DeploymentShowPage } from './pages/DeploymentShow'
 import {
   PrivateKeysPage,
   SettingsPage,
@@ -147,6 +148,12 @@ const nestedAppDetailRoute = createRoute({
   component: ApplicationDetailPage,
 })
 
+const nestedDeploymentRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/projects/$projectId/environments/$envId/applications/$appId/deployments/$deploymentId',
+  component: DeploymentShowPage,
+})
+
 const nestedCreateDbRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/projects/$projectId/environments/$envId/databases/new',
@@ -187,6 +194,12 @@ const applicationDetailRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/applications/$appId',
   component: ApplicationDetailPage,
+})
+
+const deploymentShowRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/applications/$appId/deployments/$deploymentId',
+  component: DeploymentShowPage,
 })
 
 const databasesRoute = createRoute({
@@ -276,6 +289,7 @@ const routeTree = rootRoute.addChildren([
     newResourceRoute,
     nestedCreateAppRoute,
     nestedAppDetailRoute,
+    nestedDeploymentRoute,
     nestedCreateDbRoute,
     nestedDbDetailRoute,
     nestedCreateSvcRoute,
@@ -283,6 +297,7 @@ const routeTree = rootRoute.addChildren([
     applicationsRoute,
     createApplicationRoute,
     applicationDetailRoute,
+    deploymentShowRoute,
     databasesRoute,
     createDatabaseRoute,
     databaseDetailRoute,

@@ -124,8 +124,19 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ force_rebuild }),
     }),
+  rollbackApplication: (id: string, force_rebuild = true) =>
+    request<Deployment>(`/api/v1/applications/${id}/rollback`, {
+      method: 'POST',
+      body: JSON.stringify({ force_rebuild }),
+    }),
+  setWebhookSecret: (id: string, secret = '') =>
+    request<{ secret: string }>(`/api/v1/applications/${id}/webhook-secret`, {
+      method: 'POST',
+      body: JSON.stringify({ secret }),
+    }),
   deployments: (appId: string) =>
     request<{ deployments: Deployment[] }>(`/api/v1/applications/${appId}/deployments`),
+  getDeployment: (id: string) => request<Deployment>(`/api/v1/deployments/${id}`),
   cancelDeployment: (id: string) =>
     request<{ status: string }>(`/api/v1/deployments/${id}/cancel`, { method: 'POST' }),
 
@@ -143,6 +154,13 @@ export const api = {
     is_literal?: boolean
     comment?: string
   }) => request<EnvVar>('/api/v1/env-vars', { method: 'POST', body: JSON.stringify(body) }),
+  deleteEnvVar: (id: string) =>
+    request(`/api/v1/env-vars/${id}`, { method: 'DELETE' }),
+  serverExec: (id: string, command: string) =>
+    request<{ stdout?: string; stderr?: string; output?: string; error?: string; exit_error?: boolean }>(
+      `/api/v1/servers/${id}/exec`,
+      { method: 'POST', body: JSON.stringify({ command }) },
+    ),
 
   sharedEnvVars: (scope_type = 'team', scope_id?: string) =>
     request<{ shared_environment_variables: SharedEnvVar[] }>(
