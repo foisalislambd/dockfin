@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --color-ink: #0b1412;
+  --color-panel: #12201c;
+  --color-panel-2: #18302a;
+  --color-line: #254038;
+  --color-muted: #8aa89c;
+  --color-text: #e7f3ee;
+  --color-accent: #2dd4bf;
+  --color-accent-2: #14b8a6;
+  --color-danger: #f87171;
+  --color-warn: #fbbf24;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(45, 212, 191, 0.12), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, rgba(20, 184, 166, 0.08), transparent 50%),
+    linear-gradient(180deg, #0b1412 0%, #0e1a17 40%, #0b1412 100%);
+  background-attachment: fixed;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(45, 212, 191, 0.35);
+}

@@ -1,0 +1,109 @@
+openapi: 3.1.0
+info:
+  title: Goolify API
+  version: 0.1.0
+  description: Self-hosted PaaS control plane API (Coolify alternative).
+servers:
+  - url: /api/v1
+paths:
+  /version:
+    get:
+      summary: Version
+      responses:
+        "200":
+          description: OK
+  /auth/register:
+    post:
+      summary: Register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, name, password]
+              properties:
+                email: { type: string }
+                name: { type: string }
+                password: { type: string, minLength: 8 }
+      responses:
+        "201":
+          description: Created
+  /auth/login:
+    post:
+      summary: Login
+      responses:
+        "200":
+          description: OK
+  /auth/me:
+    get:
+      summary: Current user
+      security: [{ cookieAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /servers:
+    get:
+      summary: List servers
+      security: [{ cookieAuth: [] }]
+      responses:
+        "200":
+          description: OK
+    post:
+      summary: Create server
+      security: [{ cookieAuth: [] }]
+      responses:
+        "201":
+          description: Created
+  /applications:
+    get:
+      summary: List applications
+      security: [{ cookieAuth: [] }]
+      responses:
+        "200":
+          description: OK
+    post:
+      summary: Create application
+      security: [{ cookieAuth: [] }]
+      responses:
+        "201":
+          description: Created
+  /applications/{appID}/deploy:
+    post:
+      summary: Deploy application
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - name: appID
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "202":
+          description: Accepted
+  /databases:
+    get:
+      summary: List databases
+      security: [{ cookieAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /services:
+    get:
+      summary: List services
+      security: [{ cookieAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /services/templates:
+    get:
+      summary: Service catalog
+      security: [{ cookieAuth: [] }]
+      responses:
+        "200":
+          description: OK
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: goolify_session

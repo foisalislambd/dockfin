@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: goolify
+      POSTGRES_PASSWORD: goolify
+      POSTGRES_DB: goolify
+    ports:
+      - "5432:5432"
+    volumes:
+      - goolify-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U goolify"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.api
+    env_file:
+      - ../../.env
+    environment:
+      GOOLIFY_DATABASE_URL: postgres://goolify:goolify@postgres:5432/goolify?sslmode=disable
+      GOOLIFY_REDIS_URL: redis://redis:6379/0
+      GOOLIFY_HTTP_ADDR: ":8080"
+      GOOLIFY_MIGRATIONS_DIR: /app/migrations
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../../migrations:/app/migrations:ro
+      - goolify-data:/data
+
+  web:
+    build:
+      context: ../../apps/web
+      dockerfile: ../../deploy/docker/Dockerfile.web
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
+volumes:
+  goolify-pg:
+  goolify-data:

@@ -1,0 +1,36 @@
+# Binaries
+/bin/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+goolify
+
+# Env / secrets
+.env
+.env.local
+*.pem
+data/
+
+# Node
+apps/web/node_modules/
+apps/web/dist/
+apps/web/.vite/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Go
+vendor/
+coverage.out
+*.test
+
+# Generated
+# keep openapi hand-written; ignore generated clients if large
+tmp/

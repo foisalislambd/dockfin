@@ -1,0 +1,5 @@
+FROM docker:27-cli
+RUN apk add --no-cache git curl bash
+# Placeholder helper image for remote builds (nixpacks can be added later)
+WORKDIR /workdir
+CMD ["sh"]

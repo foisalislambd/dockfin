@@ -1,0 +1,272 @@
+package httpapi
+
+import (
+	"crypto/sha256"
+	"encoding/base64"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/goolify/goolify/internal/proxy"
+	"github.com/goolify/goolify/internal/sshx"
+	"golang.org/x/crypto/ssh"
+)
+
+func (a *API) handleListKeys(w http.ResponseWriter, r *http.Request) {
+	keys, err := a.Store.ListPrivateKeys(r.Context(), currentTeamID(r))
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"private_keys": keys})
+}
+
+func (a *API) handleCreateKey(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		PrivateKey  string `json:"private_key"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	if body.Name == "" || body.PrivateKey == "" {
+		writeError(w, http.StatusBadRequest, "name and private_key required")
+		return
+	}
+	signer, err := ssh.ParsePrivateKey([]byte(body.PrivateKey))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid private key")
+		return
+	}
+	pub := string(ssh.MarshalAuthorizedKey(signer.PublicKey()))
+	sum := sha256.Sum256(signer.PublicKey().Marshal())
+	fp := "SHA256:" + base64.RawStdEncoding.EncodeToString(sum[:])
+	enc, err := a.Store.Box.EncryptString(body.PrivateKey)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	key, err := a.Store.CreatePrivateKey(r.Context(), currentTeamID(r), body.Name, body.Description, pub, enc, fp)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, key)
+}
+
+func (a *API) handleListServers(w http.ResponseWriter, r *http.Request) {
+	servers, err := a.Store.ListServers(r.Context(), currentTeamID(r))
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"servers": servers})
+}
+
+func (a *API) handleCreateServer(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name         string `json:"name"`
+		Description  string `json:"description"`
+		IP           string `json:"ip"`
+		Port         int    `json:"port"`
+		UserName     string `json:"user_name"`
+		PrivateKeyID string `json:"private_key_id"`
+		ProxyType    string `json:"proxy_type"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	if body.Name == "" || body.IP == "" {
+		writeError(w, http.StatusBadRequest, "name and ip required")
+		return
+	}
+	if body.Port == 0 {
+		body.Port = 22
+	}
+	if body.UserName == "" {
+		body.UserName = "root"
+	}
+	if body.ProxyType == "" {
+		body.ProxyType = "traefik"
+	}
+	var keyID *uuid.UUID
+	if body.PrivateKeyID != "" {
+		id, err := uuid.Parse(body.PrivateKeyID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid private_key_id")
+			return
+		}
+		keyID = &id
+	}
+	srv, err := a.Store.CreateServer(r.Context(), currentTeamID(r), keyID, body.Name, body.Description, body.IP, body.UserName, body.Port, body.ProxyType)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, srv)
+}
+
+func (a *API) handleGetServer(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "serverID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	srv, err := a.Store.GetServer(r.Context(), currentTeamID(r), id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, srv)
+}
+
+func (a *API) handleDeleteServer(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "serverID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if err := a.Store.DeleteServer(r.Context(), currentTeamID(r), id); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+func (a *API) dialServer(r *http.Request, serverID uuid.UUID) (*ssh.Client, error) {
+	teamID := currentTeamID(r)
+	srv, err := a.Store.GetServer(r.Context(), teamID, serverID)
+	if err != nil {
+		return nil, err
+	}
+	if srv.PrivateKeyID == nil {
+		return nil, fmt.Errorf("server has no private key")
+	}
+	enc, err := a.Store.GetPrivateKeyMaterial(r.Context(), teamID, *srv.PrivateKeyID)
+	if err != nil {
+		return nil, err
+	}
+	priv, err := a.Store.Box.DecryptString(enc)
+	if err != nil {
+		return nil, err
+	}
+	pool := a.Queue.SSH
+	res, err := pool.Dial(sshx.Target{
+		Host:                srv.IP,
+		Port:                srv.Port,
+		User:                srv.UserName,
+		PrivateKey:          []byte(priv),
+		ExpectedFingerprint: srv.HostKeyFingerprint,
+		ExpectedKeyType:     srv.HostKeyType,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if res.IsNewHost {
+		_ = a.Store.UpdateServerHostKey(r.Context(), serverID, res.Fingerprint, res.KeyType)
+	}
+	return res.Client, nil
+}
+
+func (a *API) handleValidateServer(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "serverID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	teamID := currentTeamID(r)
+	srv, err := a.Store.GetServer(r.Context(), teamID, id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if err := sshx.TCPReachable(srv.IP, srv.Port, 5*time.Second); err != nil {
+		_ = a.Store.UpdateServerStatus(r.Context(), id, false, false, "", "unknown")
+		writeJSON(w, http.StatusOK, map[string]any{"reachable": false, "usable": false, "error": err.Error()})
+		return
+	}
+	client, err := a.dialServer(r, id)
+	if err != nil {
+		_ = a.Store.UpdateServerStatus(r.Context(), id, true, false, "", "unknown")
+		writeJSON(w, http.StatusOK, map[string]any{"reachable": true, "usable": false, "error": err.Error()})
+		return
+	}
+	if err := sshx.EnsureDataDirs(client); err != nil {
+		_ = a.Store.UpdateServerStatus(r.Context(), id, true, false, "", "unknown")
+		writeJSON(w, http.StatusOK, map[string]any{"reachable": true, "usable": false, "error": err.Error()})
+		return
+	}
+	version, err := sshx.ValidateDocker(client)
+	if err != nil {
+		_ = a.Store.UpdateServerStatus(r.Context(), id, true, false, "", "unknown")
+		writeJSON(w, http.StatusOK, map[string]any{"reachable": true, "usable": false, "error": err.Error()})
+		return
+	}
+	_ = sshx.EnsureNetwork(client, "goolify")
+	proxyStatus := proxy.ProxyStatus(client)
+	_ = a.Store.UpdateServerStatus(r.Context(), id, true, true, version, proxyStatus)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"reachable": true, "usable": true, "docker_version": version, "proxy_status": proxyStatus,
+	})
+}
+
+func (a *API) handleStartProxy(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "serverID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	client, err := a.dialServer(r, id)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := proxy.StartTraefik(client, a.Cfg.TraefikImage, "goolify"); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	_ = a.Store.UpdateServerStatus(r.Context(), id, true, true, "", "running")
+	writeJSON(w, http.StatusOK, map[string]string{"status": "running"})
+}
+
+func (a *API) handleStopProxy(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "serverID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	client, err := a.dialServer(r, id)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := proxy.StopProxy(client); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	_ = a.Store.UpdateServerStatus(r.Context(), id, true, true, "", "exited")
+	writeJSON(w, http.StatusOK, map[string]string{"status": "exited"})
+}
+
+func (a *API) handleListDestinations(w http.ResponseWriter, r *http.Request) {
+	var serverID *uuid.UUID
+	if s := r.URL.Query().Get("server_id"); s != "" {
+		id, err := uuid.Parse(s)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid server_id")
+			return
+		}
+		serverID = &id
+	}
+	dests, err := a.Store.ListDestinations(r.Context(), currentTeamID(r), serverID)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"destinations": dests})
+}
