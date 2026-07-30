@@ -102,6 +102,24 @@ fi
 export PATH="/usr/local/go/bin:${PATH}"
 go version
 
+# Node.js 22+ (for Vite static UI build)
+need_node=0
+if ! command -v node >/dev/null 2>&1; then
+  need_node=1
+else
+  node_major="$(node -v 2>/dev/null | sed 's/^v//;s/\..*//')"
+  if [[ -z "${node_major}" ]] || [[ "${node_major}" -lt 22 ]]; then
+    need_node=1
+  fi
+fi
+if [[ "${need_node}" -eq 1 ]]; then
+  log "Installing Node.js 22..."
+  curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+  apt-get install -y -qq nodejs > /dev/null
+fi
+node -v
+npm -v
+
 # -----------------------------------------------------------------------------
 # 2) Source tree
 # -----------------------------------------------------------------------------
@@ -182,10 +200,30 @@ if [[ -n "${PUBLIC_IP}" ]] && [[ -f .env ]]; then
   fi
 fi
 
+# Ensure web dir + templates are set even on older .env files
+touch .env
+grep -q '^GOOLIFY_WEB_DIR=' .env || echo "GOOLIFY_WEB_DIR=${SRC}/apps/web/dist" >> .env
+sed -i "s|^GOOLIFY_WEB_DIR=.*|GOOLIFY_WEB_DIR=${SRC}/apps/web/dist|" .env
+grep -q '^GOOLIFY_TEMPLATES_DIR=' .env || echo "GOOLIFY_TEMPLATES_DIR=${SRC}/templates/compose" >> .env
+sed -i "s|^GOOLIFY_TEMPLATES_DIR=.*|GOOLIFY_TEMPLATES_DIR=${SRC}/templates/compose|" .env
+
 mkdir -p "${WORKDIR}/data" "${WORKDIR}/bin"
 log "Building goolify..."
 go build -o "${WORKDIR}/bin/goolify" ./cmd/goolify
 go build -o "${WORKDIR}/bin/glfy" ./cmd/glfy
+
+if [[ "${SKIP_WEB:-0}" != "1" ]] && [[ -f apps/web/package.json ]]; then
+  log "Building web UI (Vite static)..."
+  (
+    cd apps/web
+    npm ci --no-fund --no-audit
+    npm run build
+  )
+  [[ -f apps/web/dist/index.html ]] || fail "Web build missing apps/web/dist/index.html"
+  ok "Web UI built → apps/web/dist"
+else
+  warn "Skipping web UI build (SKIP_WEB=1 or apps/web missing)"
+fi
 
 # stop old smoke API if any
 if [[ -f "${WORKDIR}/api.pid" ]]; then
@@ -371,6 +409,7 @@ echo ""
 echo "API (local):  ${API_URL}"
 echo "API (public): ${PUBLIC_API_URL}"
 echo "VPS IP:       ${PUBLIC_IP:-unknown}"
+echo "Browser:      ${PUBLIC_API_URL}/  (API + UI when dist is present)"
 echo "Health:       ${PUBLIC_API_URL}/health"
 echo "Version:      ${PUBLIC_API_URL}/api/v1/version"
 echo "Login:        ${TEST_EMAIL} / ${TEST_PASS}"
@@ -378,6 +417,11 @@ echo "Token:        ${TOKEN:-n/a}"
 echo "Logs:         ${WORKDIR}/api.log"
 echo "Report:       ${REPORT}"
 echo "Source:       ${SRC}"
+if [[ -f "${SRC}/apps/web/dist/index.html" ]]; then
+  echo "UI dist:      ${SRC}/apps/web/dist (served by goolify)"
+else
+  echo "UI dist:      missing — re-run without SKIP_WEB=1"
+fi
 if [[ "${KEEP_RUNNING}" == "1" ]]; then
   echo "API left running (pid $(cat "${WORKDIR}/api.pid" 2>/dev/null || echo '?'))"
   echo "Stop with: kill \$(cat ${WORKDIR}/api.pid)"
@@ -385,8 +429,3 @@ else
   kill "$(cat "${WORKDIR}/api.pid")" 2>/dev/null || true
   echo "API stopped."
 fi
-echo ""
-echo "Browser note: ${PUBLIC_API_URL}/ is the API (not the React dashboard)."
-echo "Open ${PUBLIC_API_URL}/health to verify. For UI:"
-echo "  cd ${SRC}/apps/web && npm i && npm run build"
-echo "  then restart goolify (GOOLIFY_WEB_DIR already points at apps/web/dist)"
