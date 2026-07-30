@@ -121,8 +121,8 @@ export function CreateDatabasePage() {
       >
         <section className="space-y-4">
           <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">Basics</h2>
-          <FormInput label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="app-db" />
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <FormInput label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="app-db" />
             <FormSelect
               label="Environment"
               value={form.environment_id}
@@ -151,7 +151,7 @@ export function CreateDatabasePage() {
 
         <section className="space-y-3">
           <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">Engine</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {ENGINES.map((eng) => (
               <ChoiceCard
                 key={eng.id}

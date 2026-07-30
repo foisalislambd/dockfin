@@ -96,8 +96,8 @@ export function CreateApplicationPage() {
       <form className="space-y-6" onSubmit={onSubmit}>
         <section className="space-y-4">
           <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">Basics</h2>
-          <FormInput label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="my-app" />
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <FormInput label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="my-app" />
             <FormSelect
               label="Environment"
               value={form.environment_id}
@@ -131,7 +131,7 @@ export function CreateApplicationPage() {
 
         <section className="space-y-3">
           <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">Build pack</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {BUILD_PACKS.map((bp) => (
               <ChoiceCard
                 key={bp.id}

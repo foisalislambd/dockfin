@@ -16,7 +16,7 @@ export function CreatePageShell({
 }) {
   const nav = useNavigate()
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <button
           type="button"
@@ -28,7 +28,7 @@ export function CreatePageShell({
         </button>
         <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">{title}</h1>
       </div>
-      <div className="panel-card p-4 sm:p-5">{children}</div>
+      <div className="panel-card w-full p-4 sm:p-5 lg:p-6">{children}</div>
     </div>
   )
 }

@@ -104,13 +104,13 @@ export function CreateServicePage() {
       >
         <section className="space-y-4">
           <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">Basics</h2>
-          <FormInput
-            label="Name"
-            value={form.name}
-            onChange={(v) => setForm({ ...form, name: v })}
-            placeholder={selected?.name || 'my-service'}
-          />
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <FormInput
+              label="Name"
+              value={form.name}
+              onChange={(v) => setForm({ ...form, name: v })}
+              placeholder={selected?.name || 'my-service'}
+            />
             <FormSelect
               label="Environment"
               value={form.environment_id}
@@ -151,7 +151,7 @@ export function CreateServicePage() {
               value={searchQ}
               onChange={(e) => setSearchQ(e.target.value)}
               placeholder="Search catalog…"
-              className="h-8 w-full max-w-xs rounded-md border border-gray-200 bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
+              className="h-8 w-full max-w-sm rounded-md border border-gray-200 bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
             />
           </div>
           {selected && (
@@ -160,7 +160,7 @@ export function CreateServicePage() {
               <span className="text-gray-500 dark:text-gray-400"> — {selected.description}</span>
             </div>
           )}
-          <div className="grid max-h-[28rem] gap-2 overflow-y-auto sm:grid-cols-2">
+          <div className="grid max-h-[min(40rem,70vh)] gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filtered.map((t) => {
               const active = form.template === t.type
               return (
