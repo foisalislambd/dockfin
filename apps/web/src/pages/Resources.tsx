@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { ServiceLogo } from '../components/ServiceLogo'
-import { CardGridSkeleton, ListSkeleton, TableSkeleton } from '../components/ui/Skeleton'
+import { PageSkeleton } from '../components/ui/Skeleton'
 import { api, LAST_ENV_KEY } from '../lib/api'
 import { Btn, Header, Input, Modal } from './Servers'
 
@@ -26,6 +26,8 @@ export function ProjectsPage() {
     },
   })
 
+  if (projects.isLoading) return <PageSkeleton cards={2} />
+
   return (
     <div className="space-y-6">
       <Header
@@ -38,9 +40,7 @@ export function ProjectsPage() {
       />
       <p className="text-sm text-gray-500 dark:text-gray-400">All your projects are here.</p>
 
-      {projects.isLoading ? (
-        <ListSkeleton rows={4} />
-      ) : (projects.data?.projects || []).length > 0 ? (
+      {(projects.data?.projects || []).length > 0 ? (
         <div className="grid gap-4 xl:grid-cols-2">
           {(projects.data?.projects || []).map((p) => (
             <div key={p.id} className="panel-card relative flex items-center gap-4 p-5">
@@ -110,6 +110,8 @@ export function ApplicationsPage() {
   const qc = useQueryClient()
   const apps = useQuery({ queryKey: ['applications'], queryFn: () => api.applications() })
 
+  if (apps.isLoading) return <PageSkeleton cards={2} />
+
   return (
     <div className="space-y-6">
       <Header
@@ -123,9 +125,6 @@ export function ApplicationsPage() {
           </Link>
         }
       />
-      {apps.isLoading ? (
-        <TableSkeleton rows={5} cols={5} />
-      ) : (
       <div className="panel-card overflow-hidden">
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
@@ -185,7 +184,6 @@ export function ApplicationsPage() {
           </tbody>
         </table>
       </div>
-      )}
     </div>
   )
 }
@@ -193,6 +191,8 @@ export function ApplicationsPage() {
 export function DatabasesPage() {
   const qc = useQueryClient()
   const dbs = useQuery({ queryKey: ['databases'], queryFn: () => api.databases() })
+
+  if (dbs.isLoading) return <PageSkeleton cards={2} />
 
   return (
     <div className="space-y-6">
@@ -209,12 +209,6 @@ export function DatabasesPage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {dbs.isLoading ? (
-          <div className="col-span-full">
-            <CardGridSkeleton count={6} />
-          </div>
-        ) : (
-          <>
         {(dbs.data?.databases || []).map((d) => (
           <Link
             key={d.id}
@@ -251,8 +245,6 @@ export function DatabasesPage() {
             </Link>
           </div>
         )}
-          </>
-        )}
       </div>
     </div>
   )
@@ -270,6 +262,8 @@ export function ServicesPage() {
     return m
   }, [templates.data])
 
+  if (services.isLoading) return <PageSkeleton cards={2} />
+
   return (
     <div className="space-y-6">
       <Header
@@ -284,12 +278,6 @@ export function ServicesPage() {
         }
       />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {services.isLoading ? (
-          <div className="col-span-full">
-            <CardGridSkeleton count={6} />
-          </div>
-        ) : (
-          <>
         {(services.data?.services || []).map((s) => (
           <div key={s.id} className="panel-card p-5">
             <div className="flex items-start gap-3">
@@ -333,8 +321,6 @@ export function ServicesPage() {
               Create one
             </Link>
           </div>
-        )}
-          </>
         )}
       </div>
       <div>

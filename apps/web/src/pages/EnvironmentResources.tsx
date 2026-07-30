@@ -1,7 +1,7 @@
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { Boxes, Database, Rocket } from 'lucide-react'
-import { CardGridSkeleton } from '../components/ui/Skeleton'
+import { PageSkeleton } from '../components/ui/Skeleton'
 import { api, LAST_ENV_KEY } from '../lib/api'
 import { Header } from './Servers'
 
@@ -69,6 +69,8 @@ export function EnvironmentResourcesPage() {
 
   const loading = appsQ.isLoading || dbsQ.isLoading || svcsQ.isLoading
 
+  if (loading) return <PageSkeleton cards={2} />
+
   return (
     <div className="space-y-6">
       <div>
@@ -102,9 +104,7 @@ export function EnvironmentResourcesPage() {
         />
       </div>
 
-      {loading && <CardGridSkeleton count={6} />}
-
-      {!loading && !resources.length && (
+      {!resources.length && (
         <div className="panel-card p-10 text-center">
           <p className="text-sm text-gray-500 dark:text-gray-400">No resources in this environment yet.</p>
           <Link
@@ -117,7 +117,7 @@ export function EnvironmentResourcesPage() {
         </div>
       )}
 
-      {!loading && resources.length > 0 && (
+      {resources.length > 0 && (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {resources.map((r) => {
           const Icon = r.kind === 'application' ? Rocket : r.kind === 'database' ? Database : Boxes

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { DeployLogPanel } from '../components/DeployLogPanel'
 import { ServerTerminal } from '../components/Terminal'
 import { ServiceLogo } from '../components/ServiceLogo'
-import { MetricsSkeleton, PageSkeleton } from '../components/ui/Skeleton'
+import { PageSkeleton } from '../components/ui/Skeleton'
 import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
 import { api } from '../lib/api'
 import { Btn, Input } from './Servers'
@@ -675,7 +675,7 @@ function ServerMetricsView({
   metrics: import('../lib/api').ServerMetric[]
   loading: boolean
 }) {
-  if (loading) return <MetricsSkeleton />
+  if (loading) return null
   const latest = metrics[metrics.length - 1]
   const cpu = metrics.map((m) => m.cpu_percent)
   const memPct = metrics.map((m) =>

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Database, FolderKanban, Rocket, Server } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { StatsSkeleton } from '../components/ui/Skeleton'
+import { PageSkeleton } from '../components/ui/Skeleton'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 
@@ -44,8 +44,10 @@ export function DashboardPage() {
   const dbs = useQuery({ queryKey: ['databases'], queryFn: () => api.databases() })
 
   const hasServers = (servers.data?.servers?.length ?? 0) > 0
-  const statsLoading =
+  const loading =
     servers.isLoading || projects.isLoading || apps.isLoading || dbs.isLoading
+
+  if (loading) return <PageSkeleton cards={2} />
 
   return (
     <div className="space-y-6">
@@ -53,9 +55,9 @@ export function DashboardPage() {
         <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
           Welcome{user?.name ? `, ${user.name}` : ''}
         </h1>
-        </div>
+      </div>
 
-      {!servers.isLoading && !hasServers && (
+      {!hasServers && (
         <div className="panel-card border-brand-200 bg-brand-50/60 p-6 dark:border-brand-500/30 dark:bg-brand-500/10">
           <h2 className="text-lg font-medium text-gray-900 dark:text-white">Welcome — no servers yet</h2>
           <Link
@@ -67,9 +69,6 @@ export function DashboardPage() {
         </div>
       )}
 
-      {statsLoading ? (
-        <StatsSkeleton count={4} />
-      ) : (
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard
           label="Servers"
@@ -100,19 +99,24 @@ export function DashboardPage() {
           iconBg="bg-amber-50 dark:bg-amber-500/15"
         />
       </div>
-      )}
 
       <div className="panel-card p-6">
         <h2 className="text-lg font-medium text-gray-900 dark:text-white">Quick start</h2>
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-gray-600 dark:text-gray-400">
-          <li>Upload an SSH private key</li>
-          <li>Add a server and validate Docker</li>
-          <li>Start Traefik proxy</li>
-          <li>Create a project and deploy an application</li>
+          <li>
+            Add an SSH key and server under{' '}
+            <Link to="/servers" className="text-brand-600 dark:text-brand-400">
+              Servers
+            </Link>
+          </li>
+          <li>
+            Create a{' '}
+            <Link to="/projects" className="text-brand-600 dark:text-brand-400">
+              project
+            </Link>{' '}
+            and deploy an application or one-click service
+          </li>
         </ol>
-        <Link to="/onboarding" className="mt-4 inline-block text-sm font-medium text-brand-600 hover:text-brand-500">
-          Open onboarding wizard →
-        </Link>
       </div>
     </div>
   )

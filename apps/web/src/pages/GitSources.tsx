@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
-import { CardGridSkeleton, PageSkeleton } from '../components/ui/Skeleton'
+import { PageSkeleton } from '../components/ui/Skeleton'
 import { api, type GitSource } from '../lib/api'
 import { Btn, Input } from './Servers'
 
@@ -41,6 +41,8 @@ export function GitSourcesPage() {
     mutationFn: (id: string) => api.deleteGitSource(id),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['git-sources'] }),
   })
+
+  if (sources.isLoading) return <PageSkeleton cards={2} />
 
   return (
     <div className="space-y-6">
@@ -95,12 +97,6 @@ export function GitSourcesPage() {
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        {sources.isLoading ? (
-          <div className="col-span-full">
-            <CardGridSkeleton count={4} />
-          </div>
-        ) : (
-          <>
         {(sources.data?.git_sources || []).map((gs) => (
           <GitSourceCard key={gs.id} source={gs} onDelete={() => remove.mutate(gs.id)} />
         ))}
@@ -108,8 +104,6 @@ export function GitSourcesPage() {
           <div className="panel-card col-span-full p-8 text-center text-sm text-gray-500 dark:text-gray-400">
             No GitHub Apps configured yet.
           </div>
-        )}
-          </>
         )}
       </div>
     </div>
