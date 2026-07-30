@@ -71,10 +71,14 @@ sudo SKIP_DEPLOY=1 bash scripts/vps-oneclick-test.sh
 - Report: `/opt/goolify-smoke/report.txt`
 - API log: `/opt/goolify-smoke/api.log`
 - Test user/password printed at the end of the script
+- Public VPS IP + URLs are printed, for example:
+  - `API (public): http://YOUR_VPS_IP:8080`
+  - `Health: http://YOUR_VPS_IP:8080/health`
 
 ## Notes
 
 - Root is required (Docker + SSH + Traefik on port 80)
 - Control plane and deploy target are the same VPS (self-SSH)
 - No public GHCR image required — builds from source
-- Web UI is separate: `cd apps/web && npm i && npm run dev -- --host`
+- `http://VPS_IP:8080/` is the **API**, not the React dashboard. Use `/health` to verify.
+- Web UI: `cd apps/web && npm i && npm run build`, then restart `goolify serve` (serves `apps/web/dist` when present)

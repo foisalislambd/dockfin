@@ -41,6 +41,13 @@ fi
 
 API_PORT="${API_PORT:-8080}"
 API_URL="http://127.0.0.1:${API_PORT}"
+PUBLIC_IP="$(curl -4 -fsS --max-time 3 ifconfig.me 2>/dev/null || curl -4 -fsS --max-time 3 icanhazip.com 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || true)"
+PUBLIC_IP="$(echo "${PUBLIC_IP}" | tr -d '[:space:]')"
+if [[ -n "${PUBLIC_IP}" ]]; then
+  PUBLIC_API_URL="http://${PUBLIC_IP}:${API_PORT}"
+else
+  PUBLIC_API_URL="${API_URL}"
+fi
 TEST_EMAIL="smoke-$(date +%s)@goolify.test"
 TEST_PASS="SmokeTestPass123!"
 TEST_NAME="Smoke Tester"
@@ -158,11 +165,21 @@ GOOLIFY_DATABASE_URL=postgres://goolify:goolify@127.0.0.1:5432/goolify?sslmode=d
 GOOLIFY_REDIS_URL=redis://127.0.0.1:6379/0
 GOOLIFY_MASTER_KEY=${MASTER_KEY}
 GOOLIFY_SESSION_SECRET=${SESSION_SECRET}
-GOOLIFY_CORS_ORIGINS=*
-GOOLIFY_PUBLIC_URL=http://127.0.0.1:${API_PORT}
+GOOLIFY_CORS_ORIGINS=${PUBLIC_API_URL},http://127.0.0.1:${API_PORT}
+GOOLIFY_PUBLIC_URL=${PUBLIC_API_URL}
 GOOLIFY_DATA_DIR=${WORKDIR}/data
-GOOLIFY_TEMPLATES_DIR=${SRC}/coolify/templates/compose
+GOOLIFY_TEMPLATES_DIR=${SRC}/templates/compose
+GOOLIFY_WEB_DIR=${SRC}/apps/web/dist
 EOF
+fi
+
+# Refresh public URL if .env already existed from an older run
+if [[ -n "${PUBLIC_IP}" ]] && [[ -f .env ]]; then
+  if grep -q '^GOOLIFY_PUBLIC_URL=' .env; then
+    sed -i "s|^GOOLIFY_PUBLIC_URL=.*|GOOLIFY_PUBLIC_URL=${PUBLIC_API_URL}|" .env
+  else
+    echo "GOOLIFY_PUBLIC_URL=${PUBLIC_API_URL}" >> .env
+  fi
 fi
 
 mkdir -p "${WORKDIR}/data" "${WORKDIR}/bin"
@@ -351,12 +368,16 @@ cat "${REPORT}"
 echo "=================================="
 ok "All executed checks done."
 echo ""
-echo "API:      ${API_URL}"
-echo "Login:    ${TEST_EMAIL} / ${TEST_PASS}"
-echo "Token:    ${TOKEN:-n/a}"
-echo "Logs:     ${WORKDIR}/api.log"
-echo "Report:   ${REPORT}"
-echo "Source:   ${SRC}"
+echo "API (local):  ${API_URL}"
+echo "API (public): ${PUBLIC_API_URL}"
+echo "VPS IP:       ${PUBLIC_IP:-unknown}"
+echo "Health:       ${PUBLIC_API_URL}/health"
+echo "Version:      ${PUBLIC_API_URL}/api/v1/version"
+echo "Login:        ${TEST_EMAIL} / ${TEST_PASS}"
+echo "Token:        ${TOKEN:-n/a}"
+echo "Logs:         ${WORKDIR}/api.log"
+echo "Report:       ${REPORT}"
+echo "Source:       ${SRC}"
 if [[ "${KEEP_RUNNING}" == "1" ]]; then
   echo "API left running (pid $(cat "${WORKDIR}/api.pid" 2>/dev/null || echo '?'))"
   echo "Stop with: kill \$(cat ${WORKDIR}/api.pid)"
@@ -365,5 +386,7 @@ else
   echo "API stopped."
 fi
 echo ""
-echo "UI tip: build web with: cd ${SRC}/apps/web && npm i && npm run build"
-echo "Then serve apps/web/dist behind nginx, or npm run dev -- --host 0.0.0.0"
+echo "Browser note: ${PUBLIC_API_URL}/ is the API (not the React dashboard)."
+echo "Open ${PUBLIC_API_URL}/health to verify. For UI:"
+echo "  cd ${SRC}/apps/web && npm i && npm run build"
+echo "  then restart goolify (GOOLIFY_WEB_DIR already points at apps/web/dist)"

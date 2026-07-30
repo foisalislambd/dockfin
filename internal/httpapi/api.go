@@ -164,6 +164,8 @@ func (a *API) Router() http.Handler {
 		})
 	})
 
+	a.mountWebOrRoot(r)
+
 	return r
 }
 

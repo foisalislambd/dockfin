@@ -19,6 +19,7 @@ type Config struct {
 	CORSOrigins    []string
 	PublicURL      string
 	DataDir        string
+	WebDir         string
 	CookieSecure   bool
 	SessionTTL     time.Duration
 	TraefikImage   string
@@ -36,6 +37,7 @@ func Load() (*Config, error) {
 		SessionSecret: getenv("GOOLIFY_SESSION_SECRET", ""),
 		PublicURL:     getenv("GOOLIFY_PUBLIC_URL", "http://localhost:8080"),
 		DataDir:       getenv("GOOLIFY_DATA_DIR", "./data"),
+		WebDir:        getenv("GOOLIFY_WEB_DIR", ""),
 		SessionTTL:    7 * 24 * time.Hour,
 		TraefikImage:  getenv("GOOLIFY_TRAEFIK_IMAGE", "traefik:v3.3"),
 	}
@@ -46,6 +48,9 @@ func Load() (*Config, error) {
 		if o != "" {
 			cfg.CORSOrigins = append(cfg.CORSOrigins, o)
 		}
+	}
+	if cfg.PublicURL != "" {
+		cfg.CORSOrigins = append(cfg.CORSOrigins, cfg.PublicURL)
 	}
 
 	cfg.CookieSecure = cfg.Env == "production"
