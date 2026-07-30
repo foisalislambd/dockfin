@@ -17,6 +17,7 @@ import (
 	"github.com/goolify/goolify/internal/scheduler"
 	"github.com/goolify/goolify/internal/sshx"
 	"github.com/goolify/goolify/internal/store"
+	"github.com/goolify/goolify/internal/terminal"
 	"github.com/goolify/goolify/internal/worker"
 	"github.com/goolify/goolify/internal/ws"
 )
@@ -117,12 +118,15 @@ func runServe() error {
 	sched.Start(ctx)
 	defer sched.Stop()
 
+	termMgr := terminal.NewManager(sshPool, logger)
+
 	api := &httpapi.API{
-		Cfg:    cfg,
-		Store:  st,
-		Queue:  q,
-		Hub:    hub,
-		Logger: logger,
+		Cfg:       cfg,
+		Store:     st,
+		Queue:     q,
+		Hub:       hub,
+		Terminals: termMgr,
+		Logger:    logger,
 	}
 
 	srv := &http.Server{

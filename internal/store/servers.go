@@ -35,6 +35,8 @@ type Server struct {
 	ProxyStatus        string     `json:"proxy_status"`
 	HostKeyFingerprint string     `json:"host_key_fingerprint"`
 	HostKeyType        string     `json:"host_key_type"`
+	IsBuildServer      bool       `json:"is_build_server"`
+	IsSwarmManager     bool       `json:"is_swarm_manager"`
 	CreatedAt          time.Time  `json:"created_at"`
 }
 
@@ -152,6 +154,13 @@ func (s *Store) CreateServer(ctx context.Context, teamID uuid.UUID, keyID *uuid.
 	return srv, nil
 }
 
+func (s *Store) loadServerFlags(ctx context.Context, srv *Server) {
+	_ = s.Pool.QueryRow(ctx, `
+		SELECT COALESCE(is_build_server,false), COALESCE(is_swarm_manager,false)
+		FROM server_settings WHERE server_id=$1
+	`, srv.ID).Scan(&srv.IsBuildServer, &srv.IsSwarmManager)
+}
+
 func (s *Store) ListServers(ctx context.Context, teamID uuid.UUID) ([]Server, error) {
 	rows, err := s.Pool.Query(ctx, `SELECT `+serverCols+` FROM servers WHERE team_id = $1 ORDER BY name`, teamID)
 	if err != nil {
@@ -164,6 +173,7 @@ func (s *Store) ListServers(ctx context.Context, teamID uuid.UUID) ([]Server, er
 		if err != nil {
 			return nil, err
 		}
+		s.loadServerFlags(ctx, srv)
 		out = append(out, *srv)
 	}
 	return out, rows.Err()
@@ -175,7 +185,11 @@ func (s *Store) GetServer(ctx context.Context, teamID, id uuid.UUID) (*Server, e
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
-	return srv, err
+	if err != nil {
+		return nil, err
+	}
+	s.loadServerFlags(ctx, srv)
+	return srv, nil
 }
 
 func (s *Store) UpdateServerStatus(ctx context.Context, id uuid.UUID, reachable, usable bool, dockerVersion, proxyStatus string) error {
@@ -184,6 +198,13 @@ func (s *Store) UpdateServerStatus(ctx context.Context, id uuid.UUID, reachable,
 		                   last_checked_at=NOW(), updated_at=NOW()
 		WHERE id=$1
 	`, id, reachable, usable, dockerVersion, proxyStatus)
+	return err
+}
+
+func (s *Store) UpdateServerProxyStatus(ctx context.Context, id uuid.UUID, proxyStatus string) error {
+	_, err := s.Pool.Exec(ctx, `
+		UPDATE servers SET proxy_status=$2, updated_at=NOW() WHERE id=$1
+	`, id, proxyStatus)
 	return err
 }
 
@@ -260,4 +281,76 @@ func (s *Store) GetDestination(ctx context.Context, teamID, id uuid.UUID) (*Dest
 		return nil, ErrNotFound
 	}
 	return &d, err
+}
+
+func (s *Store) CreateDestination(ctx context.Context, teamID, serverID uuid.UUID, name, kind, network string) (*Destination, error) {
+	if _, err := s.GetServer(ctx, teamID, serverID); err != nil {
+		return nil, err
+	}
+	if kind == "" {
+		kind = "standalone"
+	}
+	if network == "" {
+		network = "goolify"
+	}
+	var d Destination
+	err := s.Pool.QueryRow(ctx, `
+		INSERT INTO destinations (team_id, server_id, name, kind, network)
+		VALUES ($1,$2,$3,$4,$5)
+		RETURNING id, team_id, server_id, name, kind, network, created_at
+	`, teamID, serverID, name, kind, network).Scan(&d.ID, &d.TeamID, &d.ServerID, &d.Name, &d.Kind, &d.Network, &d.CreatedAt)
+	return &d, err
+}
+
+func (s *Store) SetServerBuildServer(ctx context.Context, teamID, serverID uuid.UUID, isBuild bool) error {
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE server_settings SET is_build_server=$3, updated_at=NOW()
+		WHERE server_id=$1 AND EXISTS (SELECT 1 FROM servers WHERE id=$1 AND team_id=$2)
+	`, serverID, teamID, isBuild)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) SetServerSwarmManager(ctx context.Context, teamID, serverID uuid.UUID, isSwarm bool) error {
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE server_settings SET is_swarm_manager=$3, updated_at=NOW()
+		WHERE server_id=$1 AND EXISTS (SELECT 1 FROM servers WHERE id=$1 AND team_id=$2)
+	`, serverID, teamID, isSwarm)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) ListBuildServers(ctx context.Context, teamID uuid.UUID) ([]Server, error) {
+	rows, err := s.Pool.Query(ctx, `
+		SELECT s.id, s.team_id, s.private_key_id, s.name, s.description, s.ip, s.port, s.user_name,
+			s.is_reachable, s.is_usable, s.docker_version, s.proxy_type, s.proxy_status,
+			COALESCE(s.host_key_fingerprint,''), COALESCE(s.host_key_type,''), s.created_at
+		FROM servers s
+		JOIN server_settings ss ON ss.server_id = s.id
+		WHERE s.team_id=$1 AND ss.is_build_server=TRUE
+		ORDER BY s.name
+	`, teamID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Server
+	for rows.Next() {
+		srv, err := scanServer(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *srv)
+	}
+	return out, rows.Err()
 }

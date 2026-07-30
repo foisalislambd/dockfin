@@ -22,13 +22,15 @@ type Pipeline struct {
 }
 
 type Request struct {
-	DeploymentID uuid.UUID
-	TeamID       uuid.UUID
-	App          *store.Application
-	Server       *store.Server
-	Destination  *store.Destination
-	PrivateKey   []byte
-	ForceRebuild bool
+	DeploymentID    uuid.UUID
+	TeamID          uuid.UUID
+	App             *store.Application
+	Server          *store.Server
+	Destination     *store.Destination
+	PrivateKey      []byte
+	BuildServer     *store.Server
+	BuildPrivateKey []byte
+	ForceRebuild    bool
 }
 
 func (p *Pipeline) log(stage, line string) {
@@ -38,46 +40,97 @@ func (p *Pipeline) log(stage, line string) {
 }
 
 func (p *Pipeline) Run(ctx context.Context, req Request) error {
-	p.log("prepare", "Connecting to server via SSH…")
-	res, err := p.SSH.Dial(sshx.Target{
-		Host:                req.Server.IP,
-		Port:                req.Server.Port,
-		User:                req.Server.UserName,
-		PrivateKey:          req.PrivateKey,
-		ExpectedFingerprint: req.Server.HostKeyFingerprint,
-		ExpectedKeyType:     req.Server.HostKeyType,
-	})
+	p.log("prepare", "Connecting to deploy server via SSH…")
+	deployClient, err := p.dialServer(ctx, req.Server, req.PrivateKey)
 	if err != nil {
-		return fmt.Errorf("ssh: %w", err)
+		return err
 	}
-	client := res.Client
-	if res.IsNewHost && p.Store != nil {
-		_ = p.Store.UpdateServerHostKey(ctx, req.Server.ID, res.Fingerprint, res.KeyType)
-		p.log("prepare", "Trusted new host key "+res.Fingerprint)
+
+	buildClient := deployClient
+	if req.BuildServer != nil && req.BuildServer.ID != req.Server.ID {
+		p.log("prepare", "Connecting to build server via SSH…")
+		key := req.BuildPrivateKey
+		if len(key) == 0 {
+			key = req.PrivateKey
+		}
+		buildClient, err = p.dialServer(ctx, req.BuildServer, key)
+		if err != nil {
+			return fmt.Errorf("build server ssh: %w", err)
+		}
+		p.log("prepare", "Using dedicated build server "+req.BuildServer.Name)
 	}
 
 	p.log("prepare", "Ensuring data directories")
-	_ = sshx.EnsureDataDirs(client)
+	_ = sshx.EnsureDataDirs(deployClient)
+	if buildClient != deployClient {
+		_ = sshx.EnsureDataDirs(buildClient)
+	}
 
 	p.log("prepare", fmt.Sprintf("Ensuring Docker network %q", req.Destination.Network))
-	if err := sshx.EnsureNetwork(client, req.Destination.Network); err != nil {
+	if err := p.ensureDestinationNetwork(deployClient, req.Destination); err != nil {
 		return err
 	}
 
 	switch req.App.BuildPack {
 	case "dockerimage":
-		return p.deployImage(ctx, client, req)
+		return p.deployImage(ctx, deployClient, req)
 	case "dockerfile":
-		return p.deployDockerfile(ctx, client, req)
+		return p.deployDockerfile(ctx, buildClient, deployClient, req)
 	case "dockercompose":
-		return p.deployCompose(ctx, client, req)
+		return p.deployCompose(ctx, deployClient, req)
 	case "static":
-		return p.deployStatic(ctx, client, req)
+		return p.deployStatic(ctx, buildClient, deployClient, req)
 	case "nixpacks", "railpack":
-		return p.deployNixpacks(ctx, client, req)
+		return p.deployNixpacks(ctx, buildClient, deployClient, req)
 	default:
 		return fmt.Errorf("unsupported build pack: %s", req.App.BuildPack)
 	}
+}
+
+func (p *Pipeline) dialServer(ctx context.Context, srv *store.Server, privKey []byte) (*ssh.Client, error) {
+	res, err := p.SSH.Dial(sshx.Target{
+		Host:                srv.IP,
+		Port:                srv.Port,
+		User:                srv.UserName,
+		PrivateKey:          privKey,
+		ExpectedFingerprint: srv.HostKeyFingerprint,
+		ExpectedKeyType:     srv.HostKeyType,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("ssh: %w", err)
+	}
+	if res.IsNewHost && p.Store != nil {
+		_ = p.Store.UpdateServerHostKey(ctx, srv.ID, res.Fingerprint, res.KeyType)
+		p.log("prepare", "Trusted new host key "+res.Fingerprint)
+	}
+	return res.Client, nil
+}
+
+func (p *Pipeline) ensureDestinationNetwork(client *ssh.Client, dest *store.Destination) error {
+	if dest.Kind == "swarm" {
+		_, _, err := sshx.RunArgs(client, "docker", "network", "inspect", dest.Network)
+		if err == nil {
+			return nil
+		}
+		_, errOut, err := sshx.RunArgs(client, "docker", "network", "create", "-d", "overlay", "--attachable", dest.Network)
+		if err != nil {
+			return fmt.Errorf("create overlay network %s: %v %s", dest.Network, err, errOut)
+		}
+		return nil
+	}
+	return sshx.EnsureNetwork(client, dest.Network)
+}
+
+func (p *Pipeline) transferIfNeeded(buildClient, deployClient *ssh.Client, req Request, imageTag string) error {
+	if req.BuildServer == nil || req.BuildServer.ID == req.Server.ID {
+		return nil
+	}
+	p.log("transfer", "Transferring image to deploy server…")
+	if err := TransferImage(buildClient, deployClient, imageTag); err != nil {
+		return fmt.Errorf("image transfer: %w", err)
+	}
+	p.log("transfer", "Image transfer complete")
+	return nil
 }
 
 func (p *Pipeline) runtimeEnvArgs(ctx context.Context, req Request) []string {
@@ -112,12 +165,23 @@ func (p *Pipeline) limitArgs(app *store.Application) []string {
 	return args
 }
 
-func (p *Pipeline) traefikLabelArgs(app *store.Application) []string {
+func (p *Pipeline) proxyLabelArgs(app *store.Application, proxyType string) []string {
 	if app.FQDN == "" {
 		return nil
 	}
+	host := firstHost(app.FQDN)
+	port := firstPort(app.PortsExposes)
+	var labels []string
+	switch strings.ToLower(proxyType) {
+	case "caddy":
+		labels = proxy.CaddyLabels(app.Name, host, port, app.IsForceHTTPS)
+	case "none":
+		return nil
+	default:
+		labels = proxy.TraefikLabelsHTTPS(app.Name, host, port, app.IsForceHTTPS)
+	}
 	var args []string
-	for _, l := range proxy.TraefikLabelsHTTPS(app.Name, firstHost(app.FQDN), firstPort(app.PortsExposes), app.IsForceHTTPS) {
+	for _, l := range labels {
 		args = append(args, "-l", l)
 	}
 	return args
@@ -189,7 +253,7 @@ func (p *Pipeline) deployImage(ctx context.Context, client *ssh.Client, req Requ
 	}
 	args = append(args, p.limitArgs(req.App)...)
 	args = append(args, p.runtimeEnvArgs(ctx, req)...)
-	args = append(args, p.traefikLabelArgs(req.App)...)
+	args = append(args, p.proxyLabelArgs(req.App, req.Server.ProxyType)...)
 	args = append(args, full)
 
 	p.log("run", "Starting container "+name)
@@ -207,7 +271,7 @@ func (p *Pipeline) deployImage(ctx context.Context, client *ssh.Client, req Requ
 	return nil
 }
 
-func (p *Pipeline) deployDockerfile(ctx context.Context, client *ssh.Client, req Request) error {
+func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClient *ssh.Client, req Request) error {
 	if req.App.GitRepository == "" {
 		return fmt.Errorf("git repository is required for %s builds", req.App.BuildPack)
 	}
@@ -216,16 +280,13 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, client *ssh.Client, req
 	imageTag := "goolify/" + req.App.ID.String() + ":latest"
 
 	p.log("prepare", "Preparing remote workdir "+workdir)
-	_, errOut, err := sshx.RunArgs(client, "mkdir", "-p", workdir)
+	_, errOut, err := sshx.RunArgs(buildClient, "mkdir", "-p", workdir)
 	if err != nil {
 		return fmt.Errorf("mkdir: %v %s", err, errOut)
 	}
 
-	p.log("fetch", "Cloning "+req.App.GitRepository)
-	_, _, _ = sshx.RunArgs(client, "rm", "-rf", workdir+"/src")
-	_, errOut, err = sshx.RunArgs(client, "git", "clone", "--branch", req.App.GitBranch, "--depth", "1", req.App.GitRepository, workdir+"/src")
-	if err != nil {
-		return fmt.Errorf("git clone: %v %s", err, errOut)
+	if err := p.gitClone(ctx, buildClient, req, workdir+"/src"); err != nil {
+		return err
 	}
 
 	dockerfile := req.App.DockerfileLocation
@@ -240,12 +301,15 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, client *ssh.Client, req
 		buildArgs = append(buildArgs, "--no-cache")
 	}
 	buildArgs = append(buildArgs, workdir+"/src")
-	_, errOut, err = sshx.RunArgs(client, buildArgs...)
+	_, errOut, err = sshx.RunArgs(buildClient, buildArgs...)
 	if err != nil {
 		return fmt.Errorf("docker build: %v %s", err, errOut)
 	}
 
-	return p.runBuiltImage(ctx, client, req, name, imageTag)
+	if err := p.transferIfNeeded(buildClient, deployClient, req, imageTag); err != nil {
+		return err
+	}
+	return p.runBuiltImage(ctx, deployClient, req, name, imageTag)
 }
 
 func (p *Pipeline) runBuiltImage(ctx context.Context, client *ssh.Client, req Request, name, imageTag string) error {
@@ -259,7 +323,7 @@ func (p *Pipeline) runBuiltImage(ctx context.Context, client *ssh.Client, req Re
 	}
 	args = append(args, p.limitArgs(req.App)...)
 	args = append(args, p.runtimeEnvArgs(ctx, req)...)
-	args = append(args, p.traefikLabelArgs(req.App)...)
+	args = append(args, p.proxyLabelArgs(req.App, req.Server.ProxyType)...)
 	args = append(args, imageTag)
 	_, errOut, err := sshx.RunArgs(client, args...)
 	if err != nil {
@@ -275,7 +339,7 @@ func (p *Pipeline) runBuiltImage(ctx context.Context, client *ssh.Client, req Re
 	return nil
 }
 
-func (p *Pipeline) deployStatic(ctx context.Context, client *ssh.Client, req Request) error {
+func (p *Pipeline) deployStatic(ctx context.Context, buildClient, deployClient *ssh.Client, req Request) error {
 	if req.App.GitRepository == "" {
 		return fmt.Errorf("git repository is required for static builds")
 	}
@@ -284,16 +348,13 @@ func (p *Pipeline) deployStatic(ctx context.Context, client *ssh.Client, req Req
 	imageTag := "goolify/" + req.App.ID.String() + ":latest"
 
 	p.log("prepare", "Preparing static site workdir "+workdir)
-	_, errOut, err := sshx.RunArgs(client, "mkdir", "-p", workdir)
+	_, errOut, err := sshx.RunArgs(buildClient, "mkdir", "-p", workdir)
 	if err != nil {
 		return fmt.Errorf("mkdir: %v %s", err, errOut)
 	}
 
-	p.log("fetch", "Cloning "+req.App.GitRepository)
-	_, _, _ = sshx.RunArgs(client, "rm", "-rf", workdir+"/src")
-	_, errOut, err = sshx.RunArgs(client, "git", "clone", "--branch", req.App.GitBranch, "--depth", "1", req.App.GitRepository, workdir+"/src")
-	if err != nil {
-		return fmt.Errorf("git clone: %v %s", err, errOut)
+	if err := p.gitClone(ctx, buildClient, req, workdir+"/src"); err != nil {
+		return err
 	}
 
 	dockerfile := `FROM nginx:alpine
@@ -302,7 +363,7 @@ EXPOSE 80
 `
 	p.log("build", "Writing nginx Dockerfile for static site")
 	writeCmd := fmt.Sprintf("cat > %s/src/Dockerfile.goolify-static <<'GOOLIFY_EOF'\n%sGOOLIFY_EOF", workdir, dockerfile)
-	_, errOut, err = sshx.Run(client, writeCmd)
+	_, errOut, err = sshx.Run(buildClient, writeCmd)
 	if err != nil {
 		return fmt.Errorf("write dockerfile: %v %s", err, errOut)
 	}
@@ -313,21 +374,23 @@ EXPOSE 80
 		buildArgs = append(buildArgs, "--no-cache")
 	}
 	buildArgs = append(buildArgs, workdir+"/src")
-	_, errOut, err = sshx.RunArgs(client, buildArgs...)
+	_, errOut, err = sshx.RunArgs(buildClient, buildArgs...)
 	if err != nil {
 		return fmt.Errorf("docker build: %v %s", err, errOut)
 	}
 
-	// Static sites expose port 80 by default for Traefik
 	appCopy := *req.App
 	if appCopy.PortsExposes == "" || appCopy.PortsExposes == "3000" {
 		appCopy.PortsExposes = "80"
 	}
 	req.App = &appCopy
-	return p.runBuiltImage(ctx, client, req, name, imageTag)
+	if err := p.transferIfNeeded(buildClient, deployClient, req, imageTag); err != nil {
+		return err
+	}
+	return p.runBuiltImage(ctx, deployClient, req, name, imageTag)
 }
 
-func (p *Pipeline) deployNixpacks(ctx context.Context, client *ssh.Client, req Request) error {
+func (p *Pipeline) deployNixpacks(ctx context.Context, buildClient, deployClient *ssh.Client, req Request) error {
 	if req.App.GitRepository == "" {
 		return fmt.Errorf("git repository is required for nixpacks builds")
 	}
@@ -336,20 +399,16 @@ func (p *Pipeline) deployNixpacks(ctx context.Context, client *ssh.Client, req R
 	imageTag := "goolify/" + req.App.ID.String() + ":latest"
 
 	p.log("prepare", "Preparing nixpacks workdir "+workdir)
-	_, errOut, err := sshx.RunArgs(client, "mkdir", "-p", workdir)
+	_, errOut, err := sshx.RunArgs(buildClient, "mkdir", "-p", workdir)
 	if err != nil {
 		return fmt.Errorf("mkdir: %v %s", err, errOut)
 	}
 
-	p.log("fetch", "Cloning "+req.App.GitRepository)
-	_, _, _ = sshx.RunArgs(client, "rm", "-rf", workdir+"/src")
-	_, errOut, err = sshx.RunArgs(client, "git", "clone", "--branch", req.App.GitBranch, "--depth", "1", req.App.GitRepository, workdir+"/src")
-	if err != nil {
-		return fmt.Errorf("git clone: %v %s", err, errOut)
+	if err := p.gitClone(ctx, buildClient, req, workdir+"/src"); err != nil {
+		return err
 	}
 
 	p.log("build", "Building with nixpacks (best-effort via railwayapp/nixpacks image)")
-	// Run nixpacks builder with docker.sock so it can build the final image on the host.
 	nixArgs := []string{
 		"docker", "run", "--rm",
 		"-v", workdir + "/src:/app",
@@ -361,12 +420,15 @@ func (p *Pipeline) deployNixpacks(ctx context.Context, client *ssh.Client, req R
 	if req.ForceRebuild {
 		nixArgs = append(nixArgs, "--no-cache")
 	}
-	_, errOut, err = sshx.RunArgs(client, nixArgs...)
+	_, errOut, err = sshx.RunArgs(buildClient, nixArgs...)
 	if err != nil {
 		return fmt.Errorf("nixpacks build failed (ensure Docker can pull ghcr.io/railwayapp/nixpacks:latest): %v %s", err, errOut)
 	}
 
-	return p.runBuiltImage(ctx, client, req, name, imageTag)
+	if err := p.transferIfNeeded(buildClient, deployClient, req, imageTag); err != nil {
+		return err
+	}
+	return p.runBuiltImage(ctx, deployClient, req, name, imageTag)
 }
 
 func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Request) error {
@@ -380,21 +442,24 @@ func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Re
 	if err != nil {
 		return fmt.Errorf("mkdir: %v %s", err, errOut)
 	}
-	_, _, _ = sshx.RunArgs(client, "rm", "-rf", workdir+"/src")
-	p.log("fetch", "Cloning repository")
-	_, errOut, err = sshx.RunArgs(client, "git", "clone", "--branch", req.App.GitBranch, "--depth", "1", req.App.GitRepository, workdir+"/src")
-	if err != nil {
-		return fmt.Errorf("git clone: %v %s", err, errOut)
+	if err := p.gitClone(ctx, client, req, workdir+"/src"); err != nil {
+		return err
 	}
 	composeFile := strings.TrimPrefix(req.App.DockerComposeLocation, "/")
 	if composeFile == "" {
 		composeFile = "docker-compose.yaml"
 	}
 	project := "goolify-" + req.App.ID.String()[:8]
-	p.log("run", "docker compose up -d")
-	_, errOut, err = sshx.RunArgs(client, "docker", "compose", "-p", project, "-f", workdir+"/src/"+composeFile, "up", "-d", "--build", "--remove-orphans")
+	composePath := workdir + "/src/" + composeFile
+	if req.Destination.Kind == "swarm" {
+		p.log("run", "docker stack deploy")
+		_, errOut, err = sshx.RunArgs(client, "docker", "stack", "deploy", "-c", composePath, "--with-registry-auth", project)
+	} else {
+		p.log("run", "docker compose up -d")
+		_, errOut, err = sshx.RunArgs(client, "docker", "compose", "-p", project, "-f", composePath, "up", "-d", "--build", "--remove-orphans")
+	}
 	if err != nil {
-		return fmt.Errorf("compose up: %v %s", err, errOut)
+		return fmt.Errorf("compose deploy: %v %s", err, errOut)
 	}
 	p.log("finalize", "Compose stack is up")
 	if p.Store != nil {

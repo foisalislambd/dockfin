@@ -85,4 +85,4 @@ Open an issue with the use case, Coolify parity reference (if any), and whether 
 
 ## License
 
-By contributing, you agree that your contributions are licensed under the Apache License 2.0.
+By contributing, you agree that your contributions are licensed under the MIT License.

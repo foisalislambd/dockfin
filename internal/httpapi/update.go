@@ -31,6 +31,8 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		DockerRegistryImageTag  *string `json:"docker_registry_image_tag"`
 		DockerfileLocation      *string `json:"dockerfile_location"`
 		DestinationID           *string `json:"destination_id"`
+		GitSourceID             *string `json:"git_source_id"`
+		IsBuildServerEnabled    *bool   `json:"is_build_server_enabled"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -79,9 +81,32 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		}
 		app.DestinationID = &id
 	}
+	if body.GitSourceID != nil {
+		if *body.GitSourceID == "" {
+			app.GitSourceID = nil
+		} else {
+			id, err := uuid.Parse(*body.GitSourceID)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "invalid git_source_id")
+				return
+			}
+			if _, err := a.Store.GetGitSource(r.Context(), teamID, id); err != nil {
+				mapStoreErr(w, err)
+				return
+			}
+			app.GitSourceID = &id
+		}
+	}
 	if err := a.Store.UpdateApplication(r.Context(), app); err != nil {
 		mapStoreErr(w, err)
 		return
+	}
+	if body.IsBuildServerEnabled != nil {
+		if err := a.Store.SetApplicationBuildServerEnabled(r.Context(), teamID, appID, *body.IsBuildServerEnabled); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+		app.IsBuildServerEnabled = *body.IsBuildServerEnabled
 	}
 	writeJSON(w, http.StatusOK, app)
 }

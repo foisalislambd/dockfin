@@ -34,6 +34,7 @@ import {
   StoragesPage,
   TeamPage,
 } from './pages/OpsPages'
+import { GitSourceDetailPage, GitSourcesPage } from './pages/GitSources'
 import './index.css'
 
 const queryClient = new QueryClient()
@@ -275,6 +276,18 @@ const privateKeysRoute = createRoute({
   component: PrivateKeysPage,
 })
 
+const gitSourcesRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/git-sources',
+  component: GitSourcesPage,
+})
+
+const gitSourceDetailRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/git-sources/$sourceId',
+  component: GitSourceDetailPage,
+})
+
 const apiTokensRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/security/api-tokens',
@@ -317,6 +330,8 @@ const routeTree = rootRoute.addChildren([
     teamRoute,
     sharedVariablesRoute,
     privateKeysRoute,
+    gitSourcesRoute,
+    gitSourceDetailRoute,
     apiTokensRoute,
   ]),
 ])

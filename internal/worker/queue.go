@@ -166,6 +166,30 @@ func (q *Queue) handle(ctx context.Context, job DeployJob) {
 		return
 	}
 
+	var buildServer *store.Server
+	var buildKey []byte
+	if app.IsBuildServerEnabled {
+		builds, err := q.Store.ListBuildServers(ctx, job.TeamID)
+		if err != nil {
+			slog.Warn("list build servers", "err", err)
+		} else if len(builds) > 0 {
+			bs := builds[0]
+			buildServer = &bs
+			slog.Info("using build server for deployment", "deployment", job.DeploymentID, "build_server", bs.Name, "id", bs.ID)
+			_ = q.Store.SetDeploymentBuildServer(ctx, job.DeploymentID, &bs.ID)
+			if bs.PrivateKeyID != nil {
+				benc, err := q.Store.GetPrivateKeyMaterial(ctx, job.TeamID, *bs.PrivateKeyID)
+				if err == nil {
+					if bp, err := q.Store.Box.DecryptString(benc); err == nil {
+						buildKey = []byte(bp)
+					}
+				}
+			}
+		} else {
+			slog.Warn("build server enabled but none configured", "app", app.ID)
+		}
+	}
+
 	pipe := &deploy.Pipeline{
 		Store: q.Store,
 		SSH:   q.SSH,
@@ -176,13 +200,15 @@ func (q *Queue) handle(ctx context.Context, job DeployJob) {
 	}
 
 	err = pipe.Run(ctx, deploy.Request{
-		DeploymentID: job.DeploymentID,
-		TeamID:       job.TeamID,
-		App:          app,
-		Server:       srv,
-		Destination:  dest,
-		PrivateKey:   []byte(priv),
-		ForceRebuild: job.ForceRebuild,
+		DeploymentID:    job.DeploymentID,
+		TeamID:          job.TeamID,
+		App:             app,
+		Server:          srv,
+		Destination:     dest,
+		PrivateKey:      []byte(priv),
+		BuildServer:     buildServer,
+		BuildPrivateKey: buildKey,
+		ForceRebuild:    job.ForceRebuild,
 	})
 	if err != nil {
 		slog.Error("deployment failed", "id", job.DeploymentID, "err", err)

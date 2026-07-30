@@ -35,6 +35,9 @@ function BrandPanel({ className = '' }: { className?: string }) {
             </li>
           ))}
         </ul>
+        <p className="mt-10 text-xs text-brand-200/70">
+          {brand.copyright} · {brand.license} License
+        </p>
       </div>
     </div>
   )

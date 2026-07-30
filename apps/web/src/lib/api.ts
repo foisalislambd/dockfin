@@ -52,7 +52,7 @@ export type CreateServerBody = {
 
 export const api = {
   health: () => request<{ status: string }>('/health'),
-  version: () => request<{ version: string; name: string }>('/api/v1/version'),
+  version: () => request<{ version: string; name: string; license?: string }>('/api/v1/version'),
   me: () => request<{ user: User; team: Team; teams: Team[] }>('/api/v1/auth/me'),
   login: (email: string, password: string) =>
     request<{ user: User; team: Team; token: string }>('/api/v1/auth/login', {
@@ -303,6 +303,53 @@ export const api = {
     }),
   serverMetrics: (id: string, limit = 60) =>
     request<{ metrics: ServerMetric[] }>(`/api/v1/servers/${id}/metrics?limit=${limit}`),
+
+  patchServerSettings: (
+    id: string,
+    body: { is_build_server?: boolean; is_swarm_manager?: boolean },
+  ) =>
+    request<{ status: string }>(`/api/v1/servers/${id}/settings`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  createDestination: (
+    serverId: string,
+    body: { name: string; kind?: string; network?: string },
+  ) =>
+    request<Destination>(`/api/v1/servers/${serverId}/destinations`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  createTerminal: (serverId: string, container?: string) =>
+    request<{ session_id: string }>(`/api/v1/servers/${serverId}/terminal`, {
+      method: 'POST',
+      body: JSON.stringify({ container: container || '' }),
+    }),
+
+  gitSources: () => request<{ git_sources: GitSource[] }>('/api/v1/git-sources'),
+  getGitSource: (id: string) => request<GitSource>(`/api/v1/git-sources/${id}`),
+  createGitSource: (body: {
+    name: string
+    provider?: string
+    app_id: string
+    slug?: string
+    private_key: string
+    client_id?: string
+    html_url?: string
+    api_url?: string
+  }) =>
+    request<GitSource>('/api/v1/git-sources', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  deleteGitSource: (id: string) =>
+    request<{ status: string }>(`/api/v1/git-sources/${id}`, { method: 'DELETE' }),
+  gitSourceInstallURL: (id: string) =>
+    request<{ install_url: string; state: string }>(`/api/v1/git-sources/${id}/install-url`),
+  gitSourceRepositories: (id: string, page = 1) =>
+    request<{ repositories: Record<string, unknown>[] }>(
+      `/api/v1/git-sources/${id}/repositories?page=${page}`,
+    ),
 }
 
 export type Server = {
@@ -317,6 +364,20 @@ export type Server = {
   proxy_type: string
   proxy_status: string
   description?: string
+  is_build_server?: boolean
+  is_swarm_manager?: boolean
+}
+export type GitSource = {
+  id: string
+  name: string
+  provider: string
+  app_id: string
+  installation_id?: string
+  client_id?: string
+  html_url: string
+  api_url: string
+  is_public: boolean
+  created_at: string
 }
 export type Key = { id: string; name: string; fingerprint: string; public_key: string }
 export type Project = { id: string; name: string; description: string }
@@ -335,6 +396,8 @@ export type Application = {
   docker_registry_image_name?: string
   docker_registry_image_tag?: string
   destination_id?: string | null
+  git_source_id?: string | null
+  is_build_server_enabled?: boolean
 }
 export type Deployment = {
   id: string
@@ -382,7 +445,13 @@ export type Service = {
   description?: string
 }
 export type Template = { type: string; name: string; description: string; category?: string }
-export type Destination = { id: string; name: string; server_id: string; network: string }
+export type Destination = {
+  id: string
+  name: string
+  server_id: string
+  network: string
+  kind?: string
+}
 export type S3Storage = {
   id: string
   name: string
@@ -443,6 +512,8 @@ export type BackupExecution = {
   size_bytes: number
   filename: string
   error_message: string
+  s3_uploaded?: boolean
+  s3_key?: string
   started_at: string
   finished_at?: string | null
 }

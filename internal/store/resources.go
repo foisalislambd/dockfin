@@ -57,6 +57,8 @@ type Application struct {
 	LimitsCpus              string     `json:"limits_cpus"`
 	IsForceHTTPS            bool       `json:"is_force_https"`
 	IsPreviewEnabled        bool       `json:"is_preview_enabled"`
+	GitSourceID             *uuid.UUID `json:"git_source_id,omitempty"`
+	IsBuildServerEnabled    bool       `json:"is_build_server_enabled"`
 	CreatedAt               time.Time  `json:"created_at"`
 }
 
@@ -79,6 +81,8 @@ const applicationSelectCols = `
 	a.health_check_enabled, a.health_check_path, a.health_check_port, a.health_check_method,
 	a.health_check_return_code, a.health_check_interval, a.health_check_timeout, a.health_check_retries,
 	a.limits_memory, a.limits_cpus,
+	a.git_source_id,
+	COALESCE(s.is_build_server_enabled, FALSE),
 	COALESCE(a.is_force_https, s.is_force_https_enabled, TRUE),
 	COALESCE(s.is_preview_enabled, FALSE),
 	a.created_at`
@@ -91,7 +95,7 @@ func scanApplication(scan func(dest ...any) error) (*Application, error) {
 		&a.DockerRegistryImageName, &a.DockerRegistryImageTag, &a.PortsExposes,
 		&a.HealthCheckEnabled, &a.HealthCheckPath, &a.HealthCheckPort, &a.HealthCheckMethod,
 		&a.HealthCheckReturnCode, &a.HealthCheckInterval, &a.HealthCheckTimeout, &a.HealthCheckRetries,
-		&a.LimitsMemory, &a.LimitsCpus, &a.IsForceHTTPS, &a.IsPreviewEnabled, &a.CreatedAt,
+		&a.LimitsMemory, &a.LimitsCpus, &a.GitSourceID, &a.IsBuildServerEnabled, &a.IsForceHTTPS, &a.IsPreviewEnabled, &a.CreatedAt,
 	)
 	return &a, err
 }
@@ -313,9 +317,15 @@ func (s *Store) DeleteApplication(ctx context.Context, teamID, id uuid.UUID) err
 	if err != nil {
 		return err
 	}
-	_, _ = tx.Exec(ctx, `DELETE FROM environment_variables WHERE team_id=$1 AND resource_type='application' AND resource_id=$2`, teamID, id)
-	_, _ = tx.Exec(ctx, `DELETE FROM scheduled_tasks WHERE team_id=$1 AND resource_type='application' AND resource_id=$2`, teamID, id)
-	_, _ = tx.Exec(ctx, `DELETE FROM scheduled_backups WHERE team_id=$1 AND resource_type='application' AND resource_id=$2`, teamID, id)
+	if _, err := tx.Exec(ctx, `DELETE FROM environment_variables WHERE team_id=$1 AND resource_type='application' AND resource_id=$2`, teamID, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM scheduled_tasks WHERE team_id=$1 AND resource_type='application' AND resource_id=$2`, teamID, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM scheduled_backups WHERE team_id=$1 AND resource_type='application' AND resource_id=$2`, teamID, id); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(ctx, `DELETE FROM applications WHERE id=$1 AND team_id=$2`, id, teamID); err != nil {
 		return err
 	}
@@ -332,11 +342,32 @@ func (s *Store) UpdateApplication(ctx context.Context, app *Application) error {
 		UPDATE applications SET
 			name=$2, description=$3, fqdn=$4, git_repository=$5, git_branch=$6,
 			ports_exposes=$7, docker_registry_image_name=$8, docker_registry_image_tag=$9,
-			dockerfile_location=$10, destination_id=$11, updated_at=NOW()
-		WHERE id=$1 AND team_id=$12
+			dockerfile_location=$10, destination_id=$11, git_source_id=$12, updated_at=NOW()
+		WHERE id=$1 AND team_id=$13
 	`, app.ID, app.Name, app.Description, app.FQDN, app.GitRepository, app.GitBranch,
 		app.PortsExposes, app.DockerRegistryImageName, app.DockerRegistryImageTag,
-		app.DockerfileLocation, app.DestinationID, app.TeamID)
+		app.DockerfileLocation, app.DestinationID, app.GitSourceID, app.TeamID)
+	return err
+}
+
+func (s *Store) SetApplicationBuildServerEnabled(ctx context.Context, teamID, appID uuid.UUID, enabled bool) error {
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE application_settings SET is_build_server_enabled=$3, updated_at=NOW()
+		WHERE application_id=$1 AND EXISTS (SELECT 1 FROM applications WHERE id=$1 AND team_id=$2)
+	`, appID, teamID, enabled)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) SetDeploymentBuildServer(ctx context.Context, deploymentID uuid.UUID, buildServerID *uuid.UUID) error {
+	_, err := s.Pool.Exec(ctx, `
+		UPDATE deployments SET build_server_id=$2, updated_at=NOW() WHERE id=$1
+	`, deploymentID, buildServerID)
 	return err
 }
 
@@ -524,10 +555,18 @@ func (s *Store) DeleteDatabase(ctx context.Context, teamID, id uuid.UUID) error 
 	if err != nil {
 		return err
 	}
-	_, _ = tx.Exec(ctx, `DELETE FROM environment_variables WHERE team_id=$1 AND resource_type='database' AND resource_id=$2`, teamID, id)
-	_, _ = tx.Exec(ctx, `DELETE FROM scheduled_tasks WHERE team_id=$1 AND resource_type='database' AND resource_id=$2`, teamID, id)
-	_, _ = tx.Exec(ctx, `DELETE FROM scheduled_backups WHERE team_id=$1 AND resource_type='database' AND resource_id=$2`, teamID, id)
-	_, _ = tx.Exec(ctx, `DELETE FROM backup_executions WHERE team_id=$1 AND resource_type='database' AND resource_id=$2`, teamID, id)
+	if _, err := tx.Exec(ctx, `DELETE FROM environment_variables WHERE team_id=$1 AND resource_type='database' AND resource_id=$2`, teamID, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM scheduled_tasks WHERE team_id=$1 AND resource_type='database' AND resource_id=$2`, teamID, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM scheduled_backups WHERE team_id=$1 AND resource_type='database' AND resource_id=$2`, teamID, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM backup_executions WHERE team_id=$1 AND resource_type='database' AND resource_id=$2`, teamID, id); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(ctx, `DELETE FROM databases WHERE id=$1 AND team_id=$2`, id, teamID); err != nil {
 		return err
 	}
@@ -800,6 +839,16 @@ func (s *Store) GetS3Storage(ctx context.Context, teamID, id uuid.UUID) (*S3Stor
 	return &st, err
 }
 
+func (s *Store) GetS3StorageSecrets(ctx context.Context, teamID, id uuid.UUID) (accessKeyEnc, secretKeyEnc string, err error) {
+	err = s.Pool.QueryRow(ctx, `
+		SELECT access_key_enc, secret_key_enc FROM s3_storages WHERE id=$1 AND team_id=$2
+	`, id, teamID).Scan(&accessKeyEnc, &secretKeyEnc)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", "", ErrNotFound
+	}
+	return accessKeyEnc, secretKeyEnc, err
+}
+
 func (s *Store) DeleteS3Storage(ctx context.Context, teamID, id uuid.UUID) error {
 	tag, err := s.Pool.Exec(ctx, `DELETE FROM s3_storages WHERE id=$1 AND team_id=$2`, id, teamID)
 	if err != nil {
@@ -826,6 +875,18 @@ func (s *Store) CreateScheduledBackup(ctx context.Context, teamID uuid.UUID, res
 	`, teamID, resourceType, resourceID, s3ID, frequency, retention).Scan(
 		&b.ID, &b.TeamID, &b.ResourceType, &b.ResourceID, &b.S3StorageID, &b.Frequency, &b.Enabled, &b.Retention, &b.CreatedAt,
 	)
+	return &b, err
+}
+
+func (s *Store) GetScheduledBackup(ctx context.Context, teamID, id uuid.UUID) (*ScheduledBackup, error) {
+	var b ScheduledBackup
+	err := s.Pool.QueryRow(ctx, `
+		SELECT id, team_id, resource_type, resource_id, s3_storage_id, frequency, enabled, retention, created_at
+		FROM scheduled_backups WHERE id=$1 AND team_id=$2
+	`, id, teamID).Scan(&b.ID, &b.TeamID, &b.ResourceType, &b.ResourceID, &b.S3StorageID, &b.Frequency, &b.Enabled, &b.Retention, &b.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
 	return &b, err
 }
 
@@ -858,6 +919,8 @@ type BackupExecution struct {
 	Status            string     `json:"status"`
 	SizeBytes         int64      `json:"size_bytes"`
 	Filename          string     `json:"filename"`
+	S3Uploaded        bool       `json:"s3_uploaded"`
+	S3Key             string     `json:"s3_key,omitempty"`
 	ErrorMessage      string     `json:"error_message"`
 	StartedAt         time.Time  `json:"started_at"`
 	FinishedAt        *time.Time `json:"finished_at,omitempty"`
@@ -868,11 +931,18 @@ func (s *Store) CreateBackupExecution(ctx context.Context, teamID uuid.UUID, res
 	err := s.Pool.QueryRow(ctx, `
 		INSERT INTO backup_executions (team_id, resource_type, resource_id, status, filename)
 		VALUES ($1,$2,$3,'running',$4)
-		RETURNING id, team_id, scheduled_backup_id, resource_type, resource_id, status, size_bytes, filename, error_message, started_at, finished_at
+		RETURNING id, team_id, scheduled_backup_id, resource_type, resource_id, status, size_bytes, filename, s3_uploaded, s3_key, error_message, started_at, finished_at
 	`, teamID, resourceType, resourceID, filename).Scan(
-		&b.ID, &b.TeamID, &b.ScheduledBackupID, &b.ResourceType, &b.ResourceID, &b.Status, &b.SizeBytes, &b.Filename, &b.ErrorMessage, &b.StartedAt, &b.FinishedAt,
+		&b.ID, &b.TeamID, &b.ScheduledBackupID, &b.ResourceType, &b.ResourceID, &b.Status, &b.SizeBytes, &b.Filename, &b.S3Uploaded, &b.S3Key, &b.ErrorMessage, &b.StartedAt, &b.FinishedAt,
 	)
 	return &b, err
+}
+
+func (s *Store) MarkBackupS3Uploaded(ctx context.Context, execID uuid.UUID, key string) error {
+	_, err := s.Pool.Exec(ctx, `
+		UPDATE backup_executions SET s3_uploaded=TRUE, s3_key=$2 WHERE id=$1
+	`, execID, key)
+	return err
 }
 
 func (s *Store) FinishBackupExecution(ctx context.Context, id uuid.UUID, status string, sizeBytes int64, errMsg string) error {
@@ -886,7 +956,7 @@ func (s *Store) FinishBackupExecution(ctx context.Context, id uuid.UUID, status 
 
 func (s *Store) ListBackupExecutions(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID) ([]BackupExecution, error) {
 	rows, err := s.Pool.Query(ctx, `
-		SELECT id, team_id, scheduled_backup_id, resource_type, resource_id, status, size_bytes, filename, error_message, started_at, finished_at
+		SELECT id, team_id, scheduled_backup_id, resource_type, resource_id, status, size_bytes, filename, s3_uploaded, s3_key, error_message, started_at, finished_at
 		FROM backup_executions
 		WHERE team_id=$1 AND resource_type=$2 AND resource_id=$3
 		ORDER BY started_at DESC
@@ -899,7 +969,7 @@ func (s *Store) ListBackupExecutions(ctx context.Context, teamID uuid.UUID, reso
 	var out []BackupExecution
 	for rows.Next() {
 		var b BackupExecution
-		if err := rows.Scan(&b.ID, &b.TeamID, &b.ScheduledBackupID, &b.ResourceType, &b.ResourceID, &b.Status, &b.SizeBytes, &b.Filename, &b.ErrorMessage, &b.StartedAt, &b.FinishedAt); err != nil {
+		if err := rows.Scan(&b.ID, &b.TeamID, &b.ScheduledBackupID, &b.ResourceType, &b.ResourceID, &b.Status, &b.SizeBytes, &b.Filename, &b.S3Uploaded, &b.S3Key, &b.ErrorMessage, &b.StartedAt, &b.FinishedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, b)
@@ -910,10 +980,10 @@ func (s *Store) ListBackupExecutions(ctx context.Context, teamID uuid.UUID, reso
 func (s *Store) GetBackupExecution(ctx context.Context, teamID, id uuid.UUID) (*BackupExecution, error) {
 	var b BackupExecution
 	err := s.Pool.QueryRow(ctx, `
-		SELECT id, team_id, scheduled_backup_id, resource_type, resource_id, status, size_bytes, filename, error_message, started_at, finished_at
+		SELECT id, team_id, scheduled_backup_id, resource_type, resource_id, status, size_bytes, filename, s3_uploaded, s3_key, error_message, started_at, finished_at
 		FROM backup_executions WHERE id=$1 AND team_id=$2
 	`, id, teamID).Scan(
-		&b.ID, &b.TeamID, &b.ScheduledBackupID, &b.ResourceType, &b.ResourceID, &b.Status, &b.SizeBytes, &b.Filename, &b.ErrorMessage, &b.StartedAt, &b.FinishedAt,
+		&b.ID, &b.TeamID, &b.ScheduledBackupID, &b.ResourceType, &b.ResourceID, &b.Status, &b.SizeBytes, &b.Filename, &b.S3Uploaded, &b.S3Key, &b.ErrorMessage, &b.StartedAt, &b.FinishedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
@@ -1063,9 +1133,9 @@ func (s *Store) CreateBackupExecutionScheduled(ctx context.Context, teamID uuid.
 	err := s.Pool.QueryRow(ctx, `
 		INSERT INTO backup_executions (team_id, scheduled_backup_id, resource_type, resource_id, status, filename)
 		VALUES ($1,$2,$3,$4,'running',$5)
-		RETURNING id, team_id, scheduled_backup_id, resource_type, resource_id, status, size_bytes, filename, error_message, started_at, finished_at
+		RETURNING id, team_id, scheduled_backup_id, resource_type, resource_id, status, size_bytes, filename, s3_uploaded, s3_key, error_message, started_at, finished_at
 	`, teamID, scheduledID, resourceType, resourceID, filename).Scan(
-		&b.ID, &b.TeamID, &b.ScheduledBackupID, &b.ResourceType, &b.ResourceID, &b.Status, &b.SizeBytes, &b.Filename, &b.ErrorMessage, &b.StartedAt, &b.FinishedAt,
+		&b.ID, &b.TeamID, &b.ScheduledBackupID, &b.ResourceType, &b.ResourceID, &b.Status, &b.SizeBytes, &b.Filename, &b.S3Uploaded, &b.S3Key, &b.ErrorMessage, &b.StartedAt, &b.FinishedAt,
 	)
 	return &b, err
 }

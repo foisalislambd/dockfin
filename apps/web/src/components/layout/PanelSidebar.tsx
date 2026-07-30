@@ -96,6 +96,13 @@ export function PanelSidebar() {
       </nav>
 
       <div className="shrink-0 space-y-1 border-t border-gray-200 p-2.5 dark:border-gray-800">
+        {showLabels && (
+          <p className="px-2.5 pb-1 text-[10px] leading-relaxed text-gray-400 dark:text-gray-500">
+            {brand.copyright}
+            <br />
+            MIT License
+          </p>
+        )}
         {isDesktop && (
           <button
             type="button"

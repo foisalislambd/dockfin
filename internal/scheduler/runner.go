@@ -41,9 +41,12 @@ func (r *Runner) Stop() {
 }
 
 func (r *Runner) loop(ctx context.Context) {
-	// Align to next minute boundary, then tick every minute.
+	// Align to next local-minute boundary, then tick every minute.
 	now := time.Now()
 	wait := time.Until(now.Truncate(time.Minute).Add(time.Minute))
+	if wait <= 0 {
+		wait = time.Minute
+	}
 	timer := time.NewTimer(wait)
 	defer timer.Stop()
 	for {
@@ -58,7 +61,9 @@ func (r *Runner) loop(ctx context.Context) {
 }
 
 func (r *Runner) tick(ctx context.Context) {
-	minute := time.Now().UTC().Truncate(time.Minute)
+	// Use local wall clock so cron expressions match the host timezone
+	// (same clock used to align the ticker).
+	minute := time.Now().Truncate(time.Minute)
 	r.runTasks(ctx, minute)
 	r.runBackups(ctx, minute)
 }
@@ -74,22 +79,35 @@ func (r *Runner) runTasks(ctx context.Context, minute time.Time) {
 			continue
 		}
 		ran, err := r.Store.TaskRanThisMinute(ctx, t.ID, minute)
-		if err != nil || ran {
+		if err != nil {
+			r.Logger.Error("task ran check", "task", t.ID, "err", err)
 			continue
 		}
-		go r.executeTask(context.Background(), t)
+		if ran {
+			continue
+		}
+		// Claim the minute synchronously so concurrent ticks cannot double-run.
+		execID, err := r.Store.CreateTaskExecution(ctx, t.TeamID, t.ID)
+		if err != nil {
+			r.Logger.Error("create task execution", "task", t.ID, "err", err)
+			continue
+		}
+		go r.executeTask(context.Background(), t, execID)
 	}
 }
 
-func (r *Runner) executeTask(ctx context.Context, t store.ScheduledTaskRow) {
-	execID, err := r.Store.CreateTaskExecution(ctx, t.TeamID, t.ID)
-	if err != nil {
-		r.Logger.Error("create task execution", "task", t.ID, "err", err)
-		return
-	}
+func (r *Runner) executeTask(ctx context.Context, t store.ScheduledTaskRow, execID uuid.UUID) {
+	done := false
+	defer func() {
+		if !done {
+			_ = r.Store.FinishTaskExecution(context.Background(), execID, "failed", "interrupted")
+		}
+	}()
+
 	client, container, err := r.dialForResource(ctx, t.TeamID, t.ResourceType, t.ResourceID)
 	if err != nil {
 		_ = r.Store.FinishTaskExecution(ctx, execID, "failed", err.Error())
+		done = true
 		return
 	}
 	cmd := t.Command
@@ -114,6 +132,7 @@ func (r *Runner) executeTask(ctx context.Context, t store.ScheduledTaskRow) {
 		}
 	}
 	_ = r.Store.FinishTaskExecution(ctx, execID, status, out)
+	done = true
 	r.Logger.Info("scheduled task ran", "task", t.ID, "name", t.Name, "status", status)
 }
 
@@ -128,48 +147,108 @@ func (r *Runner) runBackups(ctx context.Context, minute time.Time) {
 			continue
 		}
 		ran, err := r.Store.BackupRanThisMinute(ctx, b.ID, minute)
-		if err != nil || ran {
+		if err != nil {
+			r.Logger.Error("backup ran check", "backup", b.ID, "err", err)
 			continue
 		}
-		go r.executeBackup(context.Background(), b)
+		if ran {
+			continue
+		}
+		sid := b.ID
+		if b.ResourceType != "database" {
+			exec, err := r.Store.CreateBackupExecutionScheduled(ctx, b.TeamID, &sid, b.ResourceType, b.ResourceID, "skipped")
+			if err == nil {
+				_ = r.Store.FinishBackupExecution(ctx, exec.ID, "failed", 0, "only database resources are supported")
+			}
+			continue
+		}
+		db, err := r.Store.GetDatabase(ctx, b.TeamID, b.ResourceID)
+		if err != nil {
+			exec, cerr := r.Store.CreateBackupExecutionScheduled(ctx, b.TeamID, &sid, "database", b.ResourceID, "skipped")
+			if cerr == nil {
+				_ = r.Store.FinishBackupExecution(ctx, exec.ID, "failed", 0, err.Error())
+			}
+			continue
+		}
+		if db.Engine != "postgresql" {
+			exec, err := r.Store.CreateBackupExecutionScheduled(ctx, b.TeamID, &sid, "database", db.ID, "skipped")
+			if err == nil {
+				_ = r.Store.FinishBackupExecution(ctx, exec.ID, "failed", 0, "scheduled backup currently supports postgresql only")
+			}
+			continue
+		}
+		filename := backup.DefaultFilename(db.Engine, db.ID.String())
+		exec, err := r.Store.CreateBackupExecutionScheduled(ctx, b.TeamID, &sid, "database", db.ID, filename)
+		if err != nil {
+			r.Logger.Error("create backup execution", "err", err)
+			continue
+		}
+		go r.executeBackup(context.Background(), db, exec.ID, filename, b.S3StorageID)
 	}
 }
 
-func (r *Runner) executeBackup(ctx context.Context, b store.ScheduledBackupRow) {
-	if b.ResourceType != "database" {
-		return
-	}
-	db, err := r.Store.GetDatabase(ctx, b.TeamID, b.ResourceID)
-	if err != nil {
-		r.Logger.Error("scheduled backup db", "err", err)
-		return
-	}
-	if db.Engine != "postgresql" {
-		r.Logger.Warn("scheduled backup skipped: engine unsupported", "engine", db.Engine, "db", db.ID)
-		return
-	}
-	filename := backup.DefaultFilename(db.Engine, db.ID.String())
-	sid := b.ID
-	exec, err := r.Store.CreateBackupExecutionScheduled(ctx, b.TeamID, &sid, "database", db.ID, filename)
-	if err != nil {
-		r.Logger.Error("create backup execution", "err", err)
-		return
-	}
+func (r *Runner) executeBackup(ctx context.Context, db *store.Database, execID uuid.UUID, filename string, s3StorageID *uuid.UUID) {
+	done := false
+	defer func() {
+		if !done {
+			_ = r.Store.FinishBackupExecution(context.Background(), execID, "failed", 0, "interrupted")
+		}
+	}()
+
 	client, password, err := r.dialDatabase(ctx, db)
 	if err != nil {
-		_ = r.Store.FinishBackupExecution(ctx, exec.ID, "failed", 0, err.Error())
+		_ = r.Store.FinishBackupExecution(ctx, execID, "failed", 0, err.Error())
+		done = true
 		return
 	}
 	path := backup.DumpPath(filename)
 	container := "goolify-db-" + db.ID.String()
 	if err := backup.DumpPostgres(client, container, password, path); err != nil {
-		_ = r.Store.FinishBackupExecution(ctx, exec.ID, "failed", 0, err.Error())
+		_ = r.Store.FinishBackupExecution(ctx, execID, "failed", 0, err.Error())
+		done = true
 		return
 	}
 	size := backup.FileSize(client, path)
-	_ = r.Store.FinishBackupExecution(ctx, exec.ID, "finished", size, "")
+	_ = r.Store.FinishBackupExecution(ctx, execID, "finished", size, "")
+	done = true
 	r.Logger.Info("scheduled backup finished", "db", db.ID, "file", filename, "bytes", size)
-	// S3 upload intentionally deferred (no SDK wired yet); local dump is durable on the server.
+
+	if s3StorageID != nil {
+		if err := r.uploadBackupToS3(ctx, client, db, execID, filename, path, *s3StorageID); err != nil {
+			r.Logger.Error("s3 upload after backup", "db", db.ID, "err", err)
+		}
+	}
+}
+
+func (r *Runner) uploadBackupToS3(ctx context.Context, client *ssh.Client, db *store.Database, execID uuid.UUID, filename, remotePath string, s3ID uuid.UUID) error {
+	st, err := r.Store.GetS3Storage(ctx, db.TeamID, s3ID)
+	if err != nil {
+		return err
+	}
+	akEnc, skEnc, err := r.Store.GetS3StorageSecrets(ctx, db.TeamID, s3ID)
+	if err != nil {
+		return err
+	}
+	accessKey, err := r.Store.Box.DecryptString(akEnc)
+	if err != nil {
+		return fmt.Errorf("decrypt access key: %w", err)
+	}
+	secretKey, err := r.Store.Box.DecryptString(skEnc)
+	if err != nil {
+		return fmt.Errorf("decrypt secret key: %w", err)
+	}
+	objectKey := "backups/" + db.ID.String() + "/" + filename
+	if err := backup.UploadRemoteToS3(client, remotePath, objectKey, backup.S3Creds{
+		Endpoint:  st.Endpoint,
+		Bucket:    st.Bucket,
+		Region:    st.Region,
+		AccessKey: accessKey,
+		SecretKey: secretKey,
+		PathStyle: st.PathStyle,
+	}); err != nil {
+		return err
+	}
+	return r.Store.MarkBackupS3Uploaded(ctx, execID, objectKey)
 }
 
 func (r *Runner) dialForResource(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID) (*ssh.Client, string, error) {

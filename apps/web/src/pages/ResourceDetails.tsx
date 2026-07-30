@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
+import { ServerTerminal } from '../components/Terminal'
 import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
 import { api } from '../lib/api'
 import { Btn, Input } from './Servers'
@@ -23,6 +24,7 @@ const SERVER_TABS = [
   { id: 'metrics', label: 'Metrics' },
   { id: 'proxy', label: 'Proxy' },
   { id: 'destinations', label: 'Destinations' },
+  { id: 'settings', label: 'Settings' },
   { id: 'terminal', label: 'Terminal' },
   { id: 'danger', label: 'Danger' },
 ]
@@ -104,6 +106,7 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Size</th>
               <th className="px-3 py-2">File</th>
+              <th className="px-3 py-2">S3</th>
               <th className="px-3 py-2">Actions</th>
             </tr>
           </thead>
@@ -121,6 +124,7 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
                 </td>
                 <td className="px-3 py-2">{formatBytes(b.size_bytes)}</td>
                 <td className="px-3 py-2 font-mono text-xs">{b.filename || '—'}</td>
+                <td className="px-3 py-2 text-xs">{b.s3_uploaded ? 'yes' : '—'}</td>
                 <td className="px-3 py-2">
                   {b.status === 'finished' && (
                     <button
@@ -141,7 +145,7 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
             ))}
             {!executions.data?.backup_executions?.length && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                   No backup runs yet.
                 </td>
               </tr>
@@ -652,12 +656,14 @@ export function ServerDetailPage() {
   const nav = useNavigate()
   const qc = useQueryClient()
   const [tab, setTab] = useState('overview')
-  const [command, setCommand] = useState('docker ps --format "{{.Names}}\t{{.Status}}"')
-  const [execOut, setExecOut] = useState('')
+  const [destName, setDestName] = useState('')
+  const [destKind, setDestKind] = useState('standalone')
+  const [destNetwork, setDestNetwork] = useState('goolify')
   useEffect(() => {
     setTab('overview')
-    setExecOut('')
-    setCommand('docker ps --format "{{.Names}}\t{{.Status}}"')
+    setDestName('')
+    setDestKind('standalone')
+    setDestNetwork('goolify')
   }, [serverId])
 
   const server = useQuery({ queryKey: ['server', serverId], queryFn: () => api.getServer(serverId) })
@@ -687,15 +693,25 @@ export function ServerDetailPage() {
       void nav({ to: '/servers' })
     },
   })
-  const exec = useMutation({
-    mutationFn: () => api.serverExec(serverId, command),
-    onSuccess: (data) => {
-      const parts = [data.stdout, data.stderr, data.output, data.error ? `error: ${data.error}` : '']
-        .filter(Boolean)
-        .join('\n')
-      setExecOut(parts || '(no output)')
+  const patchSettings = useMutation({
+    mutationFn: (body: { is_build_server?: boolean; is_swarm_manager?: boolean }) =>
+      api.patchServerSettings(serverId, body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['server', serverId] })
+      void qc.invalidateQueries({ queryKey: ['servers'] })
     },
-    onError: (e: Error) => setExecOut(e.message),
+  })
+  const createDest = useMutation({
+    mutationFn: () =>
+      api.createDestination(serverId, {
+        name: destName,
+        kind: destKind,
+        network: destNetwork || undefined,
+      }),
+    onSuccess: () => {
+      setDestName('')
+      void qc.invalidateQueries({ queryKey: ['destinations'] })
+    },
   })
 
   if (server.isLoading) return <p className="text-gray-500 dark:text-gray-400">Loading…</p>
@@ -740,6 +756,8 @@ export function ServerDetailPage() {
             <Meta label="Docker" value={s.is_usable ? s.docker_version || 'ok' : 'Unavailable'} />
             <Meta label="Proxy type" value={s.proxy_type || '—'} />
             <Meta label="Proxy status" value={s.proxy_status || '—'} />
+            <Meta label="Build server" value={s.is_build_server ? 'Yes' : 'No'} />
+            <Meta label="Swarm manager" value={s.is_swarm_manager ? 'Yes' : 'No'} />
           </div>
           {validate.error && <p className="mt-4 text-sm text-error-500">{validate.error.message}</p>}
         </TabPanel>
@@ -760,11 +778,22 @@ export function ServerDetailPage() {
               <Meta label="Status" value={s.proxy_status || '—'} />
             </div>
             <div className="flex flex-wrap gap-2">
-              <Btn primary onClick={() => startProxy.mutate()}>
+              <Btn
+                primary
+                onClick={() => {
+                  if (s.proxy_type === 'none' || startProxy.isPending) return
+                  startProxy.mutate()
+                }}
+              >
                 Start proxy
               </Btn>
               <Btn onClick={() => stopProxy.mutate()}>Stop proxy</Btn>
             </div>
+            {s.proxy_type === 'none' && (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Proxy is disabled for this server. Recreate with Traefik or Caddy to enable routing.
+              </p>
+            )}
             {(startProxy.error || stopProxy.error) && (
               <p className="text-sm text-error-500">
                 {(startProxy.error || stopProxy.error)?.message}
@@ -780,13 +809,79 @@ export function ServerDetailPage() {
             {serverDests.map((d) => (
               <div key={d.id} className="panel-card p-4">
                 <div className="font-medium text-gray-900 dark:text-white">{d.name}</div>
-                <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{d.network}</div>
+                <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">
+                  {d.kind || 'standalone'} · {d.network}
+                </div>
               </div>
             ))}
             {!serverDests.length && (
               <div className="panel-card col-span-full p-8 text-center text-sm text-gray-500">
-                No destinations on this server yet. They are created when the server is added.
+                No destinations on this server yet.
               </div>
+            )}
+          </div>
+          <form
+            className="panel-card mt-4 space-y-3 p-5"
+            onSubmit={(e) => {
+              e.preventDefault()
+              createDest.mutate()
+            }}
+          >
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Add destination</h2>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Input label="Name" value={destName} onChange={setDestName} />
+              <label className="block text-sm">
+                <span className="mb-1 block text-gray-500 dark:text-gray-400">Kind</span>
+                <select
+                  value={destKind}
+                  onChange={(e) => setDestKind(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-800 dark:bg-gray-900"
+                >
+                  <option value="standalone">Standalone</option>
+                  <option value="swarm">Swarm</option>
+                </select>
+              </label>
+              <Input label="Network" value={destNetwork} onChange={setDestNetwork} required={false} />
+            </div>
+            {createDest.error && <p className="text-sm text-error-500">{createDest.error.message}</p>}
+            <Btn primary type="submit">
+              {createDest.isPending ? 'Creating…' : 'Create destination'}
+            </Btn>
+          </form>
+        </TabPanel>
+      )}
+
+      {tab === 'settings' && (
+        <TabPanel>
+          <div className="panel-card space-y-4 p-5">
+            <label className="flex items-center gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={Boolean(s.is_build_server)}
+                onChange={(e) => patchSettings.mutate({ is_build_server: e.target.checked })}
+              />
+              <span>
+                <span className="font-medium text-gray-900 dark:text-white">Build server</span>
+                <span className="mt-0.5 block text-gray-500 dark:text-gray-400">
+                  Use this host to build images, then transfer to deploy servers.
+                </span>
+              </span>
+            </label>
+            <label className="flex items-center gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={Boolean(s.is_swarm_manager)}
+                onChange={(e) => patchSettings.mutate({ is_swarm_manager: e.target.checked })}
+              />
+              <span>
+                <span className="font-medium text-gray-900 dark:text-white">Swarm manager</span>
+                <span className="mt-0.5 block text-gray-500 dark:text-gray-400">
+                  Mark this node as a Docker Swarm manager for swarm destinations.
+                </span>
+              </span>
+            </label>
+            {patchSettings.error && (
+              <p className="text-sm text-error-500">{patchSettings.error.message}</p>
             )}
           </div>
         </TabPanel>
@@ -794,25 +889,7 @@ export function ServerDetailPage() {
 
       {tab === 'terminal' && (
         <TabPanel>
-          <div className="panel-card space-y-3 p-5">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Non-interactive remote exec over SSH (not a full xterm session).
-            </p>
-            <label className="block text-sm">
-              <span className="mb-1 block text-gray-500 dark:text-gray-400">Command</span>
-              <input
-                value={command}
-                onChange={(e) => setCommand(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 font-mono text-sm dark:border-gray-800 dark:bg-gray-900"
-              />
-            </label>
-            <Btn primary onClick={() => exec.mutate()}>
-              {exec.isPending ? 'Running…' : 'Run'}
-            </Btn>
-            <pre className="max-h-80 overflow-auto rounded-lg border border-gray-200 bg-white p-3 font-mono text-xs dark:border-gray-800 dark:bg-gray-900">
-              {execOut || 'Output will appear here.'}
-            </pre>
-          </div>
+          <ServerTerminal serverId={serverId} />
         </TabPanel>
       )}
 

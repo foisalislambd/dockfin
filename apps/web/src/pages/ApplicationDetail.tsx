@@ -27,6 +27,7 @@ export function ApplicationDetailPage() {
 
   const app = useQuery({ queryKey: ['application', appId], queryFn: () => api.application(appId) })
   const dests = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
+  const gitSources = useQuery({ queryKey: ['git-sources'], queryFn: api.gitSources })
   const deps = useQuery({
     queryKey: ['deployments', appId],
     queryFn: () => api.deployments(appId),
@@ -52,6 +53,8 @@ export function ApplicationDetailPage() {
     docker_registry_image_name: '',
     docker_registry_image_tag: '',
     destination_id: '',
+    git_source_id: '',
+    is_build_server_enabled: false,
   })
   const [envKey, setEnvKey] = useState('')
   const [envValue, setEnvValue] = useState('')
@@ -99,6 +102,8 @@ export function ApplicationDetailPage() {
       docker_registry_image_name: '',
       docker_registry_image_tag: '',
       destination_id: '',
+      git_source_id: '',
+      is_build_server_enabled: false,
     })
   }, [appId])
 
@@ -114,6 +119,8 @@ export function ApplicationDetailPage() {
       docker_registry_image_name: app.data.docker_registry_image_name || '',
       docker_registry_image_tag: app.data.docker_registry_image_tag || '',
       destination_id: app.data.destination_id || '',
+      git_source_id: app.data.git_source_id || '',
+      is_build_server_enabled: Boolean(app.data.is_build_server_enabled),
     })
   }, [app.data, appId])
 
@@ -135,6 +142,8 @@ export function ApplicationDetailPage() {
         docker_registry_image_name: updated.docker_registry_image_name || '',
         docker_registry_image_tag: updated.docker_registry_image_tag || '',
         destination_id: updated.destination_id || '',
+        git_source_id: updated.git_source_id || '',
+        is_build_server_enabled: Boolean(updated.is_build_server_enabled),
       })
     },
   })
@@ -363,10 +372,43 @@ export function ApplicationDetailPage() {
                   <option value="">Select…</option>
                   {(dests.data?.destinations || []).map((d) => (
                     <option key={d.id} value={d.id}>
-                      {d.name} ({d.network})
+                      {d.name} ({d.kind || 'standalone'} · {d.network})
                     </option>
                   ))}
                 </select>
+              </label>
+              {a.build_pack !== 'dockerimage' && (
+                <label className="block text-sm sm:col-span-2">
+                  <span className="mb-1 block text-gray-500 dark:text-gray-400">Git source</span>
+                  <select
+                    value={cfg.git_source_id}
+                    onChange={(e) => setCfg({ ...cfg, git_source_id: e.target.value })}
+                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-800 dark:bg-gray-900"
+                  >
+                    <option value="">None (public HTTPS clone)</option>
+                    {(gitSources.data?.git_sources || []).map((gs) => (
+                      <option key={gs.id} value={gs.id}>
+                        {gs.name}
+                        {gs.installation_id ? '' : ' (not installed)'}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <label className="flex items-center gap-3 text-sm sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={cfg.is_build_server_enabled}
+                  onChange={(e) =>
+                    setCfg({ ...cfg, is_build_server_enabled: e.target.checked })
+                  }
+                />
+                <span>
+                  Build on dedicated build server
+                  <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
+                    Requires at least one server marked as a build server.
+                  </span>
+                </span>
               </label>
             </div>
             {save.error && <p className="text-sm text-error-500">{save.error.message}</p>}

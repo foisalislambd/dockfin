@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
+import { MIT_LICENSE_TEXT } from '../config/app.config'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { Btn, Header, Input, Modal } from './Servers'
@@ -534,6 +535,10 @@ export function SettingsPage() {
             <dd className="mt-1 font-mono text-sm">{version.data?.version || '—'}</dd>
           </div>
           <div>
+            <dt className="text-xs text-gray-500 dark:text-gray-400">License</dt>
+            <dd className="mt-1 text-sm">{version.data?.license || 'MIT'}</dd>
+          </div>
+          <div>
             <dt className="text-xs text-gray-500 dark:text-gray-400">API</dt>
             <dd className="mt-1 font-mono text-sm">/api/v1</dd>
           </div>
@@ -542,6 +547,16 @@ export function SettingsPage() {
             <dd className="mt-1 font-mono text-sm">/data/goolify</dd>
           </div>
         </dl>
+      </div>
+
+      <div className="panel-card space-y-4 p-6">
+        <h2 className="text-lg font-medium text-gray-900 dark:text-white">License</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Goolify is free and open source software licensed under the MIT License.
+        </p>
+        <pre className="max-h-72 overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
+          {MIT_LICENSE_TEXT}
+        </pre>
       </div>
 
       <div className="panel-card p-6">

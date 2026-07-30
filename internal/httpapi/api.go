@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/goolify/goolify/internal/config"
 	"github.com/goolify/goolify/internal/store"
+	"github.com/goolify/goolify/internal/terminal"
 	"github.com/goolify/goolify/internal/worker"
 	"github.com/goolify/goolify/internal/ws"
 )
@@ -29,12 +30,13 @@ const (
 )
 
 type API struct {
-	Cfg    *config.Config
-	Store  *store.Store
-	Queue  *worker.Queue
-	Hub    *ws.Hub
-	SSH    interface{ Close() } // *sshx.Pool
-	Logger *slog.Logger
+	Cfg       *config.Config
+	Store     *store.Store
+	Queue     *worker.Queue
+	Hub       *ws.Hub
+	Terminals *terminal.Manager
+	SSH       interface{ Close() } // *sshx.Pool
+	Logger    *slog.Logger
 }
 
 func (a *API) Router() http.Handler {
@@ -54,7 +56,11 @@ func (a *API) Router() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "service": "goolify"})
 	})
 	r.Get("/api/v1/version", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{"version": "0.1.0", "name": "Goolify"})
+		writeJSON(w, http.StatusOK, map[string]any{
+			"version": "0.1.0",
+			"name":    "Goolify",
+			"license": "MIT",
+		})
 	})
 
 	r.Route("/api/v1", func(r chi.Router) {
@@ -66,6 +72,7 @@ func (a *API) Router() http.Handler {
 
 		// Public ingress endpoints (no session cookie)
 		r.Post("/webhooks/git/{appID}", a.handleGitWebhook)
+		r.Get("/webhooks/github/app/callback", a.handleGitHubAppCallback)
 		r.Post("/sentinel/metrics", a.handleSentinelMetrics)
 
 		r.Group(func(r chi.Router) {
@@ -98,11 +105,25 @@ func (a *API) Router() http.Handler {
 				r.Post("/", a.handleCreateServer)
 				r.Get("/{serverID}", a.handleGetServer)
 				r.Delete("/{serverID}", a.handleDeleteServer)
+				r.Patch("/{serverID}/settings", a.handlePatchServerSettings)
+				r.Post("/{serverID}/destinations", a.handleCreateDestination)
+				r.Post("/{serverID}/terminal", a.handleCreateTerminal)
 				r.Post("/{serverID}/validate", a.handleValidateServer)
 				r.Post("/{serverID}/proxy/start", a.handleStartProxy)
 				r.Post("/{serverID}/proxy/stop", a.handleStopProxy)
 				r.Post("/{serverID}/exec", a.handleServerExec)
 				r.Get("/{serverID}/metrics", a.handleListServerMetrics)
+			})
+
+			r.Get("/terminal/ws/{sessionID}", a.handleTerminalWS)
+
+			r.Route("/git-sources", func(r chi.Router) {
+				r.Get("/", a.handleListGitSources)
+				r.Post("/", a.handleCreateGitSource)
+				r.Get("/{sourceID}", a.handleGetGitSource)
+				r.Delete("/{sourceID}", a.handleDeleteGitSource)
+				r.Get("/{sourceID}/install-url", a.handleGitSourceInstallURL)
+				r.Get("/{sourceID}/repositories", a.handleGitSourceRepositories)
 			})
 
 			r.Get("/destinations", a.handleListDestinations)
@@ -191,7 +212,7 @@ func (a *API) Router() http.Handler {
 func timeoutExceptSSE(d time.Duration) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if strings.HasSuffix(r.URL.Path, "/logs/stream") {
+			if strings.HasSuffix(r.URL.Path, "/logs/stream") || strings.Contains(r.URL.Path, "/terminal/ws/") {
 				next.ServeHTTP(w, r)
 				return
 			}

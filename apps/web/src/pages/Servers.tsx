@@ -69,7 +69,10 @@ export function ServersPage() {
                 <td className="px-4 py-3">
                   <Status ok={s.is_usable} label={s.is_usable ? `Docker ${s.docker_version || 'ok'}` : s.is_reachable ? 'No Docker' : 'Unreachable'} />
                 </td>
-                <td className="px-4 py-3">{s.proxy_status}</td>
+                <td className="px-4 py-3">
+                  <span className="text-xs text-gray-500">{s.proxy_type || 'traefik'}</span>
+                  {s.proxy_status ? ` · ${s.proxy_status}` : ''}
+                </td>
                 <td className="px-4 py-3 space-x-2">
                   <Link
                     to="/servers/$serverId"
@@ -88,6 +91,7 @@ export function ServersPage() {
                   <button
                     className="text-brand-600 dark:text-brand-400"
                     type="button"
+                    disabled={s.proxy_type === 'none'}
                     onClick={() => void api.startProxy(s.id).then(() => qc.invalidateQueries({ queryKey: ['servers'] }))}
                   >
                     Start proxy
@@ -130,7 +134,14 @@ function ServerForm({
   error,
 }: {
   keys: { id: string; name: string }[]
-  onSubmit: (b: { name: string; ip: string; port: number; user_name: string; private_key_id?: string }) => void
+  onSubmit: (b: {
+    name: string
+    ip: string
+    port: number
+    user_name: string
+    private_key_id?: string
+    proxy_type?: string
+  }) => void
   error?: string
 }) {
   const [name, setName] = useState('')
@@ -138,12 +149,20 @@ function ServerForm({
   const [port, setPort] = useState(22)
   const [user, setUser] = useState('root')
   const [keyId, setKeyId] = useState(keys[0]?.id || '')
+  const [proxyType, setProxyType] = useState('traefik')
   return (
     <form
       className="space-y-3"
       onSubmit={(e: FormEvent) => {
         e.preventDefault()
-        onSubmit({ name, ip, port, user_name: user, private_key_id: keyId || undefined })
+        onSubmit({
+          name,
+          ip,
+          port,
+          user_name: user,
+          private_key_id: keyId || undefined,
+          proxy_type: proxyType,
+        })
       }}
     >
       <Input label="Name" value={name} onChange={setName} />
@@ -157,6 +176,18 @@ function ServerForm({
           onChange={(e) => setPort(Number(e.target.value))}
           className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
         />
+      </label>
+      <label className="block text-sm">
+        <span className="mb-1 block text-gray-500 dark:text-gray-400">Proxy</span>
+        <select
+          value={proxyType}
+          onChange={(e) => setProxyType(e.target.value)}
+          className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
+        >
+          <option value="traefik">Traefik</option>
+          <option value="caddy">Caddy</option>
+          <option value="none">None</option>
+        </select>
       </label>
       <label className="block text-sm">
         <span className="mb-1 block text-gray-500 dark:text-gray-400">SSH key</span>

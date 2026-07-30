@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -93,6 +94,12 @@ func (a *API) handleCreateServer(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.ProxyType == "" {
 		body.ProxyType = "traefik"
+	}
+	switch body.ProxyType {
+	case "traefik", "caddy", "none":
+	default:
+		writeError(w, http.StatusBadRequest, "proxy_type must be traefik, caddy, or none")
+		return
 	}
 	var keyID *uuid.UUID
 	if body.PrivateKeyID != "" {
@@ -221,17 +228,32 @@ func (a *API) handleStartProxy(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
+	teamID := currentTeamID(r)
+	srv, err := a.Store.GetServer(r.Context(), teamID, id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
 	client, err := a.dialServer(r, id)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := proxy.StartTraefik(client, a.Cfg.TraefikImage, "goolify"); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	network := "goolify"
+	if dests, err := a.Store.ListDestinations(r.Context(), teamID, &id); err == nil && len(dests) > 0 && dests[0].Network != "" {
+		network = dests[0].Network
+	}
+	if err := proxy.StartProxy(client, srv.ProxyType, a.Cfg.TraefikImage, a.Cfg.CaddyImage, network); err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "disabled") || strings.Contains(msg, "unsupported") {
+			writeError(w, http.StatusBadRequest, msg)
+			return
+		}
+		writeError(w, http.StatusInternalServerError, msg)
 		return
 	}
-	_ = a.Store.UpdateServerStatus(r.Context(), id, true, true, "", "running")
-	writeJSON(w, http.StatusOK, map[string]string{"status": "running"})
+	_ = a.Store.UpdateServerProxyStatus(r.Context(), id, "running")
+	writeJSON(w, http.StatusOK, map[string]string{"status": "running", "proxy_type": srv.ProxyType})
 }
 
 func (a *API) handleStopProxy(w http.ResponseWriter, r *http.Request) {
@@ -249,7 +271,7 @@ func (a *API) handleStopProxy(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	_ = a.Store.UpdateServerStatus(r.Context(), id, true, true, "", "exited")
+	_ = a.Store.UpdateServerProxyStatus(r.Context(), id, "exited")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "exited"})
 }
 
@@ -270,3 +292,70 @@ func (a *API) handleListDestinations(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"destinations": dests})
 }
+
+func (a *API) handlePatchServerSettings(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "serverID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var body struct {
+		IsBuildServer  *bool `json:"is_build_server"`
+		IsSwarmManager *bool `json:"is_swarm_manager"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	teamID := currentTeamID(r)
+	if _, err := a.Store.GetServer(r.Context(), teamID, id); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if body.IsBuildServer != nil {
+		if err := a.Store.SetServerBuildServer(r.Context(), teamID, id, *body.IsBuildServer); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+	}
+	if body.IsSwarmManager != nil {
+		if err := a.Store.SetServerSwarmManager(r.Context(), teamID, id, *body.IsSwarmManager); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+}
+
+func (a *API) handleCreateDestination(w http.ResponseWriter, r *http.Request) {
+	serverID, err := uuid.Parse(chi.URLParam(r, "serverID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var body struct {
+		Name    string `json:"name"`
+		Kind    string `json:"kind"`
+		Network string `json:"network"`
+	}
+	if err := decodeJSON(r, &body); err != nil || body.Name == "" {
+		writeError(w, http.StatusBadRequest, "name required")
+		return
+	}
+	if body.Kind == "" {
+		body.Kind = "standalone"
+	}
+	switch body.Kind {
+	case "standalone", "swarm":
+	default:
+		writeError(w, http.StatusBadRequest, "kind must be standalone or swarm")
+		return
+	}
+	dest, err := a.Store.CreateDestination(r.Context(), currentTeamID(r), serverID, body.Name, body.Kind, body.Network)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, dest)
+}
+

@@ -2,7 +2,7 @@
 
 **An open-source, self-hosted PaaS** — deploy applications, databases, and one-click services on your own servers over SSH + Docker.
 
-Built with **Go**, **React (Vite)**, and **PostgreSQL**. Fully open source under [Apache-2.0](LICENSE). No cloud paywall. No Stripe. No vendor lock-in.
+Built with **Go**, **React (Vite)**, and **PostgreSQL**. Fully open source under [MIT](LICENSE). No cloud paywall. No Stripe. No vendor lock-in.
 
 > Configurations are written to your servers under `/data/goolify/…`. If you stop using Goolify, your containers and compose files remain manageable without the control plane.
 
@@ -18,7 +18,7 @@ Built with **Go**, **React (Vite)**, and **PostgreSQL**. Fully open source under
 | Better dashboard UX | React SPA (deep links, command palette, optimistic UI) |
 | Simpler data model | Unified `databases` / `destinations` tables, `team_id` everywhere |
 | Safer remote execution | Argv-style SSH commands, host-key trust (TOFU), encrypted secrets |
-| True open source | Apache-2.0; no paid-only features |
+| True open source | MIT; no paid-only features |
 
 Goolify is inspired by Coolify’s product model (`Team → Project → Environment → resources`, SSH agentless Docker hosts, Traefik proxy). It is **not** a PHP/Livewire port.
 
@@ -209,6 +209,6 @@ Do not open public issues for sensitive vulnerabilities. See [SECURITY.md](SECUR
 
 ## License
 
-Licensed under the [Apache License 2.0](LICENSE).
+Licensed under the [MIT License](LICENSE).
 
 Coolify is a separate project with its own license and trademark. Goolify is an independent open-source alternative inspired by the same problem space.

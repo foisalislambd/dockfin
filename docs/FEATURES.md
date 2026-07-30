@@ -16,8 +16,8 @@
 - [x] Traefik proxy start/stop
 - [x] SSH host key TOFU / fingerprint persistence
 - [x] Remote exec helper
-- [ ] Caddy proxy
-- [ ] Swarm destinations
+- [x] Caddy proxy
+- [x] Swarm destinations
 
 ## Projects
 - [x] Projects + production environment
@@ -33,8 +33,9 @@
 - [x] PR preview create on webhook
 - [x] Runtime env injection, limits, healthcheck wait
 - [x] HTTPS Traefik labels
-- [ ] Dedicated build server split
-- [ ] Full GitHub App OAuth install UI
+- [x] HTTPS Caddy labels (caddy-docker-proxy)
+- [x] Dedicated build server split
+- [x] Full GitHub App OAuth install UI
 
 ## Databases
 - [x] Unified engines table (8 engines)
@@ -42,6 +43,7 @@
 - [x] S3 storage + scheduled backup APIs
 - [x] Backup dump helper
 - [x] Full restore UI
+- [x] Scheduled backup S3 upload
 
 ## Services
 - [x] Catalog loader (builtin + coolify/templates/compose)
@@ -55,7 +57,7 @@
 - [x] Sentinel metrics ingest (token auth)
 - [x] Terminal/exec helper
 - [x] Onboarding + app detail + notifications UI
-- [ ] Full xterm browser terminal
+- [x] Full xterm browser terminal
 - [x] Metrics charts UI polish
 - [x] Application / database delete (danger zone)
 
