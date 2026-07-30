@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useParams, useSearch } from '@tanstack/react-router'
+import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { DeployLogPanel } from '../components/DeployLogPanel'
 import { LinksMenu, LinksPanel } from '../components/LinksMenu'
@@ -63,6 +63,7 @@ export function ServiceDetailPage() {
     svcId: string
   }
   const search = useSearch({ strict: false }) as { deploy?: string }
+  const nav = useNavigate()
   const qc = useQueryClient()
   const [topTab, setTopTab] = useState<(typeof TOP_TABS)[number]['id']>(
     search.deploy === '1' ? 'logs' : 'configuration',
@@ -115,6 +116,21 @@ export function ServiceDetailPage() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['service', svcId] })
       void qc.invalidateQueries({ queryKey: ['services'] })
+    },
+  })
+  const remove = useMutation({
+    mutationFn: () => api.deleteService(svcId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['services'] })
+      void qc.invalidateQueries({ queryKey: ['project'] })
+      if (projectId && envId) {
+        void nav({
+          to: '/projects/$projectId/environments/$envId',
+          params: { projectId, envId },
+        })
+      } else {
+        void nav({ to: '/projects' })
+      }
     },
   })
 
@@ -373,15 +389,45 @@ export function ServiceDetailPage() {
               </div>
             )}
             {side === 'danger' && (
-              <div className="panel-card space-y-3 border-error-200 p-5 dark:border-error-500/30">
-                <h2 className="text-sm font-semibold text-error-500">Danger Zone</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Force redeploy recreates containers from the stored compose file. Permanent delete is
-                  not exposed yet.
-                </p>
-                <Btn primary onClick={() => void runDeploy()} disabled={deployBusy}>
-                  {deployBusy ? 'Deploying…' : 'Force deploy'}
-                </Btn>
+              <div className="space-y-4">
+                <div className="panel-card space-y-3 border-error-200 p-5 dark:border-error-500/30">
+                  <h2 className="text-sm font-semibold text-error-500">Danger Zone</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Woah. I hope you know what you are doing.
+                  </p>
+                </div>
+                <div className="panel-card space-y-3 border-error-200 p-5 dark:border-error-500/30">
+                  <h3 className="text-sm font-semibold text-error-500">Force deploy</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Recreates containers from the stored compose file.
+                  </p>
+                  <Btn primary onClick={() => void runDeploy()} disabled={deployBusy}>
+                    {deployBusy ? 'Deploying…' : 'Force deploy'}
+                  </Btn>
+                </div>
+                <div className="panel-card space-y-3 border-error-200 p-5 dark:border-error-500/30">
+                  <h3 className="text-sm font-semibold text-error-500">Delete Resource</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Stops containers, removes volumes, and deletes this service from Goolify. There is
+                    no coming back.
+                  </p>
+                  <Btn
+                    type="button"
+                    disabled={remove.isPending}
+                    onClick={() => {
+                      const typed = window.prompt(
+                        `This permanently deletes service "${s.name}" and its containers/volumes.\n\nType the service name to confirm:`,
+                      )
+                      if (typed === s.name) remove.mutate()
+                      else if (typed !== null) window.alert('Name did not match. Delete cancelled.')
+                    }}
+                  >
+                    {remove.isPending ? 'Deleting…' : 'Delete'}
+                  </Btn>
+                  {remove.error && (
+                    <p className="text-sm text-error-500">{remove.error.message}</p>
+                  )}
+                </div>
               </div>
             )}
           </div>

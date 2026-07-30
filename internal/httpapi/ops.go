@@ -482,6 +482,37 @@ func (a *API) handleStopService(w http.ResponseWriter, r *http.Request) {
 	a.runServiceComposeAction(w, r, "stop", "exited")
 }
 
+func (a *API) handleDeleteService(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "serviceID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	teamID := currentTeamID(r)
+	svc, err := a.Store.GetService(r.Context(), teamID, id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+
+	// Best-effort: tear down compose stack + volumes, then remove remote dir.
+	if serverID, _, err := a.resolveServiceTarget(r.Context(), teamID, svc); err == nil {
+		if client, err := a.dialServer(r, serverID); err == nil {
+			remoteDir := "/data/goolify/services/" + id.String()
+			composePath := remoteDir + "/docker-compose.yml"
+			project := "goolify-svc-" + id.String()[:8]
+			_, _, _ = sshx.RunArgs(client, "docker", "compose", "-p", project, "-f", composePath, "down", "--remove-orphans", "-v")
+			_, _, _ = sshx.RunArgs(client, "rm", "-rf", remoteDir)
+		}
+	}
+
+	if err := a.Store.DeleteService(r.Context(), teamID, id); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
 func (a *API) handleRestartService(w http.ResponseWriter, r *http.Request) {
 	a.runServiceComposeAction(w, r, "restart", "running")
 }

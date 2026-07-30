@@ -188,6 +188,7 @@ func (a *API) Router() http.Handler {
 				r.Get("/templates", a.handleListServiceTemplates)
 				r.Get("/{serviceID}", a.handleGetService)
 				r.Patch("/{serviceID}", a.handlePatchService)
+				r.Delete("/{serviceID}", a.handleDeleteService)
 				r.Post("/{serviceID}/deploy", a.handleDeployService)
 				r.Post("/{serviceID}/stop", a.handleStopService)
 				r.Post("/{serviceID}/restart", a.handleRestartService)

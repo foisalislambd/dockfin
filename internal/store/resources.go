@@ -860,6 +860,42 @@ func (s *Store) UpdateServiceStatus(ctx context.Context, id uuid.UUID, status st
 	return err
 }
 
+func (s *Store) DeleteService(ctx context.Context, teamID, id uuid.UUID) error {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var exists uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM services WHERE id=$1 AND team_id=$2`, id, teamID).Scan(&exists)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM environment_variables WHERE team_id=$1 AND resource_type='service' AND resource_id=$2`, teamID, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM scheduled_tasks WHERE team_id=$1 AND resource_type='service' AND resource_id=$2`, teamID, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM scheduled_backups WHERE team_id=$1 AND resource_type='service' AND resource_id=$2`, teamID, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM volumes WHERE team_id=$1 AND resource_type='service' AND resource_id=$2`, teamID, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM service_components WHERE service_id=$1`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM services WHERE id=$1 AND team_id=$2`, id, teamID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 func (s *Store) GetApplicationByID(ctx context.Context, id uuid.UUID) (*Application, error) {
 	row := s.Pool.QueryRow(ctx, `SELECT `+applicationSelectCols+`
 		FROM applications a

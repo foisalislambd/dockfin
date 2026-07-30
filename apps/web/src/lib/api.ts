@@ -226,6 +226,8 @@ export const api = {
     request<Service>(`/api/v1/services/${id}/stop`, { method: 'POST' }),
   restartService: (id: string) =>
     request<Service>(`/api/v1/services/${id}/restart`, { method: 'POST' }),
+  deleteService: (id: string) =>
+    request<{ status: string }>(`/api/v1/services/${id}`, { method: 'DELETE' }),
   templates: () => request<{ templates: Template[] }>('/api/v1/services/templates'),
   createService: (body: Record<string, unknown>) =>
     request<Service>('/api/v1/services', { method: 'POST', body: JSON.stringify(body) }),
