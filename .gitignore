@@ -6,7 +6,8 @@
 *.dll
 *.so
 *.dylib
-goolify
+# Built binary at repo root only (do not ignore cmd/goolify/)
+/goolify
 
 # Env / secrets
 .env
