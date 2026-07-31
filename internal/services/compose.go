@@ -715,11 +715,21 @@ func namedVolumeFromMount(item any) string {
 	return ""
 }
 
+// ensureExternalNetwork attaches only the Traefik-facing service to the shared
+// proxy network. All services stay on the Compose project default network so
+// short names like "postgresql" resolve inside the stack only — not to another
+// project's DB on the shared goolify network (which caused Planka 404s).
 func ensureExternalNetwork(doc map[string]any, network string) {
+	if network == "" {
+		return
+	}
 	services, _ := doc["services"].(map[string]any)
 	if services == nil {
 		return
 	}
+
+	proxySvc := pickProxyService(services)
+
 	for name, svcAny := range services {
 		svc, ok := svcAny.(map[string]any)
 		if !ok {
@@ -728,19 +738,16 @@ func ensureExternalNetwork(doc map[string]any, network string) {
 		if _, has := svc["network_mode"]; has {
 			continue
 		}
-		nets, _ := svc["networks"].([]any)
-		found := false
-		for _, n := range nets {
-			if ns, ok := n.(string); ok && ns == network {
-				found = true
-				break
-			}
+		nets := normalizeNetworkList(svc["networks"])
+		// Always keep the project-local default network for inter-service DNS.
+		nets = ensureNetworkName(nets, "default")
+		if name == proxySvc {
+			nets = ensureNetworkName(nets, network)
+		} else {
+			nets = removeNetworkName(nets, network)
 		}
-		if !found {
-			nets = append(nets, network)
-			svc["networks"] = nets
-			services[name] = svc
-		}
+		svc["networks"] = nets
+		services[name] = svc
 	}
 	doc["services"] = services
 
@@ -748,10 +755,46 @@ func ensureExternalNetwork(doc map[string]any, network string) {
 	if netSection == nil {
 		netSection = map[string]any{}
 	}
-	if _, ok := netSection[network]; !ok {
-		netSection[network] = map[string]any{"external": true}
+	if _, ok := netSection["default"]; !ok {
+		netSection["default"] = map[string]any{}
 	}
+	netSection[network] = map[string]any{"external": true}
 	doc["networks"] = netSection
+}
+
+func normalizeNetworkList(v any) []any {
+	switch t := v.(type) {
+	case []any:
+		return append([]any{}, t...)
+	case map[string]any:
+		out := make([]any, 0, len(t))
+		for name := range t {
+			out = append(out, name)
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+func ensureNetworkName(nets []any, name string) []any {
+	for _, n := range nets {
+		if ns, ok := n.(string); ok && ns == name {
+			return nets
+		}
+	}
+	return append(nets, name)
+}
+
+func removeNetworkName(nets []any, name string) []any {
+	out := make([]any, 0, len(nets))
+	for _, n := range nets {
+		if ns, ok := n.(string); ok && ns == name {
+			continue
+		}
+		out = append(out, n)
+	}
+	return out
 }
 
 // injectProxyLabels adds Traefik labels to the primary web service when FQDN is set.

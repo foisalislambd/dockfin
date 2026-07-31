@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/goolify/goolify/internal/services"
 	"github.com/goolify/goolify/internal/sshx"
 	"github.com/goolify/goolify/internal/store"
+	"golang.org/x/crypto/ssh"
 )
 
 func (a *API) handleListServices(w http.ResponseWriter, r *http.Request) {
@@ -120,7 +122,9 @@ func (a *API) handleCreateService(w http.ResponseWriter, r *http.Request) {
 			host := strings.TrimSpace(strings.Split(svc.FQDN, ",")[0])
 			opts.BaseURL = proxy.PublicURL(host)
 			opts.FQDN = host
-			opts.RouterName = svc.Name
+			// Unique Traefik router/service names — plain svc.Name collides when
+			// two resources share a name (e.g. two Planka installs → 404).
+			opts.RouterName = svc.Name + "-" + svc.ID.String()[:8]
 			opts.ServiceID = svc.ID.String()
 		}
 	}
@@ -361,7 +365,7 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		opts := services.PrepareOpts{
 			ServiceID:   id.String(),
 			BaseURL:     "http://127.0.0.1",
-			RouterName:  svc.Name,
+			RouterName:  svc.Name + "-" + id.String()[:8],
 			ExistingEnv: existing,
 		}
 		if dest != nil {
@@ -463,8 +467,49 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// compose up returns as soon as containers are started — Traefik often still
+	// returns 502 for a few seconds. Wait until the public URL responds so the
+	// first browser visit after "Deploy finished" is not a blank/502 page.
+	if fqdnHost != "" {
+		waitServiceHTTPReady(client, fqdnHost, emit)
+	}
+
 	_ = a.Store.UpdateServiceStatus(r.Context(), id, "running")
 	finishOK()
+}
+
+// waitServiceHTTPReady polls Traefik via Host header until the backend answers
+// with a non-gateway error (not 502/503/504) or the deadline expires.
+func waitServiceHTTPReady(client *ssh.Client, fqdn string, emit func(stage, line string)) {
+	host := strings.TrimSpace(strings.Split(fqdn, ",")[0])
+	if host == "" || client == nil {
+		return
+	}
+	emit("ready", fmt.Sprintf("Waiting for http://%s to become ready…", host))
+	deadline := time.Now().Add(90 * time.Second)
+	var last string
+	for time.Now().Before(deadline) {
+		// Escape host for single-quoted shell arg.
+		safeHost := strings.ReplaceAll(host, "'", `'\''`)
+		cmd := fmt.Sprintf(
+			`curl -sS -o /dev/null -w '%%{http_code}' --connect-timeout 2 --max-time 5 -H 'Host: %s' http://127.0.0.1/ 2>/dev/null || echo 000`,
+			safeHost,
+		)
+		out, _, _ := sshx.Run(client, cmd)
+		code := strings.TrimSpace(out)
+		if i := strings.LastIndexAny(code, "\n\r"); i >= 0 {
+			code = strings.TrimSpace(code[i+1:])
+		}
+		last = code
+		n, _ := strconv.Atoi(code)
+		// Ready when Traefik reaches the container (any app status except gateway errors).
+		if n > 0 && n != 502 && n != 503 && n != 504 {
+			emit("ready", fmt.Sprintf("Service reachable (HTTP %s)", code))
+			return
+		}
+		time.Sleep(1500 * time.Millisecond)
+	}
+	emit("ready", fmt.Sprintf("Timed out waiting for ready (last HTTP %s) — open the URL in a few seconds", last))
 }
 
 func (a *API) handlePatchService(w http.ResponseWriter, r *http.Request) {

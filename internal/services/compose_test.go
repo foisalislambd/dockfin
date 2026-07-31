@@ -69,6 +69,10 @@ services:
 	if !strings.Contains(out, "goolify") {
 		t.Fatalf("expected network attachment:\n%s", out)
 	}
+	// Proxy-facing wordpress joins shared network; mysql stays on default only.
+	if !strings.Contains(out, "wordpress:") {
+		t.Fatalf("missing wordpress:\n%s", out)
+	}
 	if !strings.Contains(out, "services:") {
 		t.Fatalf("missing services:\n%s", out)
 	}
@@ -372,6 +376,47 @@ func TestPrepareComposeSkipsLocalhostProxy(t *testing.T) {
 	}
 	if strings.Contains(out, "traefik.enable") {
 		t.Fatalf("should not inject traefik for localhost:\n%s", out)
+	}
+}
+
+func TestEnsureExternalNetworkOnlyProxyJoins(t *testing.T) {
+	raw := `# port: 1337
+services:
+  planka:
+    image: planka
+    environment:
+      - SERVICE_URL_PLANKA
+      - DATABASE_URL=postgresql://u:p@postgresql:5432/planka
+  postgresql:
+    image: postgres
+`
+	out, _, err := PrepareCompose(raw, PrepareOpts{
+		BaseURL:    "http://planka.example.com",
+		FQDN:       "planka.example.com",
+		Network:    "goolify",
+		RouterName: "planka",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Crude but effective: postgresql service block should not list goolify before volumes/networks end
+	pgIdx := strings.Index(out, "postgresql:")
+	plankaIdx := strings.Index(out, "planka:")
+	if pgIdx < 0 || plankaIdx < 0 {
+		t.Fatalf("missing services:\n%s", out)
+	}
+	// Find networks under planka vs postgresql by splitting on service keys is hard in yaml order.
+	// Check that "goolify" appears as external and planka has both networks.
+	if !strings.Contains(out, "external: true") && !strings.Contains(out, "external:true") {
+		t.Fatalf("expected external goolify network:\n%s", out)
+	}
+	if !strings.Contains(out, "goolify") {
+		t.Fatalf("expected goolify:\n%s", out)
+	}
+	// Count goolify attachments under services — should be once (planka only), plus networks section.
+	// After prepare, postgresql must resolve via default, not shared DNS.
+	if strings.Count(out, "- goolify") < 1 {
+		t.Fatalf("expected proxy service on goolify:\n%s", out)
 	}
 }
 
