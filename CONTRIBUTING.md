@@ -36,7 +36,7 @@ npm run dev
 - **Language:** English for code comments, docs, commit messages, and PRs
 - **Backend:** Go modules under `internal/`; HTTP in `internal/httpapi`
 - **Frontend:** React + TypeScript under `apps/web`
-- **Migrations:** Goose SQL in `migrations/` — also copy into `internal/db/migrations/` when adding new files (embedded FS)
+- **Migrations:** Goose SQL only in `migrations/` (embedded into the binary via `migrations/embed.go`)
 - **Secrets:** never commit `.env`, private keys, or real tokens
 - **SSH:** prefer `sshx.RunArgs` (argv) over shell-interpolated strings
 

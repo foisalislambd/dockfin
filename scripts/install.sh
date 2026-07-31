@@ -27,7 +27,7 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
-mkdir -p "${GOOLIFY_DIR}/data" "${GOOLIFY_DIR}/migrations"
+mkdir -p "${GOOLIFY_DIR}/data"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   MASTER_KEY=$(openssl rand -base64 48 | tr -d '\n' | head -c 48)

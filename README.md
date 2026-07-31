@@ -172,7 +172,7 @@ goolify/
   cmd/goolify-sentinel/ # Metrics agent stub
   internal/             # Go packages (httpapi, deploy, store, sshx, …)
   apps/web/             # React + Vite dashboard
-  migrations/           # Goose SQL migrations (also embedded)
+  migrations/           # Goose SQL migrations (embedded via embed.go)
   deploy/               # Dockerfiles + Compose
   scripts/              # install.sh, vps-oneclick-test.sh
   packages/openapi/     # API contract

@@ -3,16 +3,13 @@ package db
 import (
 	"context"
 	"database/sql"
-	"embed"
 	"fmt"
 
+	"github.com/goolify/goolify/migrations"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 )
-
-//go:embed migrations/*.sql
-var migrationsFS embed.FS
 
 func Connect(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	cfg, err := pgxpool.ParseConfig(databaseURL)
@@ -37,11 +34,12 @@ func Migrate(databaseURL string) error {
 	}
 	defer sqlDB.Close()
 
-	goose.SetBaseFS(migrationsFS)
+	goose.SetBaseFS(migrations.FS)
 	if err := goose.SetDialect("postgres"); err != nil {
 		return err
 	}
-	if err := goose.Up(sqlDB, "migrations"); err != nil {
+	// SQL files are embedded at the root of migrations.FS.
+	if err := goose.Up(sqlDB, "."); err != nil {
 		return fmt.Errorf("migrate up: %w", err)
 	}
 	return nil
