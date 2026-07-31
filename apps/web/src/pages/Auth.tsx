@@ -1,10 +1,11 @@
-import { useState, useEffect, type FormEvent, type ReactNode } from 'react'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { useState, type FormEvent, type ReactNode } from 'react'
+import { Link, Navigate, useNavigate } from '@tanstack/react-router'
 import { Eye, EyeOff, Lock, Mail, User } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { appConfig } from '../config/app.config'
 import { ThemeToggle } from '../components/theme/ThemeToggle'
+import { AuthSkeleton } from '../components/ui/Skeleton'
 
 const inputClass =
   'panel-field h-9 w-full rounded-md pl-9 pr-3 text-sm shadow-sm transition placeholder:text-gray-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20 focus:outline-none'
@@ -67,10 +68,6 @@ export function LoginPage() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
-  useEffect(() => {
-    if (!loading && user) void nav({ to: '/dashboard' })
-  }, [loading, user, nav])
-
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setBusy(true)
@@ -85,6 +82,10 @@ export function LoginPage() {
       setBusy(false)
     }
   }
+
+  // Wait for session check so logged-in users never flash the sign-in form
+  if (loading) return <AuthSkeleton />
+  if (user) return <Navigate to="/dashboard" />
 
   return (
     <AuthShell>
@@ -163,10 +164,6 @@ export function RegisterPage() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
-  useEffect(() => {
-    if (!loading && user) void nav({ to: '/dashboard' })
-  }, [loading, user, nav])
-
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setBusy(true)
@@ -181,6 +178,10 @@ export function RegisterPage() {
       setBusy(false)
     }
   }
+
+  // Wait for session check so logged-in users never flash the register form
+  if (loading) return <AuthSkeleton />
+  if (user) return <Navigate to="/dashboard" />
 
   return (
     <AuthShell>

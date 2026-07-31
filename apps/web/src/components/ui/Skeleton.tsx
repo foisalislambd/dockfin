@@ -20,7 +20,7 @@ export function Skeleton({
   )
 }
 
-/** Full-viewport auth bootstrap (before AppShell) */
+/** Full-viewport auth bootstrap for login/register while session is resolving */
 export function AuthSkeleton() {
   return (
     <div className="grid min-h-dvh place-items-center p-6" role="status" aria-label="Loading">
@@ -32,6 +32,34 @@ export function AuthSkeleton() {
         <Skeleton className="h-10 w-full rounded-lg" />
         <Skeleton className="h-10 w-full rounded-lg" />
         <Skeleton className="h-9 w-full rounded-md" />
+      </div>
+    </div>
+  )
+}
+
+/** App chrome bootstrap while auth resolves on protected routes (not login-shaped) */
+export function AppShellSkeleton() {
+  return (
+    <div className="panel-shell panel-main flex h-dvh w-full overflow-hidden" role="status" aria-label="Loading">
+      <div className="hidden w-[232px] shrink-0 border-r border-gray-200 dark:border-white/10 lg:block">
+        <div className="space-y-3 p-4">
+          <Skeleton className="h-8 w-28" />
+          <Skeleton className="mt-6 h-4 w-20" />
+          <Skeleton className="h-8 w-full rounded-md" />
+          <Skeleton className="h-8 w-full rounded-md" />
+          <Skeleton className="h-8 w-full rounded-md" />
+          <Skeleton className="h-8 w-full rounded-md" />
+          <Skeleton className="h-8 w-full rounded-md" />
+        </div>
+      </div>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 px-4 dark:border-white/10">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-8 w-8 rounded-full" />
+        </div>
+        <div className="min-h-0 flex-1 overflow-hidden px-3 py-4 sm:px-5 sm:py-5 lg:px-6">
+          <PageSkeleton cards={2} />
+        </div>
       </div>
     </div>
   )

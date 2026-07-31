@@ -40,7 +40,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       /* ignore */
     }
-    if (res.status === 401 && !path.includes('/auth/login') && !path.includes('/auth/register')) {
+    // Don't emit for login/register/me — AuthProvider owns bootstrap; me 401 is expected when logged out
+    if (
+      res.status === 401 &&
+      !path.includes('/auth/login') &&
+      !path.includes('/auth/register') &&
+      !path.includes('/auth/me')
+    ) {
       window.dispatchEvent(new CustomEvent('goolify:unauthorized'))
     }
     throw new ApiError(res.status, msg)

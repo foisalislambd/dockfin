@@ -11,7 +11,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider, useAuth } from './lib/auth'
 import { ThemeProvider } from './components/theme/ThemeProvider'
 import { AppShell } from './components/AppShell'
-import { AuthSkeleton } from './components/ui/Skeleton'
+import { AppShellSkeleton } from './components/ui/Skeleton'
 import { LoginPage, RegisterPage } from './pages/Auth'
 import { DashboardPage } from './pages/Dashboard'
 import { ServersPage } from './pages/Servers'
@@ -55,7 +55,7 @@ function RootComponent() {
 function RequireAuth() {
   const { user, loading } = useAuth()
   if (loading) {
-    return <AuthSkeleton />
+    return <AppShellSkeleton />
   }
   if (!user) {
     return <Navigate to="/login" />
