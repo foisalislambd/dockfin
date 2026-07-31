@@ -28,10 +28,10 @@ import { NewResourcePage } from './pages/NewResource'
 import { DatabaseDetailPage, ServerDetailPage } from './pages/ResourceDetails'
 import { ServiceDetailPage } from './pages/ServiceDetail'
 import { DeploymentShowPage } from './pages/DeploymentShow'
+import { SettingsPage } from './pages/Settings'
 import {
   PrivateKeysPage,
   ApiTokensPage,
-  SettingsPage,
   SharedVariablesPage,
   StoragesPage,
   TeamPage,

@@ -210,6 +210,11 @@ func (a *API) Router() http.Handler {
 			r.Get("/notifications", a.handleListNotifications)
 			r.Put("/notifications/{channel}", a.handleUpsertNotification)
 
+			r.Get("/settings", a.handleGetInstanceSettings)
+			r.Patch("/settings", a.handlePatchInstanceSettings)
+			r.Get("/settings/oauth", a.handleListOauthSettings)
+			r.Patch("/settings/oauth/{provider}", a.handlePatchOauthSetting)
+
 			r.Get("/scheduled-tasks", a.handleListScheduledTasks)
 			r.Post("/scheduled-tasks", a.handleCreateScheduledTask)
 		})

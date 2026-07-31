@@ -346,6 +346,19 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  instanceSettings: () => request<{ settings: InstanceSettings }>('/api/v1/settings'),
+  patchInstanceSettings: (body: Partial<InstanceSettingsPatch>) =>
+    request<{ settings: InstanceSettings }>('/api/v1/settings', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  oauthSettings: () => request<{ oauth_settings: OauthSetting[] }>('/api/v1/settings/oauth'),
+  patchOauthSetting: (provider: string, body: Partial<OauthSettingPatch>) =>
+    request<{ oauth_setting: OauthSetting }>(`/api/v1/settings/oauth/${provider}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+
   teamMembers: () => request<{ members: TeamMember[] }>('/api/v1/team/members'),
   removeTeamMember: (userId: string) =>
     request<{ status: string }>(`/api/v1/team/members/${userId}`, { method: 'DELETE' }),
@@ -689,6 +702,95 @@ export type ScheduledTask = {
   frequency: string
   enabled: boolean
   created_at: string
+}
+export type InstanceSettings = {
+  id: number
+  public_url: string
+  instance_name: string
+  instance_timezone: string
+  public_ipv4: string
+  public_ipv6: string
+  is_registration_enabled: boolean
+  do_not_track: boolean
+  is_dns_validation_enabled: boolean
+  custom_dns_servers: string
+  is_api_enabled: boolean
+  allowed_ips: string
+  webhook_allowed_internal_hosts: string
+  webhook_allow_localhost: boolean
+  is_mcp_server_enabled: boolean
+  disable_two_step_confirmation: boolean
+  is_sponsorship_popup_enabled: boolean
+  update_channel: string
+  is_auto_update_enabled: boolean
+  auto_update_frequency: string
+  update_check_frequency: string
+  docker_registry_url: string
+  smtp_enabled: boolean
+  smtp_from_name: string
+  smtp_from_address: string
+  smtp_host: string
+  smtp_port: number
+  smtp_encryption: string
+  smtp_username?: string
+  smtp_password_set: boolean
+  smtp_timeout?: number | null
+  resend_enabled: boolean
+  resend_api_key_set: boolean
+  updated_at: string
+}
+export type InstanceSettingsPatch = {
+  public_url?: string
+  instance_name?: string
+  instance_timezone?: string
+  public_ipv4?: string
+  public_ipv6?: string
+  is_registration_enabled?: boolean
+  do_not_track?: boolean
+  is_dns_validation_enabled?: boolean
+  custom_dns_servers?: string
+  is_api_enabled?: boolean
+  allowed_ips?: string
+  webhook_allowed_internal_hosts?: string
+  webhook_allow_localhost?: boolean
+  is_mcp_server_enabled?: boolean
+  disable_two_step_confirmation?: boolean
+  is_sponsorship_popup_enabled?: boolean
+  update_channel?: string
+  is_auto_update_enabled?: boolean
+  auto_update_frequency?: string
+  update_check_frequency?: string
+  docker_registry_url?: string
+  smtp_enabled?: boolean
+  smtp_from_name?: string
+  smtp_from_address?: string
+  smtp_host?: string
+  smtp_port?: number
+  smtp_encryption?: string
+  smtp_username?: string
+  smtp_password?: string
+  smtp_timeout?: number | null
+  resend_enabled?: boolean
+  resend_api_key?: string
+}
+export type OauthSetting = {
+  id: string
+  provider: string
+  enabled: boolean
+  client_id: string
+  client_secret_set: boolean
+  redirect_uri: string
+  tenant: string
+  base_url: string
+  updated_at: string
+}
+export type OauthSettingPatch = {
+  enabled?: boolean
+  client_id?: string
+  client_secret?: string
+  redirect_uri?: string
+  tenant?: string
+  base_url?: string
 }
 export type ServerMetric = {
   cpu_percent: number

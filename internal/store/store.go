@@ -199,12 +199,6 @@ func (s *Store) UserRoleOnTeam(ctx context.Context, userID, teamID uuid.UUID) (s
 	return role, err
 }
 
-func (s *Store) RegistrationEnabled(ctx context.Context) (bool, error) {
-	var enabled bool
-	err := s.Pool.QueryRow(ctx, `SELECT is_registration_enabled FROM instance_settings WHERE id = 1`).Scan(&enabled)
-	return enabled, err
-}
-
 func (s *Store) CountUsers(ctx context.Context) (int, error) {
 	var n int
 	err := s.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM users`).Scan(&n)

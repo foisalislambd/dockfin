@@ -1,7 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
-import { MIT_LICENSE_TEXT } from '../config/app.config'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { Btn, Header, Input, Modal } from './Servers'
@@ -511,107 +509,6 @@ export function SharedVariablesPage() {
         </Btn>
         {upsert.error && <p className="w-full text-sm text-error-500">{upsert.error.message}</p>}
       </form>
-    </div>
-  )
-}
-
-export function SettingsPage() {
-  const { user, team } = useAuth()
-  const version = useQuery({ queryKey: ['version'], queryFn: api.version })
-
-  return (
-    <div className="space-y-6">
-      <Header title="Settings" />
-
-      <div className="panel-card p-6">
-        <h2 className="text-lg font-medium text-gray-900 dark:text-white">Instance</h2>
-        <dl className="mt-6 grid gap-4 sm:grid-cols-2">
-          <div>
-            <dt className="text-xs text-gray-500 dark:text-gray-400">Name</dt>
-            <dd className="mt-1 text-sm">{version.data?.name || 'Goolify'}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-gray-500 dark:text-gray-400">Version</dt>
-            <dd className="mt-1 font-mono text-sm">{version.data?.version || '—'}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-gray-500 dark:text-gray-400">License</dt>
-            <dd className="mt-1 text-sm">{version.data?.license || 'MIT'}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-gray-500 dark:text-gray-400">API</dt>
-            <dd className="mt-1 font-mono text-sm">/api/v1</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-gray-500 dark:text-gray-400">Config path (hosts)</dt>
-            <dd className="mt-1 font-mono text-sm">/data/goolify</dd>
-          </div>
-        </dl>
-      </div>
-
-      <div className="panel-card space-y-4 p-6">
-        <h2 className="text-lg font-medium text-gray-900 dark:text-white">License</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Goolify is free and open source software licensed under the MIT License.
-        </p>
-        <pre className="max-h-72 overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
-          {MIT_LICENSE_TEXT}
-        </pre>
-      </div>
-
-      <div className="panel-card p-6">
-        <h2 className="text-lg font-medium text-gray-900 dark:text-white">Profile</h2>
-        <dl className="mt-6 grid gap-4 sm:grid-cols-2">
-          <div>
-            <dt className="text-xs text-gray-500 dark:text-gray-400">Name</dt>
-            <dd className="mt-1 text-sm">{user?.name || '—'}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-gray-500 dark:text-gray-400">Email</dt>
-            <dd className="mt-1 text-sm">{user?.email || '—'}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-gray-500 dark:text-gray-400">Current team</dt>
-            <dd className="mt-1 text-sm">{team?.name || '—'}</dd>
-          </div>
-        </dl>
-      </div>
-
-      <div className="panel-card p-6">
-        <h2 className="text-lg font-medium text-gray-900 dark:text-white">Quick links</h2>
-        <ul className="mt-4 space-y-2 text-sm">
-          <li>
-            <Link to="/team" className="text-brand-600 hover:underline dark:text-brand-400">
-              Team
-            </Link>
-          </li>
-          <li>
-            <Link to="/security/api-tokens" className="text-brand-600 hover:underline dark:text-brand-400">
-              API tokens
-            </Link>
-          </li>
-          <li>
-            <Link to="/storages" className="text-brand-600 hover:underline dark:text-brand-400">
-              S3 Storages
-            </Link>
-          </li>
-          <li>
-            <Link to="/shared-variables" className="text-brand-600 hover:underline dark:text-brand-400">
-              Shared variables
-            </Link>
-          </li>
-          <li>
-            <Link to="/security/private-keys" className="text-brand-600 hover:underline dark:text-brand-400">
-              SSH private keys
-            </Link>
-          </li>
-          <li>
-            <Link to="/notifications" className="text-brand-600 hover:underline dark:text-brand-400">
-              Notifications
-            </Link>
-          </li>
-        </ul>
-      </div>
     </div>
   )
 }
