@@ -74,7 +74,7 @@ See the full checklist: [docs/FEATURES.md](docs/FEATURES.md)
 git clone https://github.com/YOUR_ORG/goolify.git
 cd goolify
 cp .env.example .env
-# Edit GOOLIFY_MASTER_KEY and GOOLIFY_SESSION_SECRET (32+ characters each)
+# Edit GOOLIFY_MASTER_KEY (32+ characters)
 ```
 
 ### 2. Start database
@@ -175,9 +175,8 @@ goolify/
   migrations/           # Goose SQL migrations (embedded via embed.go)
   deploy/               # Dockerfiles + Compose
   scripts/              # install.sh, vps-oneclick-test.sh
-  packages/openapi/     # API contract
+  packages/openapi/     # API contract (incomplete sketch — see api.go for full routes)
   docs/                 # Documentation
-  coolify/              # Optional upstream reference (gitignored locally)
 ```
 
 ---

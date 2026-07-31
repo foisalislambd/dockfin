@@ -282,8 +282,13 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid fqdn")
 		return
 	}
+	teamID := currentTeamID(r)
+	if _, err := a.Store.GetEnvironment(r.Context(), teamID, envID); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
 	app := &store.Application{
-		TeamID:                  currentTeamID(r),
+		TeamID:                  teamID,
 		EnvironmentID:           envID,
 		Name:                    body.Name,
 		Description:             body.Description,
@@ -303,7 +308,7 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid git_source_id")
 			return
 		}
-		if _, err := a.Store.GetGitSource(r.Context(), currentTeamID(r), id); err != nil {
+		if _, err := a.Store.GetGitSource(r.Context(), teamID, id); err != nil {
 			mapStoreErr(w, err)
 			return
 		}
@@ -315,7 +320,7 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid private_key_id")
 			return
 		}
-		if _, err := a.Store.GetPrivateKey(r.Context(), currentTeamID(r), id); err != nil {
+		if _, err := a.Store.GetPrivateKey(r.Context(), teamID, id); err != nil {
 			mapStoreErr(w, err)
 			return
 		}
@@ -327,7 +332,7 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid destination_id")
 			return
 		}
-		if _, err := a.Store.GetDestination(r.Context(), currentTeamID(r), id); err != nil {
+		if _, err := a.Store.GetDestination(r.Context(), teamID, id); err != nil {
 			mapStoreErr(w, err)
 			return
 		}
@@ -337,6 +342,13 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		mapStoreErr(w, err)
 		return
+	}
+	// Always mint a webhook secret so production webhooks are never open by default.
+	webhookSecret := ""
+	if secret, err := crypto.RandomToken(24); err == nil {
+		if err := a.Store.SetWebhookSecret(r.Context(), teamID, created.ID, secret); err == nil {
+			webhookSecret = secret
+		}
 	}
 	// Auto-assign free sslip.io/nip.io domain when FQDN left empty.
 	if created.FQDN == "" && created.DestinationID != nil {
@@ -350,7 +362,17 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if webhookSecret != "" {
+		writeJSON(w, http.StatusCreated, appWithWebhookSecret(created, webhookSecret))
+		return
+	}
 	writeJSON(w, http.StatusCreated, created)
+}
+
+func appWithWebhookSecret(app *store.Application, secret string) map[string]any {
+	out := appWithLinks(app)
+	out["webhook_secret"] = secret
+	return out
 }
 
 func (a *API) handleGetApplication(w http.ResponseWriter, r *http.Request) {
@@ -459,7 +481,7 @@ func (a *API) handleDeployApplication(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusTooManyRequests, "server deployment queue limit reached")
 		return
 	}
-	dep, err := a.Store.CreateDeployment(r.Context(), teamID, appID, serverID, body.CommitSHA, "", body.ForceRebuild, false, true)
+	dep, err := a.Store.CreateDeployment(r.Context(), teamID, appID, serverID, body.CommitSHA, "", body.ForceRebuild, false, true, 0)
 	if err != nil {
 		mapStoreErr(w, err)
 		return
@@ -566,7 +588,7 @@ func (a *API) handleGitWebhook(w http.ResponseWriter, r *http.Request) {
 				serverID = &dest.ServerID
 			}
 		}
-		dep, err := a.Store.CreateDeployment(r.Context(), app.TeamID, appID, serverID, event.Commit, event.Message, false, true, false)
+		dep, err := a.Store.CreateDeployment(r.Context(), app.TeamID, appID, serverID, event.Commit, event.Message, false, true, false, event.PRNumber)
 		if err != nil {
 			mapStoreErr(w, err)
 			return
@@ -590,7 +612,7 @@ func (a *API) handleGitWebhook(w http.ResponseWriter, r *http.Request) {
 			serverID = &dest.ServerID
 		}
 	}
-	dep, err := a.Store.CreateDeployment(r.Context(), app.TeamID, appID, serverID, event.Commit, event.Message, false, true, false)
+	dep, err := a.Store.CreateDeployment(r.Context(), app.TeamID, appID, serverID, event.Commit, event.Message, false, true, false, 0)
 	if err != nil {
 		mapStoreErr(w, err)
 		return
@@ -642,6 +664,11 @@ func (a *API) handleCreateDatabase(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "environment_id, name, engine required")
 		return
 	}
+	teamID := currentTeamID(r)
+	if _, err := a.Store.GetEnvironment(r.Context(), teamID, envID); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
 	if body.Password == "" {
 		pw, err := crypto.RandomToken(12)
 		if err != nil {
@@ -657,13 +684,17 @@ func (a *API) handleCreateDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	db := &store.Database{
-		TeamID: currentTeamID(r), EnvironmentID: envID, Name: body.Name, Description: body.Description,
+		TeamID: teamID, EnvironmentID: envID, Name: body.Name, Description: body.Description,
 		Engine: body.Engine, Image: body.Image, IsPublic: body.IsPublic, PublicPort: body.PublicPort, EngineConfig: body.EngineConfig,
 	}
 	if body.DestinationID != "" {
 		id, err := uuid.Parse(body.DestinationID)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "invalid destination_id")
+			return
+		}
+		if _, err := a.Store.GetDestination(r.Context(), teamID, id); err != nil {
+			mapStoreErr(w, err)
 			return
 		}
 		db.DestinationID = &id

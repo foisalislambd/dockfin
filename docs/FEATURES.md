@@ -46,7 +46,7 @@
 - [x] Scheduled backup S3 upload
 
 ## Services
-- [x] Catalog loader (builtin + coolify/templates/compose)
+- [x] Catalog loader (builtin + templates/compose)
 - [x] Custom compose create
 - [x] Remote `docker compose up` deploy
 

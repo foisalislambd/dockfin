@@ -31,12 +31,29 @@ type Request struct {
 	BuildServer     *store.Server
 	BuildPrivateKey []byte
 	ForceRebuild    bool
+	// CommitSHA / GitBranch override app defaults (rollback, webhook, PR preview).
+	CommitSHA string
+	GitBranch string
 }
 
 func (p *Pipeline) log(stage, line string) {
 	if p.Log != nil {
 		p.Log(stage, line)
 	}
+}
+
+func (p *Pipeline) checkCancelled(ctx context.Context, deploymentID uuid.UUID) error {
+	if p.Store == nil || deploymentID == uuid.Nil {
+		return nil
+	}
+	cancelled, err := p.Store.IsDeploymentCancelled(ctx, deploymentID)
+	if err != nil {
+		return nil
+	}
+	if cancelled {
+		return fmt.Errorf("deployment cancelled")
+	}
+	return nil
 }
 
 // repairAppFQDN assigns or replaces free domains that embed loopback magic IPs
@@ -69,6 +86,9 @@ func (p *Pipeline) repairAppFQDN(ctx context.Context, req *Request) {
 }
 
 func (p *Pipeline) Run(ctx context.Context, req Request) error {
+	if err := p.checkCancelled(ctx, req.DeploymentID); err != nil {
+		return err
+	}
 	p.repairAppFQDN(ctx, &req)
 
 	p.log("prepare", "Connecting to deploy server via SSH…")
@@ -91,6 +111,10 @@ func (p *Pipeline) Run(ctx context.Context, req Request) error {
 		p.log("prepare", "Using dedicated build server "+req.BuildServer.Name)
 	}
 
+	if err := p.checkCancelled(ctx, req.DeploymentID); err != nil {
+		return err
+	}
+
 	p.log("prepare", "Ensuring data directories")
 	_ = sshx.EnsureDataDirs(deployClient)
 	if buildClient != deployClient {
@@ -99,6 +123,10 @@ func (p *Pipeline) Run(ctx context.Context, req Request) error {
 
 	p.log("prepare", fmt.Sprintf("Ensuring Docker network %q", req.Destination.Network))
 	if err := p.ensureDestinationNetwork(deployClient, req.Destination); err != nil {
+		return err
+	}
+
+	if err := p.checkCancelled(ctx, req.DeploymentID); err != nil {
 		return err
 	}
 
@@ -236,18 +264,21 @@ func (p *Pipeline) waitHealthy(client *ssh.Client, name string, app *store.Appli
 	for i := 0; i < retries; i++ {
 		out, _, err := sshx.RunArgs(client, "docker", "inspect", "-f", "{{.State.Running}}", name)
 		if err == nil && strings.TrimSpace(out) == "true" {
-			// Optional: check health status if HEALTHCHECK is defined
 			health, _, hErr := sshx.RunArgs(client, "docker", "inspect", "-f", "{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}", name)
 			status := strings.TrimSpace(health)
-			if hErr == nil && (status == "none" || status == "healthy" || status == "") {
+			if hErr != nil {
+				// Inspect failed — container is running; accept as healthy enough.
 				p.log("healthcheck", "Container is running")
 				return nil
 			}
-			if status == "healthy" {
-				p.log("healthcheck", "Container is healthy")
+			// No HEALTHCHECK defined → "none"/empty means success once running.
+			if status == "none" || status == "" {
+				p.log("healthcheck", "Container is running")
 				return nil
 			}
-			if status == "none" || status == "" {
+			// HEALTHCHECK present — only succeed when healthy (wait through "starting").
+			if status == "healthy" {
+				p.log("healthcheck", "Container is healthy")
 				return nil
 			}
 			p.log("healthcheck", "health="+status)

@@ -141,14 +141,20 @@ func (a *API) handleRollbackApplication(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var prev *string
+	finishedSeen := 0
 	for _, d := range deps {
 		if d.Status == "finished" && d.CommitSHA != "" {
+			finishedSeen++
+			// Skip the latest finished deployment; use the previous one.
+			if finishedSeen < 2 {
+				continue
+			}
 			sha := d.CommitSHA
 			prev = &sha
 			break
 		}
 	}
-	// Rollback = redeploy last finished (or force image redeploy)
+	// Rollback = redeploy previous finished commit (or force image redeploy)
 	var body struct {
 		ForceRebuild bool `json:"force_rebuild"`
 	}
@@ -170,8 +176,11 @@ func (a *API) handleRollbackApplication(w http.ResponseWriter, r *http.Request) 
 	commit := ""
 	if prev != nil {
 		commit = *prev
+	} else {
+		writeError(w, http.StatusBadRequest, "no previous finished deployment to roll back to")
+		return
 	}
-	dep, err := a.Store.CreateDeployment(r.Context(), teamID, appID, &dest.ServerID, commit, "rollback", true, false, true)
+	dep, err := a.Store.CreateDeployment(r.Context(), teamID, appID, &dest.ServerID, commit, "rollback", true, false, true, 0)
 	if err != nil {
 		mapStoreErr(w, err)
 		return

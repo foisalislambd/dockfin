@@ -31,7 +31,6 @@ mkdir -p "${GOOLIFY_DIR}/data"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   MASTER_KEY=$(openssl rand -base64 48 | tr -d '\n' | head -c 48)
-  SESSION_SECRET=$(openssl rand -base64 48 | tr -d '\n' | head -c 48)
   DB_PASS=$(openssl rand -base64 24 | tr -d '\n=/+' | head -c 24)
   PUBLIC_IP="$(curl -4 -fsS --max-time 5 https://api.ipify.org 2>/dev/null || curl -4 -fsS --max-time 5 https://ifconfig.me/ip 2>/dev/null || hostname -I | awk '{print $1}')"
   PUBLIC_IP="$(echo "${PUBLIC_IP}" | tr -d '[:space:]')"
@@ -39,9 +38,7 @@ if [[ ! -f "${ENV_FILE}" ]]; then
 GOOLIFY_ENV=production
 GOOLIFY_HTTP_ADDR=:8080
 GOOLIFY_DATABASE_URL=postgres://goolify:${DB_PASS}@postgres:5432/goolify?sslmode=disable
-GOOLIFY_REDIS_URL=redis://redis:6379/0
 GOOLIFY_MASTER_KEY=${MASTER_KEY}
-GOOLIFY_SESSION_SECRET=${SESSION_SECRET}
 GOOLIFY_CORS_ORIGINS=*
 GOOLIFY_PUBLIC_URL=http://${PUBLIC_IP}:8080
 GOOLIFY_PUBLIC_IP=${PUBLIC_IP}
@@ -70,9 +67,6 @@ services:
       retries: 20
     restart: unless-stopped
 
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
 
   api:
     image: ghcr.io/goolify/goolify:latest

@@ -32,7 +32,7 @@ We will not pursue legal action against good-faith security research that:
 
 ## Hardening notes for operators
 
-- Use strong `GOOLIFY_MASTER_KEY` and `GOOLIFY_SESSION_SECRET` (32+ random characters)
+- Use a strong `GOOLIFY_MASTER_KEY` (32+ random characters)
 - Restrict API/dashboard exposure with a reverse proxy and TLS
 - Keep SSH private keys encrypted at rest (Goolify encrypts key material in Postgres)
 - Prefer host-key fingerprints after first validate (TOFU)

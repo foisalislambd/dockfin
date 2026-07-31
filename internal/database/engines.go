@@ -1,3 +1,5 @@
+// Package database starts and stops managed database containers on remote Docker
+// hosts over SSH. The control-plane Postgres pool is in package db.
 package database
 
 import (
@@ -27,6 +29,7 @@ func Start(client *ssh.Client, db *store.Database, network, password string) err
 		args = append(args, "-p", fmt.Sprintf("%d:%d", *db.PublicPort, defaultPort(db.Engine)))
 	}
 	args = append(args, db.Image)
+	args = append(args, engineCmd(db.Engine, password)...)
 
 	_, errOut, err := sshx.RunArgs(client, args...)
 	if err != nil {
@@ -70,10 +73,27 @@ func engineEnv(engine, password string) []string {
 	case "mongodb":
 		return []string{"-e", "MONGO_INITDB_ROOT_USERNAME=goolify", "-e", "MONGO_INITDB_ROOT_PASSWORD=" + password}
 	case "redis", "keydb", "dragonfly":
-		if password != "" {
-			return []string{"-e", "REDIS_PASSWORD=" + password}
-		}
+		// Password is applied via engineCmd (--requirepass); official images ignore REDIS_PASSWORD alone.
 		return nil
+	default:
+		return nil
+	}
+}
+
+// engineCmd returns the container command override (after the image).
+func engineCmd(engine, password string) []string {
+	if password == "" {
+		return nil
+	}
+	switch engine {
+	case "redis":
+		// Official redis image: ENTRYPOINT docker-entrypoint.sh, CMD redis-server.
+		return []string{"redis-server", "--requirepass", password}
+	case "keydb":
+		return []string{"keydb-server", "--requirepass", password}
+	case "dragonfly":
+		// Official dragonfly image ENTRYPOINT is already "dragonfly"; only pass flags.
+		return []string{"--requirepass", password}
 	default:
 		return nil
 	}

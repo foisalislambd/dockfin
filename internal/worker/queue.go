@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -192,9 +193,19 @@ func (q *Queue) handle(ctx context.Context, job DeployJob) {
 		Store: q.Store,
 		SSH:   q.SSH,
 		Log: func(stage, line string) {
+			if cancelled, _ := q.Store.IsDeploymentCancelled(context.Background(), job.DeploymentID); cancelled {
+				return
+			}
 			_ = q.Store.AppendDeploymentLog(context.Background(), job.DeploymentID, stage, line)
 			q.publish(job.DeploymentID, stage, line)
 		},
+	}
+
+	gitBranch := app.GitBranch
+	if dep.PullRequestID > 0 {
+		if preview, err := q.Store.GetPreviewByPR(ctx, job.TeamID, app.ID, dep.PullRequestID); err == nil && preview.GitBranch != "" {
+			gitBranch = preview.GitBranch
+		}
 	}
 
 	err = pipe.Run(ctx, deploy.Request{
@@ -207,13 +218,25 @@ func (q *Queue) handle(ctx context.Context, job DeployJob) {
 		BuildServer:     buildServer,
 		BuildPrivateKey: buildKey,
 		ForceRebuild:    job.ForceRebuild,
+		CommitSHA:       dep.CommitSHA,
+		GitBranch:       gitBranch,
 	})
 	if err != nil {
+		// Cancellation surfaces as an error from checkCancelled — don't mark failed.
+		if cancelled, _ := q.Store.IsDeploymentCancelled(ctx, job.DeploymentID); cancelled ||
+			strings.Contains(err.Error(), "deployment cancelled") {
+			q.publish(job.DeploymentID, "status", "cancelled")
+			return
+		}
 		slog.Error("deployment failed", "id", job.DeploymentID, "err", err)
 		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
 		_ = q.Store.UpdateApplicationStatus(ctx, app.ID, "exited")
 		q.publish(job.DeploymentID, "status", "failed")
 		q.notifyDeploy(ctx, job.TeamID, app.Name, "failed", err.Error())
+		return
+	}
+	if cancelled, _ := q.Store.IsDeploymentCancelled(ctx, job.DeploymentID); cancelled {
+		q.publish(job.DeploymentID, "status", "cancelled")
 		return
 	}
 	_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "finished", "")

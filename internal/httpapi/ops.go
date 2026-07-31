@@ -56,6 +56,11 @@ func (a *API) handleCreateService(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "environment_id and name required")
 		return
 	}
+	teamID := currentTeamID(r)
+	if _, err := a.Store.GetEnvironment(r.Context(), teamID, envID); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
 	compose := body.DockerComposeRaw
 	svcType := body.ServiceType
 	if body.Template != "" {
@@ -70,7 +75,6 @@ func (a *API) handleCreateService(w http.ResponseWriter, r *http.Request) {
 	if svcType == "" {
 		svcType = "custom"
 	}
-	teamID := currentTeamID(r)
 	svc := &store.Service{
 		TeamID: teamID, EnvironmentID: envID, Name: body.Name, Description: body.Description,
 		ServiceType: svcType, DockerComposeRaw: compose, FQDN: strings.TrimSpace(body.FQDN),
@@ -81,12 +85,20 @@ func (a *API) handleCreateService(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid server_id")
 			return
 		}
+		if _, err := a.Store.GetServer(r.Context(), teamID, id); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
 		svc.ServerID = &id
 	}
 	if body.DestinationID != "" {
 		id, err := uuid.Parse(body.DestinationID)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "invalid destination_id")
+			return
+		}
+		if _, err := a.Store.GetDestination(r.Context(), teamID, id); err != nil {
+			mapStoreErr(w, err)
 			return
 		}
 		svc.DestinationID = &id

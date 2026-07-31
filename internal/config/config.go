@@ -10,25 +10,23 @@ import (
 )
 
 type Config struct {
-	Env               string
-	HTTPAddr          string
-	DatabaseURL       string
-	RedisURL          string
-	MasterKey         string
-	SessionSecret     string
-	CORSOrigins       []string
-	PublicURL         string
-	DataDir           string
-	WebDir            string
-	CookieSecure      bool
-	SessionTTL        time.Duration
-	TraefikImage      string
-	CaddyImage        string
-	AcmeEmail         string
-	BootstrapSelf     bool   // auto-register this VPS as a server on first register
-	PublicIP          string // optional override for bootstrap / magic DNS
-	BootstrapSSHUser  string
-	BootstrapSSHPort  int
+	Env              string
+	HTTPAddr         string
+	DatabaseURL      string
+	MasterKey        string
+	CORSOrigins      []string
+	PublicURL        string
+	DataDir          string
+	WebDir           string
+	CookieSecure     bool
+	SessionTTL       time.Duration
+	TraefikImage     string
+	CaddyImage       string
+	AcmeEmail        string
+	BootstrapSelf    bool   // auto-register this VPS as a server on first register
+	PublicIP         string // optional override for bootstrap / magic DNS
+	BootstrapSSHUser string
+	BootstrapSSHPort int
 }
 
 func Load() (*Config, error) {
@@ -38,9 +36,7 @@ func Load() (*Config, error) {
 		Env:              getenv("GOOLIFY_ENV", "development"),
 		HTTPAddr:         getenv("GOOLIFY_HTTP_ADDR", ":8080"),
 		DatabaseURL:      getenv("GOOLIFY_DATABASE_URL", "postgres://goolify:goolify@localhost:5432/goolify?sslmode=disable"),
-		RedisURL:         getenv("GOOLIFY_REDIS_URL", "redis://localhost:6379/0"),
 		MasterKey:        getenv("GOOLIFY_MASTER_KEY", ""),
-		SessionSecret:    getenv("GOOLIFY_SESSION_SECRET", ""),
 		PublicURL:        getenv("GOOLIFY_PUBLIC_URL", "http://localhost:8080"),
 		DataDir:          getenv("GOOLIFY_DATA_DIR", "./data"),
 		WebDir:           getenv("GOOLIFY_WEB_DIR", ""),
@@ -82,9 +78,6 @@ func Load() (*Config, error) {
 
 	if len(cfg.MasterKey) < 32 {
 		return nil, fmt.Errorf("GOOLIFY_MASTER_KEY must be at least 32 characters")
-	}
-	if len(cfg.SessionSecret) < 32 {
-		return nil, fmt.Errorf("GOOLIFY_SESSION_SECRET must be at least 32 characters")
 	}
 	return cfg, nil
 }

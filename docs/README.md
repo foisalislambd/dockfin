@@ -67,4 +67,4 @@ glfy logs <deployment-uuid>
 
 ## Templates
 
-The service catalog loads from `GOOLIFY_TEMPLATES_DIR` or `coolify/templates/compose` when present, plus built-in stubs.
+The service catalog loads from `GOOLIFY_TEMPLATES_DIR` or `templates/compose`, plus built-in stubs.

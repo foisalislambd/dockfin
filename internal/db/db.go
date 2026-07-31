@@ -1,3 +1,6 @@
+// Package db provides PostgreSQL pool connection and goose migrations.
+// Managed application database containers (Postgres/MySQL/Redis on remote hosts)
+// live in package database, not here.
 package db
 
 import (

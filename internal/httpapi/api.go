@@ -129,14 +129,14 @@ func (a *API) Router() http.Handler {
 				r.Post("/", a.handleCreateServer)
 				r.Post("/bootstrap-self", a.handleBootstrapSelf)
 				r.Get("/{serverID}", a.handleGetServer)
-				r.Delete("/{serverID}", a.handleDeleteServer)
+				r.With(a.requireAdmin).Delete("/{serverID}", a.handleDeleteServer)
 				r.Patch("/{serverID}/settings", a.handlePatchServerSettings)
 				r.Post("/{serverID}/destinations", a.handleCreateDestination)
 				r.Post("/{serverID}/terminal", a.handleCreateTerminal)
 				r.Post("/{serverID}/validate", a.handleValidateServer)
 				r.Post("/{serverID}/proxy/start", a.handleStartProxy)
 				r.Post("/{serverID}/proxy/stop", a.handleStopProxy)
-				r.Post("/{serverID}/exec", a.handleServerExec)
+				r.With(a.requireAdmin).Post("/{serverID}/exec", a.handleServerExec)
 				r.Get("/{serverID}/metrics", a.handleListServerMetrics)
 			})
 
@@ -163,12 +163,12 @@ func (a *API) Router() http.Handler {
 				r.Post("/", a.handleCreateProject)
 				r.Get("/{projectID}", a.handleGetProject)
 				r.Patch("/{projectID}", a.handleUpdateProject)
-				r.Delete("/{projectID}", a.handleDeleteProject)
+				r.With(a.requireAdmin).Delete("/{projectID}", a.handleDeleteProject)
 				r.Get("/{projectID}/environments", a.handleListEnvironments)
 				r.Post("/{projectID}/environments", a.handleCreateEnvironment)
 				r.Get("/{projectID}/environments/{envID}", a.handleGetEnvironment)
 				r.Patch("/{projectID}/environments/{envID}", a.handleUpdateEnvironment)
-				r.Delete("/{projectID}/environments/{envID}", a.handleDeleteEnvironment)
+				r.With(a.requireAdmin).Delete("/{projectID}/environments/{envID}", a.handleDeleteEnvironment)
 			})
 
 			r.Route("/applications", func(r chi.Router) {
@@ -176,13 +176,13 @@ func (a *API) Router() http.Handler {
 				r.Post("/", a.handleCreateApplication)
 				r.Get("/{appID}", a.handleGetApplication)
 				r.Patch("/{appID}", a.handleUpdateApplication)
-				r.Delete("/{appID}", a.handleDeleteApplication)
+				r.With(a.requireAdmin).Delete("/{appID}", a.handleDeleteApplication)
 				r.Post("/{appID}/deploy", a.handleDeployApplication)
 				r.Get("/{appID}/deployments", a.handleListDeployments)
 				r.Post("/{appID}/webhook-secret", a.handleSetWebhookSecret)
 				r.Post("/{appID}/rollback", a.handleRollbackApplication)
 				r.Get("/{appID}/previews", a.handleListPreviews)
-				r.Delete("/{appID}/previews/{prID}", a.handleDeletePreview)
+				r.With(a.requireAdmin).Delete("/{appID}/previews/{prID}", a.handleDeletePreview)
 			})
 
 			r.Get("/deployments/{deploymentID}", a.handleGetDeployment)
@@ -203,7 +203,7 @@ func (a *API) Router() http.Handler {
 				r.Get("/", a.handleListDatabases)
 				r.Post("/", a.handleCreateDatabase)
 				r.Get("/{dbID}", a.handleGetDatabase)
-				r.Delete("/{dbID}", a.handleDeleteDatabase)
+				r.With(a.requireAdmin).Delete("/{dbID}", a.handleDeleteDatabase)
 				r.Post("/{dbID}/start", a.handleStartDatabase)
 				r.Post("/{dbID}/stop", a.handleStopDatabase)
 				r.Get("/{dbID}/backups", a.handleListDatabaseBackups)
@@ -217,7 +217,7 @@ func (a *API) Router() http.Handler {
 				r.Get("/templates", a.handleListServiceTemplates)
 				r.Get("/{serviceID}", a.handleGetService)
 				r.Patch("/{serviceID}", a.handlePatchService)
-				r.Delete("/{serviceID}", a.handleDeleteService)
+				r.With(a.requireAdmin).Delete("/{serviceID}", a.handleDeleteService)
 				r.Post("/{serviceID}/deploy", a.handleDeployService)
 				r.Post("/{serviceID}/stop", a.handleStopService)
 				r.Post("/{serviceID}/restart", a.handleRestartService)
@@ -357,6 +357,18 @@ func (a *API) requireTeam(next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), ctxTeamID, *teamID)
 		ctx = context.WithValue(ctx, ctxRole, role)
 		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// requireAdmin restricts the route to team owners and admins.
+func (a *API) requireAdmin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		role, _ := r.Context().Value(ctxRole).(string)
+		if role != "owner" && role != "admin" {
+			writeError(w, http.StatusForbidden, "admin or owner role required")
+			return
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -167,15 +168,44 @@ func (s *Store) UpsertSharedEnv(ctx context.Context, teamID uuid.UUID, scopeType
 		return nil, err
 	}
 	var v SharedEnvVar
+	// Unique index uses COALESCE(scope_id, zero-uuid). Prefer update-then-insert for reliable upsert.
 	err = s.Pool.QueryRow(ctx, `
-		INSERT INTO shared_environment_variables (team_id, scope_type, scope_id, key, value_enc, is_literal)
-		VALUES ($1,$2,$3,$4,$5,$6)
+		UPDATE shared_environment_variables
+		SET value_enc=$5, is_literal=$6, updated_at=NOW()
+		WHERE team_id=$1 AND scope_type=$2 AND key=$4
+		  AND COALESCE(scope_id, '00000000-0000-0000-0000-000000000000'::uuid)
+		    = COALESCE($3::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
 		RETURNING id, team_id, scope_type, scope_id, key, is_literal, created_at
 	`, teamID, scopeType, scopeID, key, enc, literal).Scan(
 		&v.ID, &v.TeamID, &v.ScopeType, &v.ScopeID, &v.Key, &v.IsLiteral, &v.CreatedAt,
 	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		err = s.Pool.QueryRow(ctx, `
+			INSERT INTO shared_environment_variables (team_id, scope_type, scope_id, key, value_enc, is_literal)
+			VALUES ($1,$2,$3,$4,$5,$6)
+			RETURNING id, team_id, scope_type, scope_id, key, is_literal, created_at
+		`, teamID, scopeType, scopeID, key, enc, literal).Scan(
+			&v.ID, &v.TeamID, &v.ScopeType, &v.ScopeID, &v.Key, &v.IsLiteral, &v.CreatedAt,
+		)
+		// Concurrent insert race: fall back to update.
+		if err != nil && (strings.Contains(err.Error(), "shared_env_unique") || strings.Contains(err.Error(), "duplicate")) {
+			err = s.Pool.QueryRow(ctx, `
+				UPDATE shared_environment_variables
+				SET value_enc=$5, is_literal=$6, updated_at=NOW()
+				WHERE team_id=$1 AND scope_type=$2 AND key=$4
+				  AND COALESCE(scope_id, '00000000-0000-0000-0000-000000000000'::uuid)
+				    = COALESCE($3::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
+				RETURNING id, team_id, scope_type, scope_id, key, is_literal, created_at
+			`, teamID, scopeType, scopeID, key, enc, literal).Scan(
+				&v.ID, &v.TeamID, &v.ScopeType, &v.ScopeID, &v.Key, &v.IsLiteral, &v.CreatedAt,
+			)
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
 	v.Value = value
-	return &v, err
+	return &v, nil
 }
 
 func (s *Store) ListSharedEnv(ctx context.Context, teamID uuid.UUID, scopeType string, scopeID *uuid.UUID) ([]SharedEnvVar, error) {

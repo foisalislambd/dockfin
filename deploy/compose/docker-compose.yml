@@ -19,6 +19,7 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    profiles: ["redis"]
 
   api:
     build:
@@ -28,7 +29,6 @@ services:
       - ../../.env
     environment:
       GOOLIFY_DATABASE_URL: postgres://goolify:goolify@postgres:5432/goolify?sslmode=disable
-      GOOLIFY_REDIS_URL: redis://redis:6379/0
       GOOLIFY_HTTP_ADDR: ":8080"
     ports:
       - "8080:8080"

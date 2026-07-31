@@ -42,7 +42,9 @@ func main() {
 			fatal(err)
 		}
 	case "worker":
-		if err := runServe(); err != nil { // same process; worker embedded in serve
+		// Alias of serve — workers are embedded in the API process (not a separate binary).
+		fmt.Fprintln(os.Stderr, "note: 'goolify worker' is an alias of 'goolify serve' (workers run in-process)")
+		if err := runServe(); err != nil {
 			fatal(err)
 		}
 	default:
@@ -56,8 +58,8 @@ func printUsage() {
 
 Usage:
   goolify migrate   Run database migrations
-  goolify serve     Start API + workers
-  goolify worker    Start API + workers (alias)
+  goolify serve     Start API + embedded workers
+  goolify worker    Alias of serve (workers are not a separate process)
   goolify version   Print version
 `)
 }

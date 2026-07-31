@@ -50,4 +50,4 @@ Logs stream to the UI via SSE (`/api/v1/deployments/{id}/logs/stream`).
 
 ## Related Coolify concepts
 
-Goolify mirrors Coolify’s operator mental model (SSH hosts, Traefik, build packs, one-click services) but reimplements the control plane in Go with an API-first SPA. The optional `coolify/` checkout is a behavior/templates reference only.
+Goolify mirrors Coolify’s operator mental model (SSH hosts, Traefik, build packs, one-click services) but reimplements the control plane in Go with an API-first SPA.

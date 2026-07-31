@@ -62,12 +62,44 @@ func normalizeHTTPSRepo(repo, htmlURL string) string {
 }
 
 func (p *Pipeline) gitClone(ctx context.Context, client *ssh.Client, req Request, destDir string) error {
-	branch := req.App.GitBranch
+	branch := req.GitBranch
+	if branch == "" {
+		branch = req.App.GitBranch
+	}
 	if branch == "" {
 		branch = "main"
 	}
+	commit := strings.TrimSpace(req.CommitSHA)
+	if commit == "HEAD" {
+		commit = ""
+	}
 	p.log("fetch", "Cloning repository")
 	_, _, _ = sshx.RunArgs(client, "rm", "-rf", destDir)
+
+	runClone := func(extraEnv []string, repo string) error {
+		args := append([]string{}, extraEnv...)
+		args = append(args, "git", "clone", "--branch", branch, "--depth", "1", repo, destDir)
+		_, errOut, err := sshx.RunArgs(client, args...)
+		if err != nil {
+			return fmt.Errorf("git clone: %v %s", err, errOut)
+		}
+		if commit != "" {
+			p.log("fetch", "Checking out commit "+commit)
+			_, errOut, err = sshx.RunArgs(client, "git", "-C", destDir, "fetch", "--depth", "1", "origin", commit)
+			if err != nil {
+				// Fall back to unshallow fetch of the SHA (some remotes reject shallow fetch by SHA).
+				_, errOut2, err2 := sshx.RunArgs(client, "git", "-C", destDir, "fetch", "origin", commit)
+				if err2 != nil {
+					return fmt.Errorf("git fetch commit: %v %s (%v %s)", err, errOut, err2, errOut2)
+				}
+			}
+			_, errOut, err = sshx.RunArgs(client, "git", "-C", destDir, "checkout", commit)
+			if err != nil {
+				return fmt.Errorf("git checkout: %v %s", err, errOut)
+			}
+		}
+		return nil
+	}
 
 	// Private deploy key path (SSH).
 	if req.App.PrivateKeyID != nil && p.Store != nil {
@@ -95,10 +127,8 @@ func (p *Pipeline) gitClone(ctx context.Context, client *ssh.Client, req Request
 		}
 		repo := githubapp.ToSSHURL(req.App.GitRepository, user)
 		sshCmd := fmt.Sprintf("ssh -i %s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null", keyPath)
-		_, errOut, err := sshx.RunArgs(client, "env", "GIT_SSH_COMMAND="+sshCmd,
-			"git", "clone", "--branch", branch, "--depth", "1", repo, destDir)
-		if err != nil {
-			return fmt.Errorf("git clone (deploy key): %v %s", err, errOut)
+		if err := runClone([]string{"env", "GIT_SSH_COMMAND=" + sshCmd}, repo); err != nil {
+			return fmt.Errorf("git clone (deploy key): %w", err)
 		}
 		return nil
 	}
@@ -107,9 +137,5 @@ func (p *Pipeline) gitClone(ctx context.Context, client *ssh.Client, req Request
 	if err != nil {
 		return err
 	}
-	_, errOut, err := sshx.RunArgs(client, "git", "clone", "--branch", branch, "--depth", "1", repo, destDir)
-	if err != nil {
-		return fmt.Errorf("git clone: %v %s", err, errOut)
-	}
-	return nil
+	return runClone(nil, repo)
 }

@@ -2,7 +2,11 @@ openapi: 3.1.0
 info:
   title: Goolify API
   version: 0.1.0
-  description: Self-hosted PaaS control plane API (Coolify alternative).
+  description: |
+    Self-hosted PaaS control plane API (Coolify alternative).
+
+    NOTE: This OpenAPI file is an incomplete sketch of a few public endpoints.
+    The full route surface lives in internal/httpapi/api.go and is not fully documented here yet.
 servers:
   - url: /api/v1
 paths:

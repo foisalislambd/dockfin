@@ -36,6 +36,7 @@ import {
   TeamPage,
 } from './pages/OpsPages'
 import { GitSourceDetailPage, GitSourcesPage } from './pages/GitSources'
+import { api, ApiError } from './lib/api'
 import './index.css'
 
 const queryClient = new QueryClient()
@@ -84,8 +85,16 @@ const appRoute = createRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  beforeLoad: () => {
-    throw redirect({ to: '/login' })
+  beforeLoad: async () => {
+    try {
+      await api.me()
+      throw redirect({ to: '/dashboard' })
+    } catch (e) {
+      if (e instanceof ApiError) {
+        throw redirect({ to: '/login' })
+      }
+      throw e
+    }
   },
 })
 

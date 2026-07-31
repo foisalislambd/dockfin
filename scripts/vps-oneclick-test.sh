@@ -178,14 +178,11 @@ done
 log "Preparing .env..."
 if [[ ! -f .env ]]; then
   MASTER_KEY=$(openssl rand -base64 48 | tr -d '\n' | head -c 48)
-  SESSION_SECRET=$(openssl rand -base64 48 | tr -d '\n' | head -c 48)
   cat > .env <<EOF
 GOOLIFY_ENV=production
 GOOLIFY_HTTP_ADDR=:${API_PORT}
 GOOLIFY_DATABASE_URL=postgres://goolify:goolify@127.0.0.1:5432/goolify?sslmode=disable
-GOOLIFY_REDIS_URL=redis://127.0.0.1:6379/0
 GOOLIFY_MASTER_KEY=${MASTER_KEY}
-GOOLIFY_SESSION_SECRET=${SESSION_SECRET}
 GOOLIFY_CORS_ORIGINS=${PUBLIC_API_URL},http://127.0.0.1:${API_PORT}
 GOOLIFY_PUBLIC_URL=${PUBLIC_API_URL}
 GOOLIFY_PUBLIC_IP=${PUBLIC_IP}

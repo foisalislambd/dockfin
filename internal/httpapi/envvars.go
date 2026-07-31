@@ -1,12 +1,14 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/goolify/goolify/internal/crypto"
 	"github.com/goolify/goolify/internal/git"
+	"github.com/goolify/goolify/internal/store"
 )
 
 func (a *API) handleListEnvVars(w http.ResponseWriter, r *http.Request) {
@@ -45,11 +47,16 @@ func (a *API) handleUpsertEnvVar(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "resource_type, resource_id, key required")
 		return
 	}
+	teamID := currentTeamID(r)
+	if err := a.assertEnvVarResource(r, teamID, body.ResourceType, rid); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
 	runtime := true
 	if body.IsRuntime != nil {
 		runtime = *body.IsRuntime
 	}
-	v, err := a.Store.UpsertEnvVar(r.Context(), currentTeamID(r), body.ResourceType, rid, body.Key, body.Value, runtime, body.IsBuildtime, body.IsLiteral, body.Comment)
+	v, err := a.Store.UpsertEnvVar(r.Context(), teamID, body.ResourceType, rid, body.Key, body.Value, runtime, body.IsBuildtime, body.IsLiteral, body.Comment)
 	if err != nil {
 		mapStoreErr(w, err)
 		return
@@ -152,7 +159,12 @@ func (a *API) handleUpsertSharedEnv(w http.ResponseWriter, r *http.Request) {
 		}
 		scopeID = &id
 	}
-	v, err := a.Store.UpsertSharedEnv(r.Context(), currentTeamID(r), body.ScopeType, scopeID, body.Key, body.Value, body.IsLiteral)
+	teamID := currentTeamID(r)
+	if err := a.assertSharedEnvScope(r, teamID, body.ScopeType, scopeID); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	v, err := a.Store.UpsertSharedEnv(r.Context(), teamID, body.ScopeType, scopeID, body.Key, body.Value, body.IsLiteral)
 	if err != nil {
 		mapStoreErr(w, err)
 		return
@@ -160,11 +172,64 @@ func (a *API) handleUpsertSharedEnv(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, v)
 }
 
-// verifyWebhookAuth checks signature when a secret is configured.
+func (a *API) assertSharedEnvScope(r *http.Request, teamID uuid.UUID, scopeType string, scopeID *uuid.UUID) error {
+	switch scopeType {
+	case "team":
+		if scopeID != nil {
+			return store.ErrNotFound
+		}
+		return nil
+	case "project":
+		if scopeID == nil {
+			return store.ErrNotFound
+		}
+		_, err := a.Store.GetProject(r.Context(), teamID, *scopeID)
+		return err
+	case "environment":
+		if scopeID == nil {
+			return store.ErrNotFound
+		}
+		_, err := a.Store.GetEnvironment(r.Context(), teamID, *scopeID)
+		return err
+	case "server":
+		if scopeID == nil {
+			return store.ErrNotFound
+		}
+		_, err := a.Store.GetServer(r.Context(), teamID, *scopeID)
+		return err
+	default:
+		return store.ErrNotFound
+	}
+}
+
+func (a *API) assertEnvVarResource(r *http.Request, teamID uuid.UUID, resourceType string, resourceID uuid.UUID) error {
+	switch resourceType {
+	case "application":
+		_, err := a.Store.GetApplication(r.Context(), teamID, resourceID)
+		return err
+	case "database":
+		_, err := a.Store.GetDatabase(r.Context(), teamID, resourceID)
+		return err
+	case "service":
+		_, err := a.Store.GetService(r.Context(), teamID, resourceID)
+		return err
+	default:
+		return store.ErrNotFound
+	}
+}
+
+// verifyWebhookAuth requires a configured webhook secret except in development,
+// where an empty secret is allowed for local testing.
 func (a *API) verifyWebhookAuth(r *http.Request, appID uuid.UUID, body []byte) error {
 	secret, err := a.Store.GetWebhookSecret(r.Context(), appID)
-	if err != nil || secret == "" {
-		return nil // no secret configured = allow (dev mode)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		return errUnauthorizedWebhook
+	}
+	if secret == "" {
+		if a.Cfg != nil && a.Cfg.IsDev() {
+			return nil
+		}
+		return errUnauthorizedWebhook
 	}
 	if sig := r.Header.Get("X-Hub-Signature-256"); sig != "" {
 		if !git.VerifyGitHubSignature(secret, body, sig) {

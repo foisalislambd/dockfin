@@ -112,6 +112,7 @@ type Deployment struct {
 	Status        string          `json:"status"`
 	CommitSHA     string          `json:"commit_sha"`
 	CommitMessage string          `json:"commit_message"`
+	PullRequestID int             `json:"pull_request_id"`
 	CurrentStage  string          `json:"current_stage"`
 	Logs          json.RawMessage `json:"logs"`
 	ErrorMessage  string          `json:"error_message"`
@@ -274,8 +275,16 @@ func (s *Store) CreateEnvironment(ctx context.Context, teamID, projectID uuid.UU
 
 // ProjectIsEmpty mirrors Coolify Project::isEmpty — no apps/dbs/services in any env.
 func (s *Store) ProjectIsEmpty(ctx context.Context, teamID, projectID uuid.UUID) (bool, error) {
+	return s.projectIsEmptyTx(ctx, s.Pool, teamID, projectID)
+}
+
+type queryRower interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func (s *Store) projectIsEmptyTx(ctx context.Context, q queryRower, teamID, projectID uuid.UUID) (bool, error) {
 	var n int
-	err := s.Pool.QueryRow(ctx, `
+	err := q.QueryRow(ctx, `
 		SELECT
 			(SELECT COUNT(*) FROM applications a
 			 JOIN environments e ON e.id = a.environment_id
@@ -294,8 +303,12 @@ func (s *Store) ProjectIsEmpty(ctx context.Context, teamID, projectID uuid.UUID)
 
 // EnvironmentIsEmpty is true when the environment has no apps/dbs/services.
 func (s *Store) EnvironmentIsEmpty(ctx context.Context, teamID, envID uuid.UUID) (bool, error) {
+	return s.environmentIsEmptyTx(ctx, s.Pool, teamID, envID)
+}
+
+func (s *Store) environmentIsEmptyTx(ctx context.Context, q queryRower, teamID, envID uuid.UUID) (bool, error) {
 	var n int
-	err := s.Pool.QueryRow(ctx, `
+	err := q.QueryRow(ctx, `
 		SELECT
 			(SELECT COUNT(*) FROM applications WHERE environment_id=$1 AND team_id=$2)
 			+
@@ -331,21 +344,37 @@ func (s *Store) UpdateProject(ctx context.Context, teamID, id uuid.UUID, name, d
 }
 
 func (s *Store) DeleteProject(ctx context.Context, teamID, id uuid.UUID) error {
-	empty, err := s.ProjectIsEmpty(ctx, teamID, id)
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var locked uuid.UUID
+	err = tx.QueryRow(ctx, `
+		SELECT id FROM projects WHERE id=$1 AND team_id=$2 FOR UPDATE
+	`, id, teamID).Scan(&locked)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	empty, err := s.projectIsEmptyTx(ctx, tx, teamID, id)
 	if err != nil {
 		return err
 	}
 	if !empty {
 		return ErrNotEmpty
 	}
-	tag, err := s.Pool.Exec(ctx, `DELETE FROM projects WHERE id=$1 AND team_id=$2`, id, teamID)
+	tag, err := tx.Exec(ctx, `DELETE FROM projects WHERE id=$1 AND team_id=$2`, id, teamID)
 	if err != nil {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (s *Store) UpdateEnvironment(ctx context.Context, teamID, projectID, envID uuid.UUID, name, description string) (*Environment, error) {
@@ -375,15 +404,30 @@ func (s *Store) UpdateEnvironment(ctx context.Context, teamID, projectID, envID 
 }
 
 func (s *Store) DeleteEnvironment(ctx context.Context, teamID, projectID, envID uuid.UUID) error {
-	empty, err := s.EnvironmentIsEmpty(ctx, teamID, envID)
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var locked uuid.UUID
+	err = tx.QueryRow(ctx, `
+		SELECT id FROM environments WHERE id=$1 AND project_id=$2 AND team_id=$3 FOR UPDATE
+	`, envID, projectID, teamID).Scan(&locked)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	empty, err := s.environmentIsEmptyTx(ctx, tx, teamID, envID)
 	if err != nil {
 		return err
 	}
 	if !empty {
 		return ErrNotEmpty
 	}
-	// Coolify: refuse deleting the last environment? Coolify allows if empty.
-	tag, err := s.Pool.Exec(ctx, `
+	tag, err := tx.Exec(ctx, `
 		DELETE FROM environments WHERE id=$1 AND project_id=$2 AND team_id=$3
 	`, envID, projectID, teamID)
 	if err != nil {
@@ -392,7 +436,7 @@ func (s *Store) DeleteEnvironment(ctx context.Context, teamID, projectID, envID 
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (s *Store) CreateApplication(ctx context.Context, app *Application) (*Application, error) {
@@ -535,14 +579,14 @@ func (s *Store) SetDeploymentBuildServer(ctx context.Context, deploymentID uuid.
 	return err
 }
 
-func (s *Store) CreateDeployment(ctx context.Context, teamID, appID uuid.UUID, serverID *uuid.UUID, commitSHA, commitMsg string, forceRebuild, isWebhook, isAPI bool) (*Deployment, error) {
+func (s *Store) CreateDeployment(ctx context.Context, teamID, appID uuid.UUID, serverID *uuid.UUID, commitSHA, commitMsg string, forceRebuild, isWebhook, isAPI bool, pullRequestID int) (*Deployment, error) {
 	var d Deployment
 	err := s.Pool.QueryRow(ctx, `
-		INSERT INTO deployments (team_id, application_id, server_id, status, commit_sha, commit_message, force_rebuild, is_webhook, is_api)
-		VALUES ($1,$2,$3,'queued',$4,$5,$6,$7,$8)
-		RETURNING id, team_id, application_id, server_id, status, commit_sha, commit_message, current_stage, logs, error_message, started_at, finished_at, created_at
-	`, teamID, appID, serverID, commitSHA, commitMsg, forceRebuild, isWebhook, isAPI).Scan(
-		&d.ID, &d.TeamID, &d.ApplicationID, &d.ServerID, &d.Status, &d.CommitSHA, &d.CommitMessage,
+		INSERT INTO deployments (team_id, application_id, server_id, status, commit_sha, commit_message, force_rebuild, is_webhook, is_api, pull_request_id)
+		VALUES ($1,$2,$3,'queued',$4,$5,$6,$7,$8,$9)
+		RETURNING id, team_id, application_id, server_id, status, commit_sha, commit_message, pull_request_id, current_stage, logs, error_message, started_at, finished_at, created_at
+	`, teamID, appID, serverID, commitSHA, commitMsg, forceRebuild, isWebhook, isAPI, pullRequestID).Scan(
+		&d.ID, &d.TeamID, &d.ApplicationID, &d.ServerID, &d.Status, &d.CommitSHA, &d.CommitMessage, &d.PullRequestID,
 		&d.CurrentStage, &d.Logs, &d.ErrorMessage, &d.StartedAt, &d.FinishedAt, &d.CreatedAt,
 	)
 	return &d, err
@@ -551,10 +595,10 @@ func (s *Store) CreateDeployment(ctx context.Context, teamID, appID uuid.UUID, s
 func (s *Store) GetDeployment(ctx context.Context, teamID, id uuid.UUID) (*Deployment, error) {
 	var d Deployment
 	err := s.Pool.QueryRow(ctx, `
-		SELECT id, team_id, application_id, server_id, status, commit_sha, commit_message, current_stage, logs, error_message, started_at, finished_at, created_at
+		SELECT id, team_id, application_id, server_id, status, commit_sha, commit_message, pull_request_id, current_stage, logs, error_message, started_at, finished_at, created_at
 		FROM deployments WHERE id=$1 AND team_id=$2
 	`, id, teamID).Scan(
-		&d.ID, &d.TeamID, &d.ApplicationID, &d.ServerID, &d.Status, &d.CommitSHA, &d.CommitMessage,
+		&d.ID, &d.TeamID, &d.ApplicationID, &d.ServerID, &d.Status, &d.CommitSHA, &d.CommitMessage, &d.PullRequestID,
 		&d.CurrentStage, &d.Logs, &d.ErrorMessage, &d.StartedAt, &d.FinishedAt, &d.CreatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -568,7 +612,7 @@ func (s *Store) ListDeployments(ctx context.Context, teamID, appID uuid.UUID, li
 		limit = 50
 	}
 	rows, err := s.Pool.Query(ctx, `
-		SELECT id, team_id, application_id, server_id, status, commit_sha, commit_message, current_stage, logs, error_message, started_at, finished_at, created_at
+		SELECT id, team_id, application_id, server_id, status, commit_sha, commit_message, pull_request_id, current_stage, logs, error_message, started_at, finished_at, created_at
 		FROM deployments WHERE team_id=$1 AND application_id=$2
 		ORDER BY created_at DESC LIMIT $3
 	`, teamID, appID, limit)
@@ -580,7 +624,7 @@ func (s *Store) ListDeployments(ctx context.Context, teamID, appID uuid.UUID, li
 	for rows.Next() {
 		var d Deployment
 		if err := rows.Scan(
-			&d.ID, &d.TeamID, &d.ApplicationID, &d.ServerID, &d.Status, &d.CommitSHA, &d.CommitMessage,
+			&d.ID, &d.TeamID, &d.ApplicationID, &d.ServerID, &d.Status, &d.CommitSHA, &d.CommitMessage, &d.PullRequestID,
 			&d.CurrentStage, &d.Logs, &d.ErrorMessage, &d.StartedAt, &d.FinishedAt, &d.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -607,7 +651,8 @@ func (s *Store) AppendDeploymentLog(ctx context.Context, id uuid.UUID, stage, li
 }
 
 func (s *Store) SetDeploymentStatus(ctx context.Context, id uuid.UUID, status, errMsg string) error {
-	_, err := s.Pool.Exec(ctx, `
+	// Never overwrite a cancelled deployment with finished/failed/in_progress.
+	tag, err := s.Pool.Exec(ctx, `
 		UPDATE deployments SET
 			status=$2,
 			error_message=$3,
@@ -615,8 +660,45 @@ func (s *Store) SetDeploymentStatus(ctx context.Context, id uuid.UUID, status, e
 			finished_at = CASE WHEN $2 IN ('finished','failed','cancelled') THEN NOW() ELSE finished_at END,
 			updated_at=NOW()
 		WHERE id=$1
+		  AND NOT (status='cancelled' AND $2 IN ('queued','in_progress','finished','failed'))
 	`, id, status, errMsg)
-	return err
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		var cur string
+		_ = s.Pool.QueryRow(ctx, `SELECT status FROM deployments WHERE id=$1`, id).Scan(&cur)
+		if cur == "cancelled" {
+			return nil
+		}
+	}
+	return nil
+}
+
+func (s *Store) IsDeploymentCancelled(ctx context.Context, id uuid.UUID) (bool, error) {
+	var status string
+	err := s.Pool.QueryRow(ctx, `SELECT status FROM deployments WHERE id=$1`, id).Scan(&status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, ErrNotFound
+	}
+	return status == "cancelled", err
+}
+
+func (s *Store) GetPreviewByPR(ctx context.Context, teamID, appID uuid.UUID, prID int) (*ApplicationPreview, error) {
+	var p ApplicationPreview
+	err := s.Pool.QueryRow(ctx, `
+		SELECT id, team_id, application_id, pull_request_id, pull_request_title, git_branch, fqdn, status, created_at
+		FROM application_previews WHERE team_id=$1 AND application_id=$2 AND pull_request_id=$3
+	`, teamID, appID, prID).Scan(
+		&p.ID, &p.TeamID, &p.ApplicationID, &p.PullRequestID, &p.PullRequestTitle, &p.GitBranch, &p.FQDN, &p.Status, &p.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
 }
 
 func DefaultDBImage(engine string) string {
@@ -834,7 +916,7 @@ func (s *Store) ListQueuedDeployments(ctx context.Context, limit int) ([]Deploym
 		limit = 100
 	}
 	rows, err := s.Pool.Query(ctx, `
-		SELECT id, team_id, application_id, server_id, status, commit_sha, commit_message, current_stage, logs, error_message, started_at, finished_at, created_at
+		SELECT id, team_id, application_id, server_id, status, commit_sha, commit_message, pull_request_id, current_stage, logs, error_message, started_at, finished_at, created_at
 		FROM deployments
 		WHERE status IN ('queued', 'in_progress')
 		ORDER BY created_at ASC
@@ -848,7 +930,7 @@ func (s *Store) ListQueuedDeployments(ctx context.Context, limit int) ([]Deploym
 	for rows.Next() {
 		var d Deployment
 		if err := rows.Scan(
-			&d.ID, &d.TeamID, &d.ApplicationID, &d.ServerID, &d.Status, &d.CommitSHA, &d.CommitMessage,
+			&d.ID, &d.TeamID, &d.ApplicationID, &d.ServerID, &d.Status, &d.CommitSHA, &d.CommitMessage, &d.PullRequestID,
 			&d.CurrentStage, &d.Logs, &d.ErrorMessage, &d.StartedAt, &d.FinishedAt, &d.CreatedAt,
 		); err != nil {
 			return nil, err

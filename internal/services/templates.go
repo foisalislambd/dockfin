@@ -35,13 +35,11 @@ func ensureLoaded() {
 	for k, v := range builtin {
 		catalog[k] = v
 	}
-	// Prefer Goolify's shipped catalog; Coolify checkout is optional fallback.
+	// Prefer Goolify's shipped catalog (optional GOOLIFY_TEMPLATES_DIR override).
 	dirs := []string{
 		os.Getenv("GOOLIFY_TEMPLATES_DIR"),
 		"templates/compose",
 		filepath.Join("..", "templates", "compose"),
-		"coolify/templates/compose",
-		filepath.Join("..", "coolify", "templates", "compose"),
 	}
 	seenDirs := map[string]bool{}
 	for _, dir := range dirs {
@@ -172,8 +170,6 @@ func LogosDirs() []string {
 		filepath.Join("..", "templates", "svgs"),
 		"apps/web/public/svgs",
 		"apps/web/dist/svgs",
-		"coolify/public/svgs",
-		filepath.Join("..", "coolify", "public", "svgs"),
 		"/opt/goolify/svgs",
 	}
 	var out []string
