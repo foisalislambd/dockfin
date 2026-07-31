@@ -17,6 +17,7 @@ type PrivateKey struct {
 	Description string    `json:"description"`
 	PublicKey   string    `json:"public_key"`
 	Fingerprint string    `json:"fingerprint"`
+	InUse       bool      `json:"in_use"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 
@@ -82,8 +83,9 @@ func (s *Store) CreatePrivateKey(ctx context.Context, teamID uuid.UUID, name, de
 
 func (s *Store) ListPrivateKeys(ctx context.Context, teamID uuid.UUID) ([]PrivateKey, error) {
 	rows, err := s.Pool.Query(ctx, `
-		SELECT id, team_id, name, description, public_key, fingerprint, created_at
-		FROM private_keys WHERE team_id = $1 ORDER BY name
+		SELECT pk.id, pk.team_id, pk.name, pk.description, pk.public_key, pk.fingerprint, pk.created_at,
+			EXISTS(SELECT 1 FROM servers srv WHERE srv.private_key_id = pk.id) AS in_use
+		FROM private_keys pk WHERE pk.team_id = $1 ORDER BY pk.name
 	`, teamID)
 	if err != nil {
 		return nil, err
@@ -92,7 +94,7 @@ func (s *Store) ListPrivateKeys(ctx context.Context, teamID uuid.UUID) ([]Privat
 	var out []PrivateKey
 	for rows.Next() {
 		var k PrivateKey
-		if err := rows.Scan(&k.ID, &k.TeamID, &k.Name, &k.Description, &k.PublicKey, &k.Fingerprint, &k.CreatedAt); err != nil {
+		if err := rows.Scan(&k.ID, &k.TeamID, &k.Name, &k.Description, &k.PublicKey, &k.Fingerprint, &k.CreatedAt, &k.InUse); err != nil {
 			return nil, err
 		}
 		out = append(out, k)
@@ -103,9 +105,10 @@ func (s *Store) ListPrivateKeys(ctx context.Context, teamID uuid.UUID) ([]Privat
 func (s *Store) GetPrivateKey(ctx context.Context, teamID, id uuid.UUID) (*PrivateKey, error) {
 	var k PrivateKey
 	err := s.Pool.QueryRow(ctx, `
-		SELECT id, team_id, name, description, public_key, fingerprint, created_at
-		FROM private_keys WHERE id=$1 AND team_id=$2
-	`, id, teamID).Scan(&k.ID, &k.TeamID, &k.Name, &k.Description, &k.PublicKey, &k.Fingerprint, &k.CreatedAt)
+		SELECT pk.id, pk.team_id, pk.name, pk.description, pk.public_key, pk.fingerprint, pk.created_at,
+			EXISTS(SELECT 1 FROM servers srv WHERE srv.private_key_id = pk.id) AS in_use
+		FROM private_keys pk WHERE pk.id=$1 AND pk.team_id=$2
+	`, id, teamID).Scan(&k.ID, &k.TeamID, &k.Name, &k.Description, &k.PublicKey, &k.Fingerprint, &k.CreatedAt, &k.InUse)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -120,6 +123,47 @@ func (s *Store) GetPrivateKeyMaterial(ctx context.Context, teamID, id uuid.UUID)
 		return "", ErrNotFound
 	}
 	return privEnc, err
+}
+
+func (s *Store) UpdatePrivateKey(ctx context.Context, teamID, id uuid.UUID, name, description string) (*PrivateKey, error) {
+	_, err := s.Pool.Exec(ctx, `
+		UPDATE private_keys SET name=$3, description=$4, updated_at=NOW()
+		WHERE id=$1 AND team_id=$2
+	`, id, teamID, name, description)
+	if err != nil {
+		return nil, err
+	}
+	return s.GetPrivateKey(ctx, teamID, id)
+}
+
+func (s *Store) DeletePrivateKey(ctx context.Context, teamID, id uuid.UUID) error {
+	k, err := s.GetPrivateKey(ctx, teamID, id)
+	if err != nil {
+		return err
+	}
+	if k.InUse {
+		return ErrConflict
+	}
+	tag, err := s.Pool.Exec(ctx, `DELETE FROM private_keys WHERE id=$1 AND team_id=$2`, id, teamID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) CleanupUnusedPrivateKeys(ctx context.Context, teamID uuid.UUID) (int64, error) {
+	tag, err := s.Pool.Exec(ctx, `
+		DELETE FROM private_keys pk
+		WHERE pk.team_id=$1
+		  AND NOT EXISTS (SELECT 1 FROM servers srv WHERE srv.private_key_id = pk.id)
+	`, teamID)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }
 
 func (s *Store) CreateServer(ctx context.Context, teamID uuid.UUID, keyID *uuid.UUID, name, desc, ip, user string, port int, proxyType string) (*Server, error) {

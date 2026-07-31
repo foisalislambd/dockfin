@@ -10,7 +10,6 @@ import {
   Settings,
   Users,
   Variable,
-  Key,
 } from 'lucide-react'
 
 export const appConfig = {
@@ -66,8 +65,7 @@ export const navItems: NavItem[] = [
   { name: 'Storages', href: '/storages', icon: HardDrive },
   { name: 'Shared vars', href: '/shared-variables', icon: Variable },
   { name: 'Team', href: '/team', icon: Users },
-  { name: 'Keys', href: '/security/private-keys', icon: KeyRound },
-  { name: 'API Tokens', href: '/security/api-tokens', icon: Key },
+  { name: 'Keys & Tokens', href: '/security', icon: KeyRound },
   { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
@@ -79,11 +77,8 @@ export function isNavActive(pathname: string, href: string) {
   if (href === '/git-sources') {
     return pathname === '/git-sources' || pathname.startsWith('/git-sources/')
   }
-  if (href === '/security/private-keys') {
-    return pathname === '/security/private-keys' || pathname.startsWith('/security/private-keys/')
-  }
-  if (href === '/security/api-tokens') {
-    return pathname === '/security/api-tokens' || pathname.startsWith('/security/api-tokens/')
+  if (href === '/security') {
+    return pathname === '/security' || pathname.startsWith('/security/')
   }
   return pathname === href || pathname.startsWith(`${href}/`)
 }

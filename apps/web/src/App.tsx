@@ -29,9 +29,8 @@ import { DatabaseDetailPage, ServerDetailPage } from './pages/ResourceDetails'
 import { ServiceDetailPage } from './pages/ServiceDetail'
 import { DeploymentShowPage } from './pages/DeploymentShow'
 import { SettingsPage } from './pages/Settings'
+import { SecurityPage } from './pages/Security'
 import {
-  PrivateKeysPage,
-  ApiTokensPage,
   SharedVariablesPage,
   StoragesPage,
   TeamPage,
@@ -296,10 +295,29 @@ const sharedVariablesRoute = createRoute({
   component: SharedVariablesPage,
 })
 
+const securityRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/security',
+  validateSearch: (search: Record<string, unknown>): { tab?: string } => ({
+    tab: typeof search.tab === 'string' ? search.tab : undefined,
+  }),
+  component: SecurityPage,
+})
+
 const privateKeysRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/security/private-keys',
-  component: PrivateKeysPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/security', search: { tab: 'private-keys' } })
+  },
+})
+
+const apiTokensRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/security/api-tokens',
+  beforeLoad: () => {
+    throw redirect({ to: '/security', search: { tab: 'api-tokens' } })
+  },
 })
 
 const gitSourcesRoute = createRoute({
@@ -312,12 +330,6 @@ const gitSourceDetailRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/git-sources/$sourceId',
   component: GitSourceDetailPage,
-})
-
-const apiTokensRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: '/security/api-tokens',
-  component: ApiTokensPage,
 })
 
 const routeTree = rootRoute.addChildren([
@@ -356,6 +368,7 @@ const routeTree = rootRoute.addChildren([
     storagesRoute,
     teamRoute,
     sharedVariablesRoute,
+    securityRoute,
     privateKeysRoute,
     gitSourcesRoute,
     gitSourceDetailRoute,

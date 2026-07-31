@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/goolify/goolify/internal/proxy"
 	"github.com/goolify/goolify/internal/sshx"
+	"github.com/goolify/goolify/internal/store"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -21,6 +22,9 @@ func (a *API) handleListKeys(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		mapStoreErr(w, err)
 		return
+	}
+	if keys == nil {
+		keys = []store.PrivateKey{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"private_keys": keys})
 }

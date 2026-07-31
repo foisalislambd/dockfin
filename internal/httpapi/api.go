@@ -98,6 +98,28 @@ func (a *API) Router() http.Handler {
 			r.Route("/private-keys", func(r chi.Router) {
 				r.Get("/", a.handleListKeys)
 				r.Post("/", a.handleCreateKey)
+				r.Post("/generate", a.handleGenerateKey)
+				r.Post("/cleanup-unused", a.handleCleanupUnusedKeys)
+				r.Get("/{keyID}", a.handleGetKey)
+				r.Patch("/{keyID}", a.handleUpdateKey)
+				r.Delete("/{keyID}", a.handleDeleteKey)
+			})
+
+			r.Route("/cloud-tokens", func(r chi.Router) {
+				r.Get("/", a.handleListCloudTokens)
+				r.Post("/", a.handleCreateCloudToken)
+				r.Get("/{tokenID}", a.handleGetCloudToken)
+				r.Patch("/{tokenID}", a.handleUpdateCloudToken)
+				r.Delete("/{tokenID}", a.handleDeleteCloudToken)
+				r.Post("/{tokenID}/validate", a.handleValidateCloudToken)
+			})
+
+			r.Route("/cloud-init-scripts", func(r chi.Router) {
+				r.Get("/", a.handleListCloudInitScripts)
+				r.Post("/", a.handleCreateCloudInitScript)
+				r.Get("/{scriptID}", a.handleGetCloudInitScript)
+				r.Patch("/{scriptID}", a.handleUpdateCloudInitScript)
+				r.Delete("/{scriptID}", a.handleDeleteCloudInitScript)
 			})
 
 			r.Route("/servers", func(r chi.Router) {

@@ -120,11 +120,71 @@ export const api = {
     request(`/api/v1/servers/${id}/proxy/stop`, { method: 'POST' }),
 
   keys: () => request<{ private_keys: Key[] }>('/api/v1/private-keys'),
-  createKey: (name: string, private_key: string) =>
+  getKey: (id: string) => request<Key>(`/api/v1/private-keys/${id}`),
+  createKey: (name: string, private_key: string, description = '') =>
     request<Key>('/api/v1/private-keys', {
       method: 'POST',
-      body: JSON.stringify({ name, private_key }),
+      body: JSON.stringify({ name, private_key, description }),
     }),
+  generateKey: (type: 'ed25519' | 'rsa' = 'ed25519', name = '', description = '') =>
+    request<Key>('/api/v1/private-keys/generate', {
+      method: 'POST',
+      body: JSON.stringify({ type, name, description }),
+    }),
+  updateKey: (id: string, name: string, description = '') =>
+    request<Key>(`/api/v1/private-keys/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name, description }),
+    }),
+  deleteKey: (id: string) =>
+    request<{ status: string }>(`/api/v1/private-keys/${id}`, { method: 'DELETE' }),
+  cleanupUnusedKeys: () =>
+    request<{ status: string; deleted: number }>('/api/v1/private-keys/cleanup-unused', {
+      method: 'POST',
+    }),
+
+  cloudTokens: () => request<{ cloud_tokens: CloudProviderToken[] }>('/api/v1/cloud-tokens'),
+  getCloudToken: (id: string) => request<CloudProviderToken>(`/api/v1/cloud-tokens/${id}`),
+  createCloudToken: (body: {
+    provider: 'hetzner' | 'digitalocean' | 'vultr'
+    name: string
+    description?: string
+    token: string
+    validate?: boolean
+  }) =>
+    request<CloudProviderToken>('/api/v1/cloud-tokens', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateCloudToken: (
+    id: string,
+    body: { name: string; description?: string; token?: string },
+  ) =>
+    request<CloudProviderToken>(`/api/v1/cloud-tokens/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteCloudToken: (id: string) =>
+    request<{ status: string }>(`/api/v1/cloud-tokens/${id}`, { method: 'DELETE' }),
+  validateCloudToken: (id: string) =>
+    request<{ status: string }>(`/api/v1/cloud-tokens/${id}/validate`, { method: 'POST' }),
+
+  cloudInitScripts: () =>
+    request<{ cloud_init_scripts: CloudInitScript[] }>('/api/v1/cloud-init-scripts'),
+  getCloudInitScript: (id: string) =>
+    request<CloudInitScript>(`/api/v1/cloud-init-scripts/${id}`),
+  createCloudInitScript: (name: string, script: string) =>
+    request<CloudInitScript>('/api/v1/cloud-init-scripts', {
+      method: 'POST',
+      body: JSON.stringify({ name, script }),
+    }),
+  updateCloudInitScript: (id: string, name: string, script: string) =>
+    request<CloudInitScript>(`/api/v1/cloud-init-scripts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name, script }),
+    }),
+  deleteCloudInitScript: (id: string) =>
+    request<{ status: string }>(`/api/v1/cloud-init-scripts/${id}`, { method: 'DELETE' }),
 
   projects: () => request<{ projects: Project[] }>('/api/v1/projects'),
   getProject: (id: string) => request<Project>(`/api/v1/projects/${id}`),
@@ -570,7 +630,30 @@ export type GitSource = {
   is_public: boolean
   created_at: string
 }
-export type Key = { id: string; name: string; fingerprint: string; public_key: string }
+export type Key = {
+  id: string
+  name: string
+  description?: string
+  fingerprint: string
+  public_key: string
+  in_use?: boolean
+  created_at?: string
+}
+export type CloudProviderToken = {
+  id: string
+  provider: 'hetzner' | 'digitalocean' | 'vultr' | string
+  name: string
+  description: string
+  created_at: string
+  updated_at?: string
+}
+export type CloudInitScript = {
+  id: string
+  name: string
+  script?: string
+  created_at: string
+  updated_at?: string
+}
 export type Project = {
   id: string
   name: string
