@@ -26,12 +26,12 @@ This automatically:
 - Installs Docker (if missing)
 - Generates secure secrets
 - Starts Postgres + Goolify
-- Opens the dashboard on **port 80**
+- Opens the dashboard on **port 8000** (80/443 free for Traefik)
 
 Then open:
 
 ```text
-http://YOUR_SERVER_IP/
+http://YOUR_SERVER_IP:8000/
 ```
 
 1. **Register** your admin account  
@@ -66,8 +66,8 @@ sudo GOOLIFY_IMAGE=foisalislambd/goolify:1.0.1 \
 
 ```bash
 # Status
-curl -s http://YOUR_SERVER_IP/health
-curl -s http://YOUR_SERVER_IP/api/v1/version
+curl -s http://YOUR_SERVER_IP:8000/health
+curl -s http://YOUR_SERVER_IP:8000/api/v1/version
 
 # Logs
 cd /data/goolify && sudo docker compose logs -f goolify

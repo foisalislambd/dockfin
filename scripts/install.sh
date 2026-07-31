@@ -52,7 +52,7 @@ GOOLIFY_HTTP_ADDR=:8000
 GOOLIFY_DATABASE_URL=postgres://goolify:${DB_PASS}@postgres:5432/goolify?sslmode=disable
 GOOLIFY_MASTER_KEY=${MASTER_KEY}
 GOOLIFY_CORS_ORIGINS=*
-GOOLIFY_PUBLIC_URL=http://${PUBLIC_IP}
+GOOLIFY_PUBLIC_URL=http://${PUBLIC_IP}:8000
 GOOLIFY_PUBLIC_IP=${PUBLIC_IP}
 GOOLIFY_BOOTSTRAP_SELF=1
 GOOLIFY_DATA_DIR=/data
@@ -96,10 +96,9 @@ services:
     image: ${IMAGE}
     env_file: .env
     environment:
-      GOOLIFY_DATABASE_URL: \${GOOLIFY_DATABASE_URL}
+      # Keep HTTP bind only; DB URL must come from env_file (not host shell).
       GOOLIFY_HTTP_ADDR: ":8000"
     ports:
-      - "80:8000"
       - "8000:8000"
     volumes:
       - goolify-data:/data
@@ -113,11 +112,17 @@ volumes:
   goolify-data:
 EOF
 
-echo "==> Pulling images…"
-docker compose pull
-
 echo "==> Starting Goolify…"
-docker compose up -d
+# Avoid host-exported GOOLIFY_* overriding compose/.env (breaks DB hostname).
+unset GOOLIFY_DATABASE_URL GOOLIFY_MASTER_KEY GOOLIFY_HTTP_ADDR GOOLIFY_PUBLIC_URL 2>/dev/null || true
+# Local rebuilds: never pull. Registry installs: pull then up.
+if [[ "${IMAGE}" == *":local"* ]] || [[ "${GOOLIFY_SKIP_PULL:-}" == "1" ]]; then
+  echo "    Using local image (skip pull): ${IMAGE}"
+  docker compose up -d --pull never
+else
+  docker compose pull || true
+  docker compose up -d
+fi
 
 echo "==> Waiting for health…"
 ok=0
