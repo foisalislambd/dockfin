@@ -279,8 +279,16 @@ export const api = {
     is_runtime?: boolean
     is_buildtime?: boolean
     is_literal?: boolean
+    is_multiline?: boolean
+    is_locked?: boolean
     comment?: string
+    keep_value?: boolean
   }) => request<EnvVar>('/api/v1/env-vars', { method: 'POST', body: JSON.stringify(body) }),
+  lockEnvVar: (id: string, locked: boolean) =>
+    request<EnvVar>(`/api/v1/env-vars/${id}/lock`, {
+      method: 'POST',
+      body: JSON.stringify({ locked }),
+    }),
   deleteEnvVar: (id: string) =>
     request(`/api/v1/env-vars/${id}`, { method: 'DELETE' }),
   serverExec: (id: string, command: string) =>
@@ -783,6 +791,8 @@ export type EnvVar = {
   is_runtime: boolean
   is_buildtime: boolean
   is_literal: boolean
+  is_multiline?: boolean
+  is_locked?: boolean
   comment: string
 }
 export type SharedEnvVar = {

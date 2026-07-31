@@ -34,9 +34,12 @@ func (a *API) handleUpsertEnvVar(w http.ResponseWriter, r *http.Request) {
 		Key          string `json:"key"`
 		Value        string `json:"value"`
 		IsRuntime    *bool  `json:"is_runtime"`
-		IsBuildtime  bool   `json:"is_buildtime"`
+		IsBuildtime  *bool  `json:"is_buildtime"`
 		IsLiteral    bool   `json:"is_literal"`
+		IsMultiline  bool   `json:"is_multiline"`
+		IsLocked     bool   `json:"is_locked"`
 		Comment      string `json:"comment"`
+		KeepValue    bool   `json:"keep_value"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -56,7 +59,44 @@ func (a *API) handleUpsertEnvVar(w http.ResponseWriter, r *http.Request) {
 	if body.IsRuntime != nil {
 		runtime = *body.IsRuntime
 	}
-	v, err := a.Store.UpsertEnvVar(r.Context(), teamID, body.ResourceType, rid, body.Key, body.Value, runtime, body.IsBuildtime, body.IsLiteral, body.Comment)
+	buildtime := true
+	if body.IsBuildtime != nil {
+		buildtime = *body.IsBuildtime
+	}
+	// Multiline implies literal (Coolify).
+	literal := body.IsLiteral || body.IsMultiline
+	v, err := a.Store.UpsertEnvVar(r.Context(), teamID, body.ResourceType, rid, store.UpsertEnvVarInput{
+		Key:       body.Key,
+		Value:     body.Value,
+		Runtime:   runtime,
+		Buildtime: buildtime,
+		Literal:   literal,
+		Multiline: body.IsMultiline,
+		Locked:    body.IsLocked,
+		Comment:   body.Comment,
+		KeepValue: body.KeepValue,
+	})
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, v)
+}
+
+func (a *API) handleLockEnvVar(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "varID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var body struct {
+		Locked *bool `json:"locked"`
+	}
+	if err := decodeJSON(r, &body); err != nil || body.Locked == nil {
+		writeError(w, http.StatusBadRequest, "locked required")
+		return
+	}
+	v, err := a.Store.SetEnvVarLocked(r.Context(), currentTeamID(r), id, *body.Locked)
 	if err != nil {
 		mapStoreErr(w, err)
 		return

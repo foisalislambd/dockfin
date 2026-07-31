@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/goolify/goolify/internal/proxy"
 	"github.com/goolify/goolify/internal/services"
+	"github.com/goolify/goolify/internal/store"
 )
 
 // syncServiceCoolifyEnv mirrors Coolify: after prepare, push generated SERVICE_*
@@ -25,7 +26,21 @@ func (a *API) syncServiceCoolifyEnv(ctx context.Context, teamID, serviceID uuid.
 	keep := map[string]bool{}
 	for key, val := range ui {
 		keep[key] = true
-		_, _ = a.Store.UpsertEnvVar(ctx, teamID, "service", serviceID, key, val, true, false, true, "")
+		preserve := strings.HasPrefix(key, "SERVICE_PASSWORD_") ||
+			strings.HasPrefix(key, "SERVICE_BASE64_") ||
+			strings.HasPrefix(key, "SERVICE_HEX_") ||
+			strings.HasPrefix(key, "SERVICE_USER_")
+		bypassLock := strings.HasPrefix(key, "SERVICE_URL_") || strings.HasPrefix(key, "SERVICE_FQDN_")
+		_, _ = a.Store.UpsertEnvVar(ctx, teamID, "service", serviceID, store.UpsertEnvVarInput{
+			Key:        key,
+			Value:      val,
+			Runtime:    true,
+			Buildtime:  true,
+			Literal:    true,
+			Comment:    "",
+			KeepValue:  preserve,
+			BypassLock: bypassLock,
+		})
 	}
 	// Remove leftover companion domain keys from earlier mistaken syncs.
 	vars, err := a.Store.ListEnvVars(ctx, teamID, "service", serviceID, false)

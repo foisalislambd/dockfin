@@ -22,6 +22,8 @@ type EnvVar struct {
 	IsRuntime    bool      `json:"is_runtime"`
 	IsBuildtime  bool      `json:"is_buildtime"`
 	IsLiteral    bool      `json:"is_literal"`
+	IsMultiline  bool      `json:"is_multiline"`
+	IsLocked     bool      `json:"is_locked"` // persisted as is_shown_once (Coolify lock)
 	Comment      string    `json:"comment"`
 	CreatedAt    time.Time `json:"created_at"`
 }
@@ -39,7 +41,7 @@ type SharedEnvVar struct {
 
 func (s *Store) ListEnvVars(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID, reveal bool) ([]EnvVar, error) {
 	rows, err := s.Pool.Query(ctx, `
-		SELECT id, team_id, resource_type, resource_id, key, value_enc, is_preview, is_runtime, is_buildtime, is_literal, comment, created_at
+		SELECT id, team_id, resource_type, resource_id, key, value_enc, is_preview, is_runtime, is_buildtime, is_literal, is_multiline, is_shown_once, comment, created_at
 		FROM environment_variables
 		WHERE team_id=$1 AND resource_type=$2 AND resource_id=$3
 		ORDER BY sort_order, key
@@ -53,7 +55,7 @@ func (s *Store) ListEnvVars(ctx context.Context, teamID uuid.UUID, resourceType 
 		var v EnvVar
 		var enc string
 		if err := rows.Scan(&v.ID, &v.TeamID, &v.ResourceType, &v.ResourceID, &v.Key, &enc,
-			&v.IsPreview, &v.IsRuntime, &v.IsBuildtime, &v.IsLiteral, &v.Comment, &v.CreatedAt); err != nil {
+			&v.IsPreview, &v.IsRuntime, &v.IsBuildtime, &v.IsLiteral, &v.IsMultiline, &v.IsLocked, &v.Comment, &v.CreatedAt); err != nil {
 			return nil, err
 		}
 		if reveal {
@@ -68,24 +70,95 @@ func (s *Store) ListEnvVars(ctx context.Context, teamID uuid.UUID, resourceType 
 	return out, rows.Err()
 }
 
-func (s *Store) UpsertEnvVar(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID, key, value string, runtime, buildtime, literal bool, comment string) (*EnvVar, error) {
-	enc, err := s.Box.EncryptString(value)
+type UpsertEnvVarInput struct {
+	Key         string
+	Value       string
+	Runtime     bool
+	Buildtime   bool
+	Literal     bool
+	Multiline   bool
+	Locked      bool
+	Comment     string
+	KeepValue   bool // when true, do not overwrite value_enc on conflict
+	BypassLock  bool // system sync may update even when locked (e.g. SERVICE_URL_*)
+}
+
+// ErrEnvLocked is returned when updating a locked environment variable.
+var ErrEnvLocked = errors.New("environment variable is locked")
+
+func (s *Store) UpsertEnvVar(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID, in UpsertEnvVarInput) (*EnvVar, error) {
+	var locked bool
+	err := s.Pool.QueryRow(ctx, `
+		SELECT is_shown_once FROM environment_variables
+		WHERE team_id=$1 AND resource_type=$2 AND resource_id=$3 AND key=$4 AND is_preview=FALSE
+	`, teamID, resourceType, resourceID, in.Key).Scan(&locked)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
+	}
+	// Locked vars cannot be edited (Coolify). KeepValue / BypassLock allow controlled system sync.
+	if err == nil && locked && !in.KeepValue && !in.BypassLock {
+		return nil, ErrEnvLocked
+	}
+
+	enc, err := s.Box.EncryptString(in.Value)
 	if err != nil {
 		return nil, err
 	}
+	// When bypassing lock for URL sync, treat row as unlocked for SET expressions.
+	bypass := in.BypassLock
 	var v EnvVar
+	var encOut string
 	err = s.Pool.QueryRow(ctx, `
-		INSERT INTO environment_variables (team_id, resource_type, resource_id, key, value_enc, is_runtime, is_buildtime, is_literal, comment)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		INSERT INTO environment_variables (team_id, resource_type, resource_id, key, value_enc, is_runtime, is_buildtime, is_literal, is_multiline, is_shown_once, comment)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
 		ON CONFLICT (resource_type, resource_id, key, is_preview) DO UPDATE
-		SET value_enc=EXCLUDED.value_enc, is_runtime=EXCLUDED.is_runtime, is_buildtime=EXCLUDED.is_buildtime,
-		    is_literal=EXCLUDED.is_literal, comment=EXCLUDED.comment, updated_at=NOW()
-		RETURNING id, team_id, resource_type, resource_id, key, is_preview, is_runtime, is_buildtime, is_literal, comment, created_at
-	`, teamID, resourceType, resourceID, key, enc, runtime, buildtime, literal, comment).Scan(
-		&v.ID, &v.TeamID, &v.ResourceType, &v.ResourceID, &v.Key, &v.IsPreview, &v.IsRuntime, &v.IsBuildtime, &v.IsLiteral, &v.Comment, &v.CreatedAt,
+		SET value_enc=CASE
+		      WHEN $12 THEN environment_variables.value_enc
+		      WHEN environment_variables.is_shown_once AND NOT $13 THEN environment_variables.value_enc
+		      ELSE EXCLUDED.value_enc
+		    END,
+		    is_runtime=CASE WHEN environment_variables.is_shown_once AND NOT $13 THEN environment_variables.is_runtime ELSE EXCLUDED.is_runtime END,
+		    is_buildtime=CASE WHEN environment_variables.is_shown_once AND NOT $13 THEN environment_variables.is_buildtime ELSE EXCLUDED.is_buildtime END,
+		    is_literal=CASE WHEN environment_variables.is_shown_once AND NOT $13 THEN environment_variables.is_literal ELSE EXCLUDED.is_literal END,
+		    is_multiline=CASE WHEN environment_variables.is_shown_once AND NOT $13 THEN environment_variables.is_multiline ELSE EXCLUDED.is_multiline END,
+		    comment=CASE WHEN environment_variables.is_shown_once AND NOT $13 THEN environment_variables.comment ELSE EXCLUDED.comment END,
+		    updated_at=NOW()
+		RETURNING id, team_id, resource_type, resource_id, key, value_enc, is_preview, is_runtime, is_buildtime, is_literal, is_multiline, is_shown_once, comment, created_at
+	`, teamID, resourceType, resourceID, in.Key, enc, in.Runtime, in.Buildtime, in.Literal, in.Multiline, in.Locked, in.Comment, in.KeepValue, bypass).Scan(
+		&v.ID, &v.TeamID, &v.ResourceType, &v.ResourceID, &v.Key, &encOut, &v.IsPreview, &v.IsRuntime, &v.IsBuildtime, &v.IsLiteral, &v.IsMultiline, &v.IsLocked, &v.Comment, &v.CreatedAt,
 	)
-	v.Value = value
-	return &v, err
+	if err != nil {
+		return nil, err
+	}
+	if plain, derr := s.Box.DecryptString(encOut); derr == nil {
+		v.Value = plain
+	} else {
+		v.Value = in.Value
+	}
+	return &v, nil
+}
+
+func (s *Store) SetEnvVarLocked(ctx context.Context, teamID, id uuid.UUID, locked bool) (*EnvVar, error) {
+	var v EnvVar
+	var enc string
+	err := s.Pool.QueryRow(ctx, `
+		UPDATE environment_variables
+		SET is_shown_once=$3, updated_at=NOW()
+		WHERE id=$1 AND team_id=$2
+		RETURNING id, team_id, resource_type, resource_id, key, value_enc, is_preview, is_runtime, is_buildtime, is_literal, is_multiline, is_shown_once, comment, created_at
+	`, id, teamID, locked).Scan(
+		&v.ID, &v.TeamID, &v.ResourceType, &v.ResourceID, &v.Key, &enc, &v.IsPreview, &v.IsRuntime, &v.IsBuildtime, &v.IsLiteral, &v.IsMultiline, &v.IsLocked, &v.Comment, &v.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if plain, derr := s.Box.DecryptString(enc); derr == nil {
+		v.Value = plain
+	}
+	return &v, nil
 }
 
 func (s *Store) DeleteEnvVar(ctx context.Context, teamID, id uuid.UUID) error {

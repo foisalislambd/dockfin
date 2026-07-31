@@ -192,6 +192,7 @@ func (a *API) Router() http.Handler {
 			r.Route("/env-vars", func(r chi.Router) {
 				r.Get("/", a.handleListEnvVars)
 				r.Post("/", a.handleUpsertEnvVar)
+				r.Post("/{varID}/lock", a.handleLockEnvVar)
 				r.Delete("/{varID}", a.handleDeleteEnvVar)
 			})
 			r.Route("/shared-env-vars", func(r chi.Router) {
@@ -427,6 +428,8 @@ func mapStoreErr(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "has resources defined, please delete them first")
 	case errors.Is(err, store.ErrConflict):
 		writeError(w, http.StatusConflict, "conflict")
+	case errors.Is(err, store.ErrEnvLocked):
+		writeError(w, http.StatusConflict, "environment variable is locked")
 	case errors.Is(err, store.ErrUnauthorized):
 		writeError(w, http.StatusForbidden, "forbidden")
 	default:
