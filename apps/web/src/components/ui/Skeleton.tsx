@@ -20,18 +20,57 @@ export function Skeleton({
   )
 }
 
-/** Full-viewport auth bootstrap for login/register while session is resolving */
+/** Auth form bones — use inside AuthShell form column (not centered on viewport) */
+export function AuthFormSkeleton() {
+  return (
+    <div className="space-y-4" role="status" aria-label="Loading">
+      <Skeleton className="mb-1 h-9 w-9 rounded-lg lg:hidden" />
+      <Skeleton className="h-7 w-36 sm:h-8" />
+      <div className="mt-2 space-y-4">
+        <div className="space-y-1.5">
+          <Skeleton className="h-3 w-10" />
+          <Skeleton className="h-9 w-full rounded-md" />
+        </div>
+        <div className="space-y-1.5">
+          <Skeleton className="h-3 w-14" />
+          <Skeleton className="h-9 w-full rounded-md" />
+        </div>
+        <Skeleton className="h-9 w-full rounded-md" />
+      </div>
+      <Skeleton className="mx-auto mt-2 h-4 w-44" />
+    </div>
+  )
+}
+
+/** Full-page auth bootstrap matching login/register two-column layout */
 export function AuthSkeleton() {
   return (
-    <div className="grid min-h-dvh place-items-center p-6" role="status" aria-label="Loading">
-      <div className="w-full max-w-sm space-y-4">
-        <div className="flex justify-center">
-          <Skeleton className="h-10 w-10 rounded-lg" />
+    <div
+      className="relative grid min-h-dvh w-full bg-white dark:bg-gray-900 lg:grid-cols-2"
+      role="status"
+      aria-label="Loading"
+    >
+      <div className="flex min-h-dvh flex-col justify-center px-5 py-10 sm:px-10 lg:px-14 xl:px-16">
+        <div className="mx-auto w-full max-w-[400px]">
+          <AuthFormSkeleton />
         </div>
-        <Skeleton className="mx-auto h-5 w-40" />
-        <Skeleton className="h-10 w-full rounded-lg" />
-        <Skeleton className="h-10 w-full rounded-lg" />
-        <Skeleton className="h-9 w-full rounded-md" />
+      </div>
+      <div className="relative hidden min-h-dvh overflow-hidden bg-brand-950 lg:flex lg:flex-col lg:items-center lg:justify-center lg:px-8 lg:py-12">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-brand-500/35 blur-3xl" />
+          <div className="absolute -right-16 bottom-0 h-80 w-80 rounded-full bg-brand-600/25 blur-3xl" />
+        </div>
+        <div className="relative z-10 flex w-full max-w-md flex-col items-center space-y-4">
+          <Skeleton className="h-14 w-14 rounded-2xl bg-white/15 sm:h-16 sm:w-16" />
+          <Skeleton className="h-7 w-40 bg-white/15" />
+          <Skeleton className="h-4 w-72 max-w-full bg-white/10" />
+          <Skeleton className="h-4 w-64 max-w-full bg-white/10" />
+          <div className="mt-4 w-full space-y-3">
+            <Skeleton className="h-5 w-full bg-white/10" />
+            <Skeleton className="h-5 w-5/6 bg-white/10" />
+            <Skeleton className="h-5 w-4/5 bg-white/10" />
+          </div>
+        </div>
       </div>
     </div>
   )

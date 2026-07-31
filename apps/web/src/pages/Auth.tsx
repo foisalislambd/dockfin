@@ -5,7 +5,7 @@ import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { appConfig } from '../config/app.config'
 import { ThemeToggle } from '../components/theme/ThemeToggle'
-import { AuthSkeleton } from '../components/ui/Skeleton'
+import { AuthFormSkeleton } from '../components/ui/Skeleton'
 
 const inputClass =
   'panel-field h-9 w-full rounded-md pl-9 pr-3 text-sm shadow-sm transition placeholder:text-gray-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20 focus:outline-none'
@@ -84,7 +84,13 @@ export function LoginPage() {
   }
 
   // Wait for session check so logged-in users never flash the sign-in form
-  if (loading) return <AuthSkeleton />
+  if (loading) {
+    return (
+      <AuthShell>
+        <AuthFormSkeleton />
+      </AuthShell>
+    )
+  }
   if (user) return <Navigate to="/dashboard" />
 
   return (
@@ -180,7 +186,13 @@ export function RegisterPage() {
   }
 
   // Wait for session check so logged-in users never flash the register form
-  if (loading) return <AuthSkeleton />
+  if (loading) {
+    return (
+      <AuthShell>
+        <AuthFormSkeleton />
+      </AuthShell>
+    )
+  }
   if (user) return <Navigate to="/dashboard" />
 
   return (
