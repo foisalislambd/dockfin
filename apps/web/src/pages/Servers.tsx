@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { FormEvent } from 'react'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { api } from '../lib/api'
@@ -301,10 +302,27 @@ export function Modal({
   children: React.ReactNode
   onClose: () => void
 }) {
-  return (
-    <div className="fixed inset-0 z-40 grid place-items-center bg-black/15 p-4 dark:bg-black/25" onClick={onClose}>
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [onClose])
+
+  // Portal above the shell so the overlay covers the sidebar (z-50) too.
+  return createPortal(
+    <div className="panel-modal-backdrop" onClick={onClose} role="presentation">
       <div
         className="panel-modal w-full max-w-md p-5"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
@@ -319,7 +337,8 @@ export function Modal({
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

@@ -5,6 +5,7 @@ import { UserMenu } from './UserMenu'
 import { Link } from '@tanstack/react-router'
 import { Menu, Search, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 export function PanelHeader() {
   const { isMobileOpen, isDesktop, toggleMobileSidebar } = useSidebar()
@@ -63,35 +64,41 @@ export function PanelHeader() {
         </div>
       </header>
 
-      {paletteOpen && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/15 p-4 dark:bg-black/25"
-          onClick={() => setPaletteOpen(false)}
-        >
+      {paletteOpen &&
+        createPortal(
           <div
-            className="panel-modal w-full max-w-lg overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
+            className="panel-modal-backdrop"
+            onClick={() => setPaletteOpen(false)}
+            role="presentation"
           >
-            <div className="border-b border-gray-200 px-4 py-3 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-              Jump to…
+            <div
+              className="panel-modal w-full max-w-lg overflow-hidden"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Jump to"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="border-b border-gray-200 px-4 py-3 text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                Jump to…
+              </div>
+              <ul>
+                {navItems.map((item) => (
+                  <li key={item.href}>
+                    <Link
+                      to={item.href}
+                      onClick={() => setPaletteOpen(false)}
+                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5"
+                    >
+                      <item.icon className="h-4 w-4 text-gray-400" />
+                      {item.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <ul>
-              {navItems.map((item) => (
-                <li key={item.href}>
-                  <Link
-                    to={item.href}
-                    onClick={() => setPaletteOpen(false)}
-                    className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5"
-                  >
-                    <item.icon className="h-4 w-4 text-gray-400" />
-                    {item.name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </>
   )
 }

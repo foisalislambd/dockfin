@@ -53,13 +53,8 @@ export function UserMenu() {
         <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-500 text-xs font-semibold text-white">
           {initial}
         </span>
-        <span className="hidden min-w-0 text-left md:block">
-          <span className="block max-w-[120px] truncate text-xs font-medium text-gray-800 dark:text-white/90">
-            {user?.name || 'User'}
-          </span>
-          <span className="block max-w-[120px] truncate text-[11px] text-gray-500 dark:text-gray-400">
-            {user?.email || team?.name}
-          </span>
+        <span className="hidden max-w-[120px] truncate text-xs font-medium text-gray-800 dark:text-white/90 md:block">
+          {user?.name || 'User'}
         </span>
         <ChevronDown
           className={`hidden h-3.5 w-3.5 shrink-0 text-gray-500 dark:text-gray-400 transition md:block ${open ? 'rotate-180' : ''}`}
