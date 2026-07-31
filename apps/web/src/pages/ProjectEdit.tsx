@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
+import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { api } from '../lib/api'
-import { Btn, Header, Input, Modal } from './Servers'
+import { Btn, Header, Input } from './Servers'
 
 export function ProjectEditPage() {
   const { projectId } = useParams({ strict: false }) as { projectId: string }
@@ -16,8 +17,7 @@ export function ProjectEditPage() {
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [confirmOpen, setConfirmOpen] = useState(false)
-  const [confirmName, setConfirmName] = useState('')
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   useEffect(() => {
     if (!project.data) return
@@ -34,8 +34,9 @@ export function ProjectEditPage() {
   })
 
   const remove = useMutation({
-    mutationFn: () => api.deleteProject(projectId),
+    mutationFn: (body: Parameters<typeof api.deleteProject>[1]) => api.deleteProject(projectId, body),
     onSuccess: () => {
+      setDeleteOpen(false)
       void qc.invalidateQueries({ queryKey: ['projects'] })
       void qc.invalidateQueries({ queryKey: ['all-environments'] })
       void nav({ to: '/projects' })
@@ -55,7 +56,6 @@ export function ProjectEditPage() {
   }
 
   const isEmpty = project.data.is_empty === true
-  const nameMatches = confirmName.trim() === project.data.name
 
   return (
     <div className="space-y-6">
@@ -81,14 +81,7 @@ export function ProjectEditPage() {
           <Btn primary type="submit" disabled={save.isPending || !name.trim()}>
             {save.isPending ? 'Saving…' : 'Save'}
           </Btn>
-          <Btn
-            type="button"
-            disabled={!isEmpty}
-            onClick={() => {
-              setConfirmName('')
-              setConfirmOpen(true)
-            }}
-          >
+          <Btn type="button" disabled={!isEmpty} onClick={() => setDeleteOpen(true)}>
             Delete Project
           </Btn>
         </div>
@@ -98,59 +91,51 @@ export function ProjectEditPage() {
         {save.isSuccess && <p className="text-sm text-success-600 dark:text-success-400">Saved.</p>}
       </form>
 
-      <div className="panel-card max-w-xl space-y-3 border-error-200 p-5 dark:border-error-500/30">
-        <h2 className="text-sm font-semibold text-error-500">Danger Zone</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Delete this project and its empty environments. Coolify rule: delete is only allowed when
-          the project has no applications, databases, or services.
-        </p>
-        {!isEmpty ? (
-          <p className="text-sm text-amber-600 dark:text-amber-400">
-            This project still has resources. Open each resource → Danger Zone → Delete, then return
-            here.
+      <DangerZoneCard>
+        <div>
+          <h3 className="text-sm font-semibold text-error-500">Delete Project</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Deletes this project and all of its empty environments. Delete is only allowed when the
+            project has no applications, databases, or services left.
           </p>
-        ) : (
-          <Btn
-            type="button"
-            onClick={() => {
-              setConfirmName('')
-              setConfirmOpen(true)
-            }}
-          >
-            Delete Project
-          </Btn>
-        )}
-      </div>
+          {!isEmpty ? (
+            <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
+              This project still has resources. Open each resource → Danger Zone → Delete, then
+              return here.
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-success-600 dark:text-success-400">
+              Project is empty — safe to delete.
+            </p>
+          )}
+        </div>
+        <Btn type="button" disabled={!isEmpty} onClick={() => setDeleteOpen(true)}>
+          Delete
+        </Btn>
+      </DangerZoneCard>
 
-      {confirmOpen && (
-        <Modal title="Confirm Project Deletion?" onClose={() => setConfirmOpen(false)}>
-          <div className="space-y-3">
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              This will delete the selected project. All environments inside the project will be
-              deleted as well.
-            </p>
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              Type{' '}
-              <span className="font-semibold text-gray-900 dark:text-white">{project.data.name}</span>{' '}
-              to confirm.
-            </p>
-            <Input label="Project Name" value={confirmName} onChange={setConfirmName} />
-            {remove.error && <p className="text-sm text-error-500">{remove.error.message}</p>}
-            <div className="flex gap-2">
-              <Btn
-                type="button"
-                disabled={!nameMatches || remove.isPending}
-                onClick={() => remove.mutate()}
-              >
-                {remove.isPending ? 'Deleting…' : 'Permanently Delete'}
-              </Btn>
-              <Btn type="button" onClick={() => setConfirmOpen(false)}>
-                Cancel
-              </Btn>
-            </div>
-          </div>
-        </Modal>
-      )}
+      <DangerConfirmModal
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title="Confirm Project Deletion?"
+        resourceLabel="Project Name"
+        expectedName={project.data.name}
+        statusLine={
+          isEmpty
+            ? 'Project has no resources. Environments inside will be deleted with it.'
+            : 'Project still has resources — delete is blocked until they are removed.'
+        }
+        actions={[
+          'Permanently delete this project.',
+          'Delete all empty environments belonging to this project.',
+          'This cannot be undone.',
+        ]}
+        requirePassword={false}
+        confirmButtonLabel="Permanently Delete"
+        busy={remove.isPending}
+        error={remove.error?.message}
+        onConfirm={(payload) => remove.mutate(payload)}
+      />
     </div>
   )
 }
@@ -173,8 +158,7 @@ export function EnvironmentEditPage() {
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [confirmOpen, setConfirmOpen] = useState(false)
-  const [confirmName, setConfirmName] = useState('')
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   useEffect(() => {
     if (!env.data) return
@@ -192,8 +176,10 @@ export function EnvironmentEditPage() {
   })
 
   const remove = useMutation({
-    mutationFn: () => api.deleteEnvironment(projectId, envId),
+    mutationFn: (body: Parameters<typeof api.deleteEnvironment>[2]) =>
+      api.deleteEnvironment(projectId, envId, body),
     onSuccess: () => {
+      setDeleteOpen(false)
       void qc.invalidateQueries({ queryKey: ['environments', projectId] })
       void qc.invalidateQueries({ queryKey: ['all-environments'] })
       void qc.invalidateQueries({ queryKey: ['project', projectId] })
@@ -218,7 +204,6 @@ export function EnvironmentEditPage() {
   }
 
   const isEmpty = env.data.is_empty === true
-  const nameMatches = confirmName.trim() === env.data.name
 
   return (
     <div className="space-y-6">
@@ -263,14 +248,7 @@ export function EnvironmentEditPage() {
           <Btn primary type="submit" disabled={save.isPending || !name.trim()}>
             {save.isPending ? 'Saving…' : 'Save'}
           </Btn>
-          <Btn
-            type="button"
-            disabled={!isEmpty}
-            onClick={() => {
-              setConfirmName('')
-              setConfirmOpen(true)
-            }}
-          >
+          <Btn type="button" disabled={!isEmpty} onClick={() => setDeleteOpen(true)}>
             Delete Environment
           </Btn>
         </div>
@@ -280,51 +258,51 @@ export function EnvironmentEditPage() {
         {save.isSuccess && <p className="text-sm text-success-600 dark:text-success-400">Saved.</p>}
       </form>
 
-      <div className="panel-card max-w-xl space-y-3 border-error-200 p-5 dark:border-error-500/30">
-        <h2 className="text-sm font-semibold text-error-500">Danger Zone</h2>
-        {!isEmpty ? (
-          <p className="text-sm text-amber-600 dark:text-amber-400">
-            Delete is disabled while this environment has applications, databases, or services.
-            Remove those from each resource&apos;s Danger Zone first.
+      <DangerZoneCard>
+        <div>
+          <h3 className="text-sm font-semibold text-error-500">Delete Environment</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Removes this environment from the project. Only allowed when it has no applications,
+            databases, or services.
           </p>
-        ) : (
-          <Btn
-            type="button"
-            onClick={() => {
-              setConfirmName('')
-              setConfirmOpen(true)
-            }}
-          >
-            Delete Environment
-          </Btn>
-        )}
-      </div>
-
-      {confirmOpen && (
-        <Modal title="Confirm Environment Deletion?" onClose={() => setConfirmOpen(false)}>
-          <div className="space-y-3">
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              Type{' '}
-              <span className="font-semibold text-gray-900 dark:text-white">{env.data.name}</span> to
-              confirm.
+          {!isEmpty ? (
+            <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
+              Delete is disabled while this environment still has resources. Remove them from each
+              resource&apos;s Danger Zone first.
             </p>
-            <Input label="Environment Name" value={confirmName} onChange={setConfirmName} />
-            {remove.error && <p className="text-sm text-error-500">{remove.error.message}</p>}
-            <div className="flex gap-2">
-              <Btn
-                type="button"
-                disabled={!nameMatches || remove.isPending}
-                onClick={() => remove.mutate()}
-              >
-                {remove.isPending ? 'Deleting…' : 'Permanently Delete'}
-              </Btn>
-              <Btn type="button" onClick={() => setConfirmOpen(false)}>
-                Cancel
-              </Btn>
-            </div>
-          </div>
-        </Modal>
-      )}
+          ) : (
+            <p className="mt-2 text-sm text-success-600 dark:text-success-400">
+              Environment is empty — safe to delete.
+            </p>
+          )}
+        </div>
+        <Btn type="button" disabled={!isEmpty} onClick={() => setDeleteOpen(true)}>
+          Delete
+        </Btn>
+      </DangerZoneCard>
+
+      <DangerConfirmModal
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title="Confirm Environment Deletion?"
+        resourceLabel="Environment Name"
+        expectedName={env.data.name}
+        statusLine={
+          isEmpty
+            ? 'Environment has no resources and can be deleted.'
+            : 'Environment still has resources — delete is blocked.'
+        }
+        actions={[
+          'Permanently delete this environment.',
+          'The project itself will remain.',
+          'This cannot be undone.',
+        ]}
+        requirePassword={false}
+        confirmButtonLabel="Permanently Delete"
+        busy={remove.isPending}
+        error={remove.error?.message}
+        onConfirm={(payload) => remove.mutate(payload)}
+      />
     </div>
   )
 }

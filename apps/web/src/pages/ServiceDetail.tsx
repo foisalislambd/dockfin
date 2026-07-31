@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { DeployLogPanel } from '../components/DeployLogPanel'
 import { LinksMenu, LinksPanel } from '../components/LinksMenu'
 import { ServiceLogo } from '../components/ServiceLogo'
@@ -76,6 +77,7 @@ export function ServiceDetailPage() {
   const [deployLines, setDeployLines] = useState<string[]>([])
   const [deployBusy, setDeployBusy] = useState(false)
   const [deployError, setDeployError] = useState('')
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
   const autoDeployed = useRef(false)
 
@@ -119,8 +121,9 @@ export function ServiceDetailPage() {
     },
   })
   const remove = useMutation({
-    mutationFn: () => api.deleteService(svcId),
+    mutationFn: (body: Parameters<typeof api.deleteService>[1]) => api.deleteService(svcId, body),
     onSuccess: () => {
+      setDeleteOpen(false)
       void qc.invalidateQueries({ queryKey: ['services'] })
       void qc.invalidateQueries({ queryKey: ['project'] })
       if (projectId && envId) {
@@ -390,44 +393,58 @@ export function ServiceDetailPage() {
             )}
             {side === 'danger' && (
               <div className="space-y-4">
-                <div className="panel-card space-y-3 border-error-200 p-5 dark:border-error-500/30">
-                  <h2 className="text-sm font-semibold text-error-500">Danger Zone</h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Woah. I hope you know what you are doing.
-                  </p>
-                </div>
-                <div className="panel-card space-y-3 border-error-200 p-5 dark:border-error-500/30">
-                  <h3 className="text-sm font-semibold text-error-500">Force deploy</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Recreates containers from the stored compose file.
-                  </p>
+                <DangerZoneCard>
+                  <div>
+                    <h3 className="text-sm font-semibold text-error-500">Force deploy</h3>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      Recreates containers from the stored compose file.
+                    </p>
+                  </div>
                   <Btn primary onClick={() => void runDeploy()} disabled={deployBusy}>
                     {deployBusy ? 'Deploying…' : 'Force deploy'}
                   </Btn>
-                </div>
-                <div className="panel-card space-y-3 border-error-200 p-5 dark:border-error-500/30">
-                  <h3 className="text-sm font-semibold text-error-500">Delete Resource</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Stops containers, removes volumes, and deletes this service from Goolify. There is
-                    no coming back.
-                  </p>
-                  <Btn
-                    type="button"
-                    disabled={remove.isPending}
-                    onClick={() => {
-                      const typed = window.prompt(
-                        `This permanently deletes service "${s.name}" and its containers/volumes.\n\nType the service name to confirm:`,
-                      )
-                      if (typed === s.name) remove.mutate()
-                      else if (typed !== null) window.alert('Name did not match. Delete cancelled.')
-                    }}
-                  >
-                    {remove.isPending ? 'Deleting…' : 'Delete'}
+                </DangerZoneCard>
+                <DangerZoneCard>
+                  <div>
+                    <h3 className="text-sm font-semibold text-error-500">Delete Resource</h3>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      This will stop your compose stack, optionally remove volumes/config files, and
+                      delete the service from Goolify. Beware — there is no coming back.
+                    </p>
+                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                      Stack status:{' '}
+                      <span className="font-medium capitalize">{s.status || 'unknown'}</span>
+                      {s.status === 'running'
+                        ? ' — containers are running and will be stopped.'
+                        : ' — containers will be removed if still present.'}
+                    </p>
+                  </div>
+                  <Btn type="button" onClick={() => setDeleteOpen(true)}>
+                    Delete
                   </Btn>
-                  {remove.error && (
-                    <p className="text-sm text-error-500">{remove.error.message}</p>
-                  )}
-                </div>
+                </DangerZoneCard>
+                <DangerConfirmModal
+                  open={deleteOpen}
+                  onClose={() => setDeleteOpen(false)}
+                  title="Confirm Resource Deletion?"
+                  resourceLabel="Resource Name"
+                  expectedName={s.name}
+                  statusLine={
+                    s.status === 'running'
+                      ? 'Service stack is RUNNING. Deleting runs docker compose down and removes selected data.'
+                      : `Current status: ${s.status || 'unknown'}.`
+                  }
+                  actions={[
+                    'Permanently delete all containers of this resource.',
+                    'Optionally remove volumes, config directory, and run docker image prune.',
+                    'Remove the service record from Goolify.',
+                  ]}
+                  requirePassword
+                  showResourceCheckboxes
+                  busy={remove.isPending}
+                  error={remove.error?.message}
+                  onConfirm={(payload) => remove.mutate(payload)}
+                />
               </div>
             )}
           </div>

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
+import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { LinksMenu, LinksPanel } from '../components/LinksMenu'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
@@ -15,7 +16,7 @@ const APP_TABS = [
   { id: 'tasks', label: 'Scheduled Tasks' },
   { id: 'webhooks', label: 'Webhooks' },
   { id: 'rollback', label: 'Rollback' },
-  { id: 'danger', label: 'Danger' },
+  { id: 'danger', label: 'Danger Zone' },
 ]
 
 export function ApplicationDetailPage() {
@@ -46,6 +47,7 @@ export function ApplicationDetailPage() {
   })
 
   const [tab, setTab] = useState('links')
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [cfg, setCfg] = useState({
     name: '',
     description: '',
@@ -171,8 +173,9 @@ export function ApplicationDetailPage() {
   })
 
   const remove = useMutation({
-    mutationFn: () => api.deleteApplication(appId),
+    mutationFn: (body: Parameters<typeof api.deleteApplication>[1]) => api.deleteApplication(appId, body),
     onSuccess: () => {
+      setDeleteOpen(false)
       void qc.invalidateQueries({ queryKey: ['applications'] })
       if (nested && projectId && envId) {
         void nav({ to: '/projects/$projectId/environments/$envId', params: { projectId, envId } })
@@ -711,23 +714,52 @@ export function ApplicationDetailPage() {
               <Btn onClick={() => deploy.mutate({ force: true })}>Force rebuild deploy</Btn>
               {deploy.error && <p className="text-sm text-error-500">{deploy.error.message}</p>}
             </div>
-            <div className="panel-card space-y-4 border-error-200 p-5 dark:border-error-500/30">
-              <h2 className="text-sm font-semibold text-error-500">Delete application</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Removes the application from Goolify and best-effort deletes its container on the
-                server. This cannot be undone.
-              </p>
-              <Btn
-                onClick={() => {
-                  if (confirm(`Delete application ${a.name}? This cannot be undone.`)) {
-                    remove.mutate()
-                  }
-                }}
-              >
-                {remove.isPending ? 'Deleting…' : 'Delete permanently'}
+
+            <DangerZoneCard>
+              <div>
+                <h3 className="text-sm font-semibold text-error-500">Delete Resource</h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  This will stop your containers, delete related data on the server, and remove the
+                  application from Goolify. Beware — there is no coming back.
+                </p>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                  Container status:{' '}
+                  <span className="font-medium capitalize">{a.status || 'unknown'}</span>
+                  {a.status === 'running'
+                    ? ' — container will be stopped and removed.'
+                    : a.status === 'exited' || a.status === 'stopped'
+                      ? ' — container is already stopped; it will still be removed.'
+                      : ' — Goolify will best-effort remove any matching container.'}
+                </p>
+              </div>
+              <Btn type="button" onClick={() => setDeleteOpen(true)}>
+                Delete
               </Btn>
               {remove.error && <p className="text-sm text-error-500">{remove.error.message}</p>}
-            </div>
+            </DangerZoneCard>
+
+            <DangerConfirmModal
+              open={deleteOpen}
+              onClose={() => setDeleteOpen(false)}
+              title="Confirm Resource Deletion?"
+              resourceLabel="Resource Name"
+              expectedName={a.name}
+              statusLine={
+                a.status === 'running'
+                  ? `Container is currently RUNNING (${a.status}). Deleting will stop and remove it.`
+                  : `Current status: ${a.status || 'unknown'}.`
+              }
+              actions={[
+                'Permanently delete all containers of this resource.',
+                'Remove the application record, env vars, and scheduled jobs from Goolify.',
+              ]}
+              requirePassword
+              showResourceCheckboxes
+              confirmButtonLabel="Delete"
+              busy={remove.isPending}
+              error={remove.error?.message}
+              onConfirm={(payload) => remove.mutate(payload)}
+            />
           </div>
         </TabPanel>
       )}

@@ -131,6 +131,15 @@ func (s *Store) GetUserByID(ctx context.Context, id uuid.UUID) (*User, error) {
 	return &u, err
 }
 
+func (s *Store) GetUserPasswordHash(ctx context.Context, id uuid.UUID) (string, error) {
+	var hash string
+	err := s.Pool.QueryRow(ctx, `SELECT password_hash FROM users WHERE id = $1`, id).Scan(&hash)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return hash, err
+}
+
 func (s *Store) CreateSession(ctx context.Context, userID, teamID uuid.UUID, token string, expiresAt time.Time) error {
 	_, err := s.Pool.Exec(ctx, `
 		INSERT INTO sessions (user_id, token_hash, current_team_id, expires_at)

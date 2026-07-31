@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
+import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { ServerTerminal } from '../components/Terminal'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
@@ -11,7 +12,7 @@ const DB_TABS = [
   { id: 'configuration', label: 'Configuration' },
   { id: 'environment', label: 'Environment Variables' },
   { id: 'backups', label: 'Backups' },
-  { id: 'danger', label: 'Danger' },
+  { id: 'danger', label: 'Danger Zone' },
 ]
 
 const SERVER_TABS = [
@@ -321,6 +322,7 @@ export function DatabaseDetailPage() {
   const nav = useNavigate()
   const qc = useQueryClient()
   const [tab, setTab] = useState('configuration')
+  const [deleteOpen, setDeleteOpen] = useState(false)
   useEffect(() => {
     setTab('configuration')
   }, [dbId])
@@ -335,8 +337,9 @@ export function DatabaseDetailPage() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['database', dbId] }),
   })
   const remove = useMutation({
-    mutationFn: () => api.deleteDatabase(dbId),
+    mutationFn: (body: Parameters<typeof api.deleteDatabase>[1]) => api.deleteDatabase(dbId, body),
     onSuccess: () => {
+      setDeleteOpen(false)
       void qc.invalidateQueries({ queryKey: ['databases'] })
       if (projectId && envId) {
         void nav({ to: '/projects/$projectId/environments/$envId', params: { projectId, envId } })
@@ -427,25 +430,53 @@ export function DatabaseDetailPage() {
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Stops the container on the remote server without removing Goolify configuration.
               </p>
-              <Btn onClick={() => stop.mutate()}>Stop now</Btn>
-            </div>
-            <div className="panel-card space-y-3 border-error-200 p-5 dark:border-error-500/30">
-              <h2 className="text-sm font-semibold text-error-500">Delete database</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Stops the remote container and permanently deletes this database record, schedules,
-                and backup history from Goolify.
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Current status: <span className="font-medium capitalize">{d.status || 'unknown'}</span>
               </p>
-              <Btn
-                onClick={() => {
-                  if (confirm(`Delete database ${d.name}? This cannot be undone.`)) {
-                    remove.mutate()
-                  }
-                }}
-              >
-                {remove.isPending ? 'Deleting…' : 'Delete permanently'}
+              <Btn onClick={() => stop.mutate()} disabled={stop.isPending}>
+                {stop.isPending ? 'Stopping…' : 'Stop now'}
               </Btn>
-              {remove.error && <p className="text-sm text-error-500">{remove.error.message}</p>}
             </div>
+            <DangerZoneCard>
+              <div>
+                <h3 className="text-sm font-semibold text-error-500">Delete Resource</h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  This will stop your containers, delete related data, and remove the database from
+                  Goolify. Beware — there is no coming back.
+                </p>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                  Container status:{' '}
+                  <span className="font-medium capitalize">{d.status || 'unknown'}</span>
+                  {d.status === 'running'
+                    ? ' — will be stopped and removed.'
+                    : ' — will be removed if present on the server.'}
+                </p>
+              </div>
+              <Btn type="button" onClick={() => setDeleteOpen(true)}>
+                Delete
+              </Btn>
+            </DangerZoneCard>
+            <DangerConfirmModal
+              open={deleteOpen}
+              onClose={() => setDeleteOpen(false)}
+              title="Confirm Resource Deletion?"
+              resourceLabel="Resource Name"
+              expectedName={d.name}
+              statusLine={
+                d.status === 'running'
+                  ? 'Database container is RUNNING. Deleting will stop it and remove data options you select.'
+                  : `Current status: ${d.status || 'unknown'}.`
+              }
+              actions={[
+                'Permanently delete all containers of this resource.',
+                'Remove schedules, backup history, and the database record from Goolify.',
+              ]}
+              requirePassword
+              showResourceCheckboxes
+              busy={remove.isPending}
+              error={remove.error?.message}
+              onConfirm={(payload) => remove.mutate(payload)}
+            />
           </div>
         </TabPanel>
       )}

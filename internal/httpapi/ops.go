@@ -494,15 +494,33 @@ func (a *API) handleDeleteService(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
+	opts, ok := a.authorizeDestructiveAction(w, r, svc.Name, true)
+	if !ok {
+		return
+	}
 
-	// Best-effort: tear down compose stack + volumes, then remove remote dir.
+	// Best-effort: tear down compose stack (+ volumes), then remove remote dir.
 	if serverID, _, err := a.resolveServiceTarget(r.Context(), teamID, svc); err == nil {
 		if client, err := a.dialServer(r, serverID); err == nil {
 			remoteDir := "/data/goolify/services/" + id.String()
 			composePath := remoteDir + "/docker-compose.yml"
 			project := "goolify-svc-" + id.String()[:8]
-			_, _, _ = sshx.RunArgs(client, "docker", "compose", "-p", project, "-f", composePath, "down", "--remove-orphans", "-v")
-			_, _, _ = sshx.RunArgs(client, "rm", "-rf", remoteDir)
+			downArgs := []string{"docker", "compose", "-p", project, "-f", composePath, "down", "--remove-orphans"}
+			if opts.volumes() {
+				downArgs = append(downArgs, "-v")
+			}
+			_, _, _ = sshx.RunArgs(client, downArgs...)
+			if opts.configurations() {
+				_, _, _ = sshx.RunArgs(client, "rm", "-rf", remoteDir)
+			}
+			if opts.networks() {
+				// Coolify removes a network named after the service UUID; compose down
+				// already drops the project default network.
+				removeResourceScopedNetwork(client, id.String())
+			}
+			if opts.dockerCleanup() {
+				runDockerCleanup(client)
+			}
 		}
 	}
 

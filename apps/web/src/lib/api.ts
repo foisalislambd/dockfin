@@ -3,6 +3,15 @@ const API_BASE = ''
 export type User = { id: string; email: string; name: string }
 export type Team = { id: string; name: string; personal: boolean; role?: string }
 
+export type DeleteResourceBody = {
+  confirmation_name?: string
+  password?: string
+  delete_volumes?: boolean
+  delete_configurations?: boolean
+  delete_networks?: boolean
+  docker_cleanup?: boolean
+}
+
 export const LAST_ENV_KEY = 'goolify:last_environment_id'
 
 export class ApiError extends Error {
@@ -129,8 +138,11 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ name, description }),
     }),
-  deleteProject: (id: string) =>
-    request<{ status: string }>(`/api/v1/projects/${id}`, { method: 'DELETE' }),
+  deleteProject: (id: string, body?: DeleteResourceBody) =>
+    request<{ status: string }>(`/api/v1/projects/${id}`, {
+      method: 'DELETE',
+      body: body ? JSON.stringify(body) : undefined,
+    }),
   environments: (projectId: string) =>
     request<{ environments: Environment[] }>(`/api/v1/projects/${projectId}/environments`),
   getEnvironment: (projectId: string, envId: string) =>
@@ -145,9 +157,10 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ name, description }),
     }),
-  deleteEnvironment: (projectId: string, envId: string) =>
+  deleteEnvironment: (projectId: string, envId: string, body?: DeleteResourceBody) =>
     request<{ status: string }>(`/api/v1/projects/${projectId}/environments/${envId}`, {
       method: 'DELETE',
+      body: body ? JSON.stringify(body) : undefined,
     }),
 
   applications: (environment_id?: string) =>
@@ -157,8 +170,11 @@ export const api = {
   application: (id: string) => request<Application>(`/api/v1/applications/${id}`),
   createApplication: (body: Record<string, unknown>) =>
     request<Application>('/api/v1/applications', { method: 'POST', body: JSON.stringify(body) }),
-  deleteApplication: (id: string) =>
-    request<{ status: string }>(`/api/v1/applications/${id}`, { method: 'DELETE' }),
+  deleteApplication: (id: string, body?: DeleteResourceBody) =>
+    request<{ status: string }>(`/api/v1/applications/${id}`, {
+      method: 'DELETE',
+      body: body ? JSON.stringify(body) : undefined,
+    }),
   updateApplication: (id: string, body: Record<string, unknown>) =>
     request<Application>(`/api/v1/applications/${id}`, {
       method: 'PATCH',
@@ -237,8 +253,11 @@ export const api = {
     request(`/api/v1/databases/${id}/start`, { method: 'POST' }),
   stopDatabase: (id: string) =>
     request(`/api/v1/databases/${id}/stop`, { method: 'POST' }),
-  deleteDatabase: (id: string) =>
-    request<{ status: string }>(`/api/v1/databases/${id}`, { method: 'DELETE' }),
+  deleteDatabase: (id: string, body?: DeleteResourceBody) =>
+    request<{ status: string }>(`/api/v1/databases/${id}`, {
+      method: 'DELETE',
+      body: body ? JSON.stringify(body) : undefined,
+    }),
 
   services: (environment_id?: string) =>
     request<{ services: Service[] }>(
@@ -251,8 +270,11 @@ export const api = {
     request<Service>(`/api/v1/services/${id}/stop`, { method: 'POST' }),
   restartService: (id: string) =>
     request<Service>(`/api/v1/services/${id}/restart`, { method: 'POST' }),
-  deleteService: (id: string) =>
-    request<{ status: string }>(`/api/v1/services/${id}`, { method: 'DELETE' }),
+  deleteService: (id: string, body?: DeleteResourceBody) =>
+    request<{ status: string }>(`/api/v1/services/${id}`, {
+      method: 'DELETE',
+      body: body ? JSON.stringify(body) : undefined,
+    }),
   templates: () => request<{ templates: Template[] }>('/api/v1/services/templates'),
   createService: (body: Record<string, unknown>) =>
     request<Service>('/api/v1/services', { method: 'POST', body: JSON.stringify(body) }),

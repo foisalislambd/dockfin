@@ -85,7 +85,16 @@ func (a *API) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if err := a.Store.DeleteProject(r.Context(), currentTeamID(r), id); err != nil {
+	teamID := currentTeamID(r)
+	p, err := a.Store.GetProject(r.Context(), teamID, id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if _, ok := a.authorizeDestructiveAction(w, r, p.Name, false); !ok {
+		return
+	}
+	if err := a.Store.DeleteProject(r.Context(), teamID, id); err != nil {
 		mapStoreErr(w, err)
 		return
 	}
@@ -189,7 +198,20 @@ func (a *API) handleDeleteEnvironment(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid environment id")
 		return
 	}
-	if err := a.Store.DeleteEnvironment(r.Context(), currentTeamID(r), pid, eid); err != nil {
+	teamID := currentTeamID(r)
+	env, err := a.Store.GetEnvironment(r.Context(), teamID, eid)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if env.ProjectID != pid {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+	if _, ok := a.authorizeDestructiveAction(w, r, env.Name, false); !ok {
+		return
+	}
+	if err := a.Store.DeleteEnvironment(r.Context(), teamID, pid, eid); err != nil {
 		mapStoreErr(w, err)
 		return
 	}
@@ -344,11 +366,29 @@ func (a *API) handleDeleteApplication(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	// Best-effort remote container removal before DB delete.
+	opts, ok := a.authorizeDestructiveAction(w, r, app.Name, true)
+	if !ok {
+		return
+	}
+	// Best-effort remote container (+ optional volume/config/network) removal before DB delete.
 	if app.DestinationID != nil {
 		if dest, err := a.Store.GetDestination(r.Context(), teamID, *app.DestinationID); err == nil {
 			if client, err := a.dialServer(r, dest.ServerID); err == nil {
-				_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", "goolify-"+id.String())
+				cname := "goolify-" + id.String()
+				if opts.volumes() {
+					_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", "-v", cname)
+				} else {
+					_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", cname)
+				}
+				if opts.configurations() {
+					_, _, _ = sshx.RunArgs(client, "rm", "-rf", "/data/goolify/applications/"+id.String())
+				}
+				if opts.networks() {
+					removeResourceScopedNetwork(client, id.String())
+				}
+				if opts.dockerCleanup() {
+					runDockerCleanup(client)
+				}
 			}
 		}
 	}
@@ -751,10 +791,26 @@ func (a *API) handleDeleteDatabase(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
+	opts, ok := a.authorizeDestructiveAction(w, r, db.Name, true)
+	if !ok {
+		return
+	}
 	if db.DestinationID != nil {
 		if dest, err := a.Store.GetDestination(r.Context(), teamID, *db.DestinationID); err == nil {
 			if client, err := a.dialServer(r, dest.ServerID); err == nil {
-				_ = database.Stop(client, id.String())
+				// Do not call database.Stop first — it rm's without -v and orphans anonymous volumes.
+				cname := "goolify-db-" + id.String()
+				if opts.volumes() {
+					_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", "-v", cname)
+				} else {
+					_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", cname)
+				}
+				if opts.networks() {
+					removeResourceScopedNetwork(client, id.String())
+				}
+				if opts.dockerCleanup() {
+					runDockerCleanup(client)
+				}
 			}
 		}
 	}
