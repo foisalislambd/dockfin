@@ -85,7 +85,7 @@ cd goolify
 sudo bash scripts/install-dev.sh
 ```
 
-Builds `goolify:local` and runs under `/data/goolify-dev` (no registry pull).
+Builds `goolify:local` into `/data/goolify` (same dir as production; no registry pull).
 
 ### Go + Vite (hot reload)
 

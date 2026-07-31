@@ -50,8 +50,8 @@ cd apps/web && npm install && npm run dev
 
 | Script | Environment |
 |--------|-------------|
-| `scripts/install.sh` | Production (GHCR) |
-| `scripts/install-dev.sh` | Local build |
+| `scripts/install.sh` | Production (GHCR → `/data/goolify`) |
+| `scripts/install-dev.sh` | Local build (`goolify:local` → same `/data/goolify`) |
 
 ## Webhooks
 

@@ -44,7 +44,7 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
-mkdir -p "${GOOLIFY_DIR}/data"
+mkdir -p "${GOOLIFY_DIR}"
 cd "${GOOLIFY_DIR}"
 
 PUBLIC_IP="$(curl -4 -fsS --max-time 5 https://api.ipify.org 2>/dev/null \
@@ -142,7 +142,8 @@ if ! docker compose pull; then
 fi
 
 echo "==> Starting Goolify…"
-docker compose up -d --remove-orphans
+# Recreate so a newly pulled digest actually replaces a running container.
+docker compose up -d --force-recreate --remove-orphans
 
 echo "==> Waiting for health…"
 ok=0

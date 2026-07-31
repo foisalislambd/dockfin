@@ -11,14 +11,102 @@ Practical guide for humans and AI agents working on this repo. Prefer these comm
 | `apps/web/` | React + Vite dashboard |
 | `templates/compose/` | One-click service YAML catalog |
 | `migrations/` | Goose SQL (run via `goolify migrate`) |
-| `deploy/compose/docker-compose.dev.yml` | Local Postgres + Redis |
-| `.env` | Runtime config (copy from `.env.example`) |
+| `deploy/docker/Dockerfile.api` | Single production image (API + baked Vite UI) |
+| `deploy/compose/docker-compose.dev.yml` | Local Postgres + Redis (hot-reload mode) |
+| `scripts/install.sh` | **Production** install — pulls `ghcr.io/foisalislambd/goolify` |
+| `scripts/install-dev.sh` | **Dev** install — builds `goolify:local`, no registry pull |
+| `.env` | Runtime config for hot-reload mode (copy from `.env.example`) |
 
-Control-plane data lives under `GOOLIFY_DATA_DIR` (default `./data`). Deployed app/service files on hosts live under `/data/goolify/…`.
+Control-plane data:
+
+| Mode | Where |
+|------|-------|
+| Hot reload (`go run`) | `GOOLIFY_DATA_DIR` (default `./data`) |
+| Dev Docker (`install-dev.sh`) | Compose project `/data/goolify` + volumes `goolify-pg` / `goolify-data` |
+| Production (`install.sh`) | Same dir/volumes; image switched to GHCR |
+
+**Important:** App/DB/service files on a *target server* are always under host path **`/data/goolify/{applications,databases,services,proxy,backups}`** (hardcoded in Go over SSH). That is separate from the control-plane container’s `/data` volume.
 
 ---
 
-## Prerequisites
+## Install scripts (pick one)
+
+| Script | When | Image | Dir |
+|--------|------|-------|-----|
+| `scripts/install.sh` | Real VPS / production | `ghcr.io/foisalislambd/goolify:latest` (pull) | `/data/goolify` |
+| `scripts/install-dev.sh` | Agent/smoke testing full stack in Docker | `goolify:local` (build from this repo) | `/data/goolify` (same) |
+
+Both scripts share `/data/goolify` and the same Docker volumes so switching prod ↔ local keeps the DB. Do **not** run two stacks on port 8000 at once.
+
+### Production (GHCR)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/foisalislambd/goolify/main/scripts/install.sh | sudo bash
+
+# Pin a version
+sudo GOOLIFY_VERSION=1.0.9 bash -c 'curl -fsSL …/install.sh | bash'
+
+# Update later
+cd /data/goolify && sudo docker compose pull && sudo docker compose up -d
+```
+
+Dashboard: `http://SERVER_IP:8000/` (ports 80/443 left free for Traefik).
+
+### Development Docker stack (preferred for “run the whole product” on a VPS)
+
+From the **repo root** (needs Docker + root for `/data`):
+
+```bash
+cd /root/goolify   # or your clone path
+sudo bash scripts/install-dev.sh
+```
+
+What it does:
+
+1. `docker build -f deploy/docker/Dockerfile.api -t goolify:local .`
+2. Writes `/data/goolify/docker-compose.yml` + `.env` (`GOOLIFY_ENV=development`)
+3. `docker compose up -d --pull never --force-recreate` (Postgres + Goolify on **:8000**)
+
+```bash
+# Health / version
+curl -s http://127.0.0.1:8000/health
+curl -s http://127.0.0.1:8000/api/v1/version
+
+# Logs / restart
+cd /data/goolify && docker compose logs -f goolify
+cd /data/goolify && docker compose restart goolify
+```
+
+**After Go or UI code changes**, rebuild + recreate (same script is fine):
+
+```bash
+cd /root/goolify && sudo bash scripts/install-dev.sh
+```
+
+Or manually:
+
+```bash
+cd /root/goolify
+docker build -f deploy/docker/Dockerfile.api --build-arg VERSION=dev -t goolify:local .
+cd /data/goolify
+unset GOOLIFY_DATABASE_URL GOOLIFY_MASTER_KEY GOOLIFY_HTTP_ADDR GOOLIFY_PUBLIC_URL 2>/dev/null || true
+docker compose up -d --pull never --force-recreate goolify
+```
+
+Do **not** export host `GOOLIFY_DATABASE_URL=…@127.0.0.1` when using compose — it overrides the container DB host (`postgres`). Secrets stay in `/data/goolify/.env` only.
+
+Optional overrides for `install-dev.sh`:
+
+| Env | Default |
+|-----|---------|
+| `GOOLIFY_DIR` | `/data/goolify` |
+| `GOOLIFY_IMAGE` | `goolify:local` |
+| `GOOLIFY_VERSION` | `dev` (build-arg / version string) |
+| `GOOLIFY_HOST_PORT` | `8000` |
+
+---
+
+## Prerequisites (hot-reload mode)
 
 - Go **1.26+**
 - Node.js **22+**
@@ -32,6 +120,8 @@ cp .env.example .env
 ---
 
 ## A) Everyday local development (hot reload UI)
+
+Use this when iterating on API/UI quickly. For a full Docker control plane like production, use **`install-dev.sh`** instead.
 
 ### 1. Database
 
@@ -73,6 +163,8 @@ Use this mode when iterating on UI. API changes still need restarting `go run` /
 
 Use when serving the built SPA from the API (`GOOLIFY_WEB_DIR`), e.g. VPS smoke at `/opt/goolify-smoke`.
 
+For the **Docker dev stack**, prefer `sudo bash scripts/install-dev.sh` (section above) over this binary path.
+
 ```bash
 # From repo root
 go build -o /opt/goolify-smoke/bin/goolify ./cmd/goolify   # or: ./bin/goolify
@@ -110,7 +202,22 @@ cd apps/web && npm run build   # typecheck + Vite build
 
 Destructive — only on local or smoke hosts.
 
-### Reset control-plane database (Postgres volume)
+### Reset Docker stack (dev or production)
+
+Same directory/volumes — wipe once, then reinstall with the script you want:
+
+```bash
+cd /data/goolify
+docker compose down -v          # wipes goolify-pg + goolify-data
+
+# Dev (local build):
+cd /root/goolify && sudo bash scripts/install-dev.sh
+
+# Or production (GHCR pull):
+curl -fsSL https://raw.githubusercontent.com/foisalislambd/goolify/main/scripts/install.sh | sudo bash
+```
+
+### Reset control-plane database (hot-reload Postgres volume)
 
 ```bash
 # Stop API first
@@ -185,6 +292,9 @@ docker exec compose-postgres-1 psql -U goolify -d goolify \
 | `GOOLIFY_CORS_ORIGINS` | Include Vite origin in dual-process mode |
 | `GOOLIFY_COOKIE_SECURE` | `0` for plain HTTP IPs |
 | `GOOLIFY_BOOTSTRAP_SELF` | Auto-register this host as a server |
+| `GOOLIFY_IMAGE` | Override image for install scripts |
+| `GOOLIFY_VERSION` | Tag / build-arg for install scripts |
+| `GOOLIFY_DIR` | Install directory override |
 
 Magic domains (`sslip.io` / `nip.io`) stay **HTTP** by default (no Let's Encrypt) — rate limits on shared magic DNS.
 
@@ -196,7 +306,10 @@ Magic domains (`sslip.io` / `nip.io`) stay **HTTP** by default (no Let's Encrypt
 - Do **not** put service public domains in instance `.env`; they belong in **project Environment Variables** (`SERVICE_URL_*` / `SERVICE_FQDN_*`).
 - Prefer matching existing patterns in `internal/services/compose.go` and `internal/httpapi/` over new abstractions.
 - One-click templates: Coolify-style metadata (`# name:`, `# port:`, `# logo:`) + magic env keys.
-- After Go or UI fixes on the smoke host: **rebuild + restart** (section B), then hard-refresh the browser.
+- After Go or UI fixes on the **Docker dev** host: `sudo bash scripts/install-dev.sh`, then hard-refresh the browser.
+- After Go or UI fixes on the **binary smoke** host: rebuild + restart (section B), then hard-refresh.
+- Prefer `install-dev.sh` over inventing ad-hoc `docker compose` files for the control plane.
+- Production image source of truth: **GHCR** `ghcr.io/foisalislambd/goolify` (also mirrored to Docker Hub).
 
 ---
 
@@ -206,10 +319,17 @@ Magic domains (`sslip.io` / `nip.io`) stay **HTTP** by default (no Let's Encrypt
 # Is API up?
 curl -s http://127.0.0.1:8000/api/v1/version
 
-# Find serve PID
+# Docker control-plane stack
+cd /data/goolify && docker compose ps
+cd /data/goolify && docker compose logs -f goolify
+
+# Rebuild + redeploy local image
+cd /root/goolify && sudo bash scripts/install-dev.sh
+
+# Find host binary serve PID
 ps -eo pid,cmd | grep '[g]oolify serve'
 
-# Tail smoke logs
+# Tail binary smoke logs
 tail -f /opt/goolify-smoke/api.log
 
 # Full VPS smoke bootstrap (destructive / heavy)
