@@ -48,7 +48,7 @@ func PrepareCompose(raw string, opts PrepareOpts) (string, map[string]string, er
 		ensureExternalNetwork(doc, opts.Network)
 	}
 	expandMagicInDoc(doc, env)
-	persistMagicSecrets(doc, env)
+	persistMagicSecrets(doc, env, CoolifyEnvForUI(raw, env))
 	injectCompatEnv(doc, env)
 	opts.Port = DetectProxyPort(raw, opts.Port)
 	injectProxyLabels(doc, opts)
@@ -212,16 +212,58 @@ func DetectProxyPort(raw, explicit string) string {
 	return "80"
 }
 
+// CoolifyEnvForUI returns the Coolify-style env set shown in Environment Variables:
+// passwords/users/hex/base64 referenced in the template, plus SERVICE_URL/FQDN pairs
+// for each declared domain key (WordPress → SERVICE_URL_WORDPRESS + SERVICE_FQDN_WORDPRESS).
+// Companion keys used only for ${} substitution (e.g. SERVICE_URL_N8N from
+// SERVICE_URL_N8N_5678) are omitted unless they were declared in the template.
+func CoolifyEnvForUI(raw string, env map[string]string) map[string]string {
+	declared := map[string]struct{}{}
+	for _, m := range reMagicKey.FindAllString(raw, -1) {
+		declared[m] = struct{}{}
+	}
+	out := map[string]string{}
+	for key := range declared {
+		switch {
+		case strings.HasPrefix(key, "SERVICE_PASSWORD_"),
+			strings.HasPrefix(key, "SERVICE_USER_"),
+			strings.HasPrefix(key, "SERVICE_BASE64_"),
+			strings.HasPrefix(key, "SERVICE_HEX_"):
+			if v := strings.TrimSpace(env[key]); v != "" {
+				out[key] = v
+			}
+		case strings.HasPrefix(key, "SERVICE_URL_"), strings.HasPrefix(key, "SERVICE_FQDN_"):
+			name, port, hasPort := parseServiceURLNamePort(key)
+			if name == "" {
+				continue
+			}
+			suffix := name
+			if hasPort {
+				suffix = name + "_" + port
+			}
+			uk := "SERVICE_URL_" + suffix
+			fk := "SERVICE_FQDN_" + suffix
+			if v := strings.TrimSpace(env[uk]); v != "" {
+				out[uk] = v
+			}
+			if v := strings.TrimSpace(env[fk]); v != "" {
+				out[fk] = v
+			}
+		}
+	}
+	return out
+}
+
 // ExtractMagicEnv pulls already-expanded SERVICE_* values from prepared compose YAML text.
 func ExtractMagicEnv(compose string) map[string]string {
 	out := map[string]string{}
-	re := regexp.MustCompile(`(?m)(SERVICE_(?:PASSWORD|USER|BASE64|HEX)_[A-Z0-9_]+)=([^\s"']+)`)
+	re := regexp.MustCompile(`(?m)(SERVICE_(?:PASSWORD|USER|BASE64|HEX|URL|FQDN)_[A-Z0-9_]+)=([^\s"']+)`)
 	for _, m := range re.FindAllStringSubmatch(compose, -1) {
 		if len(m) == 3 {
 			out[m[1]] = m[2]
 		}
 	}
-	reQ := regexp.MustCompile(`(?m)(SERVICE_(?:PASSWORD|USER|BASE64|HEX)_[A-Z0-9_]+)="([^"]*)"`)
+	reQ := regexp.MustCompile(`(?m)(SERVICE_(?:PASSWORD|USER|BASE64|HEX|URL|FQDN)_[A-Z0-9_]+)="([^"]*)"`)
 	for _, m := range reQ.FindAllStringSubmatch(compose, -1) {
 		if len(m) == 3 {
 			out[m[1]] = m[2]
@@ -249,16 +291,20 @@ func expandMagicInDoc(doc map[string]any, env map[string]string) {
 	doc["services"] = services
 }
 
-// persistMagicSecrets keeps SERVICE_PASSWORD/USER/BASE64/HEX in compose env so
-// redeploys can reuse them via ExtractMagicEnv instead of regenerating.
-func persistMagicSecrets(doc map[string]any, env map[string]string) {
-	secrets := map[string]string{}
-	for k, v := range env {
-		if strings.HasPrefix(k, "SERVICE_PASSWORD_") ||
-			strings.HasPrefix(k, "SERVICE_USER_") ||
-			strings.HasPrefix(k, "SERVICE_BASE64_") ||
-			strings.HasPrefix(k, "SERVICE_HEX_") {
-			secrets[k] = v
+// persistMagicSecrets keeps Coolify SERVICE_* values (passwords + URL/FQDN pairs)
+// in compose env so redeploys can reuse them via ExtractMagicEnv.
+// secrets should be CoolifyEnvForUI(...) — not every in-memory companion key.
+func persistMagicSecrets(doc map[string]any, env map[string]string, secrets map[string]string) {
+	if len(secrets) == 0 {
+		// Fallback: passwords only (legacy callers / empty UI set).
+		secrets = map[string]string{}
+		for k, v := range env {
+			if strings.HasPrefix(k, "SERVICE_PASSWORD_") ||
+				strings.HasPrefix(k, "SERVICE_USER_") ||
+				strings.HasPrefix(k, "SERVICE_BASE64_") ||
+				strings.HasPrefix(k, "SERVICE_HEX_") {
+				secrets[k] = v
+			}
 		}
 	}
 	if len(secrets) == 0 {

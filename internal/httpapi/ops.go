@@ -124,7 +124,7 @@ func (a *API) handleCreateService(w http.ResponseWriter, r *http.Request) {
 			opts.ServiceID = svc.ID.String()
 		}
 	}
-	prepared, _, err := services.PrepareCompose(compose, opts)
+	prepared, fullEnv, err := services.PrepareCompose(compose, opts)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid compose: %v", err))
 		return
@@ -136,6 +136,7 @@ func (a *API) handleCreateService(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
+	a.syncServiceCoolifyEnv(r.Context(), teamID, created.ID, compose, prepared, fullEnv)
 	writeJSON(w, http.StatusCreated, serviceWithLinks(created))
 }
 
@@ -353,20 +354,33 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if needPrepare {
+		existing := services.ExtractMagicEnv(composeYAML)
+		for k, v := range a.loadServiceMagicEnv(r.Context(), teamID, id) {
+			existing[k] = v
+		}
 		opts := services.PrepareOpts{
 			ServiceID:   id.String(),
 			BaseURL:     "http://127.0.0.1",
 			RouterName:  svc.Name,
-			ExistingEnv: services.ExtractMagicEnv(composeYAML),
+			ExistingEnv: existing,
 		}
 		if dest != nil {
 			opts.Network = dest.Network
 		}
-		if svc.FQDN != "" {
+		if u, host := preferURLFromMagicEnv(existing); u != "" {
+			opts.BaseURL = u
+			opts.FQDN = host
+			if host != "" && host != fqdnHost {
+				svc.FQDN = host
+				_ = a.Store.UpdateServiceFQDN(r.Context(), id, host)
+				fqdnHost = host
+				emit("prepare", fmt.Sprintf("Using domain from Environment Variables: %s", host))
+			}
+		} else if svc.FQDN != "" {
 			opts.BaseURL = proxy.PublicURL(svc.FQDN)
 			opts.FQDN = fqdnHost
 		}
-		prepared, _, err := services.PrepareCompose(rawCompose, opts)
+		prepared, fullEnv, err := services.PrepareCompose(rawCompose, opts)
 		if err != nil {
 			if stream {
 				finishErr(fmt.Sprintf("prepare compose: %v", err))
@@ -377,6 +391,7 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		}
 		composeYAML = prepared
 		_ = a.Store.UpdateServiceCompose(r.Context(), id, prepared)
+		a.syncServiceCoolifyEnv(r.Context(), teamID, id, rawCompose, prepared, fullEnv)
 		if svc.FQDN != "" {
 			emit("prepare", fmt.Sprintf("Compose prepared · domain %s", svc.FQDN))
 		} else {
@@ -387,6 +402,7 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		if svc.FQDN != "" {
 			emit("prepare", fmt.Sprintf("Public URL: %s", proxy.PublicURL(svc.FQDN)))
 		}
+		a.syncServiceCoolifyEnv(r.Context(), teamID, id, rawCompose, composeYAML, services.ExtractMagicEnv(composeYAML))
 	}
 
 	_ = a.Store.UpdateServiceStatus(r.Context(), id, "deploying")

@@ -218,6 +218,67 @@ func TestExtractMagicEnvPreservesPasswords(t *testing.T) {
 	}
 }
 
+func TestCoolifyEnvForUIWordPressPair(t *testing.T) {
+	raw := `services:
+  wordpress:
+    environment:
+      - SERVICE_URL_WORDPRESS
+      - WORDPRESS_DB_PASSWORD=$SERVICE_PASSWORD_WORDPRESS
+`
+	_, env, err := PrepareCompose(raw, PrepareOpts{BaseURL: "http://wp.example.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ui := CoolifyEnvForUI(raw, env)
+	if ui["SERVICE_URL_WORDPRESS"] != "http://wp.example.com" {
+		t.Fatalf("url: %#v", ui)
+	}
+	if ui["SERVICE_FQDN_WORDPRESS"] != "wp.example.com" {
+		t.Fatalf("fqdn: %#v", ui)
+	}
+	if _, ok := ui["SERVICE_PASSWORD_WORDPRESS"]; !ok {
+		t.Fatalf("password missing: %#v", ui)
+	}
+	// No stray companion keys.
+	for k := range ui {
+		if strings.Contains(k, "8080") {
+			t.Fatalf("unexpected key %s", k)
+		}
+	}
+}
+
+func TestCoolifyEnvForUIPortedPairOnly(t *testing.T) {
+	raw := `services:
+  gatus:
+    environment:
+      - SERVICE_URL_GATUS_8080
+`
+	out, env, err := PrepareCompose(raw, PrepareOpts{
+		BaseURL: "http://gatus.example.com",
+		FQDN:    "gatus.example.com",
+		Network: "goolify",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ui := CoolifyEnvForUI(raw, env)
+	if len(ui) != 2 {
+		t.Fatalf("want 2 UI keys (URL+FQDN), got %d: %#v", len(ui), ui)
+	}
+	if ui["SERVICE_URL_GATUS_8080"] == "" || ui["SERVICE_FQDN_GATUS_8080"] == "" {
+		t.Fatalf("ported pair missing: %#v", ui)
+	}
+	if _, ok := ui["SERVICE_URL_GATUS"]; ok {
+		t.Fatalf("companion URL must not be in UI: %#v", ui)
+	}
+	if !strings.Contains(out, "SERVICE_FQDN_GATUS_8080=gatus.example.com") {
+		t.Fatalf("FQDN pair should be persisted in compose:\n%s", out)
+	}
+	if strings.Contains(out, "SERVICE_URL_GATUS=http://") && !strings.Contains(out, "SERVICE_URL_GATUS_8080=") {
+		t.Fatalf("unexpected bare companion persist:\n%s", out)
+	}
+}
+
 func TestPickProxyServiceExactOverContains(t *testing.T) {
 	got := pickProxyService(map[string]any{
 		"webhook": map[string]any{"image": "x"},
