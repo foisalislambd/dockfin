@@ -230,15 +230,27 @@ export function SettingsPage() {
     enabled: topTab === 'scheduled',
   })
   const backups = useQuery({
-    queryKey: ['scheduled-backups'],
-    queryFn: api.scheduledBackups,
+    queryKey: ['instance-backup'],
+    queryFn: api.instanceBackup,
     enabled: topTab === 'backup',
+    refetchInterval: topTab === 'backup' ? 5000 : false,
   })
   const storages = useQuery({
     queryKey: ['s3-storages'],
     queryFn: api.s3Storages,
     enabled: topTab === 'backup',
   })
+  const [backupFreq, setBackupFreq] = useState('0 0 * * *')
+  const [backupRetention, setBackupRetention] = useState('7')
+  const [backupDesc, setBackupDesc] = useState('Goolify database')
+
+  useEffect(() => {
+    if (backups.data?.backup) {
+      setBackupFreq(backups.data.backup.frequency || '0 0 * * *')
+      setBackupRetention(String(backups.data.backup.retention ?? 7))
+      setBackupDesc(backups.data.backup.description || 'Goolify database')
+    }
+  }, [backups.data])
 
   useEffect(() => {
     if (settings.data?.settings) {
@@ -261,6 +273,45 @@ export function SettingsPage() {
       setError('')
       setMessage('Settings saved')
       void qc.invalidateQueries({ queryKey: ['instance-settings'] })
+    },
+    onError: (e: Error) => {
+      setMessage('')
+      setError(e.message)
+    },
+  })
+
+  const configureBackup = useMutation({
+    mutationFn: () => api.configureInstanceBackup(),
+    onSuccess: () => {
+      setError('')
+      setMessage('Instance backup configured')
+      void qc.invalidateQueries({ queryKey: ['instance-backup'] })
+    },
+    onError: (e: Error) => {
+      setMessage('')
+      setError(e.message)
+    },
+  })
+
+  const saveBackup = useMutation({
+    mutationFn: (body: Parameters<typeof api.patchInstanceBackup>[0]) => api.patchInstanceBackup(body),
+    onSuccess: () => {
+      setError('')
+      setMessage('Backup settings saved')
+      void qc.invalidateQueries({ queryKey: ['instance-backup'] })
+    },
+    onError: (e: Error) => {
+      setMessage('')
+      setError(e.message)
+    },
+  })
+
+  const runBackup = useMutation({
+    mutationFn: () => api.runInstanceBackup(),
+    onSuccess: () => {
+      setError('')
+      setMessage('Backup started')
+      void qc.invalidateQueries({ queryKey: ['instance-backup'] })
     },
     onError: (e: Error) => {
       setMessage('')
@@ -838,56 +889,176 @@ export function SettingsPage() {
         <div className="space-y-4">
           <SectionHead
             title="Backup"
-            subtitle="Instance database backups and S3 destinations."
+            subtitle="Backup configuration for your Goolify instance database (local)."
+            actions={
+              backups.data?.backup.configured ? (
+                <div className="flex flex-wrap gap-2">
+                  <Btn
+                    primary
+                    disabled={!canEdit || saveBackup.isPending}
+                    onClick={() =>
+                      saveBackup.mutate({
+                        frequency: backupFreq,
+                        retention: Number(backupRetention) || 0,
+                        description: backupDesc,
+                        enabled: backups.data?.backup.enabled,
+                      })
+                    }
+                  >
+                    Save
+                  </Btn>
+                  <Btn
+                    disabled={!canEdit || runBackup.isPending || !backups.data?.backup.enabled}
+                    onClick={() => runBackup.mutate()}
+                  >
+                    Backup Now
+                  </Btn>
+                </div>
+              ) : null
+            }
           />
-          <div className="panel-card space-y-3 p-5">
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              Configure S3 destinations and schedule backups for databases from their detail pages.
-              Scheduled backup jobs for this team are listed below.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Link
-                to="/storages"
-                className="inline-flex h-8 items-center rounded-md border border-gray-200 px-2.5 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-white/5"
+
+          {backups.isLoading && <p className="text-sm text-gray-500">Loading backup settings…</p>}
+
+          {backups.data && !backups.data.backup.configured && (
+            <div className="panel-card space-y-3 p-5">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                To configure automatic local backup for your Goolify instance, add the instance database
+                resource. Dumps are stored under{' '}
+                <span className="font-mono text-xs">{backups.data.runtime.backup_dir}</span>.
+              </p>
+              {!backups.data.runtime.detected_container && (
+                <p className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">
+                  No running Postgres container detected. Start the Goolify database container, then try again.
+                </p>
+              )}
+              <Btn
+                primary
+                disabled={!canEdit || configureBackup.isPending || !backups.data.runtime.detected_container}
+                onClick={() => configureBackup.mutate()}
               >
-                Manage S3 Storages
-              </Link>
+                Configure Backup
+              </Btn>
             </div>
-          </div>
-          <div className="panel-card overflow-hidden">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
-                <tr>
-                  <th className="px-3 py-2">Resource</th>
-                  <th className="px-3 py-2">Frequency</th>
-                  <th className="px-3 py-2">Retention</th>
-                  <th className="px-3 py-2">Enabled</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(backups.data?.scheduled_backups || []).map((b) => (
-                  <tr key={b.id} className="border-t border-gray-200 dark:border-gray-800">
-                    <td className="px-3 py-2 font-mono text-xs">
-                      {b.resource_type}/{b.resource_id.slice(0, 8)}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-xs">{b.frequency}</td>
-                    <td className="px-3 py-2">{b.retention}</td>
-                    <td className="px-3 py-2">{b.enabled ? 'Yes' : 'No'}</td>
-                  </tr>
-                ))}
-                {!backups.data?.scheduled_backups?.length && (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
-                      No scheduled backups yet.
-                      {(storages.data?.s3_storages || []).length === 0
-                        ? ' Add an S3 storage first.'
-                        : ''}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          )}
+
+          {backups.data?.backup.configured && (
+            <>
+              <div className="panel-card space-y-4 p-5">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <TextField label="UUID" value={backups.data.backup.uuid} onChange={() => {}} disabled />
+                  <TextField label="Name" value={backups.data.backup.name} onChange={() => {}} disabled />
+                  <TextField
+                    label="Description"
+                    value={backupDesc}
+                    onChange={setBackupDesc}
+                    required={false}
+                  />
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <TextField label="User" value={backups.data.backup.db_user} onChange={() => {}} disabled />
+                  <SecretField
+                    label="Password"
+                    value="••••••••"
+                    onChange={() => {}}
+                    placeholder="from GOOLIFY_DATABASE_URL"
+                  />
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <TextField
+                    label="Container"
+                    value={backups.data.runtime.container}
+                    onChange={() => {}}
+                    disabled
+                    helper="Postgres Docker container used for pg_dump."
+                  />
+                  <TextField
+                    label="Local backup directory"
+                    value={backups.data.runtime.backup_dir}
+                    onChange={() => {}}
+                    disabled
+                  />
+                </div>
+              </div>
+
+              <div className="panel-card space-y-3 p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="font-medium text-gray-900 dark:text-white">Schedule</h3>
+                  <Toggle
+                    label="Enabled"
+                    checked={backups.data.backup.enabled}
+                    onChange={(v) => saveBackup.mutate({ enabled: v })}
+                    disabled={!canEdit}
+                  />
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <TextField
+                    label="Frequency (cron)"
+                    helper="Default: every day at 00:00 (0 0 * * *)."
+                    value={backupFreq}
+                    onChange={setBackupFreq}
+                  />
+                  <TextField
+                    label="Retention (local copies)"
+                    helper="How many local dump files to keep. 0 = unlimited."
+                    value={backupRetention}
+                    onChange={setBackupRetention}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Local-only backups (Coolify-style). Optional S3 destinations remain under{' '}
+                  <Link to="/storages" className="text-brand-600 hover:underline dark:text-brand-400">
+                    S3 Storages
+                  </Link>
+                  {(storages.data?.s3_storages || []).length
+                    ? ` (${storages.data!.s3_storages.length} configured)`
+                    : ''}
+                  .
+                </p>
+              </div>
+
+              <div className="panel-card overflow-hidden">
+                <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white">Executions</h3>
+                </div>
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+                    <tr>
+                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2">Filename</th>
+                      <th className="px-3 py-2">Size</th>
+                      <th className="px-3 py-2">Started</th>
+                      <th className="px-3 py-2">Error</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(backups.data.executions || []).map((ex) => (
+                      <tr key={ex.id} className="border-t border-gray-200 dark:border-gray-800">
+                        <td className="px-3 py-2 capitalize">{ex.status}</td>
+                        <td className="max-w-xs truncate px-3 py-2 font-mono text-xs">{ex.filename}</td>
+                        <td className="px-3 py-2 font-mono text-xs">
+                          {ex.size_bytes ? `${Math.round(ex.size_bytes / 1024)} KB` : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-500">
+                          {ex.started_at ? new Date(ex.started_at).toLocaleString() : '—'}
+                        </td>
+                        <td className="max-w-xs truncate px-3 py-2 text-xs text-error-500">
+                          {ex.error_message || ''}
+                        </td>
+                      </tr>
+                    ))}
+                    {!backups.data.executions?.length && (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                          No backup executions yet. Click Backup Now or wait for the schedule.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       )}
 

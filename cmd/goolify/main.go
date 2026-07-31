@@ -114,7 +114,7 @@ func runServe() error {
 	q.Start(ctx, 4)
 	defer q.Stop()
 
-	sched := scheduler.New(st, sshPool, logger)
+	sched := scheduler.New(st, sshPool, logger, cfg.DataDir, cfg.DatabaseURL)
 	sched.Start(ctx)
 	defer sched.Stop()
 

@@ -358,6 +358,31 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+  instanceBackup: () =>
+    request<{
+      backup: InstanceBackupConfig
+      runtime: {
+        container: string
+        detected_container: string
+        data_dir: string
+        backup_dir: string
+        db_password_set: boolean
+      }
+      executions: BackupExecution[]
+    }>('/api/v1/settings/backup'),
+  configureInstanceBackup: () =>
+    request<{ backup: InstanceBackupConfig; status: string }>('/api/v1/settings/backup/configure', {
+      method: 'POST',
+    }),
+  patchInstanceBackup: (body: Partial<InstanceBackupPatch>) =>
+    request<{ backup: InstanceBackupConfig }>('/api/v1/settings/backup', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  runInstanceBackup: () =>
+    request<{ execution: BackupExecution }>('/api/v1/settings/backup/run', { method: 'POST' }),
+  instanceBackupExecutions: () =>
+    request<{ executions: BackupExecution[] }>('/api/v1/settings/backup/executions'),
 
   teamMembers: () => request<{ members: TeamMember[] }>('/api/v1/team/members'),
   removeTeamMember: (userId: string) =>
@@ -791,6 +816,27 @@ export type OauthSettingPatch = {
   redirect_uri?: string
   tenant?: string
   base_url?: string
+}
+export type InstanceBackupConfig = {
+  configured: boolean
+  enabled: boolean
+  frequency: string
+  retention: number
+  description: string
+  db_user: string
+  db_name: string
+  container: string
+  name: string
+  uuid: string
+}
+export type InstanceBackupPatch = {
+  enabled?: boolean
+  frequency?: string
+  retention?: number
+  description?: string
+  container?: string
+  db_user?: string
+  db_name?: string
 }
 export type ServerMetric = {
   cpu_percent: number

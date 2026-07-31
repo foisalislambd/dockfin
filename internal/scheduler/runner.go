@@ -16,17 +16,19 @@ import (
 )
 
 type Runner struct {
-	Store  *store.Store
-	SSH    *sshx.Pool
-	Logger *slog.Logger
-	cancel context.CancelFunc
+	Store        *store.Store
+	SSH          *sshx.Pool
+	Logger       *slog.Logger
+	DataDir      string
+	DatabaseURL  string
+	cancel       context.CancelFunc
 }
 
-func New(st *store.Store, pool *sshx.Pool, logger *slog.Logger) *Runner {
+func New(st *store.Store, pool *sshx.Pool, logger *slog.Logger, dataDir, databaseURL string) *Runner {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Runner{Store: st, SSH: pool, Logger: logger}
+	return &Runner{Store: st, SSH: pool, Logger: logger, DataDir: dataDir, DatabaseURL: databaseURL}
 }
 
 func (r *Runner) Start(ctx context.Context) {
@@ -66,6 +68,7 @@ func (r *Runner) tick(ctx context.Context) {
 	minute := time.Now().Truncate(time.Minute)
 	r.runTasks(ctx, minute)
 	r.runBackups(ctx, minute)
+	r.runInstanceBackup(ctx, minute)
 }
 
 func (r *Runner) runTasks(ctx context.Context, minute time.Time) {
@@ -134,6 +137,63 @@ func (r *Runner) executeTask(ctx context.Context, t store.ScheduledTaskRow, exec
 	_ = r.Store.FinishTaskExecution(ctx, execID, status, out)
 	done = true
 	r.Logger.Info("scheduled task ran", "task", t.ID, "name", t.Name, "status", status)
+}
+
+func (r *Runner) runInstanceBackup(ctx context.Context, minute time.Time) {
+	cfg, err := r.Store.GetInstanceBackupConfig(ctx)
+	if err != nil || !cfg.Configured || !cfg.Enabled {
+		return
+	}
+	if !Matches(cfg.Frequency, minute) {
+		return
+	}
+	ran, err := r.Store.InstanceBackupRanThisMinute(ctx, minute)
+	if err != nil {
+		r.Logger.Error("instance backup ran check", "err", err)
+		return
+	}
+	if ran {
+		return
+	}
+	teamID, err := r.Store.FirstTeamID(ctx)
+	if err != nil {
+		r.Logger.Error("instance backup team", "err", err)
+		return
+	}
+	user, password, dbName, err := backup.ParseDatabaseURL(r.DatabaseURL)
+	if err != nil {
+		r.Logger.Error("instance backup db url", "err", err)
+		return
+	}
+	if cfg.DBUser != "" {
+		user = cfg.DBUser
+	}
+	if cfg.DBName != "" {
+		dbName = cfg.DBName
+	}
+	container := cfg.Container
+	if container == "" {
+		container, err = backup.DetectPostgresContainer("")
+		if err != nil {
+			r.Logger.Error("instance backup container", "err", err)
+			return
+		}
+	}
+	filename := backup.InstanceDumpFilename()
+	execRow, err := r.Store.CreateInstanceBackupExecution(ctx, teamID, filename)
+	if err != nil {
+		r.Logger.Error("instance backup execution", "err", err)
+		return
+	}
+	_, size, err := backup.DumpInstanceLocal(r.DataDir, container, user, password, dbName, filename)
+	if err != nil {
+		_ = r.Store.FinishBackupExecution(ctx, execRow.ID, "failed", 0, err.Error())
+		r.Logger.Error("instance backup dump", "err", err)
+		return
+	}
+	_ = r.Store.FinishBackupExecution(ctx, execRow.ID, "finished", size, "")
+	_ = backup.EnforceLocalRetention(r.DataDir, cfg.Retention)
+	r.Logger.Info("instance backup finished", "file", filename, "bytes", size)
 }
 
 func (r *Runner) runBackups(ctx context.Context, minute time.Time) {

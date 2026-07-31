@@ -214,6 +214,11 @@ func (a *API) Router() http.Handler {
 			r.Patch("/settings", a.handlePatchInstanceSettings)
 			r.Get("/settings/oauth", a.handleListOauthSettings)
 			r.Patch("/settings/oauth/{provider}", a.handlePatchOauthSetting)
+			r.Get("/settings/backup", a.handleGetInstanceBackup)
+			r.Post("/settings/backup/configure", a.handleConfigureInstanceBackup)
+			r.Patch("/settings/backup", a.handlePatchInstanceBackup)
+			r.Post("/settings/backup/run", a.handleRunInstanceBackup)
+			r.Get("/settings/backup/executions", a.handleListInstanceBackupExecutions)
 
 			r.Get("/scheduled-tasks", a.handleListScheduledTasks)
 			r.Post("/scheduled-tasks", a.handleCreateScheduledTask)
