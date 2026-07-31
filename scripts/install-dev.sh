@@ -1,35 +1,41 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Goolify — production install (Ubuntu/Debian)
+# Goolify — local / development install
 #
-#   curl -fsSL https://raw.githubusercontent.com/foisalislambd/goolify/main/scripts/install.sh | sudo bash
+# Builds a local Docker image from this repo and runs compose (no registry pull).
+# For production servers use scripts/install.sh instead (pulls from GHCR).
 #
-# Pulls the published image from GitHub Container Registry (GHCR), then starts
-# Postgres + Goolify via Docker Compose. No manual .env editing.
+# Usage (from repo root):
+#   sudo bash scripts/install-dev.sh
 #
 # Optional:
-#   GOOLIFY_VERSION=1.0.9          # pin tag (default: latest)
-#   GOOLIFY_IMAGE=ghcr.io/...:...  # full override
-#   GOOLIFY_DIR=/data/goolify      # install directory
+#   GOOLIFY_DIR=/data/goolify-dev
+#   GOOLIFY_IMAGE=goolify:local
+#   GOOLIFY_VERSION=dev
 
-GOOLIFY_DIR="${GOOLIFY_DIR:-/data/goolify}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+GOOLIFY_DIR="${GOOLIFY_DIR:-/data/goolify-dev}"
 COMPOSE_FILE="${GOOLIFY_DIR}/docker-compose.yml"
 ENV_FILE="${GOOLIFY_DIR}/.env"
+IMAGE="${GOOLIFY_IMAGE:-goolify:local}"
+VERSION="${GOOLIFY_VERSION:-dev}"
 
-# Production default: GitHub Packages (GHCR)
-GHCR_IMAGE="ghcr.io/foisalislambd/goolify"
-VERSION="${GOOLIFY_VERSION:-latest}"
-IMAGE="${GOOLIFY_IMAGE:-${GHCR_IMAGE}:${VERSION}}"
-
-echo "==> Goolify production installer"
+echo "==> Goolify development installer"
+echo "    Repo:        ${REPO_ROOT}"
 echo "    Install dir: ${GOOLIFY_DIR}"
-echo "    Image:       ${IMAGE}"
-echo "    Registry:    GitHub Container Registry (ghcr.io)"
+echo "    Image:       ${IMAGE} (built locally — no pull)"
 
 if [[ "${EUID}" -ne 0 ]]; then
-  echo "Please run as root:"
-  echo "  curl -fsSL https://raw.githubusercontent.com/foisalislambd/goolify/main/scripts/install.sh | sudo bash"
+  echo "Please run as root: sudo bash scripts/install-dev.sh"
+  exit 1
+fi
+
+if [[ ! -f "${REPO_ROOT}/deploy/docker/Dockerfile.api" ]]; then
+  echo "Dockerfile not found. Run this script from a goolify git checkout:"
+  echo "  cd /path/to/goolify && sudo bash scripts/install-dev.sh"
   exit 1
 fi
 
@@ -40,9 +46,16 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 if ! docker compose version >/dev/null 2>&1; then
-  echo "Docker Compose plugin required (install docker-compose-plugin)."
+  echo "Docker Compose plugin required."
   exit 1
 fi
+
+echo "==> Building ${IMAGE} from source…"
+docker build \
+  -f "${REPO_ROOT}/deploy/docker/Dockerfile.api" \
+  --build-arg "VERSION=${VERSION}" \
+  -t "${IMAGE}" \
+  "${REPO_ROOT}"
 
 mkdir -p "${GOOLIFY_DIR}/data"
 cd "${GOOLIFY_DIR}"
@@ -59,7 +72,7 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   MASTER_KEY=$(openssl rand -base64 48 | tr -d '\n' | head -c 48)
   DB_PASS=$(openssl rand -base64 24 | tr -d '\n=/+' | head -c 24)
   cat > "${ENV_FILE}" <<EOF
-GOOLIFY_ENV=production
+GOOLIFY_ENV=development
 GOOLIFY_HTTP_ADDR=:8000
 GOOLIFY_DATABASE_URL=postgres://goolify:${DB_PASS}@postgres:5432/goolify?sslmode=disable
 GOOLIFY_MASTER_KEY=${MASTER_KEY}
@@ -73,7 +86,7 @@ GOOLIFY_WEB_DIR=/app/web
 POSTGRES_PASSWORD=${DB_PASS}
 EOF
   chmod 600 "${ENV_FILE}"
-  echo "==> Generated secure secrets"
+  echo "==> Generated .env for development"
 else
   if ! grep -q '^POSTGRES_PASSWORD=' "${ENV_FILE}"; then
     DBURL=$(grep '^GOOLIFY_DATABASE_URL=' "${ENV_FILE}" | cut -d= -f2-)
@@ -81,12 +94,6 @@ else
     if [[ -n "${DBPASS}" ]]; then
       echo "POSTGRES_PASSWORD=${DBPASS}" >> "${ENV_FILE}"
     fi
-  fi
-  # Ensure production env flag on existing installs
-  if grep -q '^GOOLIFY_ENV=' "${ENV_FILE}"; then
-    sed -i 's/^GOOLIFY_ENV=.*/GOOLIFY_ENV=production/' "${ENV_FILE}"
-  else
-    echo "GOOLIFY_ENV=production" >> "${ENV_FILE}"
   fi
   echo "==> Using existing ${ENV_FILE}"
 fi
@@ -100,7 +107,7 @@ services:
       POSTGRES_PASSWORD: \${POSTGRES_PASSWORD:-goolify}
       POSTGRES_DB: goolify
     volumes:
-      - goolify-pg:/var/lib/postgresql/data
+      - goolify-pg-dev:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U goolify"]
       interval: 5s
@@ -110,39 +117,27 @@ services:
 
   goolify:
     image: ${IMAGE}
-    pull_policy: always
+    pull_policy: never
     env_file: .env
     environment:
       GOOLIFY_HTTP_ADDR: ":8000"
     ports:
       - "8000:8000"
     volumes:
-      - goolify-data:/data
+      - goolify-data-dev:/data
     depends_on:
       postgres:
         condition: service_healthy
     restart: unless-stopped
 
 volumes:
-  goolify-pg:
-  goolify-data:
+  goolify-pg-dev:
+  goolify-data-dev:
 EOF
 
-echo "==> Pulling ${IMAGE}…"
-# Avoid host-exported GOOLIFY_* overriding compose/.env (breaks DB hostname).
+echo "==> Starting (local image, skip pull)…"
 unset GOOLIFY_DATABASE_URL GOOLIFY_MASTER_KEY GOOLIFY_HTTP_ADDR GOOLIFY_PUBLIC_URL 2>/dev/null || true
-
-if ! docker compose pull; then
-  echo ""
-  echo "Failed to pull ${IMAGE}"
-  echo "If the GHCR package is private, make it public under:"
-  echo "  https://github.com/users/foisalislambd/packages/container/goolify/settings"
-  echo "Or login first:  echo \$GHCR_TOKEN | docker login ghcr.io -u USERNAME --password-stdin"
-  exit 1
-fi
-
-echo "==> Starting Goolify…"
-docker compose up -d --remove-orphans
+docker compose up -d --pull never --force-recreate --remove-orphans
 
 echo "==> Waiting for health…"
 ok=0
@@ -159,24 +154,20 @@ IP="${IP:-$PUBLIC_IP}"
 
 echo ""
 if [[ "${ok}" -eq 1 ]]; then
-  echo "Goolify is ready (production)."
+  echo "Goolify is ready (development)."
 else
-  echo "Containers started; health check still warming up."
-  echo "Check: cd ${GOOLIFY_DIR} && docker compose logs -f goolify"
+  echo "Containers started; check logs:"
+  echo "  cd ${GOOLIFY_DIR} && docker compose logs -f goolify"
 fi
 echo ""
 echo "  Dashboard: http://${IP}:8000/"
 echo "  Health:    http://${IP}:8000/health"
-echo "  Version:   http://${IP}:8000/api/v1/version"
 echo "  Data:      ${GOOLIFY_DIR}"
 echo "  Image:     ${IMAGE}"
 echo ""
-echo "Next: open the URL → Register your admin account."
-echo "First register auto-adds this VPS as a server. Then create a project and deploy."
+echo "Rebuild after code changes:"
+echo "  sudo bash ${SCRIPT_DIR}/install-dev.sh"
 echo ""
-echo "Update later:"
-echo "  cd ${GOOLIFY_DIR} && docker compose pull && docker compose up -d"
-echo ""
-echo "Pin a version:"
-echo "  sudo GOOLIFY_VERSION=1.0.9 bash -c 'curl -fsSL …/install.sh | bash'"
+echo "Production install (GHCR pull):"
+echo "  curl -fsSL https://raw.githubusercontent.com/foisalislambd/goolify/main/scripts/install.sh | sudo bash"
 echo ""

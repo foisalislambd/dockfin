@@ -2,13 +2,15 @@
 
 ## Install (production)
 
-One command — secrets, Docker, Postgres, and the dashboard are set up for you:
+Pulls **`ghcr.io/foisalislambd/goolify:latest`** from GitHub Packages, then starts the stack:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/foisalislambd/goolify/main/scripts/install.sh | sudo bash
 ```
 
-Then open `http://YOUR_SERVER_IP/` and register.
+Then open `http://YOUR_SERVER_IP:8000/` and register.
+
+Pin a version: `sudo GOOLIFY_VERSION=1.0.9 bash -c 'curl -fsSL …/install.sh | bash'`
 
 Full user guide: [README](../README.md)
 
@@ -30,6 +32,14 @@ Full user guide: [README](../README.md)
 
 ## Development
 
+Docker from this repo (no GHCR pull):
+
+```bash
+sudo bash scripts/install-dev.sh
+```
+
+Or hot-reload:
+
 ```bash
 cp .env.example .env
 docker compose -f deploy/compose/docker-compose.yml up -d postgres
@@ -37,6 +47,11 @@ go run ./cmd/goolify migrate
 go run ./cmd/goolify serve
 cd apps/web && npm install && npm run dev
 ```
+
+| Script | Environment |
+|--------|-------------|
+| `scripts/install.sh` | Production (GHCR) |
+| `scripts/install-dev.sh` | Local build |
 
 ## Webhooks
 

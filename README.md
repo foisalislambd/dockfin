@@ -6,8 +6,8 @@ One Docker image = API + dashboard. MIT license. Your data stays on your VPS.
 
 | Registry | Image |
 |----------|--------|
+| **GitHub Packages (GHCR)** — production default | `ghcr.io/foisalislambd/goolify:latest` |
 | [Docker Hub](https://hub.docker.com/r/foisalislambd/goolify) | `foisalislambd/goolify:latest` |
-| GHCR | `ghcr.io/foisalislambd/goolify:latest` |
 
 ---
 
@@ -21,7 +21,7 @@ You need a **Ubuntu/Debian VPS** with a public IP. That’s it.
 curl -fsSL https://raw.githubusercontent.com/foisalislambd/goolify/main/scripts/install.sh | sudo bash
 ```
 
-This automatically:
+This **pulls from GitHub Container Registry**, then:
 
 - Installs Docker (if missing)
 - Generates secure secrets
@@ -38,46 +38,31 @@ http://YOUR_SERVER_IP:8000/
 2. The VPS is added as a server for you  
 3. Create a **project** and deploy  
 
-**Update anytime** (still no manual config):
+**Update anytime:**
 
 ```bash
 cd /data/goolify && sudo docker compose pull && sudo docker compose up -d
 ```
 
----
-
-## Docker pull & run
-
-Already have Docker? Same installer still does the full stack for you (Goolify needs Postgres):
+**Pin a release version:**
 
 ```bash
-docker pull foisalislambd/goolify:latest
-curl -fsSL https://raw.githubusercontent.com/foisalislambd/goolify/main/scripts/install.sh | sudo bash
-```
-
-Or pin a version:
-
-```bash
-sudo GOOLIFY_IMAGE=foisalislambd/goolify:1.0.1 \
+sudo GOOLIFY_VERSION=1.0.9 \
   bash -c 'curl -fsSL https://raw.githubusercontent.com/foisalislambd/goolify/main/scripts/install.sh | bash'
 ```
 
 ### Useful commands after install
 
 ```bash
-# Status
 curl -s http://YOUR_SERVER_IP:8000/health
 curl -s http://YOUR_SERVER_IP:8000/api/v1/version
 
-# Logs
 cd /data/goolify && sudo docker compose logs -f goolify
-
-# Stop / start
 cd /data/goolify && sudo docker compose down
 cd /data/goolify && sudo docker compose up -d
 ```
 
-Everything important lives in `/data/goolify` (created for you). You don’t need to edit `.env` by hand.
+Everything important lives in `/data/goolify`. You don’t need to edit `.env` by hand.
 
 ---
 
@@ -90,7 +75,19 @@ Everything important lives in `/data/goolify` (created for you). You don’t nee
 
 ---
 
-## Local development (contributors)
+## Local development
+
+### Docker (build from this repo)
+
+```bash
+git clone https://github.com/foisalislambd/goolify.git
+cd goolify
+sudo bash scripts/install-dev.sh
+```
+
+Builds `goolify:local` and runs under `/data/goolify-dev` (no registry pull).
+
+### Go + Vite (hot reload)
 
 ```bash
 git clone https://github.com/foisalislambd/goolify.git
@@ -102,6 +99,11 @@ go run ./cmd/goolify migrate && go run ./cmd/goolify serve
 
 cd apps/web && npm install && npm run dev   # http://localhost:5173
 ```
+
+| Script | Use |
+|--------|-----|
+| `scripts/install.sh` | **Production** — pull `ghcr.io/foisalislambd/goolify` |
+| `scripts/install-dev.sh` | **Dev** — build local image from source |
 
 ---
 
