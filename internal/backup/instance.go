@@ -32,9 +32,11 @@ func ParseDatabaseURL(raw string) (user, password, dbName string, err error) {
 // DetectPostgresContainer finds a running postgres container for the instance DB.
 func DetectPostgresContainer(preferred string) (string, error) {
 	if preferred = strings.TrimSpace(preferred); preferred != "" {
-		if err := exec.Command("docker", "inspect", "-f", "{{.State.Running}}", preferred).Run(); err == nil {
+		out, err := exec.Command("docker", "inspect", "-f", "{{.State.Running}}", preferred).Output()
+		if err == nil && strings.TrimSpace(string(out)) == "true" {
 			return preferred, nil
 		}
+		// Preferred exists but is not running — fall through to auto-detect.
 	}
 	candidates := []string{"compose-postgres-1", "goolify-postgres-1", "postgres", "coolify-db"}
 	for _, name := range candidates {
@@ -65,9 +67,9 @@ func InstanceDumpDir(dataDir string) string {
 	return filepath.Join(dataDir, "backups", "goolify")
 }
 
-// InstanceDumpFilename builds a Coolify-like dump filename.
+// InstanceDumpFilename builds a Coolify-like dump filename (unique per call).
 func InstanceDumpFilename() string {
-	return fmt.Sprintf("pg-dump-goolify-%s.sql", time.Now().UTC().Format("20060102-150405"))
+	return fmt.Sprintf("pg-dump-goolify-%s-%d.sql", time.Now().UTC().Format("20060102-150405"), time.Now().UTC().UnixNano()%1_000_000)
 }
 
 // DumpInstanceLocal runs pg_dump inside the instance postgres container onto the host filesystem.

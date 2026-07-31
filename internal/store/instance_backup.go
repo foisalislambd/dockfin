@@ -177,8 +177,9 @@ func (s *Store) CreateInstanceBackupExecution(ctx context.Context, teamID uuid.U
 }
 
 func (s *Store) InstanceBackupRanThisMinute(ctx context.Context, minute time.Time) (bool, error) {
-	start := minute.UTC().Truncate(time.Minute)
-	end := start.Add(time.Minute)
+	// Match BackupRanThisMinute: use the same absolute minute window (local truncate from scheduler).
+	start := minute
+	end := minute.Add(time.Minute)
 	var n int
 	err := s.Pool.QueryRow(ctx, `
 		SELECT COUNT(*) FROM backup_executions

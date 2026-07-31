@@ -171,13 +171,10 @@ func (r *Runner) runInstanceBackup(ctx context.Context, minute time.Time) {
 	if cfg.DBName != "" {
 		dbName = cfg.DBName
 	}
-	container := cfg.Container
-	if container == "" {
-		container, err = backup.DetectPostgresContainer("")
-		if err != nil {
-			r.Logger.Error("instance backup container", "err", err)
-			return
-		}
+	container, err := backup.DetectPostgresContainer(cfg.Container)
+	if err != nil {
+		r.Logger.Error("instance backup container", "err", err)
+		return
 	}
 	filename := backup.InstanceDumpFilename()
 	execRow, err := r.Store.CreateInstanceBackupExecution(ctx, teamID, filename)

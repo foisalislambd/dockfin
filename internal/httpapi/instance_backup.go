@@ -37,11 +37,9 @@ func (a *API) handleGetInstanceBackup(w http.ResponseWriter, r *http.Request) {
 	detected := ""
 	if d, err := backup.DetectPostgresContainer(container); err == nil {
 		detected = d
-		if container == "" {
-			container = d
-		}
+		container = d // always the running container that dumps will use
 	}
-	user, _, dbName, _ := backup.ParseDatabaseURL(a.Cfg.DatabaseURL)
+	user, password, dbName, _ := backup.ParseDatabaseURL(a.Cfg.DatabaseURL)
 	if cfg.DBUser == "" {
 		cfg.DBUser = user
 	}
@@ -55,7 +53,7 @@ func (a *API) handleGetInstanceBackup(w http.ResponseWriter, r *http.Request) {
 			"detected_container": detected,
 			"data_dir":           a.Cfg.DataDir,
 			"backup_dir":         backup.InstanceDumpDir(a.Cfg.DataDir),
-			"db_password_set":    true,
+			"db_password_set":    password != "",
 		},
 		"executions": execs,
 	})
@@ -148,12 +146,9 @@ func (a *API) executeInstanceBackup(ctx context.Context, teamID uuid.UUID, cfg *
 	if cfg.DBName != "" {
 		dbName = cfg.DBName
 	}
-	container := cfg.Container
-	if container == "" {
-		container, err = backup.DetectPostgresContainer("")
-		if err != nil {
-			return nil, err
-		}
+	container, err := backup.DetectPostgresContainer(cfg.Container)
+	if err != nil {
+		return nil, err
 	}
 
 	filename := backup.InstanceDumpFilename()

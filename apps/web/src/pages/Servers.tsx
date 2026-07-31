@@ -302,7 +302,7 @@ export function Modal({
   onClose: () => void
 }) {
   return (
-    <div className="fixed inset-0 z-40 grid place-items-center bg-black/50 p-4 dark:bg-black/70" onClick={onClose}>
+    <div className="fixed inset-0 z-40 grid place-items-center bg-black/25 p-4 backdrop-blur-[2px] dark:bg-black/40" onClick={onClose}>
       <div
         className="panel-modal w-full max-w-md p-5"
         onClick={(e) => e.stopPropagation()}

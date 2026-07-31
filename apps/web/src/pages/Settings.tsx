@@ -908,7 +908,7 @@ export function SettingsPage() {
                     Save
                   </Btn>
                   <Btn
-                    disabled={!canEdit || runBackup.isPending || !backups.data?.backup.enabled}
+                    disabled={!canEdit || runBackup.isPending}
                     onClick={() => runBackup.mutate()}
                   >
                     Backup Now
