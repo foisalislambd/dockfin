@@ -10,29 +10,37 @@ This file lists people who can merge PRs and cut releases.
 
 - Format: `X.Y.Z` (git tag `vX.Y.Z`)
 - **Y and Z are 0–9 only** → `1.0.0` … `1.0.9` → `1.1.0` … `1.9.9` → `2.0.0`
-- Same version for: GitHub Release, Docker tags, `goolify version`, `/api/v1/version`
+- Same version for: GitHub Release, Docker Hub, GHCR, `goolify version`
 
 ## Release process
 
 **Push to `main`** → [release.yml](.github/workflows/release.yml):
 
-1. Compute next `X.Y.Z` from latest `v*` tag (first = `1.0.0`)
+1. Compute next `X.Y.Z`
 2. Run tests / builds
-3. Publish Docker image (API + Vite UI) to **both**:
-   - Docker Hub: `foisalislambd/goolify:X.Y.Z` (+ `:latest`)
-   - GHCR: `ghcr.io/<owner>/goolify:X.Y.Z` (+ `:latest`)
-4. Create git tag `vX.Y.Z` + GitHub Release (same version)
+3. Publish `foisalislambd/goolify` + `ghcr.io/<owner>/goolify` (`:X.Y.Z` and `:latest`)
+4. Create git tag + GitHub Release
 
-### Required GitHub Actions secrets
+### Skip release
 
-Repo → **Settings → Secrets and variables → Actions**:
+Put any of these in the **commit message** (tip commit on the push):
+
+- `[skip release]`
+- `[skip-release]`
+- `[skip_release]`
+
+Example: `git commit -m "chore: tweak docs [skip release]"`
+
+`workflow_dispatch` (Actions → Release → Run) always runs when started manually.
+
+### Required secrets
 
 | Secret | Value |
 |--------|--------|
-| `DOCKERHUB_USERNAME` | `foisalislambd` |
-| `DOCKERHUB_TOKEN` | Docker Hub [Access Token](https://hub.docker.com/settings/security) (Read & Write) |
+| `DOCKERHUB_USERNAME` | Docker Hub username |
+| `DOCKERHUB_TOKEN` | Docker Hub access token (Read & Write) |
 
-`GITHUB_TOKEN` is automatic (GHCR + Releases).
+`GITHUB_TOKEN` is automatic.
 
 ## Decision making
 
