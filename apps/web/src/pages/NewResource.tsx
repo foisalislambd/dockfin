@@ -22,9 +22,26 @@ const GIT_APPS = [
   {
     id: 'public',
     title: 'Public Repository',
-    description: 'Deploy a public Git repository (Dockerfile / Nixpacks / Compose / Static).',
+    description: 'You can deploy any kind of public repositories from the supported git providers.',
     icon: GitBranch,
     buildPack: 'nixpacks',
+    sourceType: 'public',
+  },
+  {
+    id: 'private-gh-app',
+    title: 'Private Repository (with GitHub App)',
+    description: 'Clone private repos with a connected GitHub App — with commit & PR deployments.',
+    icon: GitBranch,
+    buildPack: 'nixpacks',
+    sourceType: 'private-gh-app',
+  },
+  {
+    id: 'private-deploy-key',
+    title: 'Private Repository (with Deploy Key)',
+    description: 'Clone private repos using an SSH deploy key from Keys & Tokens.',
+    icon: GitBranch,
+    buildPack: 'nixpacks',
+    sourceType: 'private-deploy-key',
   },
   {
     id: 'dockerfile',
@@ -32,6 +49,7 @@ const GIT_APPS = [
     description: 'Build from a Git repository Dockerfile.',
     icon: FileCode2,
     buildPack: 'dockerfile',
+    sourceType: 'public',
   },
   {
     id: 'compose',
@@ -39,6 +57,7 @@ const GIT_APPS = [
     description: 'Deploy a docker-compose stack from Git.',
     icon: Layers,
     buildPack: 'dockercompose',
+    sourceType: 'public',
   },
 ]
 
@@ -151,12 +170,16 @@ export function NewResourcePage() {
     })
   }, [templates.data, category, q])
 
-  const goApp = (buildPack: string) => {
+  const goApp = (buildPack: string, sourceType?: string) => {
     localStorage.setItem(LAST_ENV_KEY, envId)
     void nav({
       to: '/projects/$projectId/environments/$envId/applications/new',
       params: { projectId, envId },
-      search: { build_pack: buildPack, environment_id: undefined },
+      search: {
+        build_pack: buildPack,
+        environment_id: undefined,
+        source_type: sourceType || undefined,
+      },
     })
   }
 
@@ -284,7 +307,7 @@ export function NewResourcePage() {
                         title={a.title}
                         description={a.description}
                         icon={a.icon}
-                        onClick={() => goApp(a.buildPack)}
+                        onClick={() => goApp(a.buildPack, a.sourceType)}
                       />
                     ),
                   )}

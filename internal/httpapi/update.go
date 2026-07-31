@@ -32,6 +32,7 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		DockerfileLocation      *string `json:"dockerfile_location"`
 		DestinationID           *string `json:"destination_id"`
 		GitSourceID             *string `json:"git_source_id"`
+		PrivateKeyID            *string `json:"private_key_id"`
 		IsBuildServerEnabled    *bool   `json:"is_build_server_enabled"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
@@ -95,6 +96,22 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			app.GitSourceID = &id
+		}
+	}
+	if body.PrivateKeyID != nil {
+		if *body.PrivateKeyID == "" {
+			app.PrivateKeyID = nil
+		} else {
+			id, err := uuid.Parse(*body.PrivateKeyID)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "invalid private_key_id")
+				return
+			}
+			if _, err := a.Store.GetPrivateKey(r.Context(), teamID, id); err != nil {
+				mapStoreErr(w, err)
+				return
+			}
+			app.PrivateKeyID = &id
 		}
 	}
 	if err := a.Store.UpdateApplication(r.Context(), app); err != nil {

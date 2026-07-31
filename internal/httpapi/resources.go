@@ -246,6 +246,8 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 		BuildPack               string `json:"build_pack"`
 		GitRepository           string `json:"git_repository"`
 		GitBranch               string `json:"git_branch"`
+		GitSourceID             string `json:"git_source_id"`
+		PrivateKeyID            string `json:"private_key_id"`
 		DockerfileLocation      string `json:"dockerfile_location"`
 		DockerComposeLocation   string `json:"docker_compose_location"`
 		DockerRegistryImageName string `json:"docker_registry_image_name"`
@@ -294,6 +296,30 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 		DockerRegistryImageName: body.DockerRegistryImageName,
 		DockerRegistryImageTag:  body.DockerRegistryImageTag,
 		PortsExposes:            body.PortsExposes,
+	}
+	if body.GitSourceID != "" {
+		id, err := uuid.Parse(body.GitSourceID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid git_source_id")
+			return
+		}
+		if _, err := a.Store.GetGitSource(r.Context(), currentTeamID(r), id); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+		app.GitSourceID = &id
+	}
+	if body.PrivateKeyID != "" {
+		id, err := uuid.Parse(body.PrivateKeyID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid private_key_id")
+			return
+		}
+		if _, err := a.Store.GetPrivateKey(r.Context(), currentTeamID(r), id); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+		app.PrivateKeyID = &id
 	}
 	if body.DestinationID != "" {
 		id, err := uuid.Parse(body.DestinationID)

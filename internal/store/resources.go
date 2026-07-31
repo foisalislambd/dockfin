@@ -61,6 +61,7 @@ type Application struct {
 	IsForceHTTPS            bool       `json:"is_force_https"`
 	IsPreviewEnabled        bool       `json:"is_preview_enabled"`
 	GitSourceID             *uuid.UUID `json:"git_source_id,omitempty"`
+	PrivateKeyID            *uuid.UUID `json:"private_key_id,omitempty"`
 	IsBuildServerEnabled    bool       `json:"is_build_server_enabled"`
 	CreatedAt               time.Time  `json:"created_at"`
 }
@@ -84,7 +85,7 @@ const applicationSelectCols = `
 	a.health_check_enabled, a.health_check_path, a.health_check_port, a.health_check_method,
 	a.health_check_return_code, a.health_check_interval, a.health_check_timeout, a.health_check_retries,
 	a.limits_memory, a.limits_cpus,
-	a.git_source_id,
+	a.git_source_id, a.private_key_id,
 	COALESCE(s.is_build_server_enabled, FALSE),
 	COALESCE(a.is_force_https, s.is_force_https_enabled, TRUE),
 	COALESCE(s.is_preview_enabled, FALSE),
@@ -98,7 +99,7 @@ func scanApplication(scan func(dest ...any) error) (*Application, error) {
 		&a.DockerRegistryImageName, &a.DockerRegistryImageTag, &a.PortsExposes,
 		&a.HealthCheckEnabled, &a.HealthCheckPath, &a.HealthCheckPort, &a.HealthCheckMethod,
 		&a.HealthCheckReturnCode, &a.HealthCheckInterval, &a.HealthCheckTimeout, &a.HealthCheckRetries,
-		&a.LimitsMemory, &a.LimitsCpus, &a.GitSourceID, &a.IsBuildServerEnabled, &a.IsForceHTTPS, &a.IsPreviewEnabled, &a.CreatedAt,
+		&a.LimitsMemory, &a.LimitsCpus, &a.GitSourceID, &a.PrivateKeyID, &a.IsBuildServerEnabled, &a.IsForceHTTPS, &a.IsPreviewEnabled, &a.CreatedAt,
 	)
 	return &a, err
 }
@@ -404,12 +405,14 @@ func (s *Store) CreateApplication(ctx context.Context, app *Application) (*Appli
 		INSERT INTO applications (
 			team_id, environment_id, destination_id, name, description, fqdn, build_pack,
 			git_repository, git_branch, dockerfile_location, docker_compose_location,
-			docker_registry_image_name, docker_registry_image_tag, ports_exposes
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+			docker_registry_image_name, docker_registry_image_tag, ports_exposes,
+			git_source_id, private_key_id
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
 		RETURNING id
 	`, app.TeamID, app.EnvironmentID, app.DestinationID, app.Name, app.Description, app.FQDN, app.BuildPack,
 		app.GitRepository, app.GitBranch, app.DockerfileLocation, app.DockerComposeLocation,
 		app.DockerRegistryImageName, app.DockerRegistryImageTag, app.PortsExposes,
+		app.GitSourceID, app.PrivateKeyID,
 	).Scan(&app.ID)
 	if err != nil {
 		return nil, err
@@ -503,11 +506,11 @@ func (s *Store) UpdateApplication(ctx context.Context, app *Application) error {
 		UPDATE applications SET
 			name=$2, description=$3, fqdn=$4, git_repository=$5, git_branch=$6,
 			ports_exposes=$7, docker_registry_image_name=$8, docker_registry_image_tag=$9,
-			dockerfile_location=$10, destination_id=$11, git_source_id=$12, updated_at=NOW()
-		WHERE id=$1 AND team_id=$13
+			dockerfile_location=$10, destination_id=$11, git_source_id=$12, private_key_id=$13, updated_at=NOW()
+		WHERE id=$1 AND team_id=$14
 	`, app.ID, app.Name, app.Description, app.FQDN, app.GitRepository, app.GitBranch,
 		app.PortsExposes, app.DockerRegistryImageName, app.DockerRegistryImageTag,
-		app.DockerfileLocation, app.DestinationID, app.GitSourceID, app.TeamID)
+		app.DockerfileLocation, app.DestinationID, app.GitSourceID, app.PrivateKeyID, app.TeamID)
 	return err
 }
 

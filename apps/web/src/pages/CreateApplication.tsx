@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
   ChoiceCard,
   CreatePageShell,
@@ -18,15 +18,39 @@ const BUILD_PACKS = [
   { id: 'static', title: 'Static', description: 'Static site / SPA build output.' },
 ]
 
+type SourceType = 'public' | 'private-gh-app' | 'private-deploy-key' | ''
+
 export function CreateApplicationPage() {
   const nav = useNavigate()
   const qc = useQueryClient()
   const params = useParams({ strict: false }) as { projectId?: string; envId?: string }
-  const search = useSearch({ strict: false }) as { environment_id?: string; build_pack?: string }
+  const search = useSearch({ strict: false }) as {
+    environment_id?: string
+    build_pack?: string
+    source_type?: SourceType
+  }
   const prefillEnv = params.envId || search.environment_id || ''
   const prefillPack = search.build_pack || ''
+  const sourceType = (search.source_type || '') as SourceType
+
   const dests = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
   const envs = useQuery({ queryKey: ['all-environments'], queryFn: fetchAllEnvironments })
+  const gitSources = useQuery({
+    queryKey: ['git-sources'],
+    queryFn: api.gitSources,
+    enabled: sourceType === 'private-gh-app',
+  })
+  const keys = useQuery({
+    queryKey: ['keys'],
+    queryFn: api.keys,
+    enabled: sourceType === 'private-deploy-key',
+  })
+
+  const installedSources = useMemo(
+    () => (gitSources.data?.git_sources || []).filter((g) => g.installed && g.configured),
+    [gitSources.data],
+  )
+
   const envTouched = useRef(false)
   const [form, setForm] = useState({
     name: '',
@@ -38,6 +62,25 @@ export function CreateApplicationPage() {
     ports_exposes: '80',
     fqdn: '',
     git_repository: '',
+    git_branch: 'main',
+    git_source_id: '',
+    private_key_id: '',
+  })
+
+  const [repoOwner, setRepoOwner] = useState('')
+  const [repoName, setRepoName] = useState('')
+
+  const repos = useQuery({
+    queryKey: ['git-source-repos', form.git_source_id],
+    queryFn: () => api.gitSourceRepositories(form.git_source_id),
+    enabled: Boolean(form.git_source_id) && sourceType === 'private-gh-app',
+  })
+
+  const branches = useQuery({
+    queryKey: ['git-source-branches', form.git_source_id, repoOwner, repoName],
+    queryFn: () => api.gitSourceBranches(form.git_source_id, repoOwner, repoName),
+    enabled:
+      Boolean(form.git_source_id && repoOwner && repoName) && sourceType === 'private-gh-app',
   })
 
   useEffect(() => {
@@ -48,9 +91,15 @@ export function CreateApplicationPage() {
       ...f,
       environment_id: envTouched.current ? f.environment_id : f.environment_id || prefillEnv || pick,
       destination_id: f.destination_id || dests.data?.destinations?.[0]?.id || '',
-      build_pack: prefillPack || f.build_pack,
+      build_pack: prefillPack || f.build_pack || (sourceType ? 'nixpacks' : f.build_pack),
     }))
-  }, [envs.data, dests.data, prefillEnv, prefillPack])
+  }, [envs.data, dests.data, prefillEnv, prefillPack, sourceType])
+
+  useEffect(() => {
+    if (sourceType === 'private-gh-app' && !form.git_source_id && installedSources[0]) {
+      setForm((f) => ({ ...f, git_source_id: installedSources[0].id }))
+    }
+  }, [sourceType, installedSources, form.git_source_id])
 
   const nested = Boolean(params.projectId && params.envId)
   const backEnvId = form.environment_id || params.envId || ''
@@ -62,8 +111,15 @@ export function CreateApplicationPage() {
       : '/projects'
   const backLabel = nested ? 'Back to New Resource' : 'Back to projects'
 
+  const needsGit = form.build_pack !== 'dockerimage'
+
   const create = useMutation({
-    mutationFn: () => api.createApplication(form),
+    mutationFn: () => {
+      const body: Record<string, unknown> = { ...form }
+      if (!body.git_source_id) delete body.git_source_id
+      if (!body.private_key_id) delete body.private_key_id
+      return api.createApplication(body)
+    },
     onSuccess: (app) => {
       if (form.environment_id) localStorage.setItem(LAST_ENV_KEY, form.environment_id)
       void qc.invalidateQueries({ queryKey: ['applications'] })
@@ -81,18 +137,49 @@ export function CreateApplicationPage() {
     },
   })
 
+  const [formError, setFormError] = useState('')
+
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
+    setFormError('')
+    if (sourceType === 'private-gh-app' && (!form.git_source_id || !form.git_repository)) {
+      setFormError('Select a GitHub App and repository.')
+      return
+    }
+    if (sourceType === 'private-deploy-key' && (!form.private_key_id || !form.git_repository)) {
+      setFormError('Select a deploy key and enter the repository URL.')
+      return
+    }
+    if (needsGit && sourceType !== 'private-gh-app' && sourceType !== 'private-deploy-key' && !form.git_repository && form.build_pack !== 'dockerimage') {
+      setFormError('Git repository is required.')
+      return
+    }
     create.mutate()
   }
 
+  const title =
+    sourceType === 'private-gh-app'
+      ? 'Private Repository (GitHub App)'
+      : sourceType === 'private-deploy-key'
+        ? 'Private Repository (Deploy Key)'
+        : sourceType === 'public'
+          ? 'Public Repository'
+          : 'New application'
+
   return (
-    <CreatePageShell title="New application" backTo={backTo} backLabel={backLabel}>
+    <CreatePageShell title={title} backTo={backTo} backLabel={backLabel}>
       <form className="space-y-6" onSubmit={onSubmit}>
         <section className="space-y-4">
-          <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">Basics</h2>
+          <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
+            Basics
+          </h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <FormInput label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="my-app" />
+            <FormInput
+              label="Name"
+              value={form.name}
+              onChange={(v) => setForm({ ...form, name: v })}
+              placeholder="my-app"
+            />
             <FormSelect
               label="Environment"
               value={form.environment_id}
@@ -125,22 +212,29 @@ export function CreateApplicationPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">Build pack</h2>
+          <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
+            Build pack
+          </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            {BUILD_PACKS.map((bp) => (
-              <ChoiceCard
-                key={bp.id}
-                active={form.build_pack === bp.id}
-                title={bp.title}
-                onClick={() => setForm({ ...form, build_pack: bp.id })}
-              />
-            ))}
+            {BUILD_PACKS.filter((bp) => (needsGit || sourceType ? bp.id !== 'dockerimage' || !sourceType : true)).map(
+              (bp) => (
+                <ChoiceCard
+                  key={bp.id}
+                  active={form.build_pack === bp.id}
+                  title={bp.title}
+                  onClick={() => setForm({ ...form, build_pack: bp.id })}
+                />
+              ),
+            )}
           </div>
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">Source</h2>
-          {form.build_pack === 'dockerimage' ? (
+          <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
+            Source
+          </h2>
+
+          {form.build_pack === 'dockerimage' && !sourceType ? (
             <div className="grid gap-4 sm:grid-cols-2">
               <FormInput
                 label="Image"
@@ -155,14 +249,118 @@ export function CreateApplicationPage() {
                 placeholder="alpine"
               />
             </div>
+          ) : sourceType === 'private-gh-app' ? (
+            <div className="space-y-4">
+              <FormSelect
+                label="GitHub App"
+                value={form.git_source_id}
+                onChange={(v) => {
+                  setForm({ ...form, git_source_id: v, git_repository: '', git_branch: 'main' })
+                  setRepoOwner('')
+                  setRepoName('')
+                }}
+                hint={
+                  !installedSources.length
+                    ? 'Connect and install a GitHub App under Sources first.'
+                    : undefined
+                }
+              >
+                <option value="">Select…</option>
+                {installedSources.map((gs) => (
+                  <option key={gs.id} value={gs.id}>
+                    {gs.name}
+                  </option>
+                ))}
+              </FormSelect>
+              {!installedSources.length && (
+                <Link to="/git-sources" className="text-sm text-brand-600 hover:underline dark:text-brand-400">
+                  + Add GitHub App
+                </Link>
+              )}
+              <FormSelect
+                label="Repository"
+                value={form.git_repository}
+                onChange={(v) => {
+                  const full = v.replace(/\.git$/, '')
+                  const [owner, name] = full.includes('/')
+                    ? full.replace(/^https?:\/\/[^/]+\//, '').split('/')
+                    : ['', '']
+                  setRepoOwner(owner || '')
+                  setRepoName((name || '').replace(/\.git$/, ''))
+                  setForm({ ...form, git_repository: v, git_branch: 'main' })
+                }}
+              >
+                <option value="">Select…</option>
+                {(repos.data?.repositories || []).map((r) => {
+                  const full = String(r.full_name || '')
+                  const clone = String(r.clone_url || r.html_url || full)
+                  return (
+                    <option key={full} value={clone || full}>
+                      {full}
+                    </option>
+                  )
+                })}
+              </FormSelect>
+              <FormSelect
+                label="Branch"
+                value={form.git_branch}
+                onChange={(v) => setForm({ ...form, git_branch: v })}
+              >
+                <option value="main">main</option>
+                {(branches.data?.branches || [])
+                  .filter((b) => b !== 'main')
+                  .map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+              </FormSelect>
+            </div>
+          ) : sourceType === 'private-deploy-key' ? (
+            <div className="space-y-4">
+              <FormSelect
+                label="Deploy Key"
+                value={form.private_key_id}
+                onChange={(v) => setForm({ ...form, private_key_id: v })}
+                hint="Add an SSH key under Keys & Tokens, then add its public key as a deploy key on the repo."
+              >
+                <option value="">Select…</option>
+                {(keys.data?.private_keys || []).map((k) => (
+                  <option key={k.id} value={k.id}>
+                    {k.name}
+                  </option>
+                ))}
+              </FormSelect>
+              <FormInput
+                label="Git repository"
+                value={form.git_repository}
+                onChange={(v) => setForm({ ...form, git_repository: v })}
+                placeholder="git@github.com:org/repo.git"
+              />
+              <FormInput
+                label="Branch"
+                value={form.git_branch}
+                onChange={(v) => setForm({ ...form, git_branch: v })}
+                placeholder="main"
+              />
+            </div>
           ) : (
-            <FormInput
-              label="Git repository"
-              value={form.git_repository}
-              onChange={(v) => setForm({ ...form, git_repository: v })}
-              placeholder="https://github.com/org/repo.git"
-            />
+            <div className="space-y-4">
+              <FormInput
+                label="Git repository"
+                value={form.git_repository}
+                onChange={(v) => setForm({ ...form, git_repository: v })}
+                placeholder="https://github.com/org/repo.git"
+              />
+              <FormInput
+                label="Branch"
+                value={form.git_branch}
+                onChange={(v) => setForm({ ...form, git_branch: v })}
+                placeholder="main"
+              />
+            </div>
           )}
+
           <div className="grid gap-4 sm:grid-cols-2">
             <FormInput
               label="Port"
@@ -199,9 +397,9 @@ export function CreateApplicationPage() {
           </div>
         </section>
 
-        {create.error && (
+        {(formError || create.error) && (
           <p className="text-sm text-error-500" role="alert">
-            {create.error.message}
+            {formError || create.error?.message}
           </p>
         )}
         <FormActions busy={create.isPending} submitLabel="Create application" cancelTo={backTo} />

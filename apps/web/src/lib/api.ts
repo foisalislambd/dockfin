@@ -584,25 +584,66 @@ export const api = {
   createGitSource: (body: {
     name: string
     provider?: string
-    app_id: string
+    organization?: string
+    app_id?: string
     slug?: string
-    private_key: string
+    private_key?: string
     client_id?: string
+    client_secret?: string
+    webhook_secret?: string
     html_url?: string
     api_url?: string
+    custom_user?: string
+    custom_port?: number
   }) =>
     request<GitSource>('/api/v1/git-sources', {
       method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateGitSource: (id: string, body: Record<string, unknown>) =>
+    request<GitSource>(`/api/v1/git-sources/${id}`, {
+      method: 'PATCH',
       body: JSON.stringify(body),
     }),
   deleteGitSource: (id: string) =>
     request<{ status: string }>(`/api/v1/git-sources/${id}`, { method: 'DELETE' }),
   gitSourceInstallURL: (id: string) =>
     request<{ install_url: string; state: string }>(`/api/v1/git-sources/${id}/install-url`),
+  gitSourceManifest: (
+    id: string,
+    opts?: { endpoint?: string; preview?: boolean },
+  ) => {
+    const q = new URLSearchParams()
+    if (opts?.endpoint) q.set('endpoint', opts.endpoint)
+    if (opts?.preview === false) q.set('preview', '0')
+    const qs = q.toString()
+    return request<{
+      state: string
+      action_url: string
+      manifest: Record<string, unknown>
+      endpoint: string
+    }>(`/api/v1/git-sources/${id}/manifest${qs ? `?${qs}` : ''}`)
+  },
   gitSourceRepositories: (id: string, page = 1) =>
     request<{ repositories: Record<string, unknown>[] }>(
       `/api/v1/git-sources/${id}/repositories?page=${page}`,
     ),
+  gitSourceBranches: (id: string, owner: string, repo: string) =>
+    request<{ branches: string[] }>(
+      `/api/v1/git-sources/${id}/repositories/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/branches`,
+    ),
+  gitSourceApplications: (id: string) =>
+    request<{
+      applications: Array<{
+        id: string
+        name: string
+        environment_id: string
+        project_id: string
+        project_name: string
+        environment_name: string
+        build_pack: string
+      }>
+    }>(`/api/v1/git-sources/${id}/applications`),
 }
 
 export type Server = {
@@ -627,12 +668,20 @@ export type GitSource = {
   id: string
   name: string
   provider: string
+  organization?: string
   app_id: string
   installation_id?: string
   client_id?: string
   html_url: string
   api_url: string
+  custom_user?: string
+  custom_port?: number
   is_public: boolean
+  is_system_wide?: boolean
+  has_private_key?: boolean
+  configured?: boolean
+  installed?: boolean
+  applications_count?: number
   created_at: string
 }
 export type Key = {
@@ -708,6 +757,7 @@ export type Application = {
   docker_registry_image_tag?: string
   destination_id?: string | null
   git_source_id?: string | null
+  private_key_id?: string | null
   is_build_server_enabled?: boolean
   links?: { label: string; url: string }[]
 }

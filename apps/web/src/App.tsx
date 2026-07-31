@@ -149,6 +149,7 @@ const nestedCreateAppRoute = createRoute({
   validateSearch: (s: Record<string, unknown>) => ({
     build_pack: typeof s.build_pack === 'string' ? s.build_pack : undefined,
     environment_id: typeof s.environment_id === 'string' ? s.environment_id : undefined,
+    source_type: typeof s.source_type === 'string' ? s.source_type : undefined,
   }),
   component: CreateApplicationPage,
 })

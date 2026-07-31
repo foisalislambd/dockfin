@@ -73,6 +73,8 @@ func (a *API) Router() http.Handler {
 		// Public ingress endpoints (no session cookie)
 		r.Post("/webhooks/git/{appID}", a.handleGitWebhook)
 		r.Get("/webhooks/github/app/callback", a.handleGitHubAppCallback)
+		r.Get("/webhooks/github/app/manifest", a.handleGitHubAppManifestCallback)
+		r.Post("/webhooks/github/app/events", a.handleGitHubAppEvents)
 		r.Post("/sentinel/metrics", a.handleSentinelMetrics)
 
 		r.Group(func(r chi.Router) {
@@ -144,9 +146,13 @@ func (a *API) Router() http.Handler {
 				r.Get("/", a.handleListGitSources)
 				r.Post("/", a.handleCreateGitSource)
 				r.Get("/{sourceID}", a.handleGetGitSource)
+				r.Patch("/{sourceID}", a.handleUpdateGitSource)
 				r.Delete("/{sourceID}", a.handleDeleteGitSource)
 				r.Get("/{sourceID}/install-url", a.handleGitSourceInstallURL)
+				r.Get("/{sourceID}/manifest", a.handleGitSourceManifest)
 				r.Get("/{sourceID}/repositories", a.handleGitSourceRepositories)
+				r.Get("/{sourceID}/repositories/{owner}/{repo}/branches", a.handleGitSourceBranches)
+				r.Get("/{sourceID}/applications", a.handleGitSourceApps)
 			})
 
 			r.Get("/destinations", a.handleListDestinations)

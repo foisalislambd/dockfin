@@ -2,7 +2,9 @@ package deploy
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"strings"
 
 	"github.com/goolify/goolify/internal/git/githubapp"
 	"github.com/goolify/goolify/internal/sshx"
@@ -11,6 +13,10 @@ import (
 
 func (p *Pipeline) cloneURL(ctx context.Context, req Request) (string, error) {
 	repo := req.App.GitRepository
+	// Deploy key takes precedence (Coolify deploymentType).
+	if req.App.PrivateKeyID != nil {
+		return repo, nil
+	}
 	if req.App.GitSourceID == nil || p.Store == nil {
 		return repo, nil
 	}
@@ -37,20 +43,70 @@ func (p *Pipeline) cloneURL(ctx context.Context, req Request) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("github installation token: %w", err)
 	}
+	repo = normalizeHTTPSRepo(repo, sec.HTMLURL)
 	return githubapp.CloneURL(repo, tok), nil
 }
 
-func (p *Pipeline) gitClone(ctx context.Context, client *ssh.Client, req Request, destDir string) error {
-	repo, err := p.cloneURL(ctx, req)
-	if err != nil {
-		return err
+func normalizeHTTPSRepo(repo, htmlURL string) string {
+	repo = strings.TrimSpace(repo)
+	if strings.HasPrefix(repo, "http://") || strings.HasPrefix(repo, "https://") || strings.HasPrefix(repo, "git@") {
+		return repo
 	}
+	base := strings.TrimRight(htmlURL, "/")
+	if base == "" {
+		base = "https://github.com"
+	}
+	repo = strings.TrimPrefix(repo, "/")
+	repo = strings.TrimSuffix(repo, ".git")
+	return base + "/" + repo + ".git"
+}
+
+func (p *Pipeline) gitClone(ctx context.Context, client *ssh.Client, req Request, destDir string) error {
 	branch := req.App.GitBranch
 	if branch == "" {
 		branch = "main"
 	}
 	p.log("fetch", "Cloning repository")
 	_, _, _ = sshx.RunArgs(client, "rm", "-rf", destDir)
+
+	// Private deploy key path (SSH).
+	if req.App.PrivateKeyID != nil && p.Store != nil {
+		enc, err := p.Store.GetPrivateKeyMaterial(ctx, req.TeamID, *req.App.PrivateKeyID)
+		if err != nil {
+			return fmt.Errorf("deploy key: %w", err)
+		}
+		plain, err := p.Store.Box.DecryptString(enc)
+		if err != nil {
+			return fmt.Errorf("decrypt deploy key: %w", err)
+		}
+		keyPath := "/tmp/goolify-deploy-" + req.App.PrivateKeyID.String()
+		b64 := base64.StdEncoding.EncodeToString([]byte(plain))
+		writeCmd := fmt.Sprintf("printf '%%s' %q | base64 -d > %s && chmod 600 %s", b64, keyPath, keyPath)
+		if _, errOut, err := sshx.Run(client, writeCmd); err != nil {
+			return fmt.Errorf("write deploy key: %v %s", err, errOut)
+		}
+		defer func() { _, _, _ = sshx.RunArgs(client, "rm", "-f", keyPath) }()
+
+		user := "git"
+		if req.App.GitSourceID != nil {
+			if sec, err := p.Store.GetGitSourceSecrets(ctx, req.TeamID, *req.App.GitSourceID); err == nil && sec.CustomUser != "" {
+				user = sec.CustomUser
+			}
+		}
+		repo := githubapp.ToSSHURL(req.App.GitRepository, user)
+		sshCmd := fmt.Sprintf("ssh -i %s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null", keyPath)
+		_, errOut, err := sshx.RunArgs(client, "env", "GIT_SSH_COMMAND="+sshCmd,
+			"git", "clone", "--branch", branch, "--depth", "1", repo, destDir)
+		if err != nil {
+			return fmt.Errorf("git clone (deploy key): %v %s", err, errOut)
+		}
+		return nil
+	}
+
+	repo, err := p.cloneURL(ctx, req)
+	if err != nil {
+		return err
+	}
 	_, errOut, err := sshx.RunArgs(client, "git", "clone", "--branch", branch, "--depth", "1", repo, destDir)
 	if err != nil {
 		return fmt.Errorf("git clone: %v %s", err, errOut)

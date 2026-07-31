@@ -61,7 +61,7 @@ export const navItems: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Projects', href: '/projects', icon: FolderKanban },
   { name: 'Servers', href: '/servers', icon: Server },
-  { name: 'Git Sources', href: '/git-sources', icon: GitBranch },
+  { name: 'Sources', href: '/git-sources', icon: GitBranch },
   { name: 'Storages', href: '/storages', icon: HardDrive },
   { name: 'Shared vars', href: '/shared-variables', icon: Variable },
   { name: 'Team', href: '/team', icon: Users },
