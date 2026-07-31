@@ -4,7 +4,6 @@
 # tags: git, scm, ci, cd, kanban, packages, devops, collaboration, code, repository, management
 # logo: svgs/onedev.svg
 # port: 6610
-
 services:
   onedev:
     image: 1dev/server:latest
@@ -12,7 +11,7 @@ services:
       - onedev-docker-sock:/var/run/docker.sock
       - onedev-data:/opt/onedev
     environment:
-      - SERVICE_URL_ONEDEV_6610
+      - SERVICE_URL_ONEDEV
       - hibernate_dialect=io.onedev.server.persistence.PostgreSQLDialect
       - hibernate_connection_driver_class=org.postgresql.Driver
       - hibernate_connection_url=jdbc:postgresql://postgres:5432/${POSTGRESQL_DATABASE:-onedev}

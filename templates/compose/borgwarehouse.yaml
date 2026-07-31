@@ -5,12 +5,11 @@
 # tags: borgwarehouse,borg,borgbackup,backup,repositories
 # logo: svgs/borgwarehouse.svg
 # port: 3000
-
 services:
   borgwarehouse:
     image: borgwarehouse/borgwarehouse:v2.4.2
     environment:
-      - SERVICE_URL_BORGWAREHOUSE_3000
+      - SERVICE_URL_BORGWAREHOUSE
       - NEXTAUTH_URL=${SERVICE_URL_BORGWAREHOUSE}
       - NEXTAUTH_SECRET=${SERVICE_PASSWORD_SECRET}
       - CRUD_PASSWORD=${SERVICE_PASSWORD_CRUD}

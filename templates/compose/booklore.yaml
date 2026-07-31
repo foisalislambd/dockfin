@@ -4,12 +4,11 @@
 # tags: media, books, kobo, epub, ebook, KOreader
 # logo: svgs/booklore.svg
 # port: 80
-
 services:
   booklore:
     image: booklore/booklore:v1.16.5
     environment:
-      - SERVICE_URL_BOOKLORE_80
+      - SERVICE_URL_BOOKLORE
       - USER_ID=${BOOKLORE_USER_ID:-0}
       - GROUP_ID=${BOOKLORE_GROUP_ID:-0}
       - TZ=${TZ:-UTC}

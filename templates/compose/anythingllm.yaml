@@ -4,12 +4,11 @@
 # tags: lowcode, nocode, llm, openai, anthropic, machine-learning, rag, agents, chatbot, api, team, bot
 # logo: svgs/anythingllm.svg
 # port: 3001
-
 services:
   anything-llm:
     image: mintplexlabs/anythingllm
     environment:
-      - SERVICE_URL_ANYTHINGLLM_3001
+      - SERVICE_URL_ANYTHINGLLM
       - STORAGE_DIR=/app/server/storage
       - DISABLE_TELEMETRY=${DISABLE_TELEMETRY:-true}
       - PASSWORDLOWERCASE=${PASSWORDLOWERCASE:-1}

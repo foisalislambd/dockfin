@@ -432,7 +432,7 @@ services:
         source: sqlite
         target: /var/lib/signoz/
     environment:
-      - SERVICE_URL_SIGNOZ_8080
+      - SERVICE_URL_SIGNOZ
       - SIGNOZ_JWT_SECRET=${SERVICE_REALBASE64_JWTSECRET}
       - SIGNOZ_TELEMETRYSTORE_CLICKHOUSE_DSN=tcp://clickhouse:9000
       - SIGNOZ_SQLSTORE_SQLITE_PATH=/var/lib/signoz/signoz.db
@@ -584,7 +584,7 @@ services:
         content: |
           server_endpoint: ws://signoz:4320/v1/opamp
     environment:
-      - SERVICE_URL_OTELCOLLECTORHTTP_4318
+      - SERVICE_URL_OTELCOLLECTORHTTP
       - OTEL_RESOURCE_ATTRIBUTES=host.name=signoz-host,os.type=linux
       - LOW_CARDINAL_EXCEPTION_GROUPING=false
     healthcheck:

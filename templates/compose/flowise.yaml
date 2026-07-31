@@ -4,12 +4,11 @@
 # tags: lowcode, nocode, ai, llm, openai, anthropic, machine-learning, rag, agents, chatbot, api, team, bot, flows
 # logo: svgs/flowise.png
 # port: 3001
-
 services:
   flowise:
     image: flowiseai/flowise:latest
     environment:
-      - SERVICE_URL_FLOWISE_3001
+      - SERVICE_URL_FLOWISE
       - DEBUG=${DEBUG:-false}
       - DISABLE_FLOWISE_TELEMETRY=${DISABLE_FLOWISE_TELEMETRY:-true}
       - PORT=${PORT:-3001}

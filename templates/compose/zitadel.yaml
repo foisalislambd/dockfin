@@ -5,13 +5,12 @@
 # tags: zitadel,identity,iam,oidc,saml,authentication,sso
 # logo: svgs/zitadel.svg
 # port: 8080
-
 services:
   app:
     image: ghcr.io/zitadel/zitadel:v2.71.6
     command: start-from-init --masterkeyFromEnv --tlsMode disabled
     environment:
-      - SERVICE_URL_ZITADEL_8080
+      - SERVICE_URL_ZITADEL
       - ZITADEL_EXTERNALDOMAIN=${SERVICE_FQDN_ZITADEL}
       - ZITADEL_EXTERNALSECURE=false
       - ZITADEL_TLS_ENABLED=false

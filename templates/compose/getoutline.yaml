@@ -4,7 +4,6 @@
 # tags: knowledge base, documentation
 # logo: svgs/getoutline.jpeg
 # port: 3000
-
 services:
   outline:
     image: docker.getoutline.com/outlinewiki/outline:latest
@@ -16,7 +15,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      - SERVICE_URL_OUTLINE_3000
+      - SERVICE_URL_OUTLINE
       - NODE_ENV=production
       - SECRET_KEY=${SERVICE_HEX_64_OUTLINE}
       - UTILS_SECRET=${SERVICE_PASSWORD_64_OUTLINE}

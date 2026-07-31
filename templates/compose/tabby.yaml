@@ -5,13 +5,12 @@
 # tags: tabby,ai,coding,assistant,copilot,llm
 # logo: svgs/tabby.svg
 # port: 8080
-
 services:
   tabby:
     image: tabbyml/tabby:0.25.0
     command: serve --model StarCoder-1B --device cpu --chat-model Qwen2-1.5B-Instruct
     environment:
-      - SERVICE_URL_TABBY_8080
+      - SERVICE_URL_TABBY
     volumes:
       - tabby-data:/data
     healthcheck:

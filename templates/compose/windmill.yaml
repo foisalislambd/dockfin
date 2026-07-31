@@ -4,7 +4,6 @@
 # tags: windmill,workflow,automation,developer,platform
 # logo: svgs/windmill.svg
 # port: 8000
-
 services:
   db:
     image: postgres:16
@@ -24,7 +23,7 @@ services:
   windmill-server:
     image: ghcr.io/windmill-labs/windmill:main
     environment:
-      - SERVICE_URL_WINDMILL_8000
+      - SERVICE_URL_WINDMILL
       - DATABASE_URL=postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@db/${POSTGRES_DB:-windmill-db}
       - MODE=server
       - BASE_URL=${SERVICE_URL_WINDMILL}

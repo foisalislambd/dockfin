@@ -4,13 +4,12 @@
 # tags: message broker, message queue, message-oriented middleware, MOM, AMQP, MQTT, STOMP, messaging
 # logo: svgs/rabbitmq.svg
 # port: 15672
-
 services:
   rabbitmq:
     image: rabbitmq:3-management
     hostname: "rabbitmq"
     environment:
-      - SERVICE_URL_RABBITMQ_15672
+      - SERVICE_URL_RABBITMQ
       - RABBITMQ_DEFAULT_USER=$SERVICE_USER_RABBITMQ
       - RABBITMQ_DEFAULT_PASS=$SERVICE_PASSWORD_RABBITMQ
       - PORT=${PORT:-5672}

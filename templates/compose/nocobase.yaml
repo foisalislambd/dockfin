@@ -4,12 +4,11 @@
 # tags: nocode, lowcode, database, builder
 # logo: svgs/nocobase.png
 # port: 13000
-
 services:
   nocobase:
     image: nocobase/nocobase:1.9.33
     environment:
-      - SERVICE_URL_NOCOBASE_13000
+      - SERVICE_URL_NOCOBASE
       - APP_KEY=${SERVICE_BASE64_64_APPKEY}
       - DB_DIALECT=postgres
       - DB_HOST=postgres

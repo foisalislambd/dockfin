@@ -4,12 +4,11 @@
 # tags: media, server, movies, tv, music
 # logo: svgs/emby.png
 # port: 8096
-
 services:
   emby:
     image: lscr.io/linuxserver/emby:latest
     environment:
-      - SERVICE_URL_EMBY_8096
+      - SERVICE_URL_EMBY
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Madrid

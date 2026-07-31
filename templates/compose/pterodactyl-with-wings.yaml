@@ -4,6 +4,7 @@
 # category: media
 # tags: game, game server, management, panel, minecraft
 # logo: svgs/pterodactyl.png
+# port: 80
 # port: 80, 8443
 
 services:
@@ -80,7 +81,7 @@ services:
     environment:
       - HASHIDS_SALT=$SERVICE_PASSWORD_HASHIDS
       - HASHIDS_LENGTH=8
-      - SERVICE_URL_PTERODACTYL_80
+      - SERVICE_URL_PTERODACTYL
       - 'ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}'
       - 'ADMIN_USERNAME=${SERVICE_USER_ADMIN}'
       - 'ADMIN_FIRSTNAME=${ADMIN_FIRSTNAME:-Admin}'
@@ -115,7 +116,7 @@ services:
     ports:
       - "2022:2022"
     environment:
-      - SERVICE_URL_WINGS_8443
+      - SERVICE_URL_WINGS
       - 'TZ=${TIMEZONE:-UTC}'
       - WINGS_USERNAME=pterodactyl
     volumes:

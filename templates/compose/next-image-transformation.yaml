@@ -4,12 +4,11 @@
 # tags: nextjs,image,transformation,service
 # logo: coolify-logo.svg
 # port: 3000
-
 services:
   next-image-transformation:
     image: ghcr.io/coollabsio/next-image-transformation:latest
     environment:
-      - SERVICE_URL_TRANSFORMATION_3000
+      - SERVICE_URL_TRANSFORMATION
       - NODE_ENV=production
       - ALLOWED_REMOTE_DOMAINS=${ALLOWED_REMOTE_DOMAINS:-*}
       - IMGPROXY_URL=${IMGPROXY_URL:-http://imgproxy:8080}

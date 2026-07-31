@@ -4,12 +4,11 @@
 # tags: grafana,analytics,monitoring,dashboard
 # logo: svgs/grafana.svg
 # port: 3000
-
 services:
   grafana:
     image: grafana/grafana-oss
     environment:
-      - SERVICE_URL_GRAFANA_3000
+      - SERVICE_URL_GRAFANA
       - GF_SERVER_ROOT_URL=${SERVICE_URL_GRAFANA}
       - GF_SERVER_DOMAIN=${SERVICE_FQDN_GRAFANA}
       - GF_SECURITY_ADMIN_PASSWORD=${SERVICE_PASSWORD_GRAFANA}

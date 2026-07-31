@@ -9,7 +9,7 @@ services:
   seaweedfs-master:
     image: chrislusf/seaweedfs:4.13
     environment:
-      - SERVICE_URL_S3_8333
+      - SERVICE_URL_S3
       - AWS_ACCESS_KEY_ID=${SERVICE_USER_S3}
       - AWS_SECRET_ACCESS_KEY=${SERVICE_PASSWORD_S3}
     volumes:
@@ -63,7 +63,7 @@ services:
   seaweedfs-admin:
     image: chrislusf/seaweedfs:4.13
     environment:
-      - SERVICE_URL_ADMIN_23646
+      - SERVICE_URL_ADMIN
       - SEAWEED_USER_ADMIN=${SERVICE_USER_ADMIN}
       - SEAWEED_PASSWORD_ADMIN=${SERVICE_PASSWORD_ADMIN}
     command:

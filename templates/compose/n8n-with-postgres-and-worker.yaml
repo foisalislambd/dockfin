@@ -4,12 +4,11 @@
 # tags: n8n,workflow,automation,open,source,low,code,queue,worker,scalable
 # logo: svgs/n8n.png
 # port: 5678
-
 services:
   n8n:
     image: n8nio/n8n:2.10.4
     environment:
-      - SERVICE_URL_N8N_5678
+      - SERVICE_URL_N8N
       - N8N_EDITOR_BASE_URL=${SERVICE_URL_N8N}
       - WEBHOOK_URL=${SERVICE_URL_N8N}
       - N8N_HOST=${SERVICE_URL_N8N}

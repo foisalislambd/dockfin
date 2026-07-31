@@ -4,7 +4,6 @@
 # tags: error, tracking, sentry
 # logo: svgs/glitchtip.png
 # port: 8000
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -36,7 +35,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      - SERVICE_URL_GLITCHTIP_8000
+      - SERVICE_URL_GLITCHTIP
       - DATABASE_URL=postgres://$SERVICE_USER_POSTGRESQL:$SERVICE_PASSWORD_POSTGRESQL@postgres:5432/${POSTGRESQL_DATABASE:-glitchtip}
       - SECRET_KEY=$SERVICE_BASE64_64_ENCRYPTION
       - EMAIL_URL=${EMAIL_URL:-consolemail://}

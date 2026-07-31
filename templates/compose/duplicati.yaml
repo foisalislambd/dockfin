@@ -4,12 +4,11 @@
 # tags: backup, encryption
 # logo: svgs/duplicati.webp
 # port: 8200
-
 services:
   duplicati:
     image: lscr.io/linuxserver/duplicati:latest
     environment:
-      - SERVICE_URL_DUPLICATI_8200
+      - SERVICE_URL_DUPLICATI
       - PUID=1000
       - PGID=1000
       - TZ=${TZ:-Europe/London}

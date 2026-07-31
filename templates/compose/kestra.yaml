@@ -5,14 +5,13 @@
 # tags: kestra,workflow,orchestration,automation,etl,pipelines
 # logo: svgs/kestra.svg
 # port: 8080
-
 services:
   kestra:
     image: kestra/kestra:v0.22.8
     command: server standalone --worker-thread=4
     user: root
     environment:
-      SERVICE_URL_KESTRA_8080: SERVICE_URL_KESTRA_8080
+      SERVICE_URL_KESTRA: SERVICE_URL_KESTRA
       SERVICE_USER_POSTGRES: SERVICE_USER_POSTGRES
       SERVICE_PASSWORD_POSTGRES: SERVICE_PASSWORD_POSTGRES
       SERVICE_USER_ADMIN: SERVICE_USER_ADMIN

@@ -4,12 +4,11 @@
 # tags: unleash,feature flags,feature toggles,ab testing,open source
 # logo: svgs/unleash.svg
 # port: 4242
-
 services:
   unleash:
     image: 'unleashorg/unleash-server:latest'
     environment:
-      - SERVICE_URL_UNLEASH_4242
+      - SERVICE_URL_UNLEASH
       - UNLEASH_URL=${SERVICE_URL_UNLEASH}
       - UNLEASH_DEFAULT_ADMIN_PASSWORD=${SERVICE_PASSWORD_UNLEASH}
       - DATABASE_URL=${DATABASE_URL}

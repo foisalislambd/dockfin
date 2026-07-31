@@ -5,7 +5,6 @@
 # tags: dependency-track,owasp,sbom,security,vulnerabilities,supply-chain
 # logo: svgs/dependency-track.svg
 # port: 8080
-
 services:
   dtrack-apiserver:
     image: dependencytrack/apiserver:4.13.1
@@ -32,7 +31,7 @@ services:
   dtrack-frontend:
     image: dependencytrack/frontend:4.13.1
     environment:
-      - SERVICE_URL_DTRACKFRONTEND_8080
+      - SERVICE_URL_DTRACKFRONTEND
       - API_BASE_URL=${SERVICE_URL_DTRACKFRONTEND}
     depends_on:
       - dtrack-apiserver

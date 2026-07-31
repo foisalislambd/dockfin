@@ -15,7 +15,7 @@ services:
       # Some variables still uses Calcom previous name, Calendso
       #
       # Full list https://github.com/calcom/cal.com/blob/main/.env.example
-      - SERVICE_URL_CALCOM_3000
+      - SERVICE_URL_CALCOM
       - NEXT_PUBLIC_LICENSE_CONSENT=agree
       - NODE_ENV=production
       - NEXT_PUBLIC_WEBAPP_URL=${SERVICE_URL_CALCOM}

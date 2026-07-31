@@ -4,12 +4,11 @@
 # tags: mqtt,broker,iot,messaging,emqx,iiot
 # logo: svgs/emqx-enterprise.svg
 # port: 18083
-
 services:
   emqx:
     image: emqx/emqx-enterprise:6.2.0
     environment:
-      - SERVICE_URL_EMQX_18083
+      - SERVICE_URL_EMQX
       - EMQX_DASHBOARD__DEFAULT_PASSWORD=${SERVICE_PASSWORD_EMQX}
     ports:
       - "1883:1883"

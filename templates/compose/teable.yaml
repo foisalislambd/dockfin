@@ -4,14 +4,13 @@
 # tags: airtable, teable, database, visual, interface, relational, postgresql
 # logo: svgs/teable.png
 # port: 3000
-
 services:
   teable:
     image: ghcr.io/teableio/teable:latest
     volumes:
       - teable_data:/app/.assets:rw
     environment:
-      - SERVICE_URL_TEABLE_3000
+      - SERVICE_URL_TEABLE
       - PUBLIC_ORIGIN=${SERVICE_URL_TEABLE}
       - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
       - SECRET_KEY=${SERVICE_PASSWORD_64_SECRET}

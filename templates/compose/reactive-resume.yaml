@@ -4,12 +4,11 @@
 # tags: reactive-resume,resume-builder,open-source,2fa
 # logo: svgs/rxresume.svg
 # port: 3000
-
 services:
   reactive-resume:
     image: amruthpillai/reactive-resume:v4.3.7
     environment:
-      - SERVICE_URL_REACTIVERESUME_3000
+      - SERVICE_URL_REACTIVERESUME
       - PUBLIC_URL=$SERVICE_URL_REACTIVERESUME
       - 'STORAGE_URL=${SERVICE_URL_MINIO}/default'
       - DATABASE_URL=postgresql://$SERVICE_USER_POSTGRES:$SERVICE_PASSWORD_POSTGRES@postgres:5432/${POSTGRES_DB:-postgres}

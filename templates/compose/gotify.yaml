@@ -4,12 +4,11 @@
 # tags: productivity,notification,collaboration
 # logo: svgs/gotify.png
 # port: 80
-
 services:
   gotify:
     image: gotify/server:2.7.3
     environment:
-      - SERVICE_URL_GOTIFY_80
+      - SERVICE_URL_GOTIFY
       - GOTIFY_DEFAULTUSER_NAME=${GOTIFY_USERNAME:-admin}
       - GOTIFY_DEFAULTUSER_PASS=${SERVICE_PASSWORD_GOTIFY}
       - GOTIFY_DATABASE_DIALECT=${GOTIFY_DATABASE_DIALECT:-sqlite3}

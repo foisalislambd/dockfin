@@ -5,13 +5,12 @@
 # tags: homebridge,homekit,iot,smarthome,apple
 # logo: svgs/homebridge.svg
 # port: 8581
-
 services:
   homebridge:
     image: homebridge/homebridge:2024-12-11
     network_mode: host
     environment:
-      - SERVICE_URL_HOMEBRIDGE_8581
+      - SERVICE_URL_HOMEBRIDGE
       - TZ=${TZ:-UTC}
     volumes:
       - homebridge-data:/homebridge

@@ -4,7 +4,6 @@
 # tags: storage,file-sharing,upload,sharing
 # logo: svgs/chibisafe.svg
 # port: 80
-
 ## This service includes its own reverse proxy because the application routing is broken, also it needs caddy for serving static files https://github.com/coollabsio/coolify/pull/5808#pullrequestreview-3340419006
 
 services:
@@ -42,7 +41,7 @@ services:
   caddy:
     image: caddy:2-alpine
     environment:
-      - SERVICE_URL_CHIBISAFE_80
+      - SERVICE_URL_CHIBISAFE
     healthcheck:
       test: ["CMD", "wget", "--spider", "--quiet", "http://127.0.0.1:80"]
       interval: 30s

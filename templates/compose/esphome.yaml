@@ -4,7 +4,6 @@
 # tags: home, smart, assistant, microcontroller
 # logo: svgs/esphome.svg
 # port: 6052
-
 services:
   esphome:
     image: ghcr.io/esphome/esphome:2025.12.4
@@ -14,6 +13,6 @@ services:
     privileged: true
     network_mode: host
     environment:
-      - SERVICE_URL_ESPHOME_6052
+      - SERVICE_URL_ESPHOME
       - USERNAME=${SERVICE_USER_ADMIN}
       - PASSWORD=${SERVICE_PASSWORD_ADMIN}

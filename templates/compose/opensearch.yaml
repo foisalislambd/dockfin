@@ -5,7 +5,6 @@
 # tags: opensearch,elasticsearch,search,analytics,dashboards
 # logo: svgs/opensearch.svg
 # port: 5601
-
 services:
   opensearch:
     image: opensearchproject/opensearch:2.19.1
@@ -36,7 +35,7 @@ services:
   frontend:
     image: opensearchproject/opensearch-dashboards:2.19.1
     environment:
-      - SERVICE_URL_OPENSEARCHDASHBOARDS_5601
+      - SERVICE_URL_OPENSEARCHDASHBOARDS
       - OPENSEARCH_HOSTS=["http://opensearch:9200"]
       - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
     depends_on:

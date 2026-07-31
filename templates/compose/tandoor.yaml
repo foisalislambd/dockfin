@@ -9,7 +9,7 @@ services:
   app:
     image: vabene1111/recipes:1.5.34
     environment:
-      - SERVICE_URL_TANDOOR_8080
+      - SERVICE_URL_TANDOOR
       - SECRET_KEY=${SERVICE_PASSWORD_SECRET}
       - DB_ENGINE=django.db.backends.postgresql
       - POSTGRES_HOST=postgresql

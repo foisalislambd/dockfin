@@ -5,7 +5,6 @@
 # tags: redpanda,kafka,streaming,messaging,events
 # logo: svgs/redpanda.svg
 # port: 9644
-
 services:
   redpanda:
     image: redpandadata/redpanda:v24.3.6
@@ -23,7 +22,7 @@ services:
       - --smp 1
       - --default-log-level=info
     environment:
-      - SERVICE_URL_REDPANDA_9644
+      - SERVICE_URL_REDPANDA
     volumes:
       - redpanda-data:/var/lib/redpanda/data
     healthcheck:

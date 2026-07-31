@@ -4,12 +4,11 @@
 # tags: media, server, tv
 # logo: svgs/sonarr.svg
 # port: 8989
-
 services:
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
     environment:
-      - SERVICE_URL_SONARR_8989
+      - SERVICE_URL_SONARR
       - _APP_URL=$SERVICE_URL_SONARR
       - PUID=1000
       - PGID=1000

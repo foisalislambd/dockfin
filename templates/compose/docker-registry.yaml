@@ -4,12 +4,11 @@
 # tags: registry,images,docker
 # logo: svgs/docker-registry.png
 # port: 5000
-
 services:
   registry:
     image: registry:3
     environment:
-      - SERVICE_URL_REGISTRY_5000
+      - SERVICE_URL_REGISTRY
       - USERNAME=${SERVICE_USER_REGISTRY}
       - PASSWORD=${SERVICE_PASSWORD_REGISTRY}
       - REGISTRY_AUTH=htpasswd

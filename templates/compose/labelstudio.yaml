@@ -4,7 +4,6 @@
 # tags: workflow, orchestration, data-pipeline, python, labelstudio, ai, elasticsearch, datasets, data, machine-learning, data-science, nlp, images, vision
 # logo: svgs/labelstudio.png
 # port: 8080
-
 services:
   labelstudio:
     image: heartexlabs/label-studio:latest
@@ -12,7 +11,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      - SERVICE_URL_LABELSTUDIO_8080
+      - SERVICE_URL_LABELSTUDIO
       - CSRF_TRUSTED_ORIGINS=${SERVICE_URL_LABELSTUDIO}
       - EXPERIMENTAL_FEATURES=${EXPERIMENTAL_FEATURES:-false}
       - DJANGO_DB=${DJANGO_DB:-default}

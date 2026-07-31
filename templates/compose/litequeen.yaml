@@ -5,12 +5,11 @@
 # tags: sqlite, sqlite-database-management, self-hosted, VPS, database
 # logo: svgs/litequeen.svg
 # port: 8000
-
 services:
   litequeen:
     image: kivsegrob/lite-queen:latest
     environment:
-      - SERVICE_URL_LITEQUEEN_8000
+      - SERVICE_URL_LITEQUEEN
     volumes:
       - litequeen-data:/home/litequeen/data
       - type: bind

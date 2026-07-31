@@ -4,7 +4,6 @@
 # tags: budibase,low-code,business-apps,workflow,automation,postgresql,mysql,mssql,mongodb,docker,kubernetes
 # logo: svgs/budibase.svg
 # port: 10000
-
 services:
   app-service:
     image: budibase.docker.scarf.sh/budibase/apps
@@ -83,7 +82,7 @@ services:
   proxy-service:
     image: budibase/proxy
     environment:
-      - SERVICE_URL_BUDIBASE_10000
+      - SERVICE_URL_BUDIBASE
       - PROXY_RATE_LIMIT_WEBHOOKS_PER_SECOND=10
       - PROXY_RATE_LIMIT_API_PER_SECOND=20
       - APPS_UPSTREAM_URL=http://app-service:4002

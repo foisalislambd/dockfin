@@ -9,7 +9,7 @@ services:
   museum:
     image: 'ghcr.io/ente-io/server:613c6a96390d7a624cf30b946955705d632423cc' # Released at 2025-09-14T22:16:37-07:00
     environment:
-      - SERVICE_URL_MUSEUM_8080
+      - SERVICE_URL_MUSEUM
       - ENTE_DB_HOST=postgres
       - ENTE_DB_PORT=5432
       - 'ENTE_DB_NAME=${POSTGRES_DB:-ente_db}'
@@ -20,7 +20,7 @@ services:
       - ENTE_S3_USE_PATH_STYLE_URLS=true
       - 'ENTE_S3_B2_EU_CEN_KEY=${SERVICE_USER_MINIO}'
       - 'ENTE_S3_B2_EU_CEN_SECRET=${SERVICE_PASSWORD_MINIO}'
-      - 'ENTE_S3_B2_EU_CEN_ENDPOINT=${SERVICE_FQDN_MINIO_9000}'
+      - 'ENTE_S3_B2_EU_CEN_ENDPOINT=${SERVICE_FQDN_MINIO}'
       - ENTE_S3_B2_EU_CEN_REGION=eu-central-2
       - ENTE_S3_B2_EU_CEN_BUCKET=b2-eu-cen
       - 'ENTE_KEY_ENCRYPTION=${SERVICE_REALBASE64_ENCRYPTION}'
@@ -56,7 +56,7 @@ services:
   web:
     image: 'ghcr.io/ente-io/web:ca03165f5e7f2a50105e6e40019c17ae6cdd934f' # Released at 2025-10-08T00:57:05-07:00
     environment:
-      - SERVICE_URL_WEB_3000
+      - SERVICE_URL_WEB
       - 'ENTE_API_ORIGIN=${SERVICE_URL_MUSEUM}'
     healthcheck:
       test:

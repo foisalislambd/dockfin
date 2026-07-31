@@ -5,7 +5,6 @@
 # tags: alertmanager,prometheus,alerting,notifications,monitoring
 # logo: svgs/alertmanager.svg
 # port: 9093
-
 services:
   alertmanager:
     image: prom/alertmanager:v0.28.1
@@ -13,7 +12,7 @@ services:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
     environment:
-      - SERVICE_URL_ALERTMANAGER_9093
+      - SERVICE_URL_ALERTMANAGER
     volumes:
       - alertmanager-data:/alertmanager
     configs:

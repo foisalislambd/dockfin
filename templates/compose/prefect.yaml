@@ -4,7 +4,6 @@
 # tags: workflow, orchestration, data-pipeline, python, automation, data-processing, data-integration, etl
 # logo: svgs/prefect.png
 # port: 4200
-
 services:
   prefect:
     image: "prefecthq/prefect:3-latest"
@@ -12,7 +11,7 @@ services:
       postgresql:
         condition: service_healthy
     environment:
-      - SERVICE_URL_PREFECT_4200
+      - SERVICE_URL_PREFECT
       - PREFECT_API_URL=${SERVICE_URL_PREFECT}/api
       - PREFECT_API_DATABASE_CONNECTION_URL=postgresql+asyncpg://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgresql:5432/${POSTGRES_DB:-prefect}
       - PREFECT_API_KEY=${SERVICE_PASSWORD_APIKEY}

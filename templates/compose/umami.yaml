@@ -4,12 +4,11 @@
 # tags: analytics, insights, privacy
 # logo: svgs/umami.svg
 # port: 3000
-
 services:
   umami:
     image: ghcr.io/umami-software/umami:3.0.3
     environment:
-      - SERVICE_URL_UMAMI_3000
+      - SERVICE_URL_UMAMI
       - DATABASE_URL=postgres://$SERVICE_USER_POSTGRES:$SERVICE_PASSWORD_POSTGRES@postgresql:5432/$POSTGRES_DB
       - DATABASE_TYPE=postgres
       - APP_SECRET=$SERVICE_PASSWORD_64_UMAMI

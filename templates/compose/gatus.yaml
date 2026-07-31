@@ -5,12 +5,11 @@
 # tags: gatus,status,uptime,health,monitoring
 # logo: svgs/gatus.svg
 # port: 8080
-
 services:
   gatus:
     image: twinproduction/gatus:v5.16.0
     environment:
-      - SERVICE_URL_GATUS_8080
+      - SERVICE_URL_GATUS
     volumes:
       - gatus-data:/data
     configs:
@@ -25,9 +24,12 @@ configs:
       storage:
         type: sqlite
         path: /data/gatus.db
+      ui:
+        title: Gatus
+        header: "Health Status"
       endpoints:
-        - name: example
-          url: "https://example.com"
-          interval: 5m
+        - name: gatus
+          url: "${SERVICE_URL_GATUS}/health"
+          interval: 1m
           conditions:
             - "[STATUS] == 200"

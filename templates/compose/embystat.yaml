@@ -9,7 +9,7 @@ services:
   embystat:
     image: lscr.io/linuxserver/embystat:latest
     environment:
-      - SERVICE_URL_EMBYSTAT_6555
+      - SERVICE_URL_EMBYSTAT
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Madrid

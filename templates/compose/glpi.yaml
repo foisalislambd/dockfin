@@ -4,12 +4,11 @@
 # tags: helpdesk, ticketing, support, open-source
 # logo: svgs/glpi.svg
 # port: 80
-
 services:
   glpi:
     image: glpi/glpi:11
     environment:
-      - SERVICE_URL_GLPI_80
+      - SERVICE_URL_GLPI
       - GLPI_DB_HOST=glpi-db
       - GLPI_DB_PORT=3306
       - GLPI_DB_NAME=${MYSQL_DATABASE:-glpi-db}

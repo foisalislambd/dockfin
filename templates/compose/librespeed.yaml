@@ -4,13 +4,12 @@
 # tags: speedtest, internet-speed
 # logo: svgs/librespeed.png
 # port: 82
-
 services:
   librespeed:
     container_name: librespeed
     image: 'ghcr.io/librespeed/speedtest:latest'
     environment:
-      - SERVICE_URL_LIBRESPEED_82
+      - SERVICE_URL_LIBRESPEED
       - MODE=standalone
       - TELEMETRY=false
       - DISTANCE=km

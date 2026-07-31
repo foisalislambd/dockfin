@@ -4,12 +4,11 @@
 # tags: osint, website, analysis
 # logo: svgs/web-check.png
 # port: 3000
-
 services:
   web-check:
     image: lissy93/web-check
     environment:
-      - SERVICE_URL_WEBCHECK_3000
+      - SERVICE_URL_WEBCHECK
     healthcheck:
       test:
         - CMD-SHELL

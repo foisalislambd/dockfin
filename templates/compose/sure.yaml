@@ -4,12 +4,11 @@
 # tags: budgeting,budget,money,expenses,income
 # logo: svgs/sure.png
 # port: 3000
-
 services:
   web:
     image: ghcr.io/we-promise/sure:0.6.7
     environment:
-      - SERVICE_URL_SURE_3000
+      - SERVICE_URL_SURE
       - APP_DOMAIN=$SERVICE_FQDN_SURE
       - SECRET_KEY_BASE=$SERVICE_BASE64_BASE
       - POSTGRES_USER=${SERVICE_USER_POSTGRESQL}

@@ -4,7 +4,6 @@
 # tags: resend, mailer, marketing emails, transaction emails, self-hosting, postmark
 # logo: svgs/usesend.svg
 # port: 3000
-
 services:
   postgres:
     image: postgres:16
@@ -39,7 +38,7 @@ services:
     expose:
       - 3000
     environment:
-      - SERVICE_URL_USESEND_3000
+      - SERVICE_URL_USESEND
       - DATABASE_URL=postgresql://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/${SERVICE_DB_POSTGRES:-usesend}
       - NEXTAUTH_URL=${SERVICE_URL_USESEND}
       - NEXTAUTH_SECRET=${SERVICE_BASE64_64_NEXTAUTHSECRET}

@@ -5,14 +5,13 @@
 # tags: windows, virtualization, container, os
 # logo: svgs/windows.svg
 # port: 8006
-
 services:
   windows:
     image: dockurr/windows
     volumes:
       - windows-storage:/storage
     environment:
-      - SERVICE_URL_WINDOWS_8006
+      - SERVICE_URL_WINDOWS
       - VERSION=11
     devices:
       - /dev/kvm:/dev/kvm

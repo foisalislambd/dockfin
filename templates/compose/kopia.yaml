@@ -5,7 +5,6 @@
 # tags: kopia,backup,encryption,restore,snapshots
 # logo: svgs/kopia.svg
 # port: 51515
-
 services:
   kopia:
     image: kopia/kopia:0.19.0
@@ -18,7 +17,7 @@ services:
       - --server-username=${SERVICE_USER_ADMIN}
       - --server-password=${SERVICE_PASSWORD_ADMIN}
     environment:
-      - SERVICE_URL_KOPIA_51515
+      - SERVICE_URL_KOPIA
       - KOPIA_PASSWORD=${SERVICE_PASSWORD_REPO}
       - TZ=${TZ:-UTC}
     volumes:

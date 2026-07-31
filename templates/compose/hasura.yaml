@@ -5,12 +5,11 @@
 # tags: hasura,graphql,api,postgresql,backend
 # logo: svgs/hasura.svg
 # port: 8080
-
 services:
   hasura:
     image: hasura/graphql-engine:v2.46.0
     environment:
-      - SERVICE_URL_HASURA_8080
+      - SERVICE_URL_HASURA
       - HASURA_GRAPHQL_ENABLE_TELEMETRY=false
       - HASURA_GRAPHQL_DATABASE_URL=postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgresql:5432/${POSTGRES_DB:-hasura}
       - HASURA_GRAPHQL_ENABLE_CONSOLE=true

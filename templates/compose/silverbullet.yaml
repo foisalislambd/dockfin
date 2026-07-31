@@ -4,12 +4,11 @@
 # tags: note-taking,markdown,pkm
 # logo: svgs/silverbullet.png
 # port: 3000
-
 services:
   silverbullet:
     image: ghcr.io/silverbulletmd/silverbullet:v2
     environment:
-    - SERVICE_URL_SILVERBULLET_3000
+    - SERVICE_URL_SILVERBULLET
     - SB_USER=${SERVICE_USER_SILVERBULLET}:${SERVICE_PASSWORD_SILVERBULLET}
     volumes:
       - silverbullet-space:/space

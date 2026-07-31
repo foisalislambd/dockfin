@@ -5,12 +5,11 @@
 # tags: ghostfolio,finance,portfolio,investments,wealth,stocks
 # logo: svgs/ghostfolio.svg
 # port: 3333
-
 services:
   ghostfolio:
     image: ghostfolio/ghostfolio:2.161.0
     environment:
-      - SERVICE_URL_GHOSTFOLIO_3333
+      - SERVICE_URL_GHOSTFOLIO
       - ACCESS_TOKEN_SALT=${SERVICE_PASSWORD_ACCESSSALT}
       - JWT_SECRET_KEY=${SERVICE_PASSWORD_JWT}
       - DATABASE_URL=postgresql://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgresql:5432/${POSTGRES_DB:-ghostfolio}?sslmode=prefer

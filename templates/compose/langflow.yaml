@@ -4,12 +4,11 @@
 # tags: langflow, ai, openai, gpt, llm, workflow, automation, open source, low code
 # logo: svgs/langflow.svg
 # port: 7860
-
 services:
   langflow:
     image: langflowai/langflow:1.7.2
     environment:
-      - SERVICE_URL_LANGFLOW_7860
+      - SERVICE_URL_LANGFLOW
       - LANGFLOW_AUTO_LOGIN=${LANGFLOW_AUTO_LOGIN:-false}
       - LANGFLOW_SUPERUSER=$SERVICE_USER_LANGFLOW
       - LANGFLOW_SUPERUSER_PASSWORD=$SERVICE_PASSWORD_LANGFLOW

@@ -4,13 +4,12 @@
 # tags: media, server, music, subsonic
 # logo: svgs/navidrome.svg
 # port: 4533
-
 services:
   navidrome:
     image: deluan/navidrome:latest
     restart: unless-stopped
     environment:
-      - SERVICE_URL_NAVIDROME_4533
+      - SERVICE_URL_NAVIDROME
       - ND_BASEURL=${SERVICE_URL_NAVIDROME}
       - ND_SCANSCHEDULE=${ND_SCANSCHEDULE:-1h}
       - ND_LOGLEVEL=${ND_LOGLEVEL:-info}

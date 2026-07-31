@@ -4,12 +4,11 @@
 # category: search
 # logo: svgs/elasticsearch.svg
 # port: 9200
-
 services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch-wolfi:8.19.0
     environment:
-      - SERVICE_URL_ELASTICSEARCH_9200
+      - SERVICE_URL_ELASTICSEARCH
       - ELASTIC_PASSWORD=${SERVICE_PASSWORD_ELASTICSEARCH}
       - ES_JAVA_OPTS=-Xms512m -Xmx512m # memory set to 512MB
       - discovery.type=single-node

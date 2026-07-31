@@ -4,12 +4,11 @@
 # tags: whatsapp,golang,multidevice,api,go-whatsapp
 # logo: svgs/gowa.png
 # port: 3000
-
 services:
   gowa:
     image: aldinokemal2104/go-whatsapp-web-multidevice:latest
     environment:
-      - SERVICE_URL_GOWA_3000
+      - SERVICE_URL_GOWA
       - SERVICE_USER_GOWA
       - SERVICE_PASSWORD_GOWA
       - APP_BASIC_AUTH=${SERVICE_USER_GOWA}:${SERVICE_PASSWORD_GOWA}

@@ -4,13 +4,12 @@
 # tags: database, postgres, automation, self-hosted, dbaas
 # logo: svgs/autobase.svg
 # port: 80
-
 services:
   autobase:
     image: autobase/console_ui:2.5.2
     platform: linux/amd64
     environment:
-      - SERVICE_FQDN_AUTOBASE_80
+      - SERVICE_FQDN_AUTOBASE
       - PG_CONSOLE_AUTHORIZATION_TOKEN=${SERVICE_PASSWORD_UI}
       - PG_CONSOLE_API_HOST=autobase-api
     healthcheck:

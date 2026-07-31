@@ -4,12 +4,11 @@
 # tags: redis,gui,database,monitoring,analytics
 # logo: svgs/redisinsight.png
 # port: 5540
-
 services:
   redisinsight:
     image: 'redis/redisinsight:2.70' # Released on Jul 11, 2025
     environment:
-      - SERVICE_URL_REDISINSIGHT_5540
+      - SERVICE_URL_REDISINSIGHT
       - RI_APP_HOST=0.0.0.0
       - RI_APP_PORT=5540
       - 'RI_ENCRYPTION_KEY=${SERVICE_PASSWORD_RI_ENCRYPTION_KEY}'

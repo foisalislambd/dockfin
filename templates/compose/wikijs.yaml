@@ -3,15 +3,14 @@
 # category: cms
 # tags: wiki, collaboration, documentation
 # logo: svgs/wikijs.svg
-# port: 80
-
+# port: 3000
 services:
   wikijs:
     image: ghcr.io/requarks/wiki:2
     depends_on:
       - postgres
     environment:
-      - SERVICE_URL_WIKIJS_3000
+      - SERVICE_URL_WIKIJS
       - DB_TYPE=postgres
       - DB_HOST=postgres
       - DB_PORT=5432

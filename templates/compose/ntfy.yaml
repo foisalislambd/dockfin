@@ -4,14 +4,13 @@
 # tags: ntfy, notification, push notification, pub-sub, notify
 # logo: svgs/ntfy.svg
 # port: 80
-
 services:
   ntfy:
     image: binwiederhier/ntfy
     command:
       - serve
     environment:
-      - SERVICE_URL_NTFY_80
+      - SERVICE_URL_NTFY
       - NTFY_BASE_URL=${SERVICE_URL_NTFY}
       - TZ=${TZ:-UTC}
       - NTFY_CACHE_FILE=/var/cache/ntfy/cache.db

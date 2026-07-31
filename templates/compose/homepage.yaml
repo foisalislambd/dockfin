@@ -4,12 +4,11 @@
 # tags: dashboard, homepage
 # logo: svgs/homepage.png
 # port: 3000
-
 services:
   homepage:
     image: ghcr.io/gethomepage/homepage:latest
     environment:
-      - SERVICE_URL_HOMEPAGE_3000
+      - SERVICE_URL_HOMEPAGE
       - HOMEPAGE_VAR_BASE=${SERVICE_URL_HOMEPAGE}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro

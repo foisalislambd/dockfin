@@ -4,12 +4,11 @@
 # tags: home-automation,iot,smart-home,automation,domotics,mqtt,zigbee,zwave
 # logo: svgs/home-assistant.svg
 # port: 8123
-
 services:
   homeassistant:
     image: ghcr.io/home-assistant/home-assistant:2025.10.2
     environment:
-      - SERVICE_URL_HOMEASSISTANT_8123
+      - SERVICE_URL_HOMEASSISTANT
       - TZ=${TZ:-UTC}
       - DISABLE_JEMALLOC=${DISABLE_JEMALLOC:-false}
     volumes:

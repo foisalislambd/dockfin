@@ -4,12 +4,11 @@
 # tags: gitlab, devops, continuousintegration, continuousdelivery, versioncontrol, collaboration, ci/cd, sourcecodemanagement, automation, codereview, agiledevelopment, projectmanagement, opensource, repositoryhosting, pipelineautomation, git, softwaredevelopment, issuetracking, teamcollaboration, deploymentautomation, securityintegration
 # logo: svgs/gitlab.svg
 # port: 80
-
 services:
   gitlab:
     image: "gitlab/gitlab-ce:latest"
     environment:
-      - SERVICE_URL_GITLAB_80
+      - SERVICE_URL_GITLAB
       - TZ=${TZ:-UTC}
       - GITLAB_TIMEZONE=${GITLAB_TIMEZONE:-UTC}
       - GITLAB_ROOT_PASSWORD=$SERVICE_PASSWORD_GITLAB

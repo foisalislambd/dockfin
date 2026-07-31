@@ -4,12 +4,11 @@
 # tags: nitropage, builder, editor, wysiwyg, cms, content, management
 # logo: svgs/nitropage.svg
 # port: 3000
-
 services:
   nitropage:
     image: nitropage/nitropage:sqlite
     environment:
-      - SERVICE_URL_NITROPAGE_3000
+      - SERVICE_URL_NITROPAGE
       - NP_AUTH_SALT=${SERVICE_BASE64_SALT}
       - NP_AUTH_PASSWORD=${SERVICE_PASSWORD_64_SESSION}
       - DATABASE_URL=file:../.data/dev.db

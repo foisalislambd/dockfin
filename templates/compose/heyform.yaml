@@ -4,7 +4,6 @@
 # tags: form, builder, forms, survey, quiz, open source, self-hosted, docker
 # logo: svgs/heyform.svg
 # port: 9157
-
 services:
   heyform:
     image: heyform/community-edition:latest
@@ -16,7 +15,7 @@ services:
       keydb:
         condition: service_healthy
     environment:
-      - SERVICE_URL_HEYFORM_9157
+      - SERVICE_URL_HEYFORM
       - APP_HOMEPAGE_URL=${SERVICE_URL_HEYFORM}
       - SESSION_KEY=${SERVICE_BASE64_64_SESSION}
       - FORM_ENCRYPTION_KEY=${SERVICE_BASE64_64_FORM}

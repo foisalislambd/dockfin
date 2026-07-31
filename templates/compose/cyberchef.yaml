@@ -4,13 +4,12 @@
 # tags: encryption, encoding, compression, data analysis, tools, development
 # logo: svgs/cyberchef.jpeg
 # port: 80
-
 services:
   cyberchef:
     image: ghcr.io/gchq/cyberchef:latest
     platform: linux/amd64
     environment:
-      - SERVICE_URL_CYBERCHEF_80
+      - SERVICE_URL_CYBERCHEF
     volumes:
       - cyberchef-data:/app/data
     healthcheck:

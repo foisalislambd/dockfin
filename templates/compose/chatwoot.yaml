@@ -4,7 +4,6 @@
 # tags: chatwoot,chat,api,open,source,rails,redis,postgresql,sidekiq
 # logo: svgs/chatwoot.svg
 # port: 3000
-
 services:
   chatwoot:
     image: chatwoot/chatwoot:latest
@@ -12,7 +11,7 @@ services:
       - postgres
       - redis
     environment:
-      - SERVICE_URL_CHATWOOT_3000
+      - SERVICE_URL_CHATWOOT
       - SECRET_KEY_BASE=$SERVICE_PASSWORD_CHATWOOT
       - FRONTEND_URL=${SERVICE_URL_CHATWOOT}
       - DEFAULT_LOCALE=${CHATWOOT_DEFAULT_LOCALE}

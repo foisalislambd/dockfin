@@ -9,7 +9,7 @@ services:
   calibre-web-automated:
     image: crocodilestick/calibre-web-automated:latest
     environment:
-      - SERVICE_URL_CWA_8083
+      - SERVICE_URL_CWA
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
       - TZ=${TZ:-UTC}
@@ -31,7 +31,7 @@ services:
   calibre-web-downloader:
     image: ghcr.io/calibrain/calibre-web-automated-book-downloader:latest
     environment:
-      - SERVICE_URL_DOWNLOADER_8084
+      - SERVICE_URL_DOWNLOADER
       - FLASK_PORT=${FLASK_PORT:-8084}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - BOOK_LANGUAGE=${BOOK_LANGUAGE:-en}

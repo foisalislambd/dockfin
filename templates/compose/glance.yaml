@@ -4,12 +4,11 @@
 # tags: dashboard, server, applications, interface, rrss
 # logo: svgs/glance.png
 # port: 8080
-
 services:
   glance:
     image: glanceapp/glance:latest
     environment:
-      - SERVICE_URL_GLANCE_8080
+      - SERVICE_URL_GLANCE
     volumes:
       - ./config:/app/config
       - type: bind

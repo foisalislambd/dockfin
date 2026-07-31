@@ -5,12 +5,11 @@
 # tags: apisix,api,gateway,proxy,microservices
 # logo: svgs/apisix.svg
 # port: 9180
-
 services:
   apisix:
     image: apache/apisix:3.11.0-debian
     environment:
-      - SERVICE_URL_APISIX_9180
+      - SERVICE_URL_APISIX
     volumes:
       - apisix-logs:/usr/local/apisix/logs
     configs:

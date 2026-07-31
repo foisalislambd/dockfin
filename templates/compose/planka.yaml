@@ -5,12 +5,11 @@
 # tags: planka,kanban,trello,project,management,boards
 # logo: svgs/planka.svg
 # port: 1337
-
 services:
   planka:
     image: ghcr.io/plankanban/planka:1.26.2
     environment:
-      - SERVICE_URL_PLANKA_1337
+      - SERVICE_URL_PLANKA
       - BASE_URL=${SERVICE_URL_PLANKA}
       - DATABASE_URL=postgresql://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgresql:5432/${POSTGRES_DB:-planka}
       - SECRET_KEY=${SERVICE_PASSWORD_SECRET}

@@ -4,12 +4,11 @@
 # tags: post everywhere, social media, planning
 # logo: svgs/postiz.svg
 # port: 5000
-
 services:
   postiz:
     image: ghcr.io/gitroomhq/postiz-app:v2.10.1
     environment:
-      - SERVICE_URL_POSTIZ_5000
+      - SERVICE_URL_POSTIZ
       - MAIN_URL=${SERVICE_URL_POSTIZ}
       - FRONTEND_URL=${SERVICE_URL_POSTIZ}
       - NEXT_PUBLIC_BACKEND_URL=${SERVICE_URL_POSTIZ}/api

@@ -4,12 +4,11 @@
 # tags: api, development, platform
 # logo: svgs/hoppscotch.png
 # port: 80
-
 services:
   backend:
     image: hoppscotch/hoppscotch:2026.2.1
     environment:
-      - SERVICE_URL_HOPPSCOTCH_80
+      - SERVICE_URL_HOPPSCOTCH
       - VITE_ALLOWED_AUTH_PROVIDERS=${VITE_ALLOWED_AUTH_PROVIDERS:-GOOGLE,GITHUB,MICROSOFT,EMAIL}
       - DATABASE_URL=postgresql://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@hoppscotch-db:5432/${POSTGRES_DB}
       - DATA_ENCRYPTION_KEY=${SERVICE_BASE64_DATAENCRYPTIONKEY}

@@ -4,12 +4,11 @@
 # tags: online survey, forms, no code, open source
 # logo: svgs/limesurvey.svg
 # port: 80
-
 services:
   limesurvey:
     image: adamzammit/limesurvey:latest
     environment:
-      - SERVICE_URL_LIMESURVEY_80
+      - SERVICE_URL_LIMESURVEY
       - LIMESURVEY_DB_HOST=mariadb
       - LIMESURVEY_DB_PASSWORD=${SERVICE_PASSWORD_MYSQL}
       - LIMESURVEY_DB_USER=${SERVICE_USER_MYSQL}

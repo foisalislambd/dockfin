@@ -5,13 +5,12 @@
 # tags: opentelemetry,otel,collector,traces,metrics,logs,observability
 # logo: svgs/opentelemetry.svg
 # port: 13133
-
 services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.128.0
     command: ["--config=/etc/otelcol/config.yaml"]
     environment:
-      - SERVICE_URL_OTELCOLLECTOR_13133
+      - SERVICE_URL_OTELCOLLECTOR
     configs:
       - source: otel_config
         target: /etc/otelcol/config.yaml

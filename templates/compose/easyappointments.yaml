@@ -4,12 +4,11 @@
 # tags: calendar, scheduling, database
 # logo: svgs/easyappointments.png
 # port: 80
-
 services:
   easyappointments:
     image: alextselegidis/easyappointments:latest
     environment:
-      - SERVICE_URL_EASYAPPOINTMENTS_80
+      - SERVICE_URL_EASYAPPOINTMENTS
       - BASE_URL=${SERVICE_URL_EASYAPPOINTMENTS}
       - DB_HOST=mysql
       - DB_NAME=easyappointments

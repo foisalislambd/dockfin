@@ -5,13 +5,12 @@
 # tags: grafana,tempo,tracing,observability,opentelemetry
 # logo: svgs/grafana-tempo.svg
 # port: 3200
-
 services:
   tempo:
     image: grafana/tempo:2.7.2
     command: ["-config.file=/etc/tempo/tempo.yaml"]
     environment:
-      - SERVICE_URL_TEMPO_3200
+      - SERVICE_URL_TEMPO
     volumes:
       - tempo-data:/var/tempo
     configs:

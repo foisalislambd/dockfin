@@ -5,12 +5,11 @@
 # tags: bunkerweb,waf,nginx,security,firewall
 # logo: svgs/bunkerweb.svg
 # port: 80
-
 services:
   bunkerweb:
     image: bunkerity/bunkerweb:1.6.1
     environment:
-      - SERVICE_URL_BUNKERWEB_80
+      - SERVICE_URL_BUNKERWEB
       - SERVER_NAME=${SERVICE_FQDN_BUNKERWEB}
       - API_WHITELIST_IP=127.0.0.0/8 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
       - MULTISITE=no

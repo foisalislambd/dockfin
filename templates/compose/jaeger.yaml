@@ -5,12 +5,11 @@
 # tags: jaeger,tracing,opentelemetry,observability,apm
 # logo: svgs/jaeger.svg
 # port: 16686
-
 services:
   jaeger:
     image: jaegertracing/all-in-one:1.67.0
     environment:
-      - SERVICE_URL_JAEGER_16686
+      - SERVICE_URL_JAEGER
       - COLLECTOR_OTLP_ENABLED=true
       - SPAN_STORAGE_TYPE=badger
       - BADGER_EPHEMERAL=false

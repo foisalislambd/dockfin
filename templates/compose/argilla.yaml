@@ -4,12 +4,11 @@
 # tags: workflow, orchestration, data-pipeline, python, argilla, ai, elasticsearch, datasets, data, machine-learning, data-science, nlp
 # logo: svgs/argilla.png
 # port: 6900
-
 services:
   argilla:
     image: "argilla/argilla-server:v2.2.0"
     environment:
-      - SERVICE_URL_ARGILLA_6900
+      - SERVICE_URL_ARGILLA
       - ARGILLA_HOME_PATH=/var/lib/argilla
       - ARGILLA_ELASTICSEARCH=http://elasticsearch:9200
       - ARGILLA_DATABASE_URL=postgresql+asyncpg://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/${POSTGRES_DB}

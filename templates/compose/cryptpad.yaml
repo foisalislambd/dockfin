@@ -5,12 +5,11 @@
 # tags: cryptpad,encrypted,collaboration,documents,privacy
 # logo: svgs/cryptpad.svg
 # port: 3000
-
 services:
   cryptpad:
     image: cryptpad/cryptpad:version-2025.3.0
     environment:
-      - SERVICE_URL_CRYPTPAD_3000
+      - SERVICE_URL_CRYPTPAD
       - CPAD_MAIN_DOMAIN=${SERVICE_FQDN_CRYPTPAD}
       - CPAD_SANDBOX_DOMAIN=${SERVICE_FQDN_CRYPTPAD}
       - CPAD_CONF=/cryptpad/config/config.js

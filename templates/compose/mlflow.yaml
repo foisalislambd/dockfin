@@ -5,7 +5,6 @@
 # tags: mlflow,mlops,machine-learning,tracking,models
 # logo: svgs/mlflow.svg
 # port: 5000
-
 services:
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.21.3
@@ -16,7 +15,7 @@ services:
       --backend-store-uri postgresql://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgresql:5432/${POSTGRES_DB:-mlflow}
       --default-artifact-root /mlflow/artifacts
     environment:
-      - SERVICE_URL_MLFLOW_5000
+      - SERVICE_URL_MLFLOW
       - MLFLOW_HOST=0.0.0.0
     volumes:
       - mlflow-artifacts:/mlflow/artifacts

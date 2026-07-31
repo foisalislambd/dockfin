@@ -5,13 +5,12 @@
 # tags: openbao,vault,secrets,security,encryption,pki
 # logo: svgs/openbao.svg
 # port: 8200
-
 services:
   openbao:
     image: openbao/openbao:2.2.0
     command: server -config=/openbao/config/local.json
     environment:
-      - SERVICE_URL_OPENBAO_8200
+      - SERVICE_URL_OPENBAO
       - BAO_ADDR=${SERVICE_URL_OPENBAO}
     volumes:
       - openbao-data:/openbao/data

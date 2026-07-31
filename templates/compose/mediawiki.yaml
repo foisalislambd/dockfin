@@ -4,12 +4,11 @@
 # tags: wiki, collaboration, documentation
 # logo: svgs/mediawiki.ico
 # port: 80
-
 services:
   mediawiki:
     image: mediawiki:latest
     environment:
-      - SERVICE_URL_MEDIAWIKI_80
+      - SERVICE_URL_MEDIAWIKI
     volumes:
       - mediawiki-images:/var/www/html/images
       - mediawiki-sqlite:/var/www/html/data

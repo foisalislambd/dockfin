@@ -5,7 +5,6 @@
 # tags: grafana,alloy,otel,prometheus,observability,collector
 # logo: svgs/grafana-alloy.svg
 # port: 12345
-
 services:
   alloy:
     image: grafana/alloy:v1.8.1
@@ -15,7 +14,7 @@ services:
       - --server.http.listen-addr=0.0.0.0:12345
       - --stability.level=generally-available
     environment:
-      - SERVICE_URL_ALLOY_12345
+      - SERVICE_URL_ALLOY
     volumes:
       - alloy-data:/var/lib/alloy
     configs:

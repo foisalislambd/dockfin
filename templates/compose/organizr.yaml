@@ -4,12 +4,11 @@
 # tags: tool
 # logo: svgs/organizr.png
 # port: 80
-
 services:
   organizr:
     image: organizr/organizr:latest
     environment:
-      - SERVICE_URL_ORGANIZR_80
+      - SERVICE_URL_ORGANIZR
       - branch=${branch:-v2-master}
     volumes:
       - organizr-data:/config

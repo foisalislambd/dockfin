@@ -3,12 +3,13 @@
 # category: git
 # tags: version control, collaboration, code, hosting, lightweight, mysql
 # logo: svgs/gitea.svg
+# port: 3000
 
 services:
   gitea:
     image: gitea/gitea:latest
     environment:
-      - SERVICE_URL_GITEA_3000
+      - SERVICE_URL_GITEA
       - USER_UID=1000
       - USER_GID=1000
       - GITEA__database__DB_TYPE=mysql

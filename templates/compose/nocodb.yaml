@@ -4,12 +4,11 @@
 # tags: nocodb,airtable,mysql,postgresql,sqlserver,sqlite,mariadb
 # logo: svgs/nocodb.svg
 # port: 8080
-
 services:
   nocodb:
     image: nocodb/nocodb
     environment:
-      - SERVICE_URL_NOCODB_8080
+      - SERVICE_URL_NOCODB
     volumes:
       - nocodb-data:/usr/app/data/
     healthcheck:

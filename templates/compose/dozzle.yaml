@@ -4,12 +4,11 @@
 # tags: dozzle,docker,logs,web-ui
 # logo: svgs/dozzle.svg
 # port: 8080
-
 services:
   dozzle:
     image: amir20/dozzle:latest
     environment:
-      - SERVICE_URL_DOZZLE_8080
+      - SERVICE_URL_DOZZLE
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:

@@ -4,12 +4,11 @@
 # tags: identity,oidc,oauth,passkey,webauthn,authentication,sso,openid,postgresql
 # logo: svgs/pocketid-logo.png
 # port: 1411
-
 services:
   pocket-id:
     image: ghcr.io/pocket-id/pocket-id:v1.13
     environment:
-      - SERVICE_URL_POCKETID_1411
+      - SERVICE_URL_POCKETID
       - APP_URL=${SERVICE_URL_POCKETID}
       - TRUST_PROXY=${TRUST_PROXY:-true}
       - DB_PROVIDER=postgres

@@ -4,12 +4,11 @@
 # tags: media, server, movies, tv, music
 # logo: svgs/plex.svg
 # port: 32400
-
 services:
   plex:
     image: lscr.io/linuxserver/plex:latest
     environment:
-      - SERVICE_URL_PLEX_32400
+      - SERVICE_URL_PLEX
       - _APP_URL=$SERVICE_URL_PLEX
       - PUID=1000
       - PGID=1000

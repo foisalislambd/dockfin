@@ -5,12 +5,11 @@
 # tags: photoprism,photos,gallery,ai,images,media
 # logo: svgs/photoprism.svg
 # port: 2342
-
 services:
   app:
     image: photoprism/photoprism:250426
     environment:
-      - SERVICE_URL_PHOTOPRISM_2342
+      - SERVICE_URL_PHOTOPRISM
       - PHOTOPRISM_ADMIN_USER=${SERVICE_USER_ADMIN}
       - PHOTOPRISM_ADMIN_PASSWORD=${SERVICE_PASSWORD_ADMIN}
       - PHOTOPRISM_SITE_URL=${SERVICE_URL_PHOTOPRISM}/

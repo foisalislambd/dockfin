@@ -3,6 +3,7 @@
 # category: ai
 # tags: ollama,ai,models,deployment,open-web-ui,integration
 # logo: svgs/ollama.svg
+# port: 8080
 
 services:
   ollama-api:
@@ -22,7 +23,7 @@ services:
     depends_on:
       - ollama-api
     environment:
-      - SERVICE_URL_OLLAMA_8080
+      - SERVICE_URL_OLLAMA
       - OLLAMA_BASE_URL=http://ollama-api:11434
     healthcheck:
       test:

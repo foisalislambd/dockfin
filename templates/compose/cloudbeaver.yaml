@@ -4,14 +4,13 @@
 # tags: dbeaver, data management, data, database, mysql, postgres, sqlite, sql, mongodb
 # logo: svgs/cloudbeaver.svg
 # port: 8978
-
 services:
   cloudbeaver:
     image: dbeaver/cloudbeaver:24
     volumes:
       - cloudbeaver-data:/opt/cloudbeaver/workspace
     environment:
-      - SERVICE_URL_CLOUDBEAVER_8978
+      - SERVICE_URL_CLOUDBEAVER
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8978/"]
       interval: 5s

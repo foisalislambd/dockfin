@@ -4,12 +4,11 @@
 # tags: it-tools,management,self-hosted
 # logo: svgs/it-tools.svg
 # port: 80
-
 services:
   it-tools:
     image: corentinth/it-tools:latest
     environment:
-      - SERVICE_URL_ITTOOLS_80
+      - SERVICE_URL_ITTOOLS
     volumes:
       - it-tools-data:/app/data
     healthcheck:

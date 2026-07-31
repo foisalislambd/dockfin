@@ -4,12 +4,11 @@
 # tags: ai, vector-database, semantic-search, machine-learning, bm25, embeddings, llm
 # logo: svgs/qdrant.png
 # port: 6333
-
 services:
   qdrant:
     image: "qdrant/qdrant:latest"
     environment:
-      - SERVICE_URL_QDRANT_6333
+      - SERVICE_URL_QDRANT
       - QDRANT__SERVICE__API_KEY=${SERVICE_PASSWORD_QDRANTAPIKEY}
     volumes:
       - "qdrant-storage:/qdrant/storage"

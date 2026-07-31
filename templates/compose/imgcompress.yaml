@@ -4,12 +4,11 @@
 # tags: compress,photo,server,metadata
 # logo: svgs/imgcompress.png
 # port: 5000
-
 services:
   imgcompress:
     image: karimz1/imgcompress:0.6.0
     environment:
-      - SERVICE_URL_IMGCOMPRESS_5000
+      - SERVICE_URL_IMGCOMPRESS
       - DISABLE_LOGO=${DISABLE_LOGO:-false}
       - DISABLE_STORAGE_MANAGEMENT=${DISABLE_STORAGE_MANAGEMENT:-false}
     healthcheck:

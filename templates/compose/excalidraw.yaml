@@ -4,12 +4,11 @@
 # tags: canvas,diagrams,drawing,productivity,whiteboard
 # logo: svgs/excalidraw.svg
 # port: 80
-
 services:
   excalidraw:
     image: excalidraw/excalidraw:latest
     environment:
-      - SERVICE_URL_EXCALIDRAW_80
+      - SERVICE_URL_EXCALIDRAW
     healthcheck:
       test:
         - CMD

@@ -5,12 +5,11 @@
 # tags: crowdsec,security,ids,firewall,ban,threat
 # logo: svgs/crowdsec.svg
 # port: 8080
-
 services:
   crowdsec:
     image: crowdsecurity/crowdsec:v1.6.8
     environment:
-      - SERVICE_URL_CROWDSEC_8080
+      - SERVICE_URL_CROWDSEC
       - COLLECTIONS=crowdsecurity/linux crowdsecurity/traefik
       - GID=1000
       - TZ=${TZ:-UTC}

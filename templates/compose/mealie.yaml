@@ -4,12 +4,11 @@
 # tags: recipe manager, meal planner, cooking, food
 # logo: svgs/mealie.png
 # port: 9000
-
 services:
   mealie:
     image: 'ghcr.io/mealie-recipes/mealie:3.17.0'
     environment:
-      - SERVICE_URL_MEALIE_9000
+      - SERVICE_URL_MEALIE
       - ALLOW_SIGNUP=${ALLOW_SIGNUP:-true}
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}

@@ -4,7 +4,6 @@
 # tags: irc, bouncer, chat, messaging, relay
 # logo: svgs/soju.svg
 # port: 80
-
 services:
   soju:
     image: codeberg.org/emersion/soju:latest
@@ -30,7 +29,7 @@ services:
   gamja:
     image: codeberg.org/emersion/gamja:latest
     environment:
-      - SERVICE_FQDN_GAMJA_80
+      - SERVICE_FQDN_GAMJA
     depends_on:
       - soju
 

@@ -5,12 +5,11 @@
 # tags: linkwarden,bookmarks,archive,links,productivity
 # logo: svgs/linkwarden.svg
 # port: 3000
-
 services:
   linkwarden:
     image: ghcr.io/linkwarden/linkwarden:v2.9.3
     environment:
-      - SERVICE_URL_LINKWARDEN_3000
+      - SERVICE_URL_LINKWARDEN
       - NEXTAUTH_URL=${SERVICE_URL_LINKWARDEN}
       - NEXTAUTH_SECRET=${SERVICE_PASSWORD_SECRET}
       - DATABASE_URL=postgresql://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgresql:5432/${POSTGRES_DB:-linkwarden}

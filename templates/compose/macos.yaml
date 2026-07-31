@@ -5,14 +5,13 @@
 # tags: macos, virtualization, container, os
 # logo: svgs/macos.svg
 # port: 8006
-
 services:
   macos:
     image: dockurr/macos
     volumes:
       - macos-storage:/storage
     environment:
-      - SERVICE_URL_MACOS_8006
+      - SERVICE_URL_MACOS
       - VERSION=15
     devices:
       - /dev/kvm:/dev/kvm

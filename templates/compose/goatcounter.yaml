@@ -4,12 +4,11 @@
 # tags: analytics, insights, privacy
 # logo: svgs/goatcounter.svg
 # port: 8080
-
 services:
   goatcounter:
     image: arp242/goatcounter:2.7
     environment:
-      - SERVICE_URL_GOATCOUNTER_8080
+      - SERVICE_URL_GOATCOUNTER
     volumes:
       - goatcounter-data:/home/goatcounter/goatcounter-data
     healthcheck:

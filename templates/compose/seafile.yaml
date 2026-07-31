@@ -4,14 +4,13 @@
 # tags: file-manager,file-sharing,storage
 # logo: svgs/seafile.svg
 # port: 80
-
 services:
   seafile:
     image: seafileltd/seafile-mc:12.0-latest
     volumes:
       - seafile-data:/shared
     environment:
-      - SERVICE_URL_SEAFILE_80
+      - SERVICE_URL_SEAFILE
       - SEAFILE_SERVER_HOSTNAME=${SERVICE_FQDN_SEAFILE}
       - DB_HOST=mariadb
       - DB_PORT=3306

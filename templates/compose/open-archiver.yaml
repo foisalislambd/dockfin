@@ -4,12 +4,11 @@
 # tags: email archiving,email,compliance,search
 # logo: svgs/openarchiver.svg
 # port: 3000
-
 services:
   open-archiver:
     image: logiclabshq/open-archiver:latest
     environment:
-      - SERVICE_URL_OPENARCHIVER_3000
+      - SERVICE_URL_OPENARCHIVER
       - ENCRYPTION_KEY=${SERVICE_HEX_64_ENCRYPTIONKEY}
       - STORAGE_ENCRYPTION_KEY=${SERVICE_HEX_64_STORAGEENCRYPTIONKEY}
       - PORT_BACKEND=${PORT_BACKEND:-4000}

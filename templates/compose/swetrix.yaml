@@ -4,14 +4,13 @@
 # tags: analytics,privacy,monitoring,open-source,clickhouse,redis
 # logo: svgs/swetrix.svg
 # port: 3000
-
 services:
   swetrix:
     image: swetrix/swetrix-fe:v4.0.5
     depends_on:
       - swetrix-api
     environment:
-      - SERVICE_URL_SWETRIX_3000
+      - SERVICE_URL_SWETRIX
       - API_URL=$SERVICE_URL_SWETRIXAPI
     healthcheck:
       test:

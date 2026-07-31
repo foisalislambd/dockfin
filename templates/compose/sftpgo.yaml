@@ -4,14 +4,13 @@
 # tags: sftpgo,sftp,ftp,file,webdav
 # logo: svgs/sftpgo.png
 # port: 8080
-
 services:
   sftpgo:
     image: ghcr.io/drakkan/sftpgo:v2.7-alpine
     ports:
       - 2222:2222
     environment:
-      - SERVICE_FQDN_SFTPGO_8080
+      - SERVICE_FQDN_SFTPGO
       - SFTPGO_DATA_PROVIDER__DRIVER=postgresql
       - SFTPGO_DATA_PROVIDER__CONNECTION_STRING=postgresql://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_64_POSTGRES}@postgresql:5432/${POSTGRES_DATABASE:-sftpgo-db}
       - SFTPGO_SFTPD__BINDINGS__0__PORT=${PORT_SFTPGO:-2222}

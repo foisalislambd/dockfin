@@ -4,7 +4,6 @@
 # tags: joplin
 # logo: svgs/joplin.png
 # port: 22300
-
 services:
   postgres:
     image: 'postgres:16'
@@ -31,7 +30,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      - SERVICE_URL_JOPLIN_22300
+      - SERVICE_URL_JOPLIN
       - APP_BASE_URL=${SERVICE_URL_JOPLIN}
       - DB_CLIENT=pg
       - POSTGRES_PASSWORD=${SERVICE_PASSWORD_64_POSTGRES}

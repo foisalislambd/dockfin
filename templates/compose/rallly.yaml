@@ -4,7 +4,6 @@
 # tags: scheduling,rallly,events,meeting,doodle
 # logo: svgs/rallly.svg
 # port: 3000
-
 services:
   rallly_db:
     image: postgres:14.2
@@ -29,7 +28,7 @@ services:
       rallly_db:
         condition: service_healthy
     environment:
-      - SERVICE_URL_RALLLY_3000
+      - SERVICE_URL_RALLLY
       - DATABASE_URL=postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@rallly_db:5432/${POSTGRES_DB:-rallly}
       - SECRET_PASSWORD=${SERVICE_PASSWORD_64_RALLLY}
       - NEXT_PUBLIC_BASE_URL=${SERVICE_URL_RALLLY}

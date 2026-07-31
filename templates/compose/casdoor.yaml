@@ -5,12 +5,11 @@
 # tags: casdoor,iam,oauth,oidc,saml,authentication,sso
 # logo: svgs/casdoor.svg
 # port: 8000
-
 services:
   casdoor:
     image: casbin/casdoor:v1.804.0
     environment:
-      - SERVICE_URL_CASDOOR_8000
+      - SERVICE_URL_CASDOOR
       - origin=${SERVICE_URL_CASDOOR}
       - RUNNING_IN_DOCKER=true
       - driverName=postgres

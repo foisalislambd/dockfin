@@ -4,12 +4,11 @@
 # tags: file-management, storage-access, data-organization, file-utilization, administration-tool
 # logo: svgs/filebrowser.svg
 # port: 80
-
 services:
   filebrowser:
     image: filebrowser/filebrowser:latest
     environment:
-      - SERVICE_URL_FILEBROWSER_80
+      - SERVICE_URL_FILEBROWSER
     volumes:
       - type: bind
         source: ./srv

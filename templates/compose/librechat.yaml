@@ -4,12 +4,11 @@
 # tags: ai,chat,gpt,claude,palm,openai,azure,huggingface,anthropic,ollama,llm
 # logo: svgs/librechat.svg
 # port: 3080
-
 services:
   librechat:
     image: ghcr.io/danny-avila/librechat-dev-api:6ecd1b510faaa593ad954fb6276c18e5f12a8e53 # Released on April 2
     environment:
-      - SERVICE_URL_LIBRECHAT_3080
+      - SERVICE_URL_LIBRECHAT
       - DOMAIN_CLIENT=${SERVICE_URL_LIBRECHAT}
       - DOMAIN_SERVER=${SERVICE_URL_LIBRECHAT}
       - HOST=0.0.0.0

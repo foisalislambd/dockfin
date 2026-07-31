@@ -4,14 +4,13 @@
 # tags: identity,login,user,oauth,openid,oidc,authentication,saml,auth0,okta
 # logo: svgs/authentik.png
 # port: 9000
-
 services:
   authentik-server:
     image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG:-2025.10.3}
     restart: unless-stopped
     command: server
     environment:
-      - SERVICE_URL_AUTHENTIKSERVER_9000
+      - SERVICE_URL_AUTHENTIKSERVER
       - AUTHENTIK_POSTGRESQL__HOST=${POSTGRES_HOST:-postgresql}
       - AUTHENTIK_POSTGRESQL__USER=${SERVICE_USER_POSTGRESQL}
       - AUTHENTIK_POSTGRESQL__NAME=${POSTGRES_DB:-authentik}

@@ -4,12 +4,11 @@
 # tags: documentation
 # logo: svgs/docuseal.png
 # port: 3000
-
 services:
   docuseal:
     image: docuseal/docuseal:latest
     environment:
-      - SERVICE_URL_DOCUSEAL_3000
+      - SERVICE_URL_DOCUSEAL
       - HOST=${SERVICE_URL_DOCUSEAL}
     volumes:
       - docuseal-data:/data

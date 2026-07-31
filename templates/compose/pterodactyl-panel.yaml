@@ -5,7 +5,6 @@
 # tags: game, game server, management, panel, minecraft
 # logo: svgs/pterodactyl.png
 # port: 80
-
 services:
   mariadb:
     image: mariadb:11.8
@@ -75,7 +74,7 @@ services:
     environment:
       - HASHIDS_SALT=$SERVICE_PASSWORD_HASHIDS
       - HASHIDS_LENGTH=8
-      - SERVICE_URL_PTERODACTYL_80
+      - SERVICE_URL_PTERODACTYL
       - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
       - ADMIN_USERNAME=${SERVICE_USER_ADMIN}
       - ADMIN_FIRSTNAME=${ADMIN_FIRSTNAME:-Admin}

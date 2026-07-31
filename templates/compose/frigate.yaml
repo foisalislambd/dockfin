@@ -5,12 +5,11 @@
 # tags: frigate,nvr,cameras,ai,detection,security
 # logo: svgs/frigate.svg
 # port: 5000
-
 services:
   frigate:
     image: ghcr.io/blakeblackshear/frigate:0.15.0
     environment:
-      - SERVICE_URL_FRIGATE_5000
+      - SERVICE_URL_FRIGATE
       - FRIGATE_RTSP_PASSWORD=${SERVICE_PASSWORD_RTSP}
       - TZ=${TZ:-UTC}
     volumes:

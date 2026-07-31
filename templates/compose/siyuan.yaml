@@ -4,14 +4,13 @@
 # category: documentation
 # logo: svgs/siyuan.svg
 # port: 6806
-
 services:
   siyuan:
     image: b3log/siyuan:v3.3.5
     volumes:
       - 'siyuan_workspace:/siyuan/workspace'
     environment:
-      - SERVICE_URL_SIYUAN_6806
+      - SERVICE_URL_SIYUAN
       - TZ=${TZ:-UTC}
       - PUID=1000
       - PGID=1000

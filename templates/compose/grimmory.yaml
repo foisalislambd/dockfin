@@ -3,12 +3,11 @@
 # tags: books,ebooks,library,reader
 # logo: svgs/grimmory.svg
 # port: 80
-
 services:
   grimmory:
     image: 'grimmory/grimmory:nightly-20260403-3a371f7' # Released on April 3 2026
     environment:
-      - SERVICE_URL_GRIMMORY_80
+      - SERVICE_URL_GRIMMORY
       - 'USER_ID=${GRIMMORY_USER_ID:-0}'
       - 'GROUP_ID=${GRIMMORY_GROUP_ID:-0}'
       - 'TZ=${TZ:-UTC}'

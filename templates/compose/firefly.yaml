@@ -4,12 +4,11 @@
 # tags: finance, money, personal, manager
 # logo: svgs/firefly.svg
 # port: 8080
-
 services:
   firefly:
     image: fireflyiii/core:latest
     environment:
-      - SERVICE_URL_FIREFLY_8080
+      - SERVICE_URL_FIREFLY
       - APP_KEY=$SERVICE_BASE64_APPKEY
       - DB_HOST=mysql
       - DB_PORT=3306

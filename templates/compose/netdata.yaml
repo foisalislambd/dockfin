@@ -5,13 +5,12 @@
 # tags: netdata,monitoring,metrics,infrastructure,realtime
 # logo: svgs/netdata.svg
 # port: 19999
-
 services:
   netdata:
     image: netdata/netdata:v2.5.1
     hostname: netdata
     environment:
-      - SERVICE_URL_NETDATA_19999
+      - SERVICE_URL_NETDATA
       - NETDATA_CLAIM_TOKEN=${NETDATA_CLAIM_TOKEN:-}
       - NETDATA_CLAIM_URL=${NETDATA_CLAIM_URL:-https://app.netdata.cloud}
       - DOCKER_HOST=unix:///var/run/docker.sock

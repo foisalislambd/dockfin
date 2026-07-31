@@ -4,14 +4,13 @@
 # tags: ai,vector-database,semantic-search,machine-learning,bm25,embeddings,llm
 # logo: svgs/chroma.svg
 # port: 8000
-
 services:
   chromadb:
     image: chromadb/chroma:1.0.15
     volumes:
       - chroma-data:/data
     environment:
-      - SERVICE_URL_CHROMA_8000
+      - SERVICE_URL_CHROMA
       - IS_PERSISTENT=TRUE
       - PERSIST_DIRECTORY=/data
     healthcheck:

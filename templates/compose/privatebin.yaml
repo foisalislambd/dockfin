@@ -4,12 +4,11 @@
 # tags: text, sharing
 # logo: svgs/privatebin.svg
 # port: 8080
-
 services:
   privatebin:
     image: privatebin/nginx-fpm-alpine
     environment:
-      - SERVICE_URL_PRIVATEBIN_8080
+      - SERVICE_URL_PRIVATEBIN
     volumes:
       - privatebin_data:/srv/data
     healthcheck:

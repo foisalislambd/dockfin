@@ -4,14 +4,13 @@
 # tags: beszel,monitoring,server,stats,alerts
 # logo: svgs/beszel.svg
 # port: 8090
-
 # When adding a System in the UI, the Host/IP must be beszel-agent (or the container name, ex: beszel-agent-pswog4s8wks4o8osw44cw0k8)
 # Add the public Key in "Key" env variable and token in the "Token" variable below (These are obtained from Beszel UI)
 services:
   beszel:
     image: 'henrygd/beszel:0.18.7' # Released on 6 April 2026
     environment:
-      - SERVICE_URL_BESZEL_8090
+      - SERVICE_URL_BESZEL
       - CONTAINER_DETAILS=${CONTAINER_DETAILS:-true}
       - SHARE_ALL_SYSTEMS=${SHARE_ALL_SYSTEMS:-false}
     volumes:

@@ -4,12 +4,11 @@
 # tags: browser, web, privacy
 # logo: svgs/firefox.svg
 # port: 5800
-
 services:
   firefox:
     image: jlesage/firefox
     environment:
-      - SERVICE_URL_FIREFOX_5800
+      - SERVICE_URL_FIREFOX
     volumes:
       - firefox_config:/config
     healthcheck:

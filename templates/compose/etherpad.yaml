@@ -5,12 +5,11 @@
 # tags: etherpad,collaboration,editor,realtime,documents
 # logo: svgs/etherpad.svg
 # port: 9001
-
 services:
   etherpad:
     image: etherpad/etherpad:2.2.7
     environment:
-      - SERVICE_URL_ETHERPAD_9001
+      - SERVICE_URL_ETHERPAD
       - TRUST_PROXY=true
       - TITLE=${ETHERPAD_TITLE:-Etherpad}
       - DEFAULT_PAD_TEXT=${ETHERPAD_DEFAULT_PAD_TEXT:-Welcome to Etherpad!}

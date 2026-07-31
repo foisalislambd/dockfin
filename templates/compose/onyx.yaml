@@ -5,12 +5,11 @@
 # tags: onyx,ai,rag,assistant,chat,search,llm
 # logo: svgs/onyx.svg
 # port: 3000
-
 services:
   frontend:
     image: onyxdotapp/onyx-web-server:latest
     environment:
-      - SERVICE_URL_ONYXWEBSERVER_3000
+      - SERVICE_URL_ONYXWEBSERVER
       - INTERNAL_URL=http://onyx-api:8080
       - WEB_DOMAIN=${SERVICE_URL_ONYXWEBSERVER}
     depends_on:

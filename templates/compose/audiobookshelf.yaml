@@ -4,12 +4,11 @@
 # tags: audiobooks, ebooks, podcasts, server, self-hosted
 # logo: svgs/audiobookshelf.svg
 # port: 80
-
 services:
   audiobookshelf:
     image: ghcr.io/advplyr/audiobookshelf:2.34.0
     environment:
-      - SERVICE_URL_AUDIOBOOKSHELF_80
+      - SERVICE_URL_AUDIOBOOKSHELF
       - TZ=${TIMEZONE:-America/Toronto}
     volumes:
       - audiobookshelf-audiobooks:/audiobooks

@@ -4,14 +4,13 @@
 # tags: web, alert, monitor
 # logo: svgs/changedetection.png
 # port: 5000
-
 services:
   changedetection:
     image: ghcr.io/dgtlmoon/changedetection.io
     volumes:
       - changedetection-data:/datastore
     environment:
-      - SERVICE_URL_CHANGEDETECTION_5000
+      - SERVICE_URL_CHANGEDETECTION
       - BASE_URL=${SERVICE_URL_CHANGEDETECTION}
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}

@@ -4,11 +4,10 @@
 # tags: note-taking,microblog,social-network,markdown
 # logo: svgs/memos.png
 # port: 5230
-
 services:
   memos:
     image: neosmemo/memos:stable
     volumes:
       - memos/:/var/opt/memos
     environment:
-      - SERVICE_URL_MEMOS_5230
+      - SERVICE_URL_MEMOS

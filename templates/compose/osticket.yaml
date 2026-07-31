@@ -4,12 +4,11 @@
 # tags: helpdesk, ticketing, support, open-source
 # logo: svgs/osticket.png
 # port: 80
-
 services:
   osticket:
     image: tiredofit/osticket:latest
     environment:
-      - SERVICE_URL_OSTICKET_80
+      - SERVICE_URL_OSTICKET
       - APP_URL=${SERVICE_URL_OSTICKET}
       - CRON_INTERVAL=${CRON_INTERVAL:-10}
       - DB_HOST=mariadb

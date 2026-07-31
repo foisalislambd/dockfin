@@ -9,7 +9,7 @@ services:
   slash:
     image: yourselfhosted/slash
     environment:
-      - SERVICE_URL_SLASH_5231
+      - SERVICE_URL_SLASH
     volumes:
       - slash-data:/var/opt/slash
     healthcheck:

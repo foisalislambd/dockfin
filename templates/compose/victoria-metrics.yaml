@@ -5,7 +5,6 @@
 # tags: victoriametrics,metrics,prometheus,timeseries,monitoring
 # logo: svgs/victoria-metrics.svg
 # port: 8428
-
 services:
   victoria-metrics:
     image: victoriametrics/victoria-metrics:v1.117.1
@@ -14,6 +13,6 @@ services:
       - --httpListenAddr=:8428
       - --retentionPeriod=12
     environment:
-      - SERVICE_URL_VICTORIAMETRICS_8428
+      - SERVICE_URL_VICTORIAMETRICS
     volumes:
       - victoria-metrics-data:/victoria-metrics-data

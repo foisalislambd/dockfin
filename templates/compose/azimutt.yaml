@@ -5,7 +5,6 @@
 # tags: erd, entity-relationship diagram, database tool, database schema, diagram
 # logo: svgs/azimutt.png
 # port: 4000
-
 services:
   postgres:
     image: postgres:15
@@ -76,7 +75,7 @@ services:
       minio:
         condition: service_healthy
     environment:
-      - SERVICE_URL_AZIMUTT_4000
+      - SERVICE_URL_AZIMUTT
       - SENTRY=false
       - PHX_SERVER=true
       - PHX_HOST=$SERVICE_URL_AZIMUTT

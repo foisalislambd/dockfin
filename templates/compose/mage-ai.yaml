@@ -4,13 +4,12 @@
 # tags: data,dbt,etl,pipelines
 # logo: svgs/mage-ai.svg
 # port: 6789
-
 services:
   mage-ai:
     image: 'mageai/mageai:0.9.78'
     command: 'mage start default_project'
     environment:
-      - SERVICE_URL_MAGEAI_6789
+      - SERVICE_URL_MAGEAI
       - PROJECT_NAME=default_project
       - USER_CODE_PATH=/home/src/default_project
       - ENV=production

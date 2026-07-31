@@ -4,12 +4,11 @@
 # tags: photos,gallery,backup,encryption,privacy,self-hosted,google-photos,alternative
 # logo: svgs/ente-photos.svg
 # port: 8080
-
 services:
   museum:
     image: ghcr.io/ente-io/server:latest
     environment:
-      - SERVICE_URL_MUSEUM_8080
+      - SERVICE_URL_MUSEUM
 
       - ENTE_HTTP_USE_TLS=${ENTE_HTTP_USE_TLS:-false}
 

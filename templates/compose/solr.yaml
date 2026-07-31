@@ -5,12 +5,11 @@
 # tags: solr,apache,search,lucene,indexing
 # logo: svgs/solr.svg
 # port: 8983
-
 services:
   solr:
     image: solr:9.8.0
     environment:
-      - SERVICE_URL_SOLR_8983
+      - SERVICE_URL_SOLR
       - SOLR_HEAP=512m
     volumes:
       - solr-data:/var/solr

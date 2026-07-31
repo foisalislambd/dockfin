@@ -5,13 +5,12 @@
 # tags: milvus,vector,embeddings,ai,search,database
 # logo: svgs/milvus.svg
 # port: 9091
-
 services:
   app:
     image: milvusdb/milvus:v2.5.4
     command: ["milvus", "run", "standalone"]
     environment:
-      - SERVICE_URL_MILVUS_9091
+      - SERVICE_URL_MILVUS
       - ETCD_ENDPOINTS=etcd:2379
       - MINIO_ADDRESS=minio:9000
       - MINIO_ACCESS_KEY_ID=${SERVICE_USER_MINIO}

@@ -4,14 +4,13 @@
 # tags: cms, blog, content, management, system
 # logo: svgs/ghost.svg
 # port: 2368
-
 services:
   ghost:
     image: ghost:5
     volumes:
       - ghost-content-data:/var/lib/ghost/content
     environment:
-      - SERVICE_URL_GHOST_2368
+      - SERVICE_URL_GHOST
       - url=$SERVICE_URL_GHOST
       - database__client=mysql
       - database__connection__host=mysql

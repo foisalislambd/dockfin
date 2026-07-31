@@ -4,12 +4,11 @@
 # tags: productivity, self-hosted, developer-tools, time-tracker, wakatime, wakatime-api, coding-statistics, statistics, timetracking, analytics
 # logo: svgs/wakapi.svg
 # port: 3000
-
 services:
   wakapi:
     image: ghcr.io/muety/wakapi:latest
     environment:
-      - SERVICE_URL_WAKAPI_3000
+      - SERVICE_URL_WAKAPI
       - TZ=${TIMEZONE:-Europe/Berlin}
 
       - WAKAPI_SERVER_LISTEN_IPV6="-"

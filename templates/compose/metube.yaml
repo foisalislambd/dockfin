@@ -9,7 +9,7 @@ services:
   metube:
     image: ghcr.io/alexta69/metube:latest
     environment:
-      - SERVICE_URL_METUBE_8081
+      - SERVICE_URL_METUBE
       - UID=1000
       - GID=1000
     volumes:

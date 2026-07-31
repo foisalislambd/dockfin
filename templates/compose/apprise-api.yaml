@@ -4,12 +4,11 @@
 # tags: api, apprise
 # logo: svgs/apprise.png
 # port: 8000
-
 services:
   apprise-api:
     image: linuxserver/apprise-api:latest
     environment:
-      - SERVICE_URL_APPRISE_8000
+      - SERVICE_URL_APPRISE
       - PUID=1000
       - PGID=1000
       - TZ=UTC

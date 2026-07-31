@@ -5,12 +5,11 @@
 # tags: taiga,agile,scrum,kanban,project,management
 # logo: svgs/taiga.svg
 # port: 80
-
 services:
   nginx:
     image: nginx:1.27-alpine
     environment:
-      - SERVICE_URL_TAIGAGATEWAY_80
+      - SERVICE_URL_TAIGAGATEWAY
     volumes:
       - taiga-static:/taiga-static
       - taiga-media:/taiga-media

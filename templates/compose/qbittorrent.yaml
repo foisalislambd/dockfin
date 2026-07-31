@@ -4,7 +4,6 @@
 # tags: torrent, streaming, webui
 # logo: svgs/qbittorrent.svg
 # port: 8080
-
 services:
   qbit:
     image: "lscr.io/linuxserver/qbittorrent:latest"
@@ -30,7 +29,7 @@ services:
   vuetorrent-backend:
     image: "ghcr.io/vuetorrent/vuetorrent-backend:latest"
     environment:
-      - SERVICE_URL_QBITORRENT_8080
+      - SERVICE_URL_QBITORRENT
       - PORT=${WEBUI_PORT:-8080}
       - QBIT_BASE=${SERVICE_URL_QBITORRENT}
       - RELEASE_TYPE=${RELEASE_TYPE:-stable}

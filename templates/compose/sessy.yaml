@@ -4,12 +4,11 @@
 # tags: email, observability, monitoring, analytics
 # logo: svgs/sessy.svg
 # port: 80
-
 services:
   sessy:
     image: ghcr.io/marckohlbrugge/sessy:main
     environment:
-      - SERVICE_URL_SESSY_80
+      - SERVICE_URL_SESSY
       - SECRET_KEY_BASE=$SERVICE_HEX_64_SESSYSECRET
       - HTTP_AUTH_USERNAME=$SERVICE_USER_SESSY
       - HTTP_AUTH_PASSWORD=$SERVICE_PASSWORD_SESSY

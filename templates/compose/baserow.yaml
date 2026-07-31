@@ -5,12 +5,11 @@
 # tags: baserow,nocode,database,airtable,spreadsheet,collaboration
 # logo: svgs/baserow.svg
 # port: 80
-
 services:
   baserow:
     image: baserow/baserow:1.33.3
     environment:
-      - SERVICE_URL_BASEROW_80
+      - SERVICE_URL_BASEROW
       - BASEROW_PUBLIC_URL=${SERVICE_URL_BASEROW}
       - SECRET_KEY=${SERVICE_PASSWORD_SECRET}
       - DATABASE_PASSWORD=${SERVICE_PASSWORD_POSTGRES}

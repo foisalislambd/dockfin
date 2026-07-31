@@ -4,12 +4,11 @@
 # tags: captcha,security,privacy,proof-of-work
 # logo: svgs/cap-captcha.png
 # port: 3000
-
 services:
   cap:
     image: tiago2/cap:3.0.4 # Released on 22nd April 2026
     environment:
-      - SERVICE_URL_CAP_3000
+      - SERVICE_URL_CAP
       - ADMIN_KEY=$SERVICE_PASSWORD_ADMIN
       - REDIS_URL=redis://valkey:6379
     healthcheck:

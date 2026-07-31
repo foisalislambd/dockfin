@@ -5,12 +5,11 @@
 # tags: docspell,documents,dms,ocr,search,paperless
 # logo: svgs/docspell.svg
 # port: 7880
-
 services:
   app:
     image: docspell/restserver:0.42.0
     environment:
-      - SERVICE_URL_DOCSPELLRESTSERVER_7880
+      - SERVICE_URL_DOCSPELLRESTSERVER
       - DOCSPELL_SERVER_INTERNAL__URL=http://app:7880
       - DOCSPELL_SERVER_AUTH_SERVER__SECRET=${SERVICE_PASSWORD_SECRET}
       - DOCSPELL_SERVER_BACKEND_JDBC_URL=jdbc:postgresql://postgresql:5432/${POSTGRES_DB:-docspell}

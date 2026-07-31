@@ -5,12 +5,11 @@
 # tags: timescaledb,postgresql,timeseries,database,analytics
 # logo: svgs/timescaledb.svg
 # port: 5432
-
 services:
   timescaledb:
     image: timescale/timescaledb:2.19.3-pg16
     environment:
-      - SERVICE_URL_TIMESCALEDB_5432
+      - SERVICE_URL_TIMESCALEDB
       - POSTGRES_USER=${SERVICE_USER_POSTGRES}
       - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
       - POSTGRES_DB=${POSTGRES_DB:-timeseries}

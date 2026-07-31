@@ -4,12 +4,11 @@
 # tags: analytics, web, privacy, self-hosted, clickhouse, postgres
 # logo: svgs/rybbit.svg
 # port: 3002
-
 services:
   rybbit:
     image: 'ghcr.io/rybbit-io/rybbit-client:v2.2.3'
     environment:
-      - SERVICE_URL_RYBBIT_3002
+      - SERVICE_URL_RYBBIT
       - NODE_ENV=production
       - 'NEXT_PUBLIC_BACKEND_URL=${SERVICE_URL_RYBBIT}'
       - 'NEXT_PUBLIC_DISABLE_SIGNUP=${DISABLE_SIGNUP:-false}'

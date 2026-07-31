@@ -4,12 +4,11 @@
 # tags: dashboard, personal, self-hostable
 # logo: svgs/dashy.png
 # port: 8080
-
 services:
   dashy:
     image: lissy93/dashy
     environment:
-      - SERVICE_URL_DASHY_8080
+      - SERVICE_URL_DASHY
       - PUID=1000
       - PGID=1000
       - TZ=${TIMEZONE:-UTC}

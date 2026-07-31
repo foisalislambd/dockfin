@@ -4,7 +4,6 @@
 # tags: vulnerability, management, tool
 # logo: svgs/faraday.png
 # port: 5985
-
 services:
   postgresql:
     image: postgres:latest
@@ -38,7 +37,7 @@ services:
     image: faradaysec/faraday:latest
     entrypoint: /entrypoint.sh
     environment:
-      - SERVICE_URL_FARADAY_5985
+      - SERVICE_URL_FARADAY
       - AUTHENTIK_POSTGRESQL__PASSWORD=${SERVICE_PASSWORD_POSTGRESQL}
       - PGSQL_USER=${SERVICE_USER_POSTGRESQL}
       - PGSQL_PASSWD=${SERVICE_PASSWORD_POSTGRESQL}

@@ -5,12 +5,11 @@
 # tags: zwave,zwave-js,mqtt,iot,smarthome
 # logo: svgs/zwave-js-ui.svg
 # port: 8091
-
 services:
   zwave-js-ui:
     image: zwavejs/zwave-js-ui:9.29.0
     environment:
-      - SERVICE_URL_ZWAVEJSUI_8091
+      - SERVICE_URL_ZWAVEJSUI
       - SESSION_SECRET=${SERVICE_PASSWORD_SESSION}
       - TZ=${TZ:-UTC}
     volumes:

@@ -4,7 +4,6 @@
 # tags: signing, opensource, document, pdf, e-signature, digital-signature, document-signing, pdf-signing, docusign
 # logo: svgs/documenso.png
 # port: 3000
-
 services:
   documenso:
     image: documenso/documenso:v1.12.10 # Released at Oct 9, 2025
@@ -12,7 +11,7 @@ services:
       database:
         condition: service_healthy
     environment:
-      - SERVICE_URL_DOCUMENSO_3000
+      - SERVICE_URL_DOCUMENSO
       - NEXTAUTH_URL=${SERVICE_URL_DOCUMENSO}
       - NEXTAUTH_SECRET=${SERVICE_BASE64_AUTHSECRET}
       - NEXT_PRIVATE_ENCRYPTION_KEY=${SERVICE_BASE64_ENCRYPTIONKEY}

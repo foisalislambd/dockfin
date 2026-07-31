@@ -5,12 +5,11 @@
 # tags: backrest,restic,backup,restore,scheduler
 # logo: svgs/backrest.svg
 # port: 9898
-
 services:
   backrest:
     image: garethgeorge/backrest:v1.8.1
     environment:
-      - SERVICE_URL_BACKREST_9898
+      - SERVICE_URL_BACKREST
       - BACKREST_PORT=9898
       - BACKREST_DATA=/data
       - BACKREST_CONFIG=/config/config.json

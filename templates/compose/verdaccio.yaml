@@ -5,12 +5,11 @@
 # tags: verdaccio,npm,registry,packages,javascript,nodejs
 # logo: svgs/verdaccio.svg
 # port: 4873
-
 services:
   verdaccio:
     image: verdaccio/verdaccio:6.1.2
     environment:
-      - SERVICE_URL_VERDACCIO_4873
+      - SERVICE_URL_VERDACCIO
       - VERDACCIO_PORT=4873
     volumes:
       - verdaccio-storage:/verdaccio/storage

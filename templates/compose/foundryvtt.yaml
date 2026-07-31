@@ -4,14 +4,13 @@
 # tags: foundryvtt,foundry,vtt,ttrpg,roleplaying
 # logo: svgs/foundryvtt.png
 # port: 30000
-
 services:
   foundryvtt:
     image: felddy/foundryvtt:release
     expose:
     - 30000
     environment:
-    - SERVICE_URL_FOUNDRY_30000
+    - SERVICE_URL_FOUNDRY
     # Account username or email address for foundryvtt.com. Required for downloading an application distribution.
     - FOUNDRY_USERNAME=${FOUNDRY_USERNAME}
     # Account password for foundryvtt.com. Required for downloading an application distribution.

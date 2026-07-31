@@ -4,7 +4,6 @@
 # tags: chat,slack,discord,voip,video,call,matrix,synapse,sqlite
 # logo: svgs/matrix.svg
 # port: 8008
-
 # IMPORTANT: SYNAPSE_SERVER_NAME is permanent and cannot be changed after first deployment!
 # - If hosting at matrix.example.org but want user IDs like @user:example.org, set SYNAPSE_SERVER_NAME=example.org
 # - You'll need to set up .well-known delegation at https://example.org/.well-known/matrix/server
@@ -14,7 +13,7 @@ services:
   synapse:
     image: matrixdotorg/synapse:latest
     environment:
-      - SERVICE_URL_SYNAPSE_8008
+      - SERVICE_URL_SYNAPSE
       - SYNAPSE_SERVER_NAME=${SYNAPSE_SERVER_NAME:?}
       - SYNAPSE_REPORT_STATS=${SYNAPSE_REPORT_STATS:-no}
       - ENABLE_REGISTRATION=${ENABLE_REGISTRATION:-false}

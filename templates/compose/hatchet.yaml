@@ -11,7 +11,7 @@ services:
     command: sh ./entrypoint.sh --config /hatchet/config
     environment:
       - DATABASE_URL=postgres://$SERVICE_USER_POSTGRES:$SERVICE_PASSWORD_POSTGRES@postgres:5432/$POSTGRES_DB
-      - SERVICE_URL_HATCHET_80
+      - SERVICE_URL_HATCHET
       # Default credentials are "admin@example.com" and "Admin123!!"
     depends_on:
       postgres:
@@ -65,7 +65,7 @@ services:
     image: rabbitmq:3-management
     hostname: "rabbitmq"
     environment:
-      - SERVICE_URL_RABBITMQ_15672
+      - SERVICE_URL_RABBITMQ
       - RABBITMQ_DEFAULT_USER=$SERVICE_USER_RABBITMQ
       - RABBITMQ_DEFAULT_PASS=$SERVICE_PASSWORD_RABBITMQ
       - PORT=${RABBITMQ_PORT:-5672}

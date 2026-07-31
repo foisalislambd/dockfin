@@ -5,12 +5,11 @@
 # tags: nodered,node-red,iot,automation,flows,mqtt
 # logo: svgs/node-red.svg
 # port: 1880
-
 services:
   node-red:
     image: nodered/node-red:4.0.9
     environment:
-      - SERVICE_URL_NODERED_1880
+      - SERVICE_URL_NODERED
       - TZ=${TZ:-UTC}
       - NODE_RED_CREDENTIAL_SECRET=${SERVICE_PASSWORD_CREDENTIAL}
     volumes:

@@ -4,7 +4,6 @@
 # tags: owncloud,file-management,open-web-ui,integration,cloud
 # logo: svgs/owncloud.svg
 # port: 8080
-
 services:
   owncloud:
     image: owncloud/server:latest
@@ -14,7 +13,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      - SERVICE_URL_OWNCLOUD_8080
+      - SERVICE_URL_OWNCLOUD
       - OWNCLOUD_DOMAIN=${SERVICE_FQDN_OWNCLOUD}
       - OWNCLOUD_TRUSTED_DOMAINS=${SERVICE_FQDN_OWNCLOUD}
       - OWNCLOUD_DB_TYPE=mysql

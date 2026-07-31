@@ -4,12 +4,11 @@
 # tags: media, server, movies, tv, indexer, torrent, nzb, usenet
 # logo: svgs/prowlarr.svg
 # port: 9696
-
 services:
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
     environment:
-      - SERVICE_URL_PROWLARR_9696
+      - SERVICE_URL_PROWLARR
       - _APP_URL=$SERVICE_URL_PROWLARR
       - PUID=1000
       - PGID=1000

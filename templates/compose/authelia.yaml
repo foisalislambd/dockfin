@@ -5,12 +5,11 @@
 # tags: authelia,sso,mfa,authentication,authorization,security,oidc
 # logo: svgs/authelia.svg
 # port: 9091
-
 services:
   authelia:
     image: authelia/authelia:4.39.4
     environment:
-      - SERVICE_URL_AUTHELIA_9091
+      - SERVICE_URL_AUTHELIA
       - AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET=${SERVICE_PASSWORD_JWT}
       - AUTHELIA_SESSION_SECRET=${SERVICE_PASSWORD_SESSION}
       - AUTHELIA_STORAGE_ENCRYPTION_KEY=${SERVICE_PASSWORD_ENCRYPTION}

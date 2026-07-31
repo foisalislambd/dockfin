@@ -5,12 +5,11 @@
 # tags: kavita,comics,manga,ebooks,reader,library
 # logo: svgs/kavita.svg
 # port: 5000
-
 services:
   kavita:
     image: jvmilazz0/kavita:0.8.6
     environment:
-      - SERVICE_URL_KAVITA_5000
+      - SERVICE_URL_KAVITA
       - TZ=${TZ:-UTC}
     volumes:
       - kavita-config:/kavita/config

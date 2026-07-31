@@ -5,12 +5,11 @@
 # tags: stalwart,mail,smtp,imap,jmap,email,server
 # logo: svgs/stalwart.svg
 # port: 8080
-
 services:
   stalwart:
     image: stalwartlabs/stalwart:v0.12.1
     environment:
-      - SERVICE_URL_STALWART_8080
+      - SERVICE_URL_STALWART
     volumes:
       - stalwart-data:/opt/stalwart-mail
     healthcheck:

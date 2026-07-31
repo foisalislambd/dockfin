@@ -1,6 +1,7 @@
 package services
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -88,11 +89,12 @@ services:
 }
 
 func TestPrepareComposeMagicDomainHTTP(t *testing.T) {
-	raw := `services:
+	raw := `# port: 5678
+services:
   n8n:
     image: n8nio/n8n
     environment:
-      - SERVICE_URL_N8N_5678
+      - SERVICE_URL_N8N
       - N8N_EDITOR_BASE_URL=${SERVICE_URL_N8N}
       - N8N_PROTOCOL=${N8N_PROTOCOL:-https}
 `
@@ -125,12 +127,13 @@ func TestPrepareComposeMagicDomainHTTP(t *testing.T) {
 	}
 }
 
-func TestPrepareComposePortSuffixAndCompanionKeys(t *testing.T) {
-	raw := `services:
+func TestPrepareComposePortFromMetadata(t *testing.T) {
+	raw := `# port: 5678
+services:
   n8n:
     image: n8nio/n8n
     environment:
-      - SERVICE_URL_N8N_5678
+      - SERVICE_URL_N8N
       - N8N_EDITOR_BASE_URL=${SERVICE_URL_N8N}
       - N8N_HOST=${SERVICE_FQDN_N8N}
   redis:
@@ -145,35 +148,42 @@ func TestPrepareComposePortSuffixAndCompanionKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if env["SERVICE_URL_N8N_5678"] != "http://n8n.1.2.3.4.sslip.io" {
-		t.Fatalf("port url: %#v", env["SERVICE_URL_N8N_5678"])
-	}
 	if env["SERVICE_URL_N8N"] != "http://n8n.1.2.3.4.sslip.io" {
-		t.Fatalf("companion url missing: %#v", env)
+		t.Fatalf("url: %#v", env)
 	}
 	if env["SERVICE_FQDN_N8N"] != "n8n.1.2.3.4.sslip.io" {
-		t.Fatalf("companion fqdn missing: %#v", env)
+		t.Fatalf("fqdn: %#v", env)
 	}
 	if !strings.Contains(out, "N8N_EDITOR_BASE_URL=http://n8n.1.2.3.4.sslip.io") {
-		t.Fatalf("companion not substituted:\n%s", out)
+		t.Fatalf("url not substituted:\n%s", out)
 	}
 	if !strings.Contains(out, "loadbalancer.server.port: \"5678\"") {
-		t.Fatalf("expected traefik port 5678:\n%s", out)
+		t.Fatalf("expected traefik port 5678 from # port:\n%s", out)
 	}
 	if !strings.Contains(out, "Host(`n8n.1.2.3.4.sslip.io`)") {
 		t.Fatalf("expected host rule:\n%s", out)
 	}
+	ui := CoolifyEnvForUI(raw, env)
+	if len(ui) != 2 || ui["SERVICE_URL_N8N"] == "" || ui["SERVICE_FQDN_N8N"] == "" {
+		t.Fatalf("UI pair: %#v", ui)
+	}
 }
 
-func TestDetectProxyPortMultiSegmentName(t *testing.T) {
+func TestDetectProxyPortPrefersMetadata(t *testing.T) {
+	if got := DetectProxyPort("# port: 8080\nSERVICE_URL_GATUS", ""); got != "8080" {
+		t.Fatalf("metadata: got %q", got)
+	}
 	if got := DetectProxyPort("SERVICE_URL_MY_APP_3000", ""); got != "3000" {
-		t.Fatalf("got %q", got)
+		t.Fatalf("legacy suffix: got %q", got)
 	}
 	if got := DetectProxyPort("SERVICE_URL_N8N_5678", ""); got != "5678" {
 		t.Fatalf("got %q", got)
 	}
 	if got := DetectProxyPort("SERVICE_URL_WORDPRESS", ""); got != "80" {
 		t.Fatalf("got %q", got)
+	}
+	if got := DetectProxyPort("# port: 3001\n- SERVICE_URL_UPTIMEKUMA", "9999"); got != "9999" {
+		t.Fatalf("explicit wins: got %q", got)
 	}
 }
 
@@ -247,11 +257,12 @@ func TestCoolifyEnvForUIWordPressPair(t *testing.T) {
 	}
 }
 
-func TestCoolifyEnvForUIPortedPairOnly(t *testing.T) {
-	raw := `services:
+func TestCoolifyEnvForUIBarePair(t *testing.T) {
+	raw := `# port: 8080
+services:
   gatus:
     environment:
-      - SERVICE_URL_GATUS_8080
+      - SERVICE_URL_GATUS
 `
 	out, env, err := PrepareCompose(raw, PrepareOpts{
 		BaseURL: "http://gatus.example.com",
@@ -265,26 +276,24 @@ func TestCoolifyEnvForUIPortedPairOnly(t *testing.T) {
 	if len(ui) != 2 {
 		t.Fatalf("want 2 UI keys (URL+FQDN), got %d: %#v", len(ui), ui)
 	}
-	if ui["SERVICE_URL_GATUS_8080"] == "" || ui["SERVICE_FQDN_GATUS_8080"] == "" {
-		t.Fatalf("ported pair missing: %#v", ui)
+	if ui["SERVICE_URL_GATUS"] == "" || ui["SERVICE_FQDN_GATUS"] == "" {
+		t.Fatalf("pair missing: %#v", ui)
 	}
-	if _, ok := ui["SERVICE_URL_GATUS"]; ok {
-		t.Fatalf("companion URL must not be in UI: %#v", ui)
-	}
-	if !strings.Contains(out, "SERVICE_FQDN_GATUS_8080=gatus.example.com") {
+	if !strings.Contains(out, "SERVICE_FQDN_GATUS=gatus.example.com") {
 		t.Fatalf("FQDN pair should be persisted in compose:\n%s", out)
 	}
-	if strings.Contains(out, "SERVICE_URL_GATUS=http://") && !strings.Contains(out, "SERVICE_URL_GATUS_8080=") {
-		t.Fatalf("unexpected bare companion persist:\n%s", out)
+	if !strings.Contains(out, "loadbalancer.server.port: \"8080\"") {
+		t.Fatalf("expected port from # port:\n%s", out)
 	}
 }
 
 func TestPrepareComposeSubstitutesTopLevelConfigs(t *testing.T) {
-	raw := `services:
+	raw := `# port: 8080
+services:
   headscale:
     image: headscale/headscale
     environment:
-      - SERVICE_URL_HEADSCALE_8080
+      - SERVICE_URL_HEADSCALE
     configs:
       - source: headscale_config
         target: /etc/headscale/config.yaml
@@ -299,6 +308,38 @@ configs:
 	}
 	if !strings.Contains(out, "server_url: http://hs.example.com") {
 		t.Fatalf("config magic not substituted:\n%s", out)
+	}
+}
+
+func TestGatusConfigUsesServiceURL(t *testing.T) {
+	raw, err := os.ReadFile("../../templates/compose/gatus.yaml")
+	if err != nil {
+		t.Skip(err)
+	}
+	out, env, err := PrepareCompose(string(raw), PrepareOpts{
+		BaseURL:    "http://gatus.example.com",
+		FQDN:       "gatus.example.com",
+		Network:    "goolify",
+		RouterName: "gatus",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "name: example") {
+		t.Fatalf("placeholder example endpoint still present:\n%s", out)
+	}
+	if strings.Contains(out, "${SERVICE_URL") {
+		t.Fatalf("SERVICE_URL not substituted in gatus config:\n%s", out)
+	}
+	if !strings.Contains(out, "gatus.example.com/health") {
+		t.Fatalf("expected public health URL in config:\n%s", out)
+	}
+	if !strings.Contains(out, "loadbalancer.server.port: \"8080\"") {
+		t.Fatalf("expected traefik 8080:\n%s", out)
+	}
+	ui := CoolifyEnvForUI(string(raw), env)
+	if len(ui) != 2 || ui["SERVICE_URL_GATUS"] == "" || ui["SERVICE_FQDN_GATUS"] == "" {
+		t.Fatalf("UI pair: %#v", ui)
 	}
 }
 

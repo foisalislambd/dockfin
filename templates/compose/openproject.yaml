@@ -9,7 +9,7 @@ services:
   openproject:
     image: openproject/openproject:15.4.1
     environment:
-      - SERVICE_URL_OPENPROJECT_8080
+      - SERVICE_URL_OPENPROJECT
       - OPENPROJECT_HOST__NAME=${SERVICE_FQDN_OPENPROJECT}
       - OPENPROJECT_HTTPS=${OPENPROJECT_HTTPS:-false}
       - OPENPROJECT_SECRET_KEY_BASE=${SERVICE_PASSWORD_SECRET}

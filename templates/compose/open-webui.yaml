@@ -4,14 +4,13 @@
 # tags: ai,models,deployment,open-web-ui,integration
 # logo: svgs/openwebui.svg
 # port: 8080
-
 services:
   open-webui:
     image: "ghcr.io/open-webui/open-webui:main"
     volumes:
       - "open-webui:/app/backend/data"
     environment:
-      - SERVICE_URL_OPENWEBUI_8080
+      - SERVICE_URL_OPENWEBUI
     healthcheck:
       test:
         - CMD

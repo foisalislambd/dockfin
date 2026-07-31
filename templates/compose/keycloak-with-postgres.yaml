@@ -4,14 +4,13 @@
 # tags: keycloak,identity,access,management,iam,authentication,authorization,security,oauth2,openid-connect,sso,single-sign-on,saml,rbac,ldap,jwt,social-login
 # logo: svgs/keycloak.svg
 # port: 8080
-
 services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.1
     command:
       - start
     environment:
-      - SERVICE_URL_KEYCLOAK_8080
+      - SERVICE_URL_KEYCLOAK
       - TZ=${TIMEZONE:-UTC}
       - KC_BOOTSTRAP_ADMIN_USERNAME=${SERVICE_USER_ADMIN}
       - KC_BOOTSTRAP_ADMIN_PASSWORD=${SERVICE_PASSWORD_ADMIN}

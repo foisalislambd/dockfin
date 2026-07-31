@@ -5,12 +5,11 @@
 # tags: adguard,dns,adblock,privacy,network
 # logo: svgs/adguard-home.svg
 # port: 3000
-
 services:
   adguardhome:
     image: adguard/adguardhome:v0.107.61
     environment:
-      - SERVICE_URL_ADGUARDHOME_3000
+      - SERVICE_URL_ADGUARDHOME
     volumes:
       - adguard-work:/opt/adguardhome/work
       - adguard-conf:/opt/adguardhome/conf

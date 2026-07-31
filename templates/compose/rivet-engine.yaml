@@ -4,12 +4,11 @@
 # tags: stateful, actors, realtime, backend, serverless, postgresql
 # logo: svgs/rivet.svg
 # port: 6420
-
 services:
   rivet-engine:
     image: rivetdev/engine:2.2.0
     environment:
-      - SERVICE_URL_RIVET_6420
+      - SERVICE_URL_RIVET
       - RIVET__FILE_SYSTEM__PATH=/data
       - 'RIVET__AUTH__ADMIN_TOKEN=${SERVICE_BASE64_TOKEN}'
     volumes:

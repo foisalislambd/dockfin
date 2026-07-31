@@ -5,12 +5,11 @@
 # tags: localai,llm,openai,ai,models,inference
 # logo: svgs/localai.svg
 # port: 8080
-
 services:
   localai:
     image: localai/localai:v2.28.0-ffmpeg-core
     environment:
-      - SERVICE_URL_LOCALAI_8080
+      - SERVICE_URL_LOCALAI
       - DEBUG=${LOCALAI_DEBUG:-false}
       - THREADS=${LOCALAI_THREADS:-4}
       - CONTEXT_SIZE=${LOCALAI_CONTEXT_SIZE:-2048}

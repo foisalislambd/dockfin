@@ -4,7 +4,6 @@
 # tags: mattermost,slack,alternative
 # logo: svgs/mattermost.svg
 # port: 8065
-
 services:
   mattermost:
     image: mattermost/mattermost-team-edition:release-10
@@ -17,7 +16,7 @@ services:
       - "mattermost-data-client-plugins:/mattermost/client/plugins:rw"
       - "mattermost-data-bleve-indexes:/mattermost/bleve-indexes:rw"
     environment:
-      - SERVICE_URL_MATTERMOST_8065
+      - SERVICE_URL_MATTERMOST
       - MM_SERVICESETTINGS_SITEURL=${SERVICE_URL_MATTERMOST}
       - TZ=${TZ:-UTC}
       - MM_SQLSETTINGS_DRIVERNAME=postgres

@@ -4,7 +4,6 @@
 # tags: knowledge-management,notion,miro,workspace
 # logo: svgs/affine.svg
 # port: 3010
-
 services:
   affine:
     image: ghcr.io/toeverything/affine:stable
@@ -21,7 +20,7 @@ services:
       options:
         max-size: 1000m
     environment:
-      - SERVICE_URL_AFFINE_3010
+      - SERVICE_URL_AFFINE
       - AFFINE_CONFIG_PATH=/root/.affine/config
       - REDIS_SERVER_HOST=redis
       - DATABASE_URL=postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/${POSTGRES_DB:-affine}

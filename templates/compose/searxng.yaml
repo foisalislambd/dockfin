@@ -4,7 +4,6 @@
 # tags: search, google, engine, images, documents, rss, proxy, news, web, api
 # logo: svgs/searxng.svg
 # port: 8080
-
 services:
   searxng:
     image: searxng/searxng
@@ -12,10 +11,10 @@ services:
       redis:
         condition: service_healthy
     environment:
-      - SERVICE_URL_SEARXNG_8080
+      - SERVICE_URL_SEARXNG
       - INSTANCE_NAME=${INSTANCE_NAME:-coolify}
-      - BASE_URL=${SERVICE_URL_SEARXNG_8080}
-      - SEARXNG_URL=${SERVICE_URL_SEARXNG_8080}
+      - BASE_URL=${SERVICE_URL_SEARXNG}
+      - SEARXNG_URL=${SERVICE_URL_SEARXNG}
       - SEARXNG_BIND_ADDRESS=${SEARXNG_BIND_ADDRESS:-0.0.0.0}
       - SEARXNG_SECRET=${SERVICE_PASSWORD_SEARXNGSECRET}
       - SEARXNG_REDIS_URL=redis://redis:6379/0

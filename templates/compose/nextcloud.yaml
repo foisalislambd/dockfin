@@ -4,12 +4,11 @@
 # tags: cloud, collaboration, communication, filestorage, data
 # logo: svgs/nextcloud.svg
 # port: 80
-
 services:
   nextcloud:
     image: lscr.io/linuxserver/nextcloud:latest
     environment:
-      - SERVICE_URL_NEXTCLOUD_80
+      - SERVICE_URL_NEXTCLOUD
       - PUID=1000
       - PGID=1000
       - TZ=${TZ:-Europe/Madrid}

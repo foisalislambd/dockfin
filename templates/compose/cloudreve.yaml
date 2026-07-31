@@ -4,12 +4,11 @@
 # tags: file sharing,cloud storage,self-hosted,open-source
 # logo: svgs/cloudreve.png
 # port: 5212
-
 services:
   cloudreve:
     image: cloudreve/cloudreve:4.10.1
     environment:
-      - SERVICE_URL_CLOUDREVE_5212
+      - SERVICE_URL_CLOUDREVE
       - CR_CONF_Database.Type=postgres
       - CR_CONF_Database.Host=postgres
       - CR_CONF_Database.User=${SERVICE_USER_POSTGRES}

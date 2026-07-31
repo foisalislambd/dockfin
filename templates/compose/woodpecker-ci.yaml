@@ -5,12 +5,11 @@
 # tags: woodpecker,ci,cd,automation,pipelines,gitea,github
 # logo: svgs/woodpecker.svg
 # port: 8000
-
 services:
   app:
     image: woodpeckerci/woodpecker-server:v3.5.0
     environment:
-      - SERVICE_URL_WOODPECKERSERVER_8000
+      - SERVICE_URL_WOODPECKERSERVER
       - WOODPECKER_HOST=${SERVICE_URL_WOODPECKERSERVER}
       - WOODPECKER_OPEN=true
       - WOODPECKER_ADMIN=${WOODPECKER_ADMIN:-admin}

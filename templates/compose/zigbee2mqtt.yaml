@@ -5,12 +5,11 @@
 # tags: zigbee2mqtt,zigbee,mqtt,iot,smarthome
 # logo: svgs/zigbee2mqtt.svg
 # port: 8080
-
 services:
   zigbee2mqtt:
     image: koenkk/zigbee2mqtt:2.1.1
     environment:
-      - SERVICE_URL_ZIGBEE2MQTT_8080
+      - SERVICE_URL_ZIGBEE2MQTT
       - TZ=${TZ:-UTC}
     volumes:
       - zigbee2mqtt-data:/app/data

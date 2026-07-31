@@ -4,7 +4,6 @@
 # tags: automation, billing, open source
 # logo: svgs/paymenter.svg
 # port: 80
-
 services:
   paymenter:
     image: 'ghcr.io/paymenter/paymenter:v1.4.5'
@@ -15,7 +14,7 @@ services:
       - 'app_storage:/app/storage/app'
       - 'app_public_storage:/app/storage/app/public'
     environment:
-      SERVICE_URL_PAYMENTER: '${SERVICE_URL_PAYMENTER_80}'
+      SERVICE_URL_PAYMENTER: '${SERVICE_URL_PAYMENTER}'
       DB_DATABASE: '${MYSQL_DATABASE:-paymenter-db}'
       DB_PASSWORD: '${SERVICE_PASSWORD_MYSQL}'
       DB_USERNAME: '${SERVICE_USER_MYSQL}'

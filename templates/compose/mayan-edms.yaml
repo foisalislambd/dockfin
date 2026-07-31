@@ -5,12 +5,11 @@
 # tags: mayan,edms,documents,dms,ocr,workflow
 # logo: svgs/mayan-edms.svg
 # port: 8000
-
 services:
   mayan:
     image: mayanedms/mayanedms:v4.11.2
     environment:
-      - SERVICE_URL_MAYAN_8000
+      - SERVICE_URL_MAYAN
       - MAYAN_DATABASE_ENGINE=django.db.backends.postgresql
       - MAYAN_DATABASE_NAME=${POSTGRES_DB:-mayan}
       - MAYAN_DATABASE_USER=${SERVICE_USER_POSTGRES}

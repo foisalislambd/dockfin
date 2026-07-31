@@ -4,7 +4,6 @@
 # tags: campfire,chat,communication,rails,once,basecamp,37signals
 # logo: svgs/once-campfire.png
 # port: 80
-
 services:
   campfire:
     image: ghcr.io/basecamp/once-campfire:${TAG:-main}
@@ -12,7 +11,7 @@ services:
     volumes:
       - campfire-storage:/rails/storage
     environment:
-      - SERVICE_URL_CAMPFIRE_80
+      - SERVICE_URL_CAMPFIRE
       - SECRET_KEY_BASE=${SERVICE_BASE64_64_CAMPFIRE}    # required, set this to a secure random value
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}             # optional, for notifications
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}           # optional, for notifications

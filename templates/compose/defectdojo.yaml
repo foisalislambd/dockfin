@@ -5,12 +5,11 @@
 # tags: defectdojo,owasp,security,vulnerabilities,appsec
 # logo: svgs/defectdojo.svg
 # port: 8080
-
 services:
   defectdojo-django:
     image: defectdojo/defectdojo-django:2.43.2-alpine
     environment:
-      - SERVICE_URL_DEFECTDOJODJANGO_8080
+      - SERVICE_URL_DEFECTDOJODJANGO
       - DD_DATABASE_URL=postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgresql:5432/${POSTGRES_DB:-defectdojo}
       - DD_CELERY_BROKER_URL=redis://redis:6379/0
       - DD_SECRET_KEY=${SERVICE_PASSWORD_SECRET}

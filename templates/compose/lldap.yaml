@@ -5,12 +5,11 @@
 # tags: lldap,ldap,directory,authentication,users,groups
 # logo: svgs/lldap.svg
 # port: 17170
-
 services:
   lldap:
     image: lldap/lldap:v0.6.2
     environment:
-      - SERVICE_URL_LLDAP_17170
+      - SERVICE_URL_LLDAP
       - LLDAP_JWT_SECRET=${SERVICE_PASSWORD_JWT}
       - LLDAP_KEY_SEED=${SERVICE_PASSWORD_KEYSEED}
       - LLDAP_LDAP_USER_PASS=${SERVICE_PASSWORD_ADMIN}

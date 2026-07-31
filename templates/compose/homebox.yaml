@@ -4,12 +4,11 @@
 # tags: inventory, home, organize
 # logo: svgs/homebox.svg
 # port: 7745
-
 services:
   homebox:
     image: ghcr.io/sysadminsmedia/homebox:latest
     environment:
-      - SERVICE_URL_HOMEBOX_7745
+      - SERVICE_URL_HOMEBOX
       - HBOX_OPTIONS_ALLOW_REGISTRATION=${HBOX_OPTIONS_ALLOW_REGISTRATION:-false}
       - HBOX_LOG_LEVEL=${HBOX_LOG_LEVEL:-info}
       - HBOX_LOG_FORMAT=${HBOX_LOG_FORMAT:-text}

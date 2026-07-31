@@ -4,12 +4,11 @@
 # tags: filestorage, data, synchronization
 # logo: svgs/syncthing.svg
 # port: 8384
-
 services:
   syncthing:
     image: lscr.io/linuxserver/syncthing:latest
     environment:
-      - SERVICE_URL_SYNCTHING_8384
+      - SERVICE_URL_SYNCTHING
       - PUID=1000
       - PGID=1000
       - TZ=${TZ:-Etc/UTC}

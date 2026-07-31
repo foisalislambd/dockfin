@@ -4,7 +4,6 @@
 # tags: background-jobs, typescript, javascript, scheduling, workflows, automation, tasks, queues
 # logo: svgs/trigger.png
 # port: 3000
-
 services:
   trigger:
     image: ghcr.io/triggerdotdev/trigger.dev:v4.3.0
@@ -14,10 +13,10 @@ services:
     command: |
       sh -c "chown -R node:node /home/node/shared && exec ./scripts/entrypoint.sh"
     environment:
-      - SERVICE_URL_TRIGGER_3000
-      - APP_ORIGIN=${SERVICE_URL_TRIGGER_3000}
-      - LOGIN_ORIGIN=${SERVICE_URL_TRIGGER_3000}
-      - API_ORIGIN=${SERVICE_URL_TRIGGER_3000}
+      - SERVICE_URL_TRIGGER
+      - APP_ORIGIN=${SERVICE_URL_TRIGGER}
+      - LOGIN_ORIGIN=${SERVICE_URL_TRIGGER}
+      - API_ORIGIN=${SERVICE_URL_TRIGGER}
       - SESSION_SECRET=${SERVICE_PASSWORD_64_SESSION}
       - MAGIC_LINK_SECRET=${SERVICE_PASSWORD_64_MAGICLINK}
       - ENCRYPTION_KEY=${SERVICE_PASSWORD_ENCRYPTIONKEY}

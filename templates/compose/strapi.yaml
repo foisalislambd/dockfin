@@ -4,7 +4,6 @@
 # tags: cms, headless, mysql, api
 # logo: svgs/strapi.svg
 # port: 1337
-
 services:
   strapi:
     image: "elestio/strapi-production:v5.33.4"
@@ -30,7 +29,7 @@ services:
         exec npm run develop
     environment:
       - SERVICE_FQDN_STRAPI
-      - SERVICE_URL_STRAPI_1337
+      - SERVICE_URL_STRAPI
       - DATABASE_CLIENT=postgres
       - DATABASE_HOST=postgresql
       - DATABASE_PORT=5432

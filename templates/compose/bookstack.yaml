@@ -4,12 +4,11 @@
 # tags: free-and-open-source,mfa,dark-light-themes,searchable,connected,simple-interface,diagramms,notes
 # logo: svgs/bookstack.png
 # port: 80
-
 services:
   bookstack:
     image: lscr.io/linuxserver/bookstack:latest
     environment:
-      - SERVICE_URL_BOOKSTACK_80
+      - SERVICE_URL_BOOKSTACK
       - APP_URL=${SERVICE_URL_BOOKSTACK}
       - APP_KEY=${SERVICE_PASSWORD_APPKEY}
       - PUID=1000

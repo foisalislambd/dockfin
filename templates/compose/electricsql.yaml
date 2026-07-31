@@ -4,7 +4,6 @@
 # tags: electric,electricsql,realtime,sync,postgresql
 # logo: svgs/electricsql.svg
 # port: 3000
-
 ## This template intentionally does not deploy PostgreSQL.
 ## Set DATABASE_URL to an existing Postgres instance with logical replication enabled.
 ## If ELECTRIC_SECRET is set, your own backend/proxy must append it to shape requests.
@@ -13,7 +12,7 @@ services:
   electric:
     image: electricsql/electric:1.4.2
     environment:
-      - SERVICE_URL_ELECTRIC_3000
+      - SERVICE_URL_ELECTRIC
       - DATABASE_URL=${DATABASE_URL:?}
       - ELECTRIC_SECRET=${SERVICE_PASSWORD_64_ELECTRIC}
       - ELECTRIC_STORAGE_DIR=/app/persistent

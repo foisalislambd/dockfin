@@ -4,7 +4,6 @@
 # tags: elastic,kibana,elasticsearch,search,visualization,logging,monitoring,observability,analytics,stack,devops
 # logo: svgs/elasticsearch.svg
 # port: 5601
-
 services:
   elasticsearch:
     image: 'elastic/elasticsearch:9.1.2'
@@ -28,7 +27,7 @@ services:
   kibana:
     image: 'kibana:9.1.2'
     environment:
-      - SERVICE_URL_KIBANA_5601
+      - SERVICE_URL_KIBANA
       - 'KIBANA_PASSWORD=${SERVICE_PASSWORD_KIBANA}'
       - 'ELASTICSEARCH_SERVICEACCOUNTTOKEN=${ELASTICSEARCH_SERVICEACCOUNTTOKEN}' # Kibana authenticates to Elasticsearch using this service token
       - 'SERVER_NAME=${SERVICE_FQDN_KIBANA}' # For generating links and setting cookie domains

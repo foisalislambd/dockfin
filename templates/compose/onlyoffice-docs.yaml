@@ -5,12 +5,11 @@
 # tags: onlyoffice,office,documents,spreadsheets,collaboration
 # logo: svgs/onlyoffice.svg
 # port: 80
-
 services:
   onlyoffice:
     image: onlyoffice/documentserver:8.3.1
     environment:
-      - SERVICE_URL_ONLYOFFICE_80
+      - SERVICE_URL_ONLYOFFICE
       - JWT_ENABLED=${JWT_ENABLED:-true}
       - JWT_SECRET=${SERVICE_PASSWORD_JWT}
       - JWT_HEADER=${JWT_HEADER:-Authorization}

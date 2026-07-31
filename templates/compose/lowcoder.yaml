@@ -4,12 +4,11 @@
 # tags: lowcoder,openblocks,low,code,platform,open,source,low,code
 # logo: svgs/lowcoder.svg
 # port: 3000
-
 services:
   lowcoder:
     image: lowcoderorg/lowcoder-ce
     environment:
-      - SERVICE_URL_LOWCODER_3000
+      - SERVICE_URL_LOWCODER
       - LOWCODER_EMAIL_SIGNUP_ENABLED=${LOWCODER_EMAIL_SIGNUP_ENABLED:-true}
       - LOWCODER_DB_ENCRYPTION_PASSWORD=${SERVICE_PASSWORD_ENCRYPTION}
       - LOWCODER_DB_ENCRYPTION_SALT=${SERVICE_PASSWORD_SALT}

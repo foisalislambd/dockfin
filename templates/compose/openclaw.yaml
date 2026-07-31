@@ -4,12 +4,11 @@
 # tags: ai, coding, assistant, llm, anthropic, openai, automation
 # logo: svgs/openclaw.svg
 # port: 8080
-
 services:
   openclaw:
     image: "coollabsio/openclaw:2026.2.6"
     environment:
-      - SERVICE_FQDN_OPENCLAW_8080
+      - SERVICE_FQDN_OPENCLAW
       - AUTH_USERNAME=$SERVICE_USER_OPENCLAW
       - AUTH_PASSWORD=$SERVICE_PASSWORD_OPENCLAW
       - OPENCLAW_GATEWAY_TOKEN=$SERVICE_PASSWORD_64_GATEWAYTOKEN

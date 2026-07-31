@@ -5,12 +5,11 @@
 # tags: komga,comics,manga,ebooks,library,media
 # logo: svgs/komga.svg
 # port: 25600
-
 services:
   komga:
     image: gotson/komga:1.21.2
     environment:
-      - SERVICE_URL_KOMGA_25600
+      - SERVICE_URL_KOMGA
       - SERVER_PORT=25600
       - TZ=${TZ:-UTC}
     volumes:

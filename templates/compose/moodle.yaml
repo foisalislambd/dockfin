@@ -4,7 +4,6 @@
 # tags: moodle, elearning, education, lms, cms, open, source, low, code
 # logo: svgs/moodle.png
 # port: 8080
-
 services:
   mariadb:
     image: mariadb:11.1
@@ -31,7 +30,7 @@ services:
     depends_on:
       - mariadb
     environment:
-      - SERVICE_URL_MOODLE_8080
+      - SERVICE_URL_MOODLE
       - MOODLE_DATABASE_HOST=mariadb
       - MOODLE_DATABASE_PORT_NUMBER=3306
       - MOODLE_DATABASE_USER=$SERVICE_USER_MARIADB

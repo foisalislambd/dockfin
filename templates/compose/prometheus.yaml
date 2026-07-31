@@ -5,7 +5,6 @@
 # tags: prometheus,metrics,monitoring,observability,timeseries,alerting
 # logo: svgs/prometheus.svg
 # port: 9090
-
 services:
   prometheus:
     image: prom/prometheus:v3.13.1
@@ -15,7 +14,7 @@ services:
       - --web.enable-lifecycle
       - --web.enable-admin-api
     environment:
-      - SERVICE_URL_PROMETHEUS_9090
+      - SERVICE_URL_PROMETHEUS
     volumes:
       - prometheus-data:/prometheus
     configs:

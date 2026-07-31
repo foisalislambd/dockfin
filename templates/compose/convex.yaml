@@ -11,8 +11,8 @@ services:
     volumes:
       - data:/convex/data
     environment:
-      - SERVICE_URL_BACKEND_3210
-      - SERVICE_URL_SITE_3211
+      - SERVICE_URL_BACKEND
+      - SERVICE_URL_SITE
       - INSTANCE_NAME=${INSTANCE_NAME:-self-hosted-convex}
       - INSTANCE_SECRET=${SERVICE_HEX_64_SECRET}
       - CONVEX_RELEASE_VERSION_DEV=${CONVEX_RELEASE_VERSION_DEV:-}
@@ -50,7 +50,7 @@ services:
   dashboard:
     image: ghcr.io/get-convex/convex-dashboard:a9a760ca10399ed42e1b4bb87c78539a235488c7
     environment:
-      - SERVICE_URL_DASHBOARD_6791
+      - SERVICE_URL_DASHBOARD
       # URL of the Convex API as accessed by the dashboard (browser).
       - NEXT_PUBLIC_DEPLOYMENT_URL=${SERVICE_URL_BACKEND}
     depends_on:

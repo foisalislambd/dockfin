@@ -4,6 +4,7 @@
 # category: analytics
 # tags: analytics, product, open-source, self-hosted, ab-testing, event-tracking
 # logo: svgs/posthog.svg
+# port: 8000
 # minversion: 4.0.0-beta.222
 
 services:
@@ -1929,7 +1930,7 @@ services:
 
           loop()
     environment:
-      - SERVICE_URL_WEB_8000
+      - SERVICE_URL_WEB
       - OPT_OUT_CAPTURING=true
       - DISABLE_SECURE_SSL_REDIRECT=true
       - IS_BEHIND_PROXY=true

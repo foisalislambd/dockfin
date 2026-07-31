@@ -5,12 +5,11 @@
 # tags: owncast,streaming,live,video,rtmp,broadcast
 # logo: svgs/owncast.svg
 # port: 8080
-
 services:
   owncast:
     image: owncast/owncast:0.2.1
     environment:
-      - SERVICE_URL_OWNCAST_8080
+      - SERVICE_URL_OWNCAST
     volumes:
       - owncast-data:/app/data
     healthcheck:

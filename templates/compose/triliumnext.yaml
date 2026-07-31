@@ -4,13 +4,12 @@
 # tags: self-hosted, notes, todo, organize, markdown, wiki
 # logo: svgs/triliumnext.svg
 # port: 8080
-
 services:
   triliumnext:
     image: ghcr.io/triliumnext/trilium:stable
     platform: linux/amd64 # https://github.com/TriliumNext/Trilium/issues/6390
     environment:
-      - SERVICE_URL_TRILIUMNEXT_8080
+      - SERVICE_URL_TRILIUMNEXT
       - TZ=${TZ:-Europe/Berlin}
     volumes:
       - triliumnext_data:/home/node/trilium-data

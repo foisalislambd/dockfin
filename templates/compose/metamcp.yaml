@@ -4,12 +4,11 @@
 # category: mcp
 # logo: svgs/metamcp.png
 # port: 12008
-
 services:
   app:
     image: ghcr.io/metatool-ai/metamcp:2.4
     environment:
-      - SERVICE_URL_METAMCP_12008
+      - SERVICE_URL_METAMCP
       - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
       - POSTGRES_PORT=${POSTGRES_PORT:-5432}
       - POSTGRES_USER=${SERVICE_USER_POSTGRES}

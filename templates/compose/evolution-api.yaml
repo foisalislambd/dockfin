@@ -4,12 +4,11 @@
 # tags: evolution-api,evo-api,evolution,whatsapp,api,postgres,redis
 # logo: svgs/evolution-api.svg
 # port: 8080
-
 services:
   api:
     image: evoapicloud/evolution-api:v2.3.7
     environment:
-      - SERVICE_URL_EVO_8080
+      - SERVICE_URL_EVO
       - SERVER_URL=${SERVICE_URL_EVO}
       - DB_TYPE=${DB_TYPE:-postgresdb}
       - 'DB_POSTGRESDB_DATABASE=${POSTGRES_DB:-postgres}'

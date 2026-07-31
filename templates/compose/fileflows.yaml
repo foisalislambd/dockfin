@@ -4,12 +4,11 @@
 # tags: media, transcode, convert, h265
 # logo: svgs/fileflows.svg
 # port: 5000
-
 services:
   fileflows:
     image: revenz/fileflows
     environment:
-      - SERVICE_URL_FILEFLOWS_5000
+      - SERVICE_URL_FILEFLOWS
       - _APP_URL=$SERVICE_URL_FILE_FLOWS
       - PUID=1000
       - PGID=1000

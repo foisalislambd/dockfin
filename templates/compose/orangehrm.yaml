@@ -4,13 +4,12 @@
 # tags: HR, HRIS, HRMS, human resource management, OrangeHRM, HR management
 # logo: svgs/orangehrm.svg
 # port: 80
-
 services:
   orangehrm:
     image: orangehrm/orangehrm:latest
     platform: linux/amd64
     environment:
-      - SERVICE_URL_ORANGEHRM_80
+      - SERVICE_URL_ORANGEHRM
       - ORANGEHRM_DATABASE_HOST=mariadb
       - ORANGEHRM_DATABASE_USER=${SERVICE_USER_MYSQL}
       - ORANGEHRM_DATABASE_PASSWORD=${SERVICE_PASSWORD_MYSQL}

@@ -5,13 +5,12 @@
 # tags: headscale,tailscale,vpn,wireguard,networking
 # logo: svgs/headscale.svg
 # port: 8080
-
 services:
   headscale:
     image: headscale/headscale:0.29.3
     command: serve
     environment:
-      - SERVICE_URL_HEADSCALE_8080
+      - SERVICE_URL_HEADSCALE
     volumes:
       - headscale-data:/var/lib/headscale
       - headscale-config:/etc/headscale

@@ -5,13 +5,12 @@
 # tags: archivebox,archive,bookmarks,internet,snapshot
 # logo: svgs/archivebox.svg
 # port: 8000
-
 services:
   archivebox:
     image: archivebox/archivebox:0.7.2
     command: server --quick-init 0.0.0.0:8000
     environment:
-      - SERVICE_URL_ARCHIVEBOX_8000
+      - SERVICE_URL_ARCHIVEBOX
       - ALLOWED_HOSTS=*
       - CSRF_TRUSTED_ORIGINS=${SERVICE_URL_ARCHIVEBOX}
       - PUBLIC_INDEX=false

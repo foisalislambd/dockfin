@@ -197,12 +197,16 @@ func isAllDigits(s string) bool {
 	return true
 }
 
-// DetectProxyPort returns the first Coolify SERVICE_URL_*_PORT / FQDN port, or "80".
+// DetectProxyPort returns the container port for Traefik.
+// Order: explicit opts → Coolify `# port:` metadata → SERVICE_URL_*_PORT suffix → "80".
 func DetectProxyPort(raw, explicit string) string {
 	if p := strings.TrimSpace(explicit); p != "" {
 		return p
 	}
-	// Match full keys including multi-segment names (SERVICE_URL_MY_APP_3000).
+	if m := regexp.MustCompile(`(?m)^#\s*port:\s*(\d+)\s*$`).FindStringSubmatch(raw); len(m) == 2 {
+		return m[1]
+	}
+	// Legacy Coolify keys with port suffix (SERVICE_URL_N8N_5678).
 	re := regexp.MustCompile(`SERVICE_(?:URL|FQDN)_[A-Z0-9_]+`)
 	for _, key := range re.FindAllString(raw, -1) {
 		if _, port, hasPort := parseServiceURLNamePort(key); hasPort {
@@ -214,14 +218,15 @@ func DetectProxyPort(raw, explicit string) string {
 
 // CoolifyEnvForUI returns the Coolify-style env set shown in Environment Variables:
 // passwords/users/hex/base64 referenced in the template, plus SERVICE_URL/FQDN pairs
-// for each declared domain key (WordPress → SERVICE_URL_WORDPRESS + SERVICE_FQDN_WORDPRESS).
-// Companion keys used only for ${} substitution (e.g. SERVICE_URL_N8N from
-// SERVICE_URL_N8N_5678) are omitted unless they were declared in the template.
+// for each domain key declared in compose environment (WordPress → SERVICE_URL_WORDPRESS
+// + SERVICE_FQDN_WORDPRESS). Keys that only appear inside ${...} substitutions are
+// companions for baking and are not listed in the UI.
 func CoolifyEnvForUI(raw string, env map[string]string) map[string]string {
 	declared := map[string]struct{}{}
 	for _, m := range reMagicKey.FindAllString(raw, -1) {
 		declared[m] = struct{}{}
 	}
+	envDeclared := domainKeysDeclaredInEnvironment(raw)
 	out := map[string]string{}
 	for key := range declared {
 		switch {
@@ -233,6 +238,11 @@ func CoolifyEnvForUI(raw string, env map[string]string) map[string]string {
 				out[key] = v
 			}
 		case strings.HasPrefix(key, "SERVICE_URL_"), strings.HasPrefix(key, "SERVICE_FQDN_"):
+			if len(envDeclared) > 0 {
+				if _, ok := envDeclared[key]; !ok {
+					continue
+				}
+			}
 			name, port, hasPort := parseServiceURLNamePort(key)
 			if name == "" {
 				continue
@@ -250,6 +260,23 @@ func CoolifyEnvForUI(raw string, env map[string]string) map[string]string {
 				out[fk] = v
 			}
 		}
+	}
+	return out
+}
+
+// domainKeysDeclaredInEnvironment finds SERVICE_URL_/FQDN_ keys listed under
+// environment: (bare or KEY=...), not merely referenced via ${SERVICE_URL_*}.
+func domainKeysDeclaredInEnvironment(raw string) map[string]struct{} {
+	out := map[string]struct{}{}
+	// List style: - SERVICE_URL_APP / - SERVICE_URL_APP=...
+	reList := regexp.MustCompile(`(?m)^\s*-\s*(SERVICE_(?:URL|FQDN)_[A-Z0-9_]+)\b`)
+	for _, m := range reList.FindAllStringSubmatch(raw, -1) {
+		out[m[1]] = struct{}{}
+	}
+	// Map style: SERVICE_URL_APP: ...
+	reMap := regexp.MustCompile(`(?m)^\s*(SERVICE_(?:URL|FQDN)_[A-Z0-9_]+)\s*:`)
+	for _, m := range reMap.FindAllStringSubmatch(raw, -1) {
+		out[m[1]] = struct{}{}
 	}
 	return out
 }

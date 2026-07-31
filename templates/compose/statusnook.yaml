@@ -4,11 +4,10 @@
 # tags: go,html,monitoring,sqlite,self,hosted,status,page,htmx,smtp,slack
 # logo: svgs/statusnook.svg
 # port: 8000
-
 services:
   statusnook:
     environment:
-      - SERVICE_URL_STATUSNOOK_8000
+      - SERVICE_URL_STATUSNOOK
     volumes:
       - "statusnook-data:/app/statusnook-data"
     image: goksan/statusnook

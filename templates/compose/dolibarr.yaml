@@ -4,12 +4,11 @@
 # tags: crm,ERP
 # logo: svgs/dolibarr.png
 # port: 80
-
 services:
   dolibarr:
     image: dolibarr/dolibarr:latest
     environment:
-      - SERVICE_URL_DOLIBARR_80
+      - SERVICE_URL_DOLIBARR
       - WWW_USER_ID=${WWW_USER_ID:-1000}
       - WWW_GROUP_ID=${WWW_GROUP_ID:-1000}
       - DOLI_DB_HOST=mariadb

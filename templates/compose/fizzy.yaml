@@ -4,12 +4,11 @@
 # tags: kanban, project management, issues, rails, ruby, basecamp, 37signals
 # logo: svgs/fizzy.png
 # port: 80
-
 services:
   fizzy:
     image: ghcr.io/basecamp/fizzy:main
     environment:
-      - SERVICE_FQDN_FIZZY_80
+      - SERVICE_FQDN_FIZZY
       - SECRET_KEY_BASE=$SERVICE_PASSWORD_FIZZY
       - RAILS_MASTER_KEY=$SERVICE_PASSWORD_64_MASTERKEY
       - RAILS_ENV=production

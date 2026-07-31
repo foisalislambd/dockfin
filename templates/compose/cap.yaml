@@ -3,8 +3,7 @@
 # category: media
 # tags: cap,loom,open,source,low,code
 # logo: svgs/cap.svg
-# port: 5679
-
+# port: 3000
 # Storage Configuration:
 # Option 1: Remote S3-compatible storage (AWS S3, Cloudflare R2, etc.)
 # Set these environment variables:
@@ -32,7 +31,7 @@ services:
   cap-web:
     image: 'ghcr.io/capsoftware/cap-web:latest'
     environment:
-      - SERVICE_URL_CAP_3000
+      - SERVICE_URL_CAP
       - 'DATABASE_URL=mysql://$SERVICE_USER_MYSQL:$SERVICE_PASSWORD_MYSQL@cap-db:3306/${MYSQL_DATABASE:-planetscale}'
       - 'WEB_URL=${SERVICE_URL_CAP}'
       - 'NEXTAUTH_URL=${SERVICE_URL_CAP}'

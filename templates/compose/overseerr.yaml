@@ -4,12 +4,11 @@
 # tags: media,request,plex,sonarr,radarr
 # logo: svgs/overseerr.svg
 # port: 5055
-
 services:
   overseerr:
     image: sctx/overseerr:latest
     environment:
-      - SERVICE_URL_OVERSEERR_5055
+      - SERVICE_URL_OVERSEERR
       - PUID=1000
       - PGID=1000
       - TZ=${TZ:-America/Toronto}

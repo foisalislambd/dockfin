@@ -5,12 +5,11 @@
 # tags: clickhouse,olap,analytics,database,columnar
 # logo: svgs/clickhouse.svg
 # port: 8123
-
 services:
   clickhouse:
     image: clickhouse/clickhouse-server:25.5.6-alpine
     environment:
-      - SERVICE_URL_CLICKHOUSE_8123
+      - SERVICE_URL_CLICKHOUSE
       - CLICKHOUSE_DB=${CLICKHOUSE_DB:-default}
       - CLICKHOUSE_USER=${SERVICE_USER_CLICKHOUSE}
       - CLICKHOUSE_PASSWORD=${SERVICE_PASSWORD_CLICKHOUSE}

@@ -4,12 +4,11 @@
 # tags: lowcode, nocode, spreadsheet, database, relational
 # logo: svgs/grist.svg
 # port: 8484
-
 services:
   grist:
     image: gristlabs/grist:latest
     environment:
-      - SERVICE_URL_GRIST_8484
+      - SERVICE_URL_GRIST
       - APP_HOME_URL=${SERVICE_URL_GRIST}
       - APP_DOC_URL=${SERVICE_URL_GRIST}
       - GRIST_DOMAIN=${SERVICE_FQDN_GRIST}

@@ -4,12 +4,11 @@
 # tags: game, game server, management, panel, minecraft
 # logo: svgs/pterodactyl.png
 # port: 8443
-
 services:
   wings:
     image: "ghcr.io/pterodactyl/wings:v1.12.1"
     environment:
-      - SERVICE_URL_WINGS_8443
+      - SERVICE_URL_WINGS
       - "TZ=${TIMEZONE:-UTC}"
       - WINGS_USERNAME=$SERVICE_USER_WINGS
     volumes:

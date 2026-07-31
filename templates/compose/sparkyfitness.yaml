@@ -4,12 +4,11 @@
 # tags: sparkyfitness, fitness, health, nutrition, exercise, body measurements
 # logo: svgs/sparkyfitness.png
 # port: 80
-
 services:
   sparkyfitness-frontend:
     image: 'codewithcj/sparkyfitness:v0.15.7.3' # Released on Oct 18, 2025
     environment:
-      - SERVICE_URL_SPARKYFITNESS_80
+      - SERVICE_URL_SPARKYFITNESS
     depends_on:
       - sparkyfitness-server
 
@@ -24,7 +23,7 @@ services:
       - 'SPARKY_FITNESS_DB_PORT=${SPARKY_FITNESS_DB_PORT:-5432}'
       - 'SPARKY_FITNESS_API_ENCRYPTION_KEY=${SERVICE_PASSWORD_64_SERVERAPIENCRYPTIONKEY}'
       - 'JWT_SECRET=${SERVICE_PASSWORD_64_SERVERJWTSECRET}'
-      - 'SPARKY_FITNESS_FRONTEND_URL=${SERVICE_URL_SPARKYFITNESS_80}'
+      - 'SPARKY_FITNESS_FRONTEND_URL=${SERVICE_URL_SPARKYFITNESS}'
       - 'SPARKY_FITNESS_DISABLE_SIGNUP=${SPARKY_FITNESS_DISABLE_SIGNUP:-false}'
       - 'SPARKY_FITNESS_ADMIN_EMAIL=${SPARKY_FITNESS_ADMIN_EMAIL:-admin@example.com}'
       - 'SPARKY_FITNESS_EMAIL_HOST=${SPARKY_FITNESS_EMAIL_HOST:-smtp.gmail.com}'
