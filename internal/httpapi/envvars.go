@@ -127,7 +127,8 @@ func (a *API) handleListSharedEnv(w http.ResponseWriter, r *http.Request) {
 		}
 		scopeID = &id
 	}
-	vars, err := a.Store.ListSharedEnv(r.Context(), currentTeamID(r), scope, scopeID)
+	reveal := r.URL.Query().Get("reveal") == "1"
+	vars, err := a.Store.ListSharedEnv(r.Context(), currentTeamID(r), scope, scopeID, reveal)
 	if err != nil {
 		mapStoreErr(w, err)
 		return

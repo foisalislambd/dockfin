@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { DeployLogPanel } from '../components/DeployLogPanel'
+import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { LinksMenu, LinksPanel } from '../components/LinksMenu'
 import { ServiceLogo } from '../components/ServiceLogo'
 import { PageSkeleton } from '../components/ui/Skeleton'
@@ -362,7 +363,9 @@ export function ServiceDetailPage() {
                 restartBusy={restart.isPending}
               />
             )}
-            {side === 'environment' && <EnvVarsBlock resourceId={svcId} />}
+            {side === 'environment' && (
+              <EnvVarsPanel resourceType="service" resourceId={svcId} />
+            )}
             {side === 'storages' && (
               <Placeholder
                 title="Persistent Storages"
@@ -650,90 +653,6 @@ function Placeholder({ title, body }: { title: string; body: string }) {
     <div className="panel-card space-y-2 p-5">
       <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h2>
       <p className="text-sm text-gray-500 dark:text-gray-400">{body}</p>
-    </div>
-  )
-}
-
-function EnvVarsBlock({ resourceId }: { resourceId: string }) {
-  const qc = useQueryClient()
-  const [key, setKey] = useState('')
-  const [value, setValue] = useState('')
-  const vars = useQuery({
-    queryKey: ['env-vars', 'service', resourceId],
-    queryFn: () => api.envVars('service', resourceId, true),
-  })
-  const add = useMutation({
-    mutationFn: () =>
-      api.upsertEnvVar({
-        resource_type: 'service',
-        resource_id: resourceId,
-        key,
-        value,
-      }),
-    onSuccess: () => {
-      setKey('')
-      setValue('')
-      void qc.invalidateQueries({ queryKey: ['env-vars', 'service', resourceId] })
-    },
-  })
-  const del = useMutation({
-    mutationFn: (id: string) => api.deleteEnvVar(id),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['env-vars', 'service', resourceId] }),
-  })
-
-  return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Environment Variables</h2>
-      <div className="panel-card overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
-            <tr>
-              <th className="px-3 py-2">Key</th>
-              <th className="px-3 py-2">Value</th>
-              <th className="px-3 py-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(vars.data?.environment_variables || []).map((v) => (
-              <tr key={v.id} className="border-t border-gray-200 dark:border-gray-800">
-                <td className="px-3 py-2 font-mono text-xs">{v.key}</td>
-                <td className="px-3 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">
-                  {v.value ?? '••••'}
-                </td>
-                <td className="px-3 py-2">
-                  <button type="button" className="text-error-500" onClick={() => del.mutate(v.id)}>
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {!vars.data?.environment_variables?.length && (
-              <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                  No env vars yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      <form
-        className="flex flex-wrap items-end gap-3"
-        onSubmit={(e) => {
-          e.preventDefault()
-          add.mutate()
-        }}
-      >
-        <div className="min-w-[140px] flex-1">
-          <Input label="Key" value={key} onChange={setKey} />
-        </div>
-        <div className="min-w-[180px] flex-1">
-          <Input label="Value" value={value} onChange={setValue} />
-        </div>
-        <Btn primary type="submit">
-          Add
-        </Btn>
-      </form>
     </div>
   )
 }

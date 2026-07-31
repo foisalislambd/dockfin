@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
+import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { LinksMenu, LinksPanel } from '../components/LinksMenu'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
@@ -41,10 +42,6 @@ export function ApplicationDetailPage() {
       return busy ? 3000 : false
     },
   })
-  const envVars = useQuery({
-    queryKey: ['env-vars', appId],
-    queryFn: () => api.envVars('application', appId, true),
-  })
 
   const [tab, setTab] = useState('links')
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -61,8 +58,6 @@ export function ApplicationDetailPage() {
     git_source_id: '',
     is_build_server_enabled: false,
   })
-  const [envKey, setEnvKey] = useState('')
-  const [envValue, setEnvValue] = useState('')
   const [webhookSecret, setWebhookSecret] = useState<string | null>(null)
   const [taskName, setTaskName] = useState('')
   const [taskCommand, setTaskCommand] = useState('')
@@ -91,8 +86,6 @@ export function ApplicationDetailPage() {
   // Reset local UI state whenever the route resource changes (component may be reused).
   useEffect(() => {
     setTab('configuration')
-    setEnvKey('')
-    setEnvValue('')
     setWebhookSecret(null)
     setTaskName('')
     setTaskCommand('')
@@ -208,25 +201,6 @@ export function ApplicationDetailPage() {
     },
   })
 
-  const addEnv = useMutation({
-    mutationFn: () =>
-      api.upsertEnvVar({
-        resource_type: 'application',
-        resource_id: appId,
-        key: envKey,
-        value: envValue,
-      }),
-    onSuccess: () => {
-      setEnvKey('')
-      setEnvValue('')
-      void qc.invalidateQueries({ queryKey: ['env-vars', appId] })
-    },
-  })
-
-  const delEnv = useMutation({
-    mutationFn: (id: string) => api.deleteEnvVar(id),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['env-vars', appId] }),
-  })
 
   const webhook = useMutation({
     mutationFn: () => api.setWebhookSecret(appId),
@@ -462,61 +436,7 @@ export function ApplicationDetailPage() {
 
       {tab === 'environment' && (
         <TabPanel>
-          <div className="panel-card overflow-hidden">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
-                <tr>
-                  <th className="px-3 py-2">Key</th>
-                  <th className="px-3 py-2">Value</th>
-                  <th className="px-3 py-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(envVars.data?.environment_variables || []).map((v) => (
-                  <tr key={v.id} className="border-t border-gray-200 dark:border-gray-800">
-                    <td className="px-3 py-2 font-mono text-xs">{v.key}</td>
-                    <td className="px-3 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">
-                      {v.value ?? '••••'}
-                    </td>
-                    <td className="px-3 py-2">
-                      <button
-                        type="button"
-                        className="text-error-500"
-                        onClick={() => delEnv.mutate(v.id)}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {!envVars.data?.environment_variables?.length && (
-                  <tr>
-                    <td colSpan={3} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                      No env vars yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <form
-            className="mt-4 flex flex-wrap items-end gap-3"
-            onSubmit={(e) => {
-              e.preventDefault()
-              addEnv.mutate()
-            }}
-          >
-            <div className="min-w-[140px] flex-1">
-              <Input label="Key" value={envKey} onChange={setEnvKey} />
-            </div>
-            <div className="min-w-[180px] flex-1">
-              <Input label="Value" value={envValue} onChange={setEnvValue} />
-            </div>
-            <Btn primary type="submit">
-              Add
-            </Btn>
-            {addEnv.error && <p className="w-full text-sm text-error-500">{addEnv.error.message}</p>}
-          </form>
+          <EnvVarsPanel resourceType="application" resourceId={appId} title="" />
         </TabPanel>
       )}
 

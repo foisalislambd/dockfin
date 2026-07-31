@@ -25,8 +25,7 @@ func (a *API) syncServiceCoolifyEnv(ctx context.Context, teamID, serviceID uuid.
 	keep := map[string]bool{}
 	for key, val := range ui {
 		keep[key] = true
-		comment := coolifyEnvComment(key)
-		_, _ = a.Store.UpsertEnvVar(ctx, teamID, "service", serviceID, key, val, true, false, true, comment)
+		_, _ = a.Store.UpsertEnvVar(ctx, teamID, "service", serviceID, key, val, true, false, true, "")
 	}
 	// Remove leftover companion domain keys from earlier mistaken syncs.
 	vars, err := a.Store.ListEnvVars(ctx, teamID, "service", serviceID, false)
@@ -41,20 +40,6 @@ func (a *API) syncServiceCoolifyEnv(ctx context.Context, teamID, serviceID uuid.
 			continue
 		}
 		_ = a.Store.DeleteEnvVar(ctx, teamID, v.ID)
-	}
-}
-
-func coolifyEnvComment(key string) string {
-	switch {
-	case strings.HasPrefix(key, "SERVICE_URL_"):
-		return "Public URL. Edit then redeploy to apply."
-	case strings.HasPrefix(key, "SERVICE_FQDN_"):
-		return "Hostname. Edit then redeploy to apply."
-	case strings.HasPrefix(key, "SERVICE_PASSWORD_"), strings.HasPrefix(key, "SERVICE_USER_"),
-		strings.HasPrefix(key, "SERVICE_BASE64_"), strings.HasPrefix(key, "SERVICE_HEX_"):
-		return "Auto-generated. Changing may break the service."
-	default:
-		return ""
 	}
 }
 

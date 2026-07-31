@@ -289,9 +289,9 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ command }) },
     ),
 
-  sharedEnvVars: (scope_type = 'team', scope_id?: string) =>
+  sharedEnvVars: (scope_type = 'team', scope_id?: string, reveal = false) =>
     request<{ shared_environment_variables: SharedEnvVar[] }>(
-      `/api/v1/shared-env-vars?scope_type=${encodeURIComponent(scope_type)}${scope_id ? `&scope_id=${scope_id}` : ''}`,
+      `/api/v1/shared-env-vars?scope_type=${encodeURIComponent(scope_type)}${scope_id ? `&scope_id=${scope_id}` : ''}${reveal ? '&reveal=1' : ''}`,
     ),
   upsertSharedEnvVar: (body: {
     scope_type: string

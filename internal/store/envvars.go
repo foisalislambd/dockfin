@@ -208,8 +208,8 @@ func (s *Store) UpsertSharedEnv(ctx context.Context, teamID uuid.UUID, scopeType
 	return &v, nil
 }
 
-func (s *Store) ListSharedEnv(ctx context.Context, teamID uuid.UUID, scopeType string, scopeID *uuid.UUID) ([]SharedEnvVar, error) {
-	q := `SELECT id, team_id, scope_type, scope_id, key, is_literal, created_at FROM shared_environment_variables WHERE team_id=$1 AND scope_type=$2`
+func (s *Store) ListSharedEnv(ctx context.Context, teamID uuid.UUID, scopeType string, scopeID *uuid.UUID, reveal bool) ([]SharedEnvVar, error) {
+	q := `SELECT id, team_id, scope_type, scope_id, key, value_enc, is_literal, created_at FROM shared_environment_variables WHERE team_id=$1 AND scope_type=$2`
 	args := []any{teamID, scopeType}
 	if scopeID == nil {
 		q += ` AND scope_id IS NULL`
@@ -226,8 +226,16 @@ func (s *Store) ListSharedEnv(ctx context.Context, teamID uuid.UUID, scopeType s
 	var out []SharedEnvVar
 	for rows.Next() {
 		var v SharedEnvVar
-		if err := rows.Scan(&v.ID, &v.TeamID, &v.ScopeType, &v.ScopeID, &v.Key, &v.IsLiteral, &v.CreatedAt); err != nil {
+		var enc string
+		if err := rows.Scan(&v.ID, &v.TeamID, &v.ScopeType, &v.ScopeID, &v.Key, &enc, &v.IsLiteral, &v.CreatedAt); err != nil {
 			return nil, err
+		}
+		if reveal {
+			plain, err := s.Box.DecryptString(enc)
+			if err != nil {
+				return nil, err
+			}
+			v.Value = plain
 		}
 		out = append(out, v)
 	}

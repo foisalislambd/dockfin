@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useState, type FormEvent } from 'react'
+import { EnvSecretCell, SecretInput } from '../components/SecretValue'
 import { CreatePageShell, FormActions, FormInput } from '../components/ui/forms'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { isSecretEnvKey } from '../lib/secrets'
 import { Btn, Header, Input } from './Servers'
 
 export function StoragesPage() {
@@ -362,7 +364,7 @@ export function SharedVariablesPage() {
   const qc = useQueryClient()
   const vars = useQuery({
     queryKey: ['shared-env', 'team'],
-    queryFn: () => api.sharedEnvVars('team'),
+    queryFn: () => api.sharedEnvVars('team', undefined, true),
   })
   const [key, setKey] = useState('')
   const [value, setValue] = useState('')
@@ -388,23 +390,25 @@ export function SharedVariablesPage() {
       </p>
 
       <div className="panel-card overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+        <table className="panel-table">
+          <thead>
             <tr>
-              <th className="px-3 py-2">Key</th>
-              <th className="px-3 py-2">Value</th>
+              <th>Key</th>
+              <th>Value</th>
             </tr>
           </thead>
           <tbody>
             {(vars.data?.shared_environment_variables || []).map((v) => (
-              <tr key={v.id} className="border-t border-gray-200 dark:border-gray-800">
-                <td className="px-3 py-2 font-mono text-xs">{v.key}</td>
-                <td className="px-3 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">{v.value ?? '••••'}</td>
+              <tr key={v.id}>
+                <td className="font-mono text-xs text-gray-900 dark:text-gray-100">{v.key}</td>
+                <td>
+                  <EnvSecretCell envKey={v.key} value={v.value} />
+                </td>
               </tr>
             ))}
             {!vars.data?.shared_environment_variables?.length && (
               <tr>
-                <td colSpan={2} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                <td colSpan={2} className="panel-table-empty">
                   No shared variables yet.
                 </td>
               </tr>
@@ -424,7 +428,11 @@ export function SharedVariablesPage() {
           <Input label="Key" value={key} onChange={setKey} />
         </div>
         <div className="min-w-[180px] flex-1">
-          <Input label="Value" value={value} onChange={setValue} />
+          {isSecretEnvKey(key) ? (
+            <SecretInput label="Value" value={value} onChange={setValue} required />
+          ) : (
+            <Input label="Value" value={value} onChange={setValue} />
+          )}
         </div>
         <Btn primary type="submit">
           Save

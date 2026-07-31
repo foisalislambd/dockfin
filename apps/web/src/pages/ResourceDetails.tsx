@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
+import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { ServerTerminal } from '../components/Terminal'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
@@ -231,87 +232,6 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
   )
 }
 
-function EnvVarsEditor({ resourceType, resourceId }: { resourceType: string; resourceId: string }) {
-  const qc = useQueryClient()
-  const [key, setKey] = useState('')
-  const [value, setValue] = useState('')
-  const vars = useQuery({
-    queryKey: ['env-vars', resourceType, resourceId],
-    queryFn: () => api.envVars(resourceType, resourceId, true),
-  })
-  const add = useMutation({
-    mutationFn: () =>
-      api.upsertEnvVar({
-        resource_type: resourceType,
-        resource_id: resourceId,
-        key,
-        value,
-      }),
-    onSuccess: () => {
-      setKey('')
-      setValue('')
-      void qc.invalidateQueries({ queryKey: ['env-vars', resourceType, resourceId] })
-    },
-  })
-  const del = useMutation({
-    mutationFn: (id: string) => api.deleteEnvVar(id),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['env-vars', resourceType, resourceId] }),
-  })
-
-  return (
-    <div className="space-y-4">
-      <div className="panel-card overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
-            <tr>
-              <th className="px-3 py-2">Key</th>
-              <th className="px-3 py-2">Value</th>
-              <th className="px-3 py-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(vars.data?.environment_variables || []).map((v) => (
-              <tr key={v.id} className="border-t border-gray-200 dark:border-gray-800">
-                <td className="px-3 py-2 font-mono text-xs">{v.key}</td>
-                <td className="px-3 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">{v.value ?? '••••'}</td>
-                <td className="px-3 py-2">
-                  <button type="button" className="text-error-500" onClick={() => del.mutate(v.id)}>
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {!vars.data?.environment_variables?.length && (
-              <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                  No env vars yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      <form
-        className="flex flex-wrap items-end gap-3"
-        onSubmit={(e) => {
-          e.preventDefault()
-          add.mutate()
-        }}
-      >
-        <div className="min-w-[140px] flex-1">
-          <Input label="Key" value={key} onChange={setKey} />
-        </div>
-        <div className="min-w-[180px] flex-1">
-          <Input label="Value" value={value} onChange={setValue} />
-        </div>
-        <Btn primary type="submit">
-          Add
-        </Btn>
-        {add.error && <p className="w-full text-sm text-error-500">{add.error.message}</p>}
-      </form>
-    </div>
-  )
-}
 
 export function DatabaseDetailPage() {
   const { projectId, envId, dbId } = useParams({ strict: false }) as {
@@ -412,7 +332,7 @@ export function DatabaseDetailPage() {
 
       {tab === 'environment' && (
         <TabPanel>
-          <EnvVarsEditor resourceType="database" resourceId={dbId} />
+          <EnvVarsPanel resourceType="database" resourceId={dbId} title="" />
         </TabPanel>
       )}
 
