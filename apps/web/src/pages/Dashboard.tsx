@@ -121,19 +121,11 @@ export function DashboardPage() {
         />
       </div>
 
-      <div className="panel-card p-5 sm:p-6">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Latest projects</h2>
-          <Link
-            to="/projects"
-            className="text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
-          >
-            View all
-          </Link>
-        </div>
+      <div>
+        <h2 className="mb-3 text-lg font-medium text-gray-900 dark:text-white">Projects</h2>
 
         {recent.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center dark:border-gray-700">
+          <div className="panel-card rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center dark:border-gray-700">
             <p className="text-sm text-gray-500 dark:text-gray-400">No projects yet.</p>
             <Link
               to="/projects"
@@ -143,40 +135,26 @@ export function DashboardPage() {
             </Link>
           </div>
         ) : (
-          <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {recent.map((p) => (
-              <li key={p.id}>
-                <Link
-                  to="/projects/$projectId"
-                  params={{ projectId: p.id }}
-                  className="flex items-center justify-between gap-3 py-3 transition first:pt-0 last:pb-0 hover:bg-gray-50/80 dark:hover:bg-white/[0.03] -mx-2 px-2 rounded-md"
-                >
-                  <div className="min-w-0 flex items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-500/15">
-                      <FolderKanban className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate font-medium text-gray-900 dark:text-white">{p.name}</p>
-                      {p.description ? (
-                        <p className="truncate text-sm text-gray-500 dark:text-gray-400">{p.description}</p>
-                      ) : (
-                        <p className="text-sm text-gray-400 dark:text-gray-500">No description</p>
-                      )}
-                    </div>
-                  </div>
-                  {p.created_at && (
-                    <time
-                      className="shrink-0 text-xs text-gray-400 dark:text-gray-500"
-                      dateTime={p.created_at}
-                      title={new Date(p.created_at).toLocaleString()}
-                    >
-                      {new Date(p.created_at).toLocaleDateString()}
-                    </time>
-                  )}
-                </Link>
-              </li>
+              <Link
+                key={p.id}
+                to="/projects/$projectId"
+                params={{ projectId: p.id }}
+                className="panel-card flex items-center gap-3 p-4 transition hover:border-brand-300 dark:hover:border-brand-500/40"
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-500/15">
+                  <FolderKanban className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-gray-900 dark:text-white">{p.name}</p>
+                  {p.description ? (
+                    <p className="truncate text-sm text-gray-500 dark:text-gray-400">{p.description}</p>
+                  ) : null}
+                </div>
+              </Link>
             ))}
-          </ul>
+          </div>
         )}
       </div>
     </div>
