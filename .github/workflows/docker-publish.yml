@@ -1,6 +1,6 @@
 name: Docker publish (manual)
 
-# Prefer Release workflow (tag vX.Y.Z). Manual rebuild of the single goolify image.
+# Prefer Release workflow. Manual rebuild → GHCR + Docker Hub.
 on:
   workflow_dispatch:
     inputs:
@@ -37,18 +37,32 @@ jobs:
         with:
           ref: ${{ steps.ver.outputs.tag }}
 
-      - name: Image name
+      - name: Image names
         id: meta_name
         run: |
           owner_lc="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
-          echo "image=${{ env.REGISTRY }}/${owner_lc}/goolify" >> "$GITHUB_OUTPUT"
+          hub_user="${{ secrets.DOCKERHUB_USERNAME }}"
+          if [[ -z "${hub_user}" ]]; then
+            echo "DOCKERHUB_USERNAME secret is required" >&2
+            exit 1
+          fi
+          echo "ghcr=${{ env.REGISTRY }}/${owner_lc}/goolify" >> "$GITHUB_OUTPUT"
+          echo "hub=${hub_user}/goolify" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - uses: docker/build-push-action@v6
         with:
@@ -56,8 +70,10 @@ jobs:
           file: deploy/docker/Dockerfile.api
           push: true
           tags: |
-            ${{ steps.meta_name.outputs.image }}:${{ steps.ver.outputs.version }}
-            ${{ steps.meta_name.outputs.image }}:latest
+            ${{ steps.meta_name.outputs.ghcr }}:${{ steps.ver.outputs.version }}
+            ${{ steps.meta_name.outputs.ghcr }}:latest
+            ${{ steps.meta_name.outputs.hub }}:${{ steps.ver.outputs.version }}
+            ${{ steps.meta_name.outputs.hub }}:latest
           build-args: |
             VERSION=${{ steps.ver.outputs.version }}
           cache-from: type=gha,scope=manual-goolify

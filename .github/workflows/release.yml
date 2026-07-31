@@ -135,7 +135,7 @@ jobs:
           npm ci
           npm run build
 
-  # Single image: API + Vite UI. Tag + GitHub Release only after images publish.
+  # Single image → GHCR + Docker Hub (same X.Y.Z). Tag/Release after push.
   docker:
     needs: [prepare, verify]
     if: needs.prepare.outputs.should_release == 'true'
@@ -145,24 +145,40 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.sha }}
 
-      - name: Image name
+      - name: Image names
         id: meta_name
         run: |
           owner_lc="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
-          echo "image=${{ env.REGISTRY }}/${owner_lc}/goolify" >> "$GITHUB_OUTPUT"
+          hub_user="${{ secrets.DOCKERHUB_USERNAME }}"
+          if [[ -z "${hub_user}" ]]; then
+            echo "DOCKERHUB_USERNAME secret is required" >&2
+            exit 1
+          fi
+          echo "ghcr=${{ env.REGISTRY }}/${owner_lc}/goolify" >> "$GITHUB_OUTPUT"
+          echo "hub=${hub_user}/goolify" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ steps.meta_name.outputs.image }}
+          images: |
+            ${{ steps.meta_name.outputs.ghcr }}
+            ${{ steps.meta_name.outputs.hub }}
           tags: |
             type=raw,value=latest
             type=raw,value=${{ needs.prepare.outputs.version }}
@@ -209,12 +225,19 @@ jobs:
         run: |
           VER="${{ needs.prepare.outputs.version }}"
           owner_lc="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          hub_user="${{ secrets.DOCKERHUB_USERNAME }}"
           {
             echo "## Goolify ${VER}"
             echo
             echo "GitHub Release and Docker tags use the **same version**: \`${VER}\`"
             echo
             echo "### Docker (API + dashboard in one image)"
+            echo
+            echo "**Docker Hub**"
+            echo "- \`${hub_user}/goolify:${VER}\`"
+            echo "- \`${hub_user}/goolify:latest\`"
+            echo
+            echo "**GitHub Container Registry**"
             echo "- \`ghcr.io/${owner_lc}/goolify:${VER}\`"
             echo "- \`ghcr.io/${owner_lc}/goolify:latest\`"
             echo

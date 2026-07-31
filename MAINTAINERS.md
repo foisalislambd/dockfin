@@ -18,10 +18,21 @@ This file lists people who can merge PRs and cut releases.
 
 1. Compute next `X.Y.Z` from latest `v*` tag (first = `1.0.0`)
 2. Run tests / builds
-3. Publish Docker `ghcr.io/<owner>/goolify:X.Y.Z` (+ `:latest`) — API + Vite UI in one image
+3. Publish Docker image (API + Vite UI) to **both**:
+   - Docker Hub: `foisalislambd/goolify:X.Y.Z` (+ `:latest`)
+   - GHCR: `ghcr.io/<owner>/goolify:X.Y.Z` (+ `:latest`)
 4. Create git tag `vX.Y.Z` + GitHub Release (same version)
 
-Skip: put `[skip release]` in the commit message.
+### Required GitHub Actions secrets
+
+Repo → **Settings → Secrets and variables → Actions**:
+
+| Secret | Value |
+|--------|--------|
+| `DOCKERHUB_USERNAME` | `foisalislambd` |
+| `DOCKERHUB_TOKEN` | Docker Hub [Access Token](https://hub.docker.com/settings/security) (Read & Write) |
+
+`GITHUB_TOKEN` is automatic (GHCR + Releases).
 
 ## Decision making
 

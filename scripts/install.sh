@@ -70,7 +70,7 @@ services:
 
   # Single image: API + Vite dashboard on :8000 (host port 80)
   goolify:
-    image: ghcr.io/foisalislambd/goolify:latest
+    image: foisalislambd/goolify:latest
     env_file: .env
     environment:
       GOOLIFY_DATABASE_URL: ${GOOLIFY_DATABASE_URL}
