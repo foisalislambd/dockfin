@@ -502,8 +502,9 @@ func waitServiceHTTPReady(client *ssh.Client, fqdn string, emit func(stage, line
 		}
 		last = code
 		n, _ := strconv.Atoi(code)
-		// Ready when Traefik reaches the container (any app status except gateway errors).
-		if n > 0 && n != 502 && n != 503 && n != 504 {
+		// Ready only when Traefik has a real backend route — not gateway errors
+		// and not Traefik's own 404 (router not registered yet).
+		if n >= 200 && n < 500 && n != 404 {
 			emit("ready", fmt.Sprintf("Service reachable (HTTP %s)", code))
 			return
 		}

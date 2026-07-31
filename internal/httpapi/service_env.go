@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/goolify/goolify/internal/proxy"
 	"github.com/goolify/goolify/internal/services"
 )
 
@@ -72,6 +73,8 @@ func (a *API) loadServiceMagicEnv(ctx context.Context, teamID, serviceID uuid.UU
 }
 
 // preferURLFromMagicEnv picks SERVICE_URL_* (Coolify pair) as public base URL.
+// Skips unusable magic hosts (e.g. *.127.0.0.1.sslip.io) so a repaired FQDN
+// cannot be overwritten by a stale env value.
 func preferURLFromMagicEnv(env map[string]string) (baseURL, fqdn string) {
 	keys := make([]string, 0)
 	for k := range env {
@@ -85,6 +88,9 @@ func preferURLFromMagicEnv(env map[string]string) (baseURL, fqdn string) {
 		if err != nil || u.Host == "" {
 			continue
 		}
+		if proxy.FQDNUsesUnusableMagicIP(u.Host) {
+			continue
+		}
 		return strings.TrimRight(env[k], "/"), u.Host
 	}
 	fqKeys := make([]string, 0)
@@ -95,7 +101,11 @@ func preferURLFromMagicEnv(env map[string]string) (baseURL, fqdn string) {
 	}
 	sort.Strings(fqKeys)
 	for _, k := range fqKeys {
-		return "http://" + env[k], env[k]
+		host := env[k]
+		if proxy.FQDNUsesUnusableMagicIP(host) {
+			continue
+		}
+		return "http://" + host, host
 	}
 	return "", ""
 }
