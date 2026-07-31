@@ -213,6 +213,16 @@ export const api = {
     request<{ environments: Environment[] }>(`/api/v1/projects/${projectId}/environments`),
   getEnvironment: (projectId: string, envId: string) =>
     request<Environment>(`/api/v1/projects/${projectId}/environments/${envId}`),
+  getEnvironmentById: (envId: string) => request<Environment>(`/api/v1/environments/${envId}`),
+  moveResource: (body: {
+    resource_type: 'application' | 'database' | 'service'
+    resource_id: string
+    environment_id: string
+  }) =>
+    request<{ status: string; environment_id: string }>('/api/v1/resources/move', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   createEnvironment: (projectId: string, name: string, description = '') =>
     request<Environment>(`/api/v1/projects/${projectId}/environments`, {
       method: 'POST',
@@ -228,6 +238,37 @@ export const api = {
       method: 'DELETE',
       body: body ? JSON.stringify(body) : undefined,
     }),
+  cloneEnvironment: (projectId: string, envId: string, name: string, description = '') =>
+    request<{
+      environment: Environment
+      applications: number
+      databases: number
+      services: number
+    }>(`/api/v1/projects/${projectId}/environments/${envId}/clone`, {
+      method: 'POST',
+      body: JSON.stringify({ name, description }),
+    }),
+  environmentTags: (projectId: string, envId: string) =>
+    request<{
+      resource_tags: Array<{ resource_type: string; resource_id: string; tags: Tag[] }>
+    }>(`/api/v1/projects/${projectId}/environments/${envId}/tags`),
+
+  tags: () => request<{ tags: Tag[] }>('/api/v1/tags'),
+  createTag: (name: string, color = '#14b8a6') =>
+    request<Tag>('/api/v1/tags', { method: 'POST', body: JSON.stringify({ name, color }) }),
+  deleteTag: (id: string) => request<{ status: string }>(`/api/v1/tags/${id}`, { method: 'DELETE' }),
+  attachTag: (body: {
+    tag_id?: string
+    name?: string
+    color?: string
+    resource_type: string
+    resource_id: string
+  }) => request<{ tags: Tag[] }>('/api/v1/tags/attach', { method: 'POST', body: JSON.stringify(body) }),
+  detachTag: (tagId: string, resource_type: string, resource_id: string) =>
+    request<{ status: string }>(
+      `/api/v1/tags/${tagId}/attach?resource_type=${encodeURIComponent(resource_type)}&resource_id=${resource_id}`,
+      { method: 'DELETE' },
+    ),
 
   applications: (environment_id?: string) =>
     request<{ applications: Application[] }>(
@@ -255,6 +296,12 @@ export const api = {
     request<Deployment>(`/api/v1/applications/${id}/rollback`, {
       method: 'POST',
       body: JSON.stringify({ force_rebuild }),
+    }),
+  listPreviews: (appId: string) =>
+    request<{ previews: ApplicationPreview[] }>(`/api/v1/applications/${appId}/previews`),
+  deletePreview: (appId: string, prId: number) =>
+    request<{ status: string }>(`/api/v1/applications/${appId}/previews/${prId}`, {
+      method: 'DELETE',
     }),
   setWebhookSecret: (id: string, secret = '') =>
     request<{ secret: string }>(`/api/v1/applications/${id}/webhook-secret`, {
@@ -354,6 +401,18 @@ export const api = {
     request<Service>('/api/v1/services', { method: 'POST', body: JSON.stringify(body) }),
   deployService: (id: string) =>
     request(`/api/v1/services/${id}/deploy`, { method: 'POST' }),
+  serviceWebhook: (id: string) =>
+    request<{
+      uuid: string
+      has_secret: boolean
+      deploy_url: string
+      deploy_webhook_url: string
+    }>(`/api/v1/services/${id}/webhook`),
+  setServiceWebhookSecret: (id: string, secret = '') =>
+    request<{ secret: string }>(`/api/v1/services/${id}/webhook-secret`, {
+      method: 'POST',
+      body: JSON.stringify({ secret }),
+    }),
   /** Live SSE deploy — calls onLine for each event; resolves with final status. */
   deployServiceStream: async (
     id: string,
@@ -547,11 +606,36 @@ export const api = {
     name: string
     command: string
     frequency: string
+    container_name?: string
   }) =>
-    request<{ id: string }>('/api/v1/scheduled-tasks', {
+    request<ScheduledTask>('/api/v1/scheduled-tasks', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  patchScheduledTask: (
+    id: string,
+    body: {
+      name?: string
+      command?: string
+      frequency?: string
+      container_name?: string
+      enabled?: boolean
+    },
+  ) =>
+    request<ScheduledTask>(`/api/v1/scheduled-tasks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteScheduledTask: (id: string) =>
+    request<{ status: string }>(`/api/v1/scheduled-tasks/${id}`, { method: 'DELETE' }),
+  runScheduledTask: (id: string) =>
+    request<{ execution_id: string; status: string }>(`/api/v1/scheduled-tasks/${id}/run`, {
+      method: 'POST',
+    }),
+  scheduledTaskExecutions: (id: string) =>
+    request<{ executions: ScheduledTaskExecution[] }>(
+      `/api/v1/scheduled-tasks/${id}/executions`,
+    ),
   serverMetrics: (id: string, limit = 60) =>
     request<{ metrics: ServerMetric[] }>(`/api/v1/servers/${id}/metrics?limit=${limit}`),
 
@@ -735,6 +819,13 @@ export type Environment = {
   description?: string
   is_empty?: boolean
 }
+export type Tag = {
+  id: string
+  team_id: string
+  name: string
+  color: string
+  created_at: string
+}
 export type Service = {
   id: string
   name: string
@@ -749,6 +840,13 @@ export type Service = {
   docker_compose_raw?: string
   links?: { label: string; url: string }[]
   units?: ServiceUnit[]
+  volumes?: Array<{
+    service: string
+    name: string
+    mount_path: string
+    host_path?: string
+    type: string
+  }>
 }
 export type ServiceUnit = {
   name: string
@@ -773,7 +871,29 @@ export type Application = {
   git_source_id?: string | null
   private_key_id?: string | null
   is_build_server_enabled?: boolean
+  is_force_https?: boolean
+  is_preview_enabled?: boolean
+  health_check_enabled?: boolean
+  health_check_path?: string
+  health_check_port?: number | null
+  health_check_method?: string
+  health_check_return_code?: number
+  health_check_interval?: number
+  health_check_timeout?: number
+  health_check_retries?: number
+  limits_memory?: string
+  limits_cpus?: string
   links?: { label: string; url: string }[]
+}
+export type ApplicationPreview = {
+  id: string
+  application_id: string
+  pull_request_id: number
+  pull_request_title: string
+  git_branch: string
+  fqdn: string
+  status: string
+  created_at: string
 }
 export type Deployment = {
   id: string
@@ -902,8 +1022,17 @@ export type ScheduledTask = {
   name: string
   command: string
   frequency: string
+  container_name?: string
   enabled: boolean
   created_at: string
+  updated_at?: string
+}
+export type ScheduledTaskExecution = {
+  id: string
+  status: string
+  output: string
+  started_at: string
+  finished_at?: string | null
 }
 export type InstanceSettings = {
   id: number

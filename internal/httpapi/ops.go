@@ -194,6 +194,7 @@ func serviceWithLinks(svc *store.Service) map[string]any {
 			unitRows[0]["links"] = append(existing, leftover...)
 		}
 	}
+	volumes := services.ParseComposeVolumes(compose)
 	return map[string]any{
 		"id":                 svc.ID,
 		"team_id":            svc.TeamID,
@@ -210,6 +211,7 @@ func serviceWithLinks(svc *store.Service) map[string]any {
 		"created_at":         svc.CreatedAt,
 		"links":              links,
 		"units":              unitRows,
+		"volumes":            volumes,
 	}
 }
 
@@ -267,6 +269,7 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 
 	stream := r.URL.Query().Get("stream") == "1" ||
 		strings.Contains(r.Header.Get("Accept"), "text/event-stream")
+	force := r.URL.Query().Get("force") == "true" || r.URL.Query().Get("force") == "1"
 
 	var emit func(stage, line string)
 	var finishOK func()
@@ -457,10 +460,16 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 	emit("setup", "Compose file written")
 
 	project := "goolify-svc-" + id.String()[:8]
-	emit("compose", fmt.Sprintf("docker compose -p %s up -d --remove-orphans", project))
+	upArgs := []string{"docker", "compose", "-p", project, "-f", composePath, "up", "-d", "--remove-orphans"}
+	if force {
+		upArgs = append(upArgs, "--force-recreate")
+		emit("compose", fmt.Sprintf("docker compose -p %s up -d --remove-orphans --force-recreate", project))
+	} else {
+		emit("compose", fmt.Sprintf("docker compose -p %s up -d --remove-orphans", project))
+	}
 	err = sshx.RunArgsStreaming(client, func(line string) {
 		emit("compose", line)
-	}, "docker", "compose", "-p", project, "-f", composePath, "up", "-d", "--remove-orphans")
+	}, upArgs...)
 	if err != nil {
 		_ = a.Store.UpdateServiceStatus(r.Context(), id, "exited")
 		finishErr(fmt.Sprintf("compose up: %v", err))
@@ -635,6 +644,20 @@ func (a *API) runServiceComposeAction(w http.ResponseWriter, r *http.Request, ac
 	remoteDir := "/data/goolify/services/" + id.String()
 	composePath := remoteDir + "/docker-compose.yml"
 	project := "goolify-svc-" + id.String()[:8]
+
+	// Cloned / never-deployed services have no compose file on disk.
+	if _, _, existsErr := sshx.RunArgs(client, "test", "-f", composePath); existsErr != nil {
+		if action == "stop" {
+			// Idempotent: nothing running to stop.
+			_ = a.Store.UpdateServiceStatus(r.Context(), id, "exited")
+			svc.Status = "exited"
+			writeJSON(w, http.StatusOK, serviceWithLinks(svc))
+			return
+		}
+		writeError(w, http.StatusBadRequest, "service has not been deployed yet — deploy first")
+		return
+	}
+
 	_, errOut, err := sshx.RunArgs(client, "docker", "compose", "-p", project, "-f", composePath, action)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("%s failed: %v %s", action, err, errOut))
@@ -741,62 +764,31 @@ func (a *API) handleSentinelMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleListScheduledTasks(w http.ResponseWriter, r *http.Request) {
-	q := `
-		SELECT id, resource_type, resource_id, name, command, frequency, enabled, created_at
-		FROM scheduled_tasks WHERE team_id=$1`
-	args := []any{currentTeamID(r)}
-	if rt := r.URL.Query().Get("resource_type"); rt != "" {
-		args = append(args, rt)
-		q += fmt.Sprintf(` AND resource_type=$%d`, len(args))
-	}
-	if rid := r.URL.Query().Get("resource_id"); rid != "" {
-		id, err := uuid.Parse(rid)
+	var rid *uuid.UUID
+	if s := r.URL.Query().Get("resource_id"); s != "" {
+		id, err := uuid.Parse(s)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "invalid resource_id")
 			return
 		}
-		args = append(args, id)
-		q += fmt.Sprintf(` AND resource_id=$%d`, len(args))
+		rid = &id
 	}
-	q += ` ORDER BY name`
-	rows, err := a.Store.Pool.Query(r.Context(), q, args...)
+	list, err := a.Store.ListScheduledTasks(r.Context(), currentTeamID(r), r.URL.Query().Get("resource_type"), rid)
 	if err != nil {
 		mapStoreErr(w, err)
 		return
 	}
-	defer rows.Close()
-	type task struct {
-		ID           uuid.UUID `json:"id"`
-		ResourceType string    `json:"resource_type"`
-		ResourceID   uuid.UUID `json:"resource_id"`
-		Name         string    `json:"name"`
-		Command      string    `json:"command"`
-		Frequency    string    `json:"frequency"`
-		Enabled      bool      `json:"enabled"`
-		CreatedAt    time.Time `json:"created_at"`
-	}
-	var out []task
-	for rows.Next() {
-		var t task
-		if err := rows.Scan(&t.ID, &t.ResourceType, &t.ResourceID, &t.Name, &t.Command, &t.Frequency, &t.Enabled, &t.CreatedAt); err != nil {
-			mapStoreErr(w, err)
-			return
-		}
-		out = append(out, t)
-	}
-	if out == nil {
-		out = []task{}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"scheduled_tasks": out})
+	writeJSON(w, http.StatusOK, map[string]any{"scheduled_tasks": list})
 }
 
 func (a *API) handleCreateScheduledTask(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		ResourceType string `json:"resource_type"`
-		ResourceID   string `json:"resource_id"`
-		Name         string `json:"name"`
-		Command      string `json:"command"`
-		Frequency    string `json:"frequency"`
+		ResourceType  string `json:"resource_type"`
+		ResourceID    string `json:"resource_id"`
+		Name          string `json:"name"`
+		Command       string `json:"command"`
+		Frequency     string `json:"frequency"`
+		ContainerName string `json:"container_name"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -831,16 +823,113 @@ func (a *API) handleCreateScheduledTask(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "unsupported resource_type")
 		return
 	}
-	var id uuid.UUID
-	err = a.Store.Pool.QueryRow(r.Context(), `
-		INSERT INTO scheduled_tasks (team_id, resource_type, resource_id, name, command, frequency)
-		VALUES ($1,$2,$3,$4,$5,$6) RETURNING id
-	`, teamID, body.ResourceType, rid, body.Name, body.Command, body.Frequency).Scan(&id)
+	task, err := a.Store.CreateScheduledTask(r.Context(), teamID, body.ResourceType, rid, body.Name, body.Command, body.Frequency, body.ContainerName)
 	if err != nil {
 		mapStoreErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"id": id})
+	writeJSON(w, http.StatusCreated, task)
+}
+
+func (a *API) handlePatchScheduledTask(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "taskID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var body struct {
+		Name          *string `json:"name"`
+		Command       *string `json:"command"`
+		Frequency     *string `json:"frequency"`
+		ContainerName *string `json:"container_name"`
+		Enabled       *bool   `json:"enabled"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	task, err := a.Store.UpdateScheduledTask(r.Context(), currentTeamID(r), id, store.UpdateScheduledTaskInput{
+		Name:      body.Name,
+		Command:   body.Command,
+		Frequency: body.Frequency,
+		Container: body.ContainerName,
+		Enabled:   body.Enabled,
+	})
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, task)
+}
+
+func (a *API) handleDeleteScheduledTask(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "taskID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if err := a.Store.DeleteScheduledTask(r.Context(), currentTeamID(r), id); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+func (a *API) handleListScheduledTaskExecutions(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "taskID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	teamID := currentTeamID(r)
+	if _, err := a.Store.GetScheduledTask(r.Context(), teamID, id); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	list, err := a.Store.ListScheduledTaskExecutions(r.Context(), teamID, id, 20)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"executions": list})
+}
+
+func (a *API) handleRunScheduledTask(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "taskID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	teamID := currentTeamID(r)
+	task, err := a.Store.GetScheduledTask(r.Context(), teamID, id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	execID, err := a.Store.CreateTaskExecution(r.Context(), teamID, task.ID)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	row := store.ScheduledTaskRow{
+		ID:           task.ID,
+		TeamID:       task.TeamID,
+		ResourceType: task.ResourceType,
+		ResourceID:   task.ResourceID,
+		Name:         task.Name,
+		Command:      task.Command,
+		Frequency:    task.Frequency,
+		Container:    task.Container,
+		Enabled:      task.Enabled,
+	}
+	if a.TaskRunner != nil {
+		go a.TaskRunner.ExecuteTaskNow(context.Background(), row, execID)
+	} else {
+		_ = a.Store.FinishTaskExecution(r.Context(), execID, "failed", "scheduler not configured")
+		writeError(w, http.StatusServiceUnavailable, "scheduler not configured")
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"execution_id": execID, "status": "running"})
 }
 
 func (a *API) handleListServerMetrics(w http.ResponseWriter, r *http.Request) {

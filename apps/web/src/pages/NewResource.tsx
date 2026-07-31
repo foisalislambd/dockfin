@@ -12,7 +12,7 @@ import {
   Rocket,
   Search,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ServiceLogo } from '../components/ServiceLogo'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { api, LAST_ENV_KEY, type Template } from '../lib/api'
@@ -53,8 +53,8 @@ const GIT_APPS = [
   },
   {
     id: 'compose',
-    title: 'Docker Compose',
-    description: 'Deploy a docker-compose stack from Git.',
+    title: 'Docker Compose (Git)',
+    description: 'Deploy a docker-compose stack from a Git repository.',
     icon: Layers,
     buildPack: 'dockercompose',
     sourceType: 'public',
@@ -68,6 +68,21 @@ const DOCKER_APPS = [
     description: 'Pull and run a public or private container image.',
     icon: ImageIcon,
     buildPack: 'dockerimage',
+  },
+  {
+    id: 'static',
+    title: 'Static Site',
+    description: 'Build a static site (HTML/JS/CSS) with Nixpacks or a Dockerfile and serve it.',
+    icon: Rocket,
+    buildPack: 'static',
+    sourceType: 'public',
+  },
+  {
+    id: 'compose-empty',
+    title: 'Empty Docker Compose',
+    description: 'Paste your own docker-compose.yaml as a multi-container service stack.',
+    icon: Layers,
+    buildPack: 'compose-empty',
   },
 ]
 
@@ -128,6 +143,7 @@ export function NewResourcePage() {
   const [category, setCategory] = useState('')
   const [creatingType, setCreatingType] = useState<string | null>(null)
   const [createError, setCreateError] = useState('')
+  const [destinationId, setDestinationId] = useState('')
 
   const project = useQuery({
     queryKey: ['project', projectId],
@@ -140,6 +156,11 @@ export function NewResourcePage() {
   const env = (envs.data?.environments || []).find((e) => e.id === envId)
   const templates = useQuery({ queryKey: ['templates'], queryFn: api.templates })
   const dests = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
+
+  useEffect(() => {
+    const first = dests.data?.destinations?.[0]?.id || ''
+    if (first && !destinationId) setDestinationId(first)
+  }, [dests.data, destinationId])
 
   const categories = useMemo(() => {
     const set = new Set<string>()
@@ -156,8 +177,16 @@ export function NewResourcePage() {
     return parts.some((p) => (p || '').toLowerCase().includes(q))
   }
 
-  const showGit = matchText(['git', 'repository', 'dockerfile', 'compose', 'nixpacks', 'application'])
-  const showDocker = matchText(['docker', 'image', 'application'])
+  const showGit = matchText([
+    'git',
+    'repository',
+    'dockerfile',
+    'compose',
+    'nixpacks',
+    'application',
+    'static',
+  ])
+  const showDocker = matchText(['docker', 'image', 'application', 'static', 'compose', 'empty'])
   const filteredDbs = DATABASES.filter(
     (d) => !q || matchText([d.id, d.title, d.description, 'database']),
   )
@@ -172,6 +201,14 @@ export function NewResourcePage() {
 
   const goApp = (buildPack: string, sourceType?: string) => {
     localStorage.setItem(LAST_ENV_KEY, envId)
+    if (buildPack === 'compose-empty') {
+      void nav({
+        to: '/projects/$projectId/environments/$envId/services/new',
+        params: { projectId, envId },
+        search: { empty_compose: '1', environment_id: undefined },
+      })
+      return
+    }
     void nav({
       to: '/projects/$projectId/environments/$envId/applications/new',
       params: { projectId, envId },
@@ -194,11 +231,10 @@ export function NewResourcePage() {
 
   const createService = useMutation({
     mutationFn: (tpl: Template) => {
-      const destId = dests.data?.destinations?.[0]?.id || ''
       return api.createService({
         name: tpl.name.toLowerCase().replace(/\s+/g, '-'),
         environment_id: envId,
-        destination_id: destId || undefined,
+        destination_id: destinationId || undefined,
         template: tpl.type,
       })
     },
@@ -209,6 +245,7 @@ export function NewResourcePage() {
       void nav({
         to: '/projects/$projectId/environments/$envId/services/$svcId',
         params: { projectId, envId, svcId: svc.id },
+        search: { deploy: undefined },
       })
     },
     onError: (e: Error) => {
@@ -319,14 +356,16 @@ export function NewResourcePage() {
                 <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Docker Based</h3>
                 <div className="grid gap-3">
                   {DOCKER_APPS.filter((a) =>
-                    matchText([a.title, a.description, a.buildPack, 'docker']),
+                    matchText([a.title, a.description, a.buildPack, 'docker', 'static', 'compose']),
                   ).map((a) => (
                     <ResourceTile
                       key={a.id}
                       title={a.title}
                       description={a.description}
                       icon={a.icon}
-                      onClick={() => goApp(a.buildPack)}
+                      onClick={() =>
+                        goApp(a.buildPack, 'sourceType' in a ? (a as { sourceType?: string }).sourceType : undefined)
+                      }
                     />
                   ))}
                 </div>
@@ -360,12 +399,29 @@ export function NewResourcePage() {
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Services</h2>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            One-click services from the catalog. Click to create in this environment
-            {dests.data?.destinations?.[0]
-              ? ` (destination: ${dests.data.destinations[0].name})`
-              : ' — add a server destination for free sslip.io domains'}
-            .
+            One-click services from the catalog. Click to create in this environment.
           </p>
+          {(dests.data?.destinations || []).length > 0 && (
+            <label className="block max-w-md text-sm">
+              <span className="mb-1 block text-gray-500 dark:text-gray-400">Destination</span>
+              <select
+                value={destinationId}
+                onChange={(e) => setDestinationId(e.target.value)}
+                className="panel-field h-9 w-full rounded-md px-3 text-sm"
+              >
+                {(dests.data?.destinations || []).map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name} ({d.network || 'default'})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {!(dests.data?.destinations || []).length && (
+            <p className="text-sm text-amber-600 dark:text-amber-400">
+              Add a server destination for free sslip.io domains before deploying services.
+            </p>
+          )}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredServices.map((t) => {
               const busy = creatingType === t.type && createService.isPending

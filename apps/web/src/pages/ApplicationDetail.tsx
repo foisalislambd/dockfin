@@ -1,9 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { LinksMenu, LinksPanel } from '../components/LinksMenu'
+import { MoveResourcePanel } from '../components/MoveResourcePanel'
+import { ScheduledTasksPanel } from '../components/ScheduledTasksPanel'
+import { ServerTerminal } from '../components/Terminal'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
 import { api } from '../lib/api'
@@ -12,10 +15,15 @@ import { Btn, Input } from './Servers'
 const APP_TABS = [
   { id: 'links', label: 'Links' },
   { id: 'configuration', label: 'Configuration' },
+  { id: 'health', label: 'Health Checks' },
+  { id: 'limits', label: 'Resource Limits' },
   { id: 'environment', label: 'Environment Variables' },
   { id: 'deployments', label: 'Deployments' },
+  { id: 'previews', label: 'Previews' },
+  { id: 'terminal', label: 'Terminal' },
   { id: 'tasks', label: 'Scheduled Tasks' },
   { id: 'webhooks', label: 'Webhooks' },
+  { id: 'operations', label: 'Resource Operations' },
   { id: 'rollback', label: 'Rollback' },
   { id: 'danger', label: 'Danger Zone' },
 ]
@@ -42,6 +50,11 @@ export function ApplicationDetailPage() {
       return busy ? 3000 : false
     },
   })
+  const previews = useQuery({
+    queryKey: ['previews', appId],
+    queryFn: () => api.listPreviews(appId),
+    enabled: Boolean(appId),
+  })
 
   const [tab, setTab] = useState('links')
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -57,39 +70,25 @@ export function ApplicationDetailPage() {
     destination_id: '',
     git_source_id: '',
     is_build_server_enabled: false,
+    is_force_https: true,
+    is_preview_enabled: false,
   })
+  const [health, setHealth] = useState({
+    health_check_enabled: false,
+    health_check_path: '/',
+    health_check_port: '' as string,
+    health_check_method: 'GET',
+    health_check_return_code: 200,
+    health_check_interval: 5,
+    health_check_timeout: 5,
+    health_check_retries: 10,
+  })
+  const [limits, setLimits] = useState({ limits_memory: '', limits_cpus: '' })
   const [webhookSecret, setWebhookSecret] = useState<string | null>(null)
-  const [taskName, setTaskName] = useState('')
-  const [taskCommand, setTaskCommand] = useState('')
-  const [taskFrequency, setTaskFrequency] = useState('0 * * * *')
 
-  const tasks = useQuery({
-    queryKey: ['scheduled-tasks', appId],
-    queryFn: () => api.scheduledTasks({ resource_type: 'application', resource_id: appId }),
-  })
-  const createTask = useMutation({
-    mutationFn: () =>
-      api.createScheduledTask({
-        resource_type: 'application',
-        resource_id: appId,
-        name: taskName,
-        command: taskCommand,
-        frequency: taskFrequency,
-      }),
-    onSuccess: () => {
-      setTaskName('')
-      setTaskCommand('')
-      void qc.invalidateQueries({ queryKey: ['scheduled-tasks', appId] })
-    },
-  })
-
-  // Reset local UI state whenever the route resource changes (component may be reused).
   useEffect(() => {
     setTab('configuration')
     setWebhookSecret(null)
-    setTaskName('')
-    setTaskCommand('')
-    setTaskFrequency('0 * * * *')
     setCfg({
       name: '',
       description: '',
@@ -102,7 +101,20 @@ export function ApplicationDetailPage() {
       destination_id: '',
       git_source_id: '',
       is_build_server_enabled: false,
+      is_force_https: true,
+      is_preview_enabled: false,
     })
+    setHealth({
+      health_check_enabled: false,
+      health_check_path: '/',
+      health_check_port: '',
+      health_check_method: 'GET',
+      health_check_return_code: 200,
+      health_check_interval: 5,
+      health_check_timeout: 5,
+      health_check_retries: 10,
+    })
+    setLimits({ limits_memory: '', limits_cpus: '' })
   }, [appId])
 
   useEffect(() => {
@@ -119,6 +131,23 @@ export function ApplicationDetailPage() {
       destination_id: app.data.destination_id || '',
       git_source_id: app.data.git_source_id || '',
       is_build_server_enabled: Boolean(app.data.is_build_server_enabled),
+      is_force_https: app.data.is_force_https !== false,
+      is_preview_enabled: Boolean(app.data.is_preview_enabled),
+    })
+    setHealth({
+      health_check_enabled: Boolean(app.data.health_check_enabled),
+      health_check_path: app.data.health_check_path || '/',
+      health_check_port:
+        app.data.health_check_port != null ? String(app.data.health_check_port) : '',
+      health_check_method: app.data.health_check_method || 'GET',
+      health_check_return_code: app.data.health_check_return_code ?? 200,
+      health_check_interval: app.data.health_check_interval ?? 5,
+      health_check_timeout: app.data.health_check_timeout ?? 5,
+      health_check_retries: app.data.health_check_retries ?? 10,
+    })
+    setLimits({
+      limits_memory: app.data.limits_memory || '',
+      limits_cpus: app.data.limits_cpus || '',
     })
   }, [app.data, appId])
 
@@ -126,23 +155,75 @@ export function ApplicationDetailPage() {
     (d) => d.status === 'queued' || d.status === 'in_progress',
   )
 
+  const serverId = useMemo(() => {
+    const destID = cfg.destination_id || app.data?.destination_id
+    if (!destID) return ''
+    return (dests.data?.destinations || []).find((d) => d.id === destID)?.server_id || ''
+  }, [cfg.destination_id, app.data?.destination_id, dests.data])
+
+  const syncFromApp = (updated: NonNullable<typeof app.data>) => {
+    setCfg({
+      name: updated.name || '',
+      description: updated.description || '',
+      fqdn: updated.fqdn || '',
+      git_repository: updated.git_repository || '',
+      git_branch: updated.git_branch || 'main',
+      ports_exposes: updated.ports_exposes || '80',
+      docker_registry_image_name: updated.docker_registry_image_name || '',
+      docker_registry_image_tag: updated.docker_registry_image_tag || '',
+      destination_id: updated.destination_id || '',
+      git_source_id: updated.git_source_id || '',
+      is_build_server_enabled: Boolean(updated.is_build_server_enabled),
+      is_force_https: updated.is_force_https !== false,
+      is_preview_enabled: Boolean(updated.is_preview_enabled),
+    })
+    setHealth({
+      health_check_enabled: Boolean(updated.health_check_enabled),
+      health_check_path: updated.health_check_path || '/',
+      health_check_port: updated.health_check_port != null ? String(updated.health_check_port) : '',
+      health_check_method: updated.health_check_method || 'GET',
+      health_check_return_code: updated.health_check_return_code ?? 200,
+      health_check_interval: updated.health_check_interval ?? 5,
+      health_check_timeout: updated.health_check_timeout ?? 5,
+      health_check_retries: updated.health_check_retries ?? 10,
+    })
+    setLimits({
+      limits_memory: updated.limits_memory || '',
+      limits_cpus: updated.limits_cpus || '',
+    })
+  }
+
   const save = useMutation({
     mutationFn: () => api.updateApplication(appId, cfg),
     onSuccess: (updated) => {
       void qc.invalidateQueries({ queryKey: ['application', appId] })
-      setCfg({
-        name: updated.name || '',
-        description: updated.description || '',
-        fqdn: updated.fqdn || '',
-        git_repository: updated.git_repository || '',
-        git_branch: updated.git_branch || 'main',
-        ports_exposes: updated.ports_exposes || '80',
-        docker_registry_image_name: updated.docker_registry_image_name || '',
-        docker_registry_image_tag: updated.docker_registry_image_tag || '',
-        destination_id: updated.destination_id || '',
-        git_source_id: updated.git_source_id || '',
-        is_build_server_enabled: Boolean(updated.is_build_server_enabled),
-      })
+      syncFromApp(updated)
+    },
+  })
+
+  const saveHealth = useMutation({
+    mutationFn: () =>
+      api.updateApplication(appId, {
+        health_check_enabled: health.health_check_enabled,
+        health_check_path: health.health_check_path,
+        health_check_port: health.health_check_port ? Number(health.health_check_port) : 0,
+        health_check_method: health.health_check_method,
+        health_check_return_code: health.health_check_return_code,
+        health_check_interval: health.health_check_interval,
+        health_check_timeout: health.health_check_timeout,
+        health_check_retries: health.health_check_retries,
+      }),
+    onSuccess: (updated) => {
+      void qc.invalidateQueries({ queryKey: ['application', appId] })
+      syncFromApp(updated)
+    },
+  })
+
+  const saveLimits = useMutation({
+    mutationFn: () => api.updateApplication(appId, limits),
+    onSuccess: (updated) => {
+      void qc.invalidateQueries({ queryKey: ['application', appId] })
+      syncFromApp(updated)
     },
   })
 
@@ -201,10 +282,14 @@ export function ApplicationDetailPage() {
     },
   })
 
-
   const webhook = useMutation({
     mutationFn: () => api.setWebhookSecret(appId),
     onSuccess: (data) => setWebhookSecret(data.secret),
+  })
+
+  const deletePreview = useMutation({
+    mutationFn: (prId: number) => api.deletePreview(appId, prId),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['previews', appId] }),
   })
 
   if (app.isLoading) {
@@ -240,7 +325,9 @@ export function ApplicationDetailPage() {
 
   const a = app.data
   const webhookUrl =
-    typeof window !== 'undefined' ? `${window.location.origin}/api/v1/webhooks/git/${appId}` : `/api/v1/webhooks/git/${appId}`
+    typeof window !== 'undefined'
+      ? `${window.location.origin}/api/v1/webhooks/git/${appId}`
+      : `/api/v1/webhooks/git/${appId}`
 
   const openDeployment = (deploymentId: string) => {
     if (nested && projectId && envId) {
@@ -327,14 +414,10 @@ export function ApplicationDetailPage() {
                   Generate free domain (sslip.io / nip.io)
                 </button>
                 {cfg.fqdn ? (
-                  <a
-                    href={`http://${cfg.fqdn.split(',')[0].trim()}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block text-xs text-gray-500 hover:text-brand-600 dark:text-gray-400"
-                  >
-                    Open {cfg.fqdn.split(',')[0].trim()}
-                  </a>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Multiple hosts: comma-separated. Optional path/port:{" "}
+                    <code className="font-mono">example.com:8080</code>
+                  </p>
                 ) : null}
               </div>
               <Input
@@ -344,56 +427,51 @@ export function ApplicationDetailPage() {
                 required={false}
               />
               <Input
-                label="Ports"
+                label="Ports exposes"
                 value={cfg.ports_exposes}
                 onChange={(v) => setCfg({ ...cfg, ports_exposes: v })}
               />
-              {a.build_pack === 'dockerimage' ? (
-                <>
-                  <Input
-                    label="Image"
-                    value={cfg.docker_registry_image_name}
-                    onChange={(v) => setCfg({ ...cfg, docker_registry_image_name: v })}
-                  />
-                  <Input
-                    label="Tag"
-                    value={cfg.docker_registry_image_tag}
-                    onChange={(v) => setCfg({ ...cfg, docker_registry_image_tag: v })}
-                  />
-                </>
-              ) : (
-                <>
-                  <Input
-                    label="Git repository"
-                    value={cfg.git_repository}
-                    onChange={(v) => setCfg({ ...cfg, git_repository: v })}
-                    required={false}
-                  />
-                  <Input
-                    label="Git branch"
-                    value={cfg.git_branch}
-                    onChange={(v) => setCfg({ ...cfg, git_branch: v })}
-                    required={false}
-                  />
-                </>
-              )}
-              <label className="block text-sm sm:col-span-2">
+              <Input
+                label="Git repository"
+                value={cfg.git_repository}
+                onChange={(v) => setCfg({ ...cfg, git_repository: v })}
+                required={false}
+              />
+              <Input
+                label="Git branch"
+                value={cfg.git_branch}
+                onChange={(v) => setCfg({ ...cfg, git_branch: v })}
+                required={false}
+              />
+              <Input
+                label="Registry image"
+                value={cfg.docker_registry_image_name}
+                onChange={(v) => setCfg({ ...cfg, docker_registry_image_name: v })}
+                required={false}
+              />
+              <Input
+                label="Image tag"
+                value={cfg.docker_registry_image_tag}
+                onChange={(v) => setCfg({ ...cfg, docker_registry_image_tag: v })}
+                required={false}
+              />
+              <label className="block text-sm">
                 <span className="mb-1 block text-gray-500 dark:text-gray-400">Destination</span>
                 <select
                   value={cfg.destination_id}
                   onChange={(e) => setCfg({ ...cfg, destination_id: e.target.value })}
                   className="w-full panel-field rounded-lg px-3 py-2"
                 >
-                  <option value="">Select…</option>
+                  <option value="">Select destination</option>
                   {(dests.data?.destinations || []).map((d) => (
                     <option key={d.id} value={d.id}>
-                      {d.name} ({d.kind || 'standalone'} · {d.network})
+                      {d.name}
                     </option>
                   ))}
                 </select>
               </label>
-              {a.build_pack !== 'dockerimage' && (
-                <label className="block text-sm sm:col-span-2">
+              {(gitSources.data?.git_sources || []).length > 0 && (
+                <label className="block text-sm">
                   <span className="mb-1 block text-gray-500 dark:text-gray-400">Git source</span>
                   <select
                     value={cfg.git_source_id}
@@ -413,10 +491,29 @@ export function ApplicationDetailPage() {
               <label className="flex items-center gap-3 text-sm sm:col-span-2">
                 <input
                   type="checkbox"
+                  checked={cfg.is_force_https}
+                  onChange={(e) => setCfg({ ...cfg, is_force_https: e.target.checked })}
+                />
+                <span>Force HTTPS redirects</span>
+              </label>
+              <label className="flex items-center gap-3 text-sm sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={cfg.is_preview_enabled}
+                  onChange={(e) => setCfg({ ...cfg, is_preview_enabled: e.target.checked })}
+                />
+                <span>
+                  Enable preview deployments
+                  <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
+                    Allows PR preview environments when webhooks include pull request events.
+                  </span>
+                </span>
+              </label>
+              <label className="flex items-center gap-3 text-sm sm:col-span-2">
+                <input
+                  type="checkbox"
                   checked={cfg.is_build_server_enabled}
-                  onChange={(e) =>
-                    setCfg({ ...cfg, is_build_server_enabled: e.target.checked })
-                  }
+                  onChange={(e) => setCfg({ ...cfg, is_build_server_enabled: e.target.checked })}
                 />
                 <span>
                   Build on dedicated build server
@@ -429,6 +526,125 @@ export function ApplicationDetailPage() {
             {save.error && <p className="text-sm text-error-500">{save.error.message}</p>}
             <Btn primary type="submit">
               {save.isPending ? 'Saving…' : 'Save'}
+            </Btn>
+          </form>
+        </TabPanel>
+      )}
+
+      {tab === 'health' && (
+        <TabPanel>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault()
+              saveHealth.mutate()
+            }}
+          >
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              After deploy, Goolify probes this HTTP endpoint inside the container (path / port /
+              expected status). Retries use the interval below until healthy or exhausted.
+            </p>
+            <label className="flex items-center gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={health.health_check_enabled}
+                onChange={(e) => setHealth({ ...health, health_check_enabled: e.target.checked })}
+              />
+              Enable health checks
+            </label>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input
+                label="Path"
+                value={health.health_check_path}
+                onChange={(v) => setHealth({ ...health, health_check_path: v })}
+              />
+              <Input
+                label="Port (optional)"
+                value={health.health_check_port}
+                onChange={(v) => setHealth({ ...health, health_check_port: v })}
+                required={false}
+              />
+              <label className="block text-sm">
+                <span className="mb-1 block text-gray-500 dark:text-gray-400">Method</span>
+                <select
+                  value={health.health_check_method}
+                  onChange={(e) => setHealth({ ...health, health_check_method: e.target.value })}
+                  className="panel-field w-full rounded-lg px-3 py-2"
+                >
+                  {['GET', 'HEAD', 'POST'].map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Input
+                label="Expected status"
+                value={String(health.health_check_return_code)}
+                onChange={(v) =>
+                  setHealth({ ...health, health_check_return_code: Number(v) || 200 })
+                }
+              />
+              <Input
+                label="Interval (s)"
+                value={String(health.health_check_interval)}
+                onChange={(v) =>
+                  setHealth({ ...health, health_check_interval: Number(v) || 5 })
+                }
+              />
+              <Input
+                label="Timeout (s)"
+                value={String(health.health_check_timeout)}
+                onChange={(v) => setHealth({ ...health, health_check_timeout: Number(v) || 5 })}
+              />
+              <Input
+                label="Retries"
+                value={String(health.health_check_retries)}
+                onChange={(v) => setHealth({ ...health, health_check_retries: Number(v) || 10 })}
+              />
+            </div>
+            {saveHealth.error && <p className="text-sm text-error-500">{saveHealth.error.message}</p>}
+            <Btn primary type="submit">
+              {saveHealth.isPending ? 'Saving…' : 'Save health checks'}
+            </Btn>
+          </form>
+        </TabPanel>
+      )}
+
+      {tab === 'limits' && (
+        <TabPanel>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault()
+              saveLimits.mutate()
+            }}
+          >
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Docker resource limits applied on the next deploy. Leave empty for unlimited.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input
+                label="Memory limit"
+                value={limits.limits_memory}
+                onChange={(v) => setLimits({ ...limits, limits_memory: v })}
+                required={false}
+              />
+              <Input
+                label="CPU limit"
+                value={limits.limits_cpus}
+                onChange={(v) => setLimits({ ...limits, limits_cpus: v })}
+                required={false}
+              />
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Examples: memory <code className="font-mono">512m</code> /{' '}
+              <code className="font-mono">1g</code>, CPUs <code className="font-mono">0.5</code> /{' '}
+              <code className="font-mono">2</code>.
+            </p>
+            {saveLimits.error && <p className="text-sm text-error-500">{saveLimits.error.message}</p>}
+            <Btn primary type="submit">
+              {saveLimits.isPending ? 'Saving…' : 'Save limits'}
             </Btn>
           </form>
         </TabPanel>
@@ -495,6 +711,87 @@ export function ApplicationDetailPage() {
         </TabPanel>
       )}
 
+      {tab === 'previews' && (
+        <TabPanel>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Pull-request preview deployments for this application.
+              {!cfg.is_preview_enabled && (
+                <>
+                  {' '}
+                  Enable “preview deployments” under Configuration to accept PR webhooks.
+                </>
+              )}
+            </p>
+            <div className="panel-card overflow-hidden">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+                  <tr>
+                    <th className="px-3 py-2">PR</th>
+                    <th className="px-3 py-2">Title</th>
+                    <th className="px-3 py-2">Branch</th>
+                    <th className="px-3 py-2">FQDN</th>
+                    <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {(previews.data?.previews || []).map((p) => (
+                    <tr key={p.id} className="border-t border-gray-200 dark:border-gray-800">
+                      <td className="px-3 py-2 font-mono text-xs">#{p.pull_request_id}</td>
+                      <td className="px-3 py-2">{p.pull_request_title || '—'}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{p.git_branch || '—'}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{p.fqdn || '—'}</td>
+                      <td className="px-3 py-2">{p.status}</td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          type="button"
+                          className="text-error-500"
+                          onClick={() => {
+                            if (confirm(`Delete preview for PR #${p.pull_request_id}?`)) {
+                              deletePreview.mutate(p.pull_request_id)
+                            }
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {!previews.data?.previews?.length && (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                        No preview deployments yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {deletePreview.error && (
+              <p className="text-sm text-error-500">{deletePreview.error.message}</p>
+            )}
+          </div>
+        </TabPanel>
+      )}
+
+      {tab === 'terminal' && (
+        <TabPanel>
+          {serverId ? (
+            <ServerTerminal
+              serverId={serverId}
+              defaultContainer={`goolify-${appId}`}
+              containerOptions={[`goolify-${appId}`]}
+              hideHostShell
+            />
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Assign a destination so the application container terminal can connect.
+            </p>
+          )}
+        </TabPanel>
+      )}
+
       {tab === 'webhooks' && (
         <TabPanel>
           <div className="panel-card space-y-4 p-5">
@@ -526,84 +823,28 @@ export function ApplicationDetailPage() {
 
       {tab === 'tasks' && (
         <TabPanel>
+          <ScheduledTasksPanel resourceType="application" resourceId={appId} />
+        </TabPanel>
+      )}
+
+      {tab === 'operations' && (
+        <TabPanel>
           <div className="space-y-4">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Cron schedules run every minute from the Goolify server. Commands execute via{' '}
-              <code className="font-mono text-xs">docker exec</code> in the application container.
-            </p>
-            <div className="panel-card overflow-hidden">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
-                  <tr>
-                    <th className="px-3 py-2">Name</th>
-                    <th className="px-3 py-2">Command</th>
-                    <th className="px-3 py-2">Frequency</th>
-                    <th className="px-3 py-2">Enabled</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(tasks.data?.scheduled_tasks || []).map((t) => (
-                    <tr key={t.id} className="border-t border-gray-200 dark:border-gray-800">
-                      <td className="px-3 py-2">{t.name}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{t.command}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{t.frequency}</td>
-                      <td className="px-3 py-2">{t.enabled ? 'yes' : 'no'}</td>
-                    </tr>
-                  ))}
-                  {!tasks.data?.scheduled_tasks?.length && (
-                    <tr>
-                      <td colSpan={4} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                        No scheduled tasks yet.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <form
-              className="panel-card grid gap-3 p-4 sm:grid-cols-2"
-              onSubmit={(e) => {
-                e.preventDefault()
-                createTask.mutate()
-              }}
-            >
-              <label className="block text-sm">
-                <span className="mb-1 block text-gray-500 dark:text-gray-400">Name</span>
-                <input
-                  value={taskName}
-                  onChange={(e) => setTaskName(e.target.value)}
-                  required
-                  className="panel-field w-full rounded-lg px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="block text-sm">
-                <span className="mb-1 block text-gray-500 dark:text-gray-400">Cron frequency</span>
-                <input
-                  value={taskFrequency}
-                  onChange={(e) => setTaskFrequency(e.target.value)}
-                  required
-                  className="panel-field w-full rounded-lg px-3 py-2 font-mono text-sm"
-                />
-              </label>
-              <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block text-gray-500 dark:text-gray-400">Command</span>
-                <input
-                  value={taskCommand}
-                  onChange={(e) => setTaskCommand(e.target.value)}
-                  required
-                  placeholder="php artisan schedule:run"
-                  className="panel-field w-full rounded-lg px-3 py-2 font-mono text-sm"
-                />
-              </label>
-              {createTask.error && (
-                <p className="text-sm text-error-500 sm:col-span-2">{createTask.error.message}</p>
-              )}
-              <div className="sm:col-span-2">
-                <Btn primary type="submit">
-                  {createTask.isPending ? 'Saving…' : 'Add task'}
+            <div className="panel-card space-y-3 p-5">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Deploy</h2>
+              <div className="flex flex-wrap gap-2">
+                <Btn primary onClick={() => deploy.mutate({})}>
+                  Deploy
                 </Btn>
+                <Btn onClick={() => deploy.mutate({ force: true })}>Force rebuild</Btn>
               </div>
-            </form>
+            </div>
+            <MoveResourcePanel
+              resourceType="application"
+              resourceId={appId}
+              currentEnvironmentId={a.environment_id}
+              projectId={projectId}
+            />
           </div>
         </TabPanel>
       )}

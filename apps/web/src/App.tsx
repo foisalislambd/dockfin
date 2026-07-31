@@ -32,6 +32,8 @@ import { SettingsPage } from './pages/Settings'
 import { SecurityPage } from './pages/Security'
 import {
   CreateStoragePage,
+  EnvironmentSharedVariablesPage,
+  ProjectSharedVariablesPage,
   SharedVariablesPage,
   StoragesPage,
   TeamPage,
@@ -195,12 +197,31 @@ const nestedDbDetailRoute = createRoute({
 const nestedCreateSvcRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/projects/$projectId/environments/$envId/services/new',
+  validateSearch: (s: Record<string, unknown>) => ({
+    empty_compose: typeof s.empty_compose === 'string' ? s.empty_compose : undefined,
+    environment_id: typeof s.environment_id === 'string' ? s.environment_id : undefined,
+  }),
   component: CreateServicePage,
+})
+
+const envSharedVarsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/projects/$projectId/environments/$envId/shared-variables',
+  component: EnvironmentSharedVariablesPage,
+})
+
+const projectSharedVarsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/projects/$projectId/shared-variables',
+  component: ProjectSharedVariablesPage,
 })
 
 const nestedSvcDetailRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/projects/$projectId/environments/$envId/services/$svcId',
+  validateSearch: (s: Record<string, unknown>) => ({
+    deploy: typeof s.deploy === 'string' ? s.deploy : undefined,
+  }),
   component: ServiceDetailPage,
 })
 
@@ -362,6 +383,8 @@ const routeTree = rootRoute.addChildren([
     projectEditRoute,
     envResourcesRoute,
     envEditRoute,
+    envSharedVarsRoute,
+    projectSharedVarsRoute,
     newResourceRoute,
     nestedCreateAppRoute,
     nestedAppDetailRoute,

@@ -160,6 +160,20 @@ func (a *API) handleGetEnvironment(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, env)
 }
 
+func (a *API) handleGetEnvironmentByID(w http.ResponseWriter, r *http.Request) {
+	eid, err := uuid.Parse(chi.URLParam(r, "envID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid environment id")
+		return
+	}
+	env, err := a.Store.GetEnvironment(r.Context(), currentTeamID(r), eid)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, env)
+}
+
 func (a *API) handleUpdateEnvironment(w http.ResponseWriter, r *http.Request) {
 	pid, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useState, type FormEvent } from 'react'
 import { EnvSecretCell, SecretInput } from '../components/SecretValue'
 import { CreatePageShell, FormActions, FormInput } from '../components/ui/forms'
@@ -360,33 +360,52 @@ export function TeamPage() {
   )
 }
 
-export function SharedVariablesPage() {
+export function SharedVariablesPage({
+  scopeType = 'team',
+  scopeId,
+  title = 'Shared Variables',
+  hint,
+}: {
+  scopeType?: 'team' | 'project' | 'environment'
+  scopeId?: string
+  title?: string
+  hint?: string
+} = {}) {
   const qc = useQueryClient()
   const vars = useQuery({
-    queryKey: ['shared-env', 'team'],
-    queryFn: () => api.sharedEnvVars('team', undefined, true),
+    queryKey: ['shared-env', scopeType, scopeId || ''],
+    queryFn: () => api.sharedEnvVars(scopeType, scopeId, true),
   })
   const [key, setKey] = useState('')
   const [value, setValue] = useState('')
   const upsert = useMutation({
     mutationFn: () =>
       api.upsertSharedEnvVar({
-        scope_type: 'team',
+        scope_type: scopeType,
+        scope_id: scopeId,
         key,
         value,
       }),
     onSuccess: () => {
       setKey('')
       setValue('')
-      void qc.invalidateQueries({ queryKey: ['shared-env', 'team'] })
+      void qc.invalidateQueries({ queryKey: ['shared-env', scopeType, scopeId || ''] })
     },
   })
 
+  const placeholder =
+    scopeType === 'environment'
+      ? '{{environment.KEY}}'
+      : scopeType === 'project'
+        ? '{{project.KEY}}'
+        : '{{team.KEY}}'
+
   return (
     <div className="space-y-6">
-      <Header title="Shared Variables" />
+      <Header title={title} />
       <p className="text-sm text-gray-500 dark:text-gray-400">
-        Team-scoped variables available as {'{{team.KEY}}'} in deployments.
+        {hint ||
+          `${scopeType.charAt(0).toUpperCase() + scopeType.slice(1)}-scoped variables available as ${placeholder} in deployments.`}
       </p>
 
       <div className="panel-card overflow-hidden">
@@ -439,6 +458,87 @@ export function SharedVariablesPage() {
         </Btn>
         {upsert.error && <p className="w-full text-sm text-error-500">{upsert.error.message}</p>}
       </form>
+    </div>
+  )
+}
+
+export function EnvironmentSharedVariablesPage() {
+  const { projectId, envId } = useParams({ strict: false }) as { projectId: string; envId: string }
+  const project = useQuery({
+    queryKey: ['project', projectId],
+    queryFn: () => api.getProject(projectId),
+  })
+  const envs = useQuery({
+    queryKey: ['environments', projectId],
+    queryFn: () => api.environments(projectId),
+  })
+  const env = (envs.data?.environments || []).find((e) => e.id === envId)
+
+  return (
+    <div className="space-y-4">
+      <nav className="flex flex-wrap items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+        <Link to="/projects" className="hover:text-brand-600 dark:hover:text-brand-400">
+          Projects
+        </Link>
+        <span>/</span>
+        <Link
+          to="/projects/$projectId"
+          params={{ projectId }}
+          className="hover:text-brand-600 dark:hover:text-brand-400"
+        >
+          {project.data?.name || '…'}
+        </Link>
+        <span>/</span>
+        <Link
+          to="/projects/$projectId/environments/$envId"
+          params={{ projectId, envId }}
+          className="hover:text-brand-600 dark:hover:text-brand-400"
+        >
+          {env?.name || '…'}
+        </Link>
+        <span>/</span>
+        <span className="text-gray-900 dark:text-white">Shared Variables</span>
+      </nav>
+      <SharedVariablesPage
+        scopeType="environment"
+        scopeId={envId}
+        title="Environment Shared Variables"
+        hint="Available as {{environment.KEY}} when deploying resources in this environment."
+      />
+    </div>
+  )
+}
+
+export function ProjectSharedVariablesPage() {
+  const { projectId } = useParams({ strict: false }) as { projectId: string }
+  const project = useQuery({
+    queryKey: ['project', projectId],
+    queryFn: () => api.getProject(projectId),
+  })
+
+  return (
+    <div className="space-y-4">
+      <nav className="flex flex-wrap items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+        <Link to="/projects" className="hover:text-brand-600 dark:hover:text-brand-400">
+          Projects
+        </Link>
+        <span>/</span>
+        <Link
+          to="/projects/$projectId"
+          params={{ projectId }}
+          className="hover:text-brand-600 dark:hover:text-brand-400"
+        >
+          {project.data?.name || '…'}
+        </Link>
+        <span>/</span>
+        <span className="text-gray-900 dark:text-white">Shared Variables</span>
+      </nav>
+      <SharedVariablesPage
+        scopeType="project"
+        scopeId={projectId}
+        title="Project Shared Variables"
+        hint="Available as {{project.KEY}} for every environment in this project."
+      />
     </div>
   )
 }

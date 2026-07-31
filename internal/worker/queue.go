@@ -202,9 +202,13 @@ func (q *Queue) handle(ctx context.Context, job DeployJob) {
 	}
 
 	gitBranch := app.GitBranch
+	previewFQDN := ""
 	if dep.PullRequestID > 0 {
-		if preview, err := q.Store.GetPreviewByPR(ctx, job.TeamID, app.ID, dep.PullRequestID); err == nil && preview.GitBranch != "" {
-			gitBranch = preview.GitBranch
+		if preview, err := q.Store.GetPreviewByPR(ctx, job.TeamID, app.ID, dep.PullRequestID); err == nil {
+			if preview.GitBranch != "" {
+				gitBranch = preview.GitBranch
+			}
+			previewFQDN = preview.FQDN
 		}
 	}
 
@@ -220,6 +224,8 @@ func (q *Queue) handle(ctx context.Context, job DeployJob) {
 		ForceRebuild:    job.ForceRebuild,
 		CommitSHA:       dep.CommitSHA,
 		GitBranch:       gitBranch,
+		PullRequestID:   dep.PullRequestID,
+		PreviewFQDN:     previewFQDN,
 	})
 	if err != nil {
 		// Cancellation surfaces as an error from checkCancelled — don't mark failed.
@@ -230,7 +236,11 @@ func (q *Queue) handle(ctx context.Context, job DeployJob) {
 		}
 		slog.Error("deployment failed", "id", job.DeploymentID, "err", err)
 		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
-		_ = q.Store.UpdateApplicationStatus(ctx, app.ID, "exited")
+		if dep.PullRequestID > 0 {
+			_ = q.Store.UpdatePreviewStatus(ctx, job.TeamID, app.ID, dep.PullRequestID, "failed")
+		} else {
+			_ = q.Store.UpdateApplicationStatus(ctx, app.ID, "exited")
+		}
 		q.publish(job.DeploymentID, "status", "failed")
 		q.notifyDeploy(ctx, job.TeamID, app.Name, "failed", err.Error())
 		return

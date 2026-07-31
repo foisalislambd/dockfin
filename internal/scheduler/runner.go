@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/goolify/goolify/internal/backup"
+	"github.com/goolify/goolify/internal/services"
 	"github.com/goolify/goolify/internal/sshx"
 	"github.com/goolify/goolify/internal/store"
 	"golang.org/x/crypto/ssh"
@@ -99,6 +100,11 @@ func (r *Runner) runTasks(ctx context.Context, minute time.Time) {
 	}
 }
 
+// ExecuteTaskNow runs a scheduled task immediately (manual trigger from the UI).
+func (r *Runner) ExecuteTaskNow(ctx context.Context, t store.ScheduledTaskRow, execID uuid.UUID) {
+	r.executeTask(ctx, t, execID)
+}
+
 func (r *Runner) executeTask(ctx context.Context, t store.ScheduledTaskRow, execID uuid.UUID) {
 	done := false
 	defer func() {
@@ -113,13 +119,17 @@ func (r *Runner) executeTask(ctx context.Context, t store.ScheduledTaskRow, exec
 		done = true
 		return
 	}
-	cmd := t.Command
 	if t.Container != "" {
-		container = t.Container
+		container = resolveServiceContainer(t.ResourceType, t.ResourceID, t.Container, container)
 	}
-	if container != "" {
-		cmd = fmt.Sprintf("docker exec %s sh -lc %s", shellQuote(container), shellQuote(t.Command))
+	// Always run inside a container — never fall through to a raw host shell
+	// (that would execute arbitrary cron commands on the VPS).
+	if container == "" {
+		_ = r.Store.FinishTaskExecution(ctx, execID, "failed", "no container resolved for scheduled task")
+		done = true
+		return
 	}
+	cmd := fmt.Sprintf("docker exec %s sh -lc %s", shellQuote(container), shellQuote(t.Command))
 	stdout, stderr, err := sshx.Run(client, cmd)
 	out := strings.TrimSpace(stdout + "\n" + stderr)
 	if len(out) > 8000 {
@@ -335,14 +345,50 @@ func (r *Runner) dialForResource(ctx context.Context, teamID uuid.UUID, resource
 		if err != nil {
 			return nil, "", err
 		}
-		if svc.ServerID == nil {
-			return nil, "", fmt.Errorf("service has no server")
+		var client *ssh.Client
+		switch {
+		case svc.ServerID != nil:
+			client, err = r.dialServer(ctx, teamID, *svc.ServerID)
+		case svc.DestinationID != nil:
+			client, err = r.dialDestination(ctx, teamID, *svc.DestinationID)
+		default:
+			return nil, "", fmt.Errorf("service has no server or destination")
 		}
-		client, err := r.dialServer(ctx, teamID, *svc.ServerID)
-		return client, "", err
+		if err != nil {
+			return nil, "", err
+		}
+		compose := svc.DockerCompose
+		if compose == "" {
+			compose = svc.DockerComposeRaw
+		}
+		return client, defaultServiceContainer(svc.ID, compose), nil
 	default:
 		return nil, "", fmt.Errorf("unsupported resource_type %s", resourceType)
 	}
+}
+
+// defaultServiceContainer picks the first compose unit container name for a stack.
+func defaultServiceContainer(serviceID uuid.UUID, composeYAML string) string {
+	units := services.ParseComposeUnits(composeYAML)
+	if len(units) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("goolify-svc-%s-%s-1", serviceID.String()[:8], units[0].Name)
+}
+
+// resolveServiceContainer maps a compose service name (or full container name) to a docker name.
+func resolveServiceContainer(resourceType string, resourceID uuid.UUID, named, fallback string) string {
+	named = strings.TrimSpace(named)
+	if named == "" {
+		return fallback
+	}
+	if strings.HasPrefix(named, "goolify-svc-") || strings.HasPrefix(named, "goolify-db-") || strings.HasPrefix(named, "goolify-") {
+		return named
+	}
+	if resourceType == "service" {
+		return fmt.Sprintf("goolify-svc-%s-%s-1", resourceID.String()[:8], named)
+	}
+	return named
 }
 
 func (r *Runner) dialDatabase(ctx context.Context, db *store.Database) (*ssh.Client, string, error) {

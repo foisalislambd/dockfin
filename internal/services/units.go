@@ -64,3 +64,90 @@ func sortComposeNames(names []string) {
 		}
 	}
 }
+
+// ComposeVolume is a bind or named volume mount from a compose service.
+type ComposeVolume struct {
+	Service   string `json:"service"`
+	Name      string `json:"name"`
+	MountPath string `json:"mount_path"`
+	HostPath  string `json:"host_path,omitempty"`
+	Type      string `json:"type"` // named | bind | anonymous
+}
+
+// ParseComposeVolumes extracts volume mounts from compose services.
+func ParseComposeVolumes(compose string) []ComposeVolume {
+	compose = strings.TrimSpace(compose)
+	if compose == "" {
+		return nil
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal([]byte(compose), &doc); err != nil {
+		return nil
+	}
+	svcs, _ := doc["services"].(map[string]any)
+	if svcs == nil {
+		return nil
+	}
+	names := make([]string, 0, len(svcs))
+	for name := range svcs {
+		names = append(names, name)
+	}
+	sortComposeNames(names)
+	var out []ComposeVolume
+	for _, svcName := range names {
+		svc, _ := svcs[svcName].(map[string]any)
+		if svc == nil {
+			continue
+		}
+		raw, ok := svc["volumes"]
+		if !ok {
+			continue
+		}
+		list, ok := raw.([]any)
+		if !ok {
+			continue
+		}
+		for _, item := range list {
+			switch v := item.(type) {
+			case string:
+				parts := strings.SplitN(v, ":", 3)
+				if len(parts) < 2 {
+					out = append(out, ComposeVolume{
+						Service: svcName, Name: "", MountPath: parts[0], Type: "anonymous",
+					})
+					continue
+				}
+				src, dest := parts[0], parts[1]
+				typ := "named"
+				host := ""
+				if strings.HasPrefix(src, "/") || strings.HasPrefix(src, "./") || strings.HasPrefix(src, "../") || src == "." {
+					typ = "bind"
+					host = src
+				} else {
+					host = ""
+				}
+				out = append(out, ComposeVolume{
+					Service: svcName, Name: src, MountPath: dest, HostPath: host, Type: typ,
+				})
+			case map[string]any:
+				src, _ := v["source"].(string)
+				dest, _ := v["target"].(string)
+				typ, _ := v["type"].(string)
+				if typ == "" {
+					typ = "volume"
+				}
+				if typ == "volume" {
+					typ = "named"
+				}
+				host := ""
+				if typ == "bind" {
+					host = src
+				}
+				out = append(out, ComposeVolume{
+					Service: svcName, Name: src, MountPath: dest, HostPath: host, Type: typ,
+				})
+			}
+		}
+	}
+	return out
+}

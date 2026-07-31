@@ -1,11 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { DeployLogPanel } from '../components/DeployLogPanel'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { LinksMenu, LinksPanel } from '../components/LinksMenu'
+import { MoveResourcePanel } from '../components/MoveResourcePanel'
+import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
+import { ScheduledTasksPanel } from '../components/ScheduledTasksPanel'
 import { ServiceLogo } from '../components/ServiceLogo'
+import { ServiceWebhooksPanel } from '../components/ServiceWebhooksPanel'
+import { ServerTerminal } from '../components/Terminal'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { api, type Service, type ServiceUnit } from '../lib/api'
 import { Btn, Input } from './Servers'
@@ -96,12 +101,30 @@ export function ServiceDetailPage() {
 
   const svc = useQuery({ queryKey: ['service', svcId], queryFn: () => api.getService(svcId) })
   const templates = useQuery({ queryKey: ['templates'], queryFn: api.templates })
+  const dests = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
 
   useEffect(() => {
     if (!svc.data) return
     setName(svc.data.name || '')
     setDescription(svc.data.description || '')
   }, [svc.data])
+
+  const serverId = useMemo(() => {
+    const s = svc.data
+    if (!s) return ''
+    if (s.server_id) return s.server_id
+    if (s.destination_id) {
+      return (dests.data?.destinations || []).find((d) => d.id === s.destination_id)?.server_id || ''
+    }
+    return ''
+  }, [svc.data, dests.data])
+
+  const containerOptions = useMemo(() => {
+    const s = svc.data
+    if (!s) return [] as string[]
+    const units = s.units || []
+    return units.map((u) => `goolify-svc-${svcId.slice(0, 8)}-${u.name}-1`)
+  }, [svc.data, svcId])
 
   const save = useMutation({
     mutationFn: () => api.updateService(svcId, { name, description }),
@@ -303,9 +326,19 @@ export function ServiceDetailPage() {
       )}
 
       {topTab === 'terminal' && (
-        <div className="panel-card p-5 text-sm text-gray-500 dark:text-gray-400">
-          Open the destination server Terminal from Servers to run commands against this stack.
-          Container shell for service units will land here next.
+        <div className="space-y-3">
+          {serverId ? (
+            <ServerTerminal
+              serverId={serverId}
+              defaultContainer={containerOptions[0] || ''}
+              containerOptions={containerOptions}
+              hideHostShell
+            />
+          ) : (
+            <div className="panel-card p-5 text-sm text-gray-500 dark:text-gray-400">
+              This service has no server/destination assigned, so a container terminal cannot open yet.
+            </div>
+          )}
         </div>
       )}
 
@@ -367,31 +400,43 @@ export function ServiceDetailPage() {
               <EnvVarsPanel resourceType="service" resourceId={svcId} />
             )}
             {side === 'storages' && (
-              <Placeholder
-                title="Persistent Storages"
-                body="Named volumes from the compose file are created automatically on deploy."
+              <PersistentStoragesPanel
+                compose={s.docker_compose || s.docker_compose_raw || ''}
+                volumes={s.volumes}
               />
             )}
             {side === 'tasks' && (
-              <Placeholder title="Scheduled Tasks" body="Cron-style tasks for this service stack coming soon." />
+              <ScheduledTasksPanel
+                resourceType="service"
+                resourceId={svcId}
+                containerOptions={(units || []).map((u) => u.name)}
+              />
             )}
-            {side === 'webhooks' && (
-              <Placeholder title="Webhooks" body="Service redeploy webhooks coming soon." />
-            )}
+            {side === 'webhooks' && <ServiceWebhooksPanel serviceId={svcId} />}
             {side === 'operations' && (
-              <div className="panel-card space-y-3 p-5">
-                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Resource Operations</h2>
-                <div className="flex flex-wrap gap-2">
-                  <Btn primary onClick={() => void runDeploy()} disabled={deployBusy}>
-                    {deployBusy ? 'Deploying…' : 'Deploy / Restart stack'}
-                  </Btn>
-                  <Btn onClick={() => restart.mutate()} disabled={restart.isPending}>
-                    Restart
-                  </Btn>
-                  <Btn onClick={() => stop.mutate()} disabled={stop.isPending}>
-                    Stop
-                  </Btn>
+              <div className="space-y-4">
+                <div className="panel-card space-y-3 p-5">
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                    Resource Operations
+                  </h2>
+                  <div className="flex flex-wrap gap-2">
+                    <Btn primary onClick={() => void runDeploy()} disabled={deployBusy}>
+                      {deployBusy ? 'Deploying…' : 'Deploy / Restart stack'}
+                    </Btn>
+                    <Btn onClick={() => restart.mutate()} disabled={restart.isPending}>
+                      Restart
+                    </Btn>
+                    <Btn onClick={() => stop.mutate()} disabled={stop.isPending}>
+                      Stop
+                    </Btn>
+                  </div>
                 </div>
+                <MoveResourcePanel
+                  resourceType="service"
+                  resourceId={svcId}
+                  currentEnvironmentId={s.environment_id}
+                  projectId={projectId}
+                />
               </div>
             )}
             {side === 'danger' && (
@@ -644,15 +689,6 @@ function DetailRow({ label, value, mono }: { label: string; value: string; mono?
       <div className={`mt-0.5 text-sm text-gray-900 dark:text-white ${mono ? 'font-mono text-xs break-all' : ''}`}>
         {value}
       </div>
-    </div>
-  )
-}
-
-function Placeholder({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="panel-card space-y-2 p-5">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h2>
-      <p className="text-sm text-gray-500 dark:text-gray-400">{body}</p>
     </div>
   )
 }

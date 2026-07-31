@@ -30,13 +30,19 @@ const (
 )
 
 type API struct {
-	Cfg       *config.Config
-	Store     *store.Store
-	Queue     *worker.Queue
-	Hub       *ws.Hub
-	Terminals *terminal.Manager
-	SSH       interface{ Close() } // *sshx.Pool
-	Logger    *slog.Logger
+	Cfg        *config.Config
+	Store      *store.Store
+	Queue      *worker.Queue
+	Hub        *ws.Hub
+	Terminals  *terminal.Manager
+	SSH        interface{ Close() } // *sshx.Pool
+	Logger     *slog.Logger
+	TaskRunner TaskRunner
+}
+
+// TaskRunner runs scheduled tasks on demand (wired to the scheduler runner).
+type TaskRunner interface {
+	ExecuteTaskNow(ctx context.Context, t store.ScheduledTaskRow, execID uuid.UUID)
 }
 
 func (a *API) Router() http.Handler {
@@ -76,6 +82,12 @@ func (a *API) Router() http.Handler {
 		r.Get("/webhooks/github/app/manifest", a.handleGitHubAppManifestCallback)
 		r.Post("/webhooks/github/app/events", a.handleGitHubAppEvents)
 		r.Post("/sentinel/metrics", a.handleSentinelMetrics)
+
+		// Coolify-compatible deploy webhook (auth via Bearer API token or resource secret)
+		r.Get("/deploy", a.handleDeployByUUID)
+		r.Post("/deploy", a.handleDeployByUUID)
+		r.Get("/webhooks/deploy/services/{serviceID}", a.handleServiceDeployWebhook)
+		r.Post("/webhooks/deploy/services/{serviceID}", a.handleServiceDeployWebhook)
 
 		r.Group(func(r chi.Router) {
 			r.Use(a.requireAuth)
@@ -169,6 +181,8 @@ func (a *API) Router() http.Handler {
 				r.Get("/{projectID}/environments/{envID}", a.handleGetEnvironment)
 				r.Patch("/{projectID}/environments/{envID}", a.handleUpdateEnvironment)
 				r.With(a.requireAdmin).Delete("/{projectID}/environments/{envID}", a.handleDeleteEnvironment)
+				r.Post("/{projectID}/environments/{envID}/clone", a.handleCloneEnvironment)
+				r.Get("/{projectID}/environments/{envID}/tags", a.handleListEnvironmentTags)
 			})
 
 			r.Route("/applications", func(r chi.Router) {
@@ -184,6 +198,8 @@ func (a *API) Router() http.Handler {
 				r.Get("/{appID}/previews", a.handleListPreviews)
 				r.With(a.requireAdmin).Delete("/{appID}/previews/{prID}", a.handleDeletePreview)
 			})
+
+			r.Get("/environments/{envID}", a.handleGetEnvironmentByID)
 
 			r.Get("/deployments/{deploymentID}", a.handleGetDeployment)
 			r.Post("/deployments/{deploymentID}/cancel", a.handleCancelDeployment)
@@ -222,6 +238,8 @@ func (a *API) Router() http.Handler {
 				r.Post("/{serviceID}/deploy", a.handleDeployService)
 				r.Post("/{serviceID}/stop", a.handleStopService)
 				r.Post("/{serviceID}/restart", a.handleRestartService)
+				r.Get("/{serviceID}/webhook", a.handleGetServiceWebhookInfo)
+				r.Post("/{serviceID}/webhook-secret", a.handleSetServiceWebhookSecret)
 			})
 
 			r.Route("/s3-storages", func(r chi.Router) {
@@ -252,6 +270,20 @@ func (a *API) Router() http.Handler {
 
 			r.Get("/scheduled-tasks", a.handleListScheduledTasks)
 			r.Post("/scheduled-tasks", a.handleCreateScheduledTask)
+			r.Patch("/scheduled-tasks/{taskID}", a.handlePatchScheduledTask)
+			r.Delete("/scheduled-tasks/{taskID}", a.handleDeleteScheduledTask)
+			r.Get("/scheduled-tasks/{taskID}/executions", a.handleListScheduledTaskExecutions)
+			r.Post("/scheduled-tasks/{taskID}/run", a.handleRunScheduledTask)
+
+			r.Route("/tags", func(r chi.Router) {
+				r.Get("/", a.handleListTags)
+				r.Post("/", a.handleCreateTag)
+				r.Delete("/{tagID}", a.handleDeleteTag)
+				r.Post("/attach", a.handleAttachTag)
+				r.Delete("/{tagID}/attach", a.handleDetachTag)
+			})
+			r.Post("/resources/move", a.handleMoveResource)
+			r.Get("/resource-tags", a.handleListResourceTags)
 		})
 	})
 
@@ -427,7 +459,11 @@ func mapStoreErr(w http.ResponseWriter, err error) {
 	case errors.Is(err, store.ErrNotEmpty):
 		writeError(w, http.StatusConflict, "has resources defined, please delete them first")
 	case errors.Is(err, store.ErrConflict):
-		writeError(w, http.StatusConflict, "conflict")
+		msg := err.Error()
+		if msg == "" || msg == store.ErrConflict.Error() {
+			msg = "conflict"
+		}
+		writeError(w, http.StatusConflict, msg)
 	case errors.Is(err, store.ErrEnvLocked):
 		writeError(w, http.StatusConflict, "environment variable is locked")
 	case errors.Is(err, store.ErrUnauthorized):

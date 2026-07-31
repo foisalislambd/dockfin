@@ -34,6 +34,9 @@ type Request struct {
 	// CommitSHA / GitBranch override app defaults (rollback, webhook, PR preview).
 	CommitSHA string
 	GitBranch string
+	// PullRequestID > 0 means a preview deploy — separate container + FQDN from production.
+	PullRequestID int
+	PreviewFQDN   string
 }
 
 func (p *Pipeline) log(stage, line string) {
@@ -57,9 +60,12 @@ func (p *Pipeline) checkCancelled(ctx context.Context, deploymentID uuid.UUID) e
 }
 
 // repairAppFQDN assigns or replaces free domains that embed loopback magic IPs
-// (same rules as one-click service deploy).
+// (same rules as one-click service deploy). Skip for PR previews — they use PreviewFQDN.
 func (p *Pipeline) repairAppFQDN(ctx context.Context, req *Request) {
 	if req == nil || req.App == nil || req.Server == nil {
+		return
+	}
+	if req.PullRequestID > 0 {
 		return
 	}
 	needs := req.App.FQDN == "" || proxy.FQDNUsesUnusableMagicIP(req.App.FQDN)
@@ -248,6 +254,18 @@ func (p *Pipeline) proxyLabelArgs(app *store.Application, proxyType string) []st
 	return args
 }
 
+// proxyLabelArgsReq uses preview FQDN / unique router name when PullRequestID > 0
+// so preview deploys never overwrite production Traefik routes or containers.
+func (p *Pipeline) proxyLabelArgsReq(req Request) []string {
+	app := *req.App
+	if req.PullRequestID > 0 {
+		// Never reuse production FQDN on a preview container (would steal Traefik Host rules).
+		app.FQDN = strings.TrimSpace(req.PreviewFQDN)
+		app.Name = fmt.Sprintf("%s-pr-%d", req.App.Name, req.PullRequestID)
+	}
+	return p.proxyLabelArgs(&app, req.Server.ProxyType)
+}
+
 func (p *Pipeline) waitHealthy(client *ssh.Client, name string, app *store.Application) error {
 	if !app.HealthCheckEnabled {
 		return nil
@@ -260,32 +278,97 @@ func (p *Pipeline) waitHealthy(client *ssh.Client, name string, app *store.Appli
 	if interval <= 0 {
 		interval = 5
 	}
-	p.log("healthcheck", fmt.Sprintf("Waiting for container %s to be running (%d retries)", name, retries))
+	timeout := app.HealthCheckTimeout
+	if timeout <= 0 {
+		timeout = 5
+	}
+	path := strings.TrimSpace(app.HealthCheckPath)
+	if path == "" {
+		path = "/"
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	port := firstPort(app.PortsExposes)
+	if app.HealthCheckPort != nil && *app.HealthCheckPort > 0 {
+		port = fmt.Sprintf("%d", *app.HealthCheckPort)
+	}
+	method := strings.ToUpper(strings.TrimSpace(app.HealthCheckMethod))
+	switch method {
+	case "GET", "HEAD", "POST":
+	default:
+		method = "GET"
+	}
+	wantCode := app.HealthCheckReturnCode
+	if wantCode <= 0 {
+		wantCode = 200
+	}
+
+	p.log("healthcheck", fmt.Sprintf(
+		"Waiting for HTTP %s http://container:%s%s → %d (%d retries, %ds interval)",
+		method, port, path, wantCode, retries, interval,
+	))
+
 	for i := 0; i < retries; i++ {
 		out, _, err := sshx.RunArgs(client, "docker", "inspect", "-f", "{{.State.Running}}", name)
-		if err == nil && strings.TrimSpace(out) == "true" {
-			health, _, hErr := sshx.RunArgs(client, "docker", "inspect", "-f", "{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}", name)
-			status := strings.TrimSpace(health)
-			if hErr != nil {
-				// Inspect failed — container is running; accept as healthy enough.
-				p.log("healthcheck", "Container is running")
-				return nil
-			}
-			// No HEALTHCHECK defined → "none"/empty means success once running.
-			if status == "none" || status == "" {
-				p.log("healthcheck", "Container is running")
-				return nil
-			}
-			// HEALTHCHECK present — only succeed when healthy (wait through "starting").
-			if status == "healthy" {
-				p.log("healthcheck", "Container is healthy")
-				return nil
-			}
-			p.log("healthcheck", "health="+status)
+		if err != nil || strings.TrimSpace(out) != "true" {
+			p.log("healthcheck", "container not running yet")
+			time.Sleep(time.Duration(interval) * time.Second)
+			continue
 		}
+
+		code, checkErr := httpHealthStatus(client, name, method, port, path, timeout)
+		if checkErr != nil {
+			// Fall back to Docker HEALTHCHECK / running when curl/wget unavailable.
+			if strings.Contains(checkErr.Error(), "no http client") {
+				health, _, hErr := sshx.RunArgs(client, "docker", "inspect", "-f", "{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}", name)
+				status := strings.TrimSpace(health)
+				if hErr != nil || status == "none" || status == "" {
+					p.log("healthcheck", "Container is running (no in-container HTTP client)")
+					return nil
+				}
+				if status == "healthy" {
+					p.log("healthcheck", "Container is healthy")
+					return nil
+				}
+				p.log("healthcheck", "health="+status)
+			} else {
+				p.log("healthcheck", checkErr.Error())
+			}
+			time.Sleep(time.Duration(interval) * time.Second)
+			continue
+		}
+		if code == wantCode {
+			p.log("healthcheck", fmt.Sprintf("HTTP %d OK", code))
+			return nil
+		}
+		p.log("healthcheck", fmt.Sprintf("HTTP %d (want %d)", code, wantCode))
 		time.Sleep(time.Duration(interval) * time.Second)
 	}
 	return fmt.Errorf("health check failed: container %s not healthy after %d attempts", name, retries)
+}
+
+// httpHealthStatus probes the app from inside the container (127.0.0.1) so it works
+// without published ports. Prefers curl, then wget.
+func httpHealthStatus(client *ssh.Client, container, method, port, path string, timeoutSec int) (int, error) {
+	url := fmt.Sprintf("http://127.0.0.1:%s%s", port, path)
+	timeout := fmt.Sprintf("%d", timeoutSec)
+	// curl path
+	out, _, err := sshx.RunArgs(client, "docker", "exec", container, "sh", "-lc",
+		fmt.Sprintf(`if command -v curl >/dev/null 2>&1; then curl -s -o /dev/null -w '%%{http_code}' -X %s --max-time %s %q; elif command -v wget >/dev/null 2>&1; then wget -q -S -O /dev/null --timeout=%s %q 2>&1 | awk '/^  HTTP\//{c=$2} END{print c+0}'; else echo NOCLIENT; fi`,
+			method, timeout, url, timeout, url))
+	codeStr := strings.TrimSpace(out)
+	if codeStr == "NOCLIENT" || (err != nil && codeStr == "") {
+		return 0, fmt.Errorf("no http client in container")
+	}
+	var code int
+	if _, scanErr := fmt.Sscanf(codeStr, "%d", &code); scanErr != nil || code <= 0 {
+		if err != nil {
+			return 0, fmt.Errorf("health probe failed: %v (%s)", err, codeStr)
+		}
+		return 0, fmt.Errorf("health probe returned %q", codeStr)
+	}
+	return code, nil
 }
 
 func (p *Pipeline) deployImage(ctx context.Context, client *ssh.Client, req Request) error {
@@ -298,7 +381,7 @@ func (p *Pipeline) deployImage(ctx context.Context, client *ssh.Client, req Requ
 		tag = "latest"
 	}
 	full := image + ":" + tag
-	name := containerName(req.App)
+	name := containerNameFor(req)
 
 	p.log("fetch", "Pulling image "+full)
 	_, errOut, err := sshx.RunArgs(client, "docker", "pull", full)
@@ -317,7 +400,7 @@ func (p *Pipeline) deployImage(ctx context.Context, client *ssh.Client, req Requ
 	}
 	args = append(args, p.limitArgs(req.App)...)
 	args = append(args, p.runtimeEnvArgs(ctx, req)...)
-	args = append(args, p.proxyLabelArgs(req.App, req.Server.ProxyType)...)
+	args = append(args, p.proxyLabelArgsReq(req)...)
 	args = append(args, full)
 
 	p.log("run", "Starting container "+name)
@@ -329,8 +412,11 @@ func (p *Pipeline) deployImage(ctx context.Context, client *ssh.Client, req Requ
 		return err
 	}
 	p.log("finalize", "Deployment finished")
-	if p.Store != nil {
+	if p.Store != nil && req.PullRequestID == 0 {
 		_ = p.Store.UpdateApplicationStatus(context.Background(), req.App.ID, "running")
+	}
+	if p.Store != nil && req.PullRequestID > 0 {
+		_ = p.Store.UpdatePreviewStatus(context.Background(), req.TeamID, req.App.ID, req.PullRequestID, "running")
 	}
 	return nil
 }
@@ -339,9 +425,13 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 	if req.App.GitRepository == "" {
 		return fmt.Errorf("git repository is required for %s builds", req.App.BuildPack)
 	}
-	name := containerName(req.App)
+	name := containerNameFor(req)
 	workdir := "/data/goolify/applications/" + req.App.ID.String()
 	imageTag := "goolify/" + req.App.ID.String() + ":latest"
+	if req.PullRequestID > 0 {
+		workdir = fmt.Sprintf("/data/goolify/applications/%s-pr-%d", req.App.ID.String(), req.PullRequestID)
+		imageTag = fmt.Sprintf("goolify/%s-pr-%d:latest", req.App.ID.String(), req.PullRequestID)
+	}
 
 	p.log("prepare", "Preparing remote workdir "+workdir)
 	_, errOut, err := sshx.RunArgs(buildClient, "mkdir", "-p", workdir)
@@ -387,7 +477,7 @@ func (p *Pipeline) runBuiltImage(ctx context.Context, client *ssh.Client, req Re
 	}
 	args = append(args, p.limitArgs(req.App)...)
 	args = append(args, p.runtimeEnvArgs(ctx, req)...)
-	args = append(args, p.proxyLabelArgs(req.App, req.Server.ProxyType)...)
+	args = append(args, p.proxyLabelArgsReq(req)...)
 	args = append(args, imageTag)
 	_, errOut, err := sshx.RunArgs(client, args...)
 	if err != nil {
@@ -397,8 +487,11 @@ func (p *Pipeline) runBuiltImage(ctx context.Context, client *ssh.Client, req Re
 		return err
 	}
 	p.log("finalize", "Deployment finished")
-	if p.Store != nil {
+	if p.Store != nil && req.PullRequestID == 0 {
 		_ = p.Store.UpdateApplicationStatus(context.Background(), req.App.ID, "running")
+	}
+	if p.Store != nil && req.PullRequestID > 0 {
+		_ = p.Store.UpdatePreviewStatus(context.Background(), req.TeamID, req.App.ID, req.PullRequestID, "running")
 	}
 	return nil
 }
@@ -407,9 +500,13 @@ func (p *Pipeline) deployStatic(ctx context.Context, buildClient, deployClient *
 	if req.App.GitRepository == "" {
 		return fmt.Errorf("git repository is required for static builds")
 	}
-	name := containerName(req.App)
+	name := containerNameFor(req)
 	workdir := "/data/goolify/applications/" + req.App.ID.String()
 	imageTag := "goolify/" + req.App.ID.String() + ":latest"
+	if req.PullRequestID > 0 {
+		workdir = fmt.Sprintf("/data/goolify/applications/%s-pr-%d", req.App.ID.String(), req.PullRequestID)
+		imageTag = fmt.Sprintf("goolify/%s-pr-%d:latest", req.App.ID.String(), req.PullRequestID)
+	}
 
 	p.log("prepare", "Preparing static site workdir "+workdir)
 	_, errOut, err := sshx.RunArgs(buildClient, "mkdir", "-p", workdir)
@@ -458,9 +555,13 @@ func (p *Pipeline) deployNixpacks(ctx context.Context, buildClient, deployClient
 	if req.App.GitRepository == "" {
 		return fmt.Errorf("git repository is required for nixpacks builds")
 	}
-	name := containerName(req.App)
+	name := containerNameFor(req)
 	workdir := "/data/goolify/applications/" + req.App.ID.String()
 	imageTag := "goolify/" + req.App.ID.String() + ":latest"
+	if req.PullRequestID > 0 {
+		workdir = fmt.Sprintf("/data/goolify/applications/%s-pr-%d", req.App.ID.String(), req.PullRequestID)
+		imageTag = fmt.Sprintf("goolify/%s-pr-%d:latest", req.App.ID.String(), req.PullRequestID)
+	}
 
 	p.log("prepare", "Preparing nixpacks workdir "+workdir)
 	_, errOut, err := sshx.RunArgs(buildClient, "mkdir", "-p", workdir)
@@ -501,7 +602,12 @@ func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Re
 		return fmt.Errorf("git repository is required for dockercompose")
 	}
 	workdir := "/data/goolify/applications/" + req.App.ID.String()
-	p.log("prepare", "Preparing compose workdir")
+	project := "goolify-" + req.App.ID.String()[:8]
+	if req.PullRequestID > 0 {
+		workdir = fmt.Sprintf("/data/goolify/applications/%s-pr-%d", req.App.ID.String(), req.PullRequestID)
+		project = fmt.Sprintf("goolify-%s-pr-%d", req.App.ID.String()[:8], req.PullRequestID)
+	}
+	p.log("prepare", "Preparing compose workdir "+workdir)
 	_, errOut, err := sshx.RunArgs(client, "mkdir", "-p", workdir)
 	if err != nil {
 		return fmt.Errorf("mkdir: %v %s", err, errOut)
@@ -513,7 +619,6 @@ func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Re
 	if composeFile == "" {
 		composeFile = "docker-compose.yaml"
 	}
-	project := "goolify-" + req.App.ID.String()[:8]
 	composePath := workdir + "/src/" + composeFile
 	if req.Destination.Kind == "swarm" {
 		p.log("run", "docker stack deploy")
@@ -526,14 +631,27 @@ func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Re
 		return fmt.Errorf("compose deploy: %v %s", err, errOut)
 	}
 	p.log("finalize", "Compose stack is up")
-	if p.Store != nil {
+	if p.Store != nil && req.PullRequestID == 0 {
 		_ = p.Store.UpdateApplicationStatus(context.Background(), req.App.ID, "running")
+	}
+	if p.Store != nil && req.PullRequestID > 0 {
+		_ = p.Store.UpdatePreviewStatus(context.Background(), req.TeamID, req.App.ID, req.PullRequestID, "running")
 	}
 	return nil
 }
 
 func containerName(app *store.Application) string {
 	return "goolify-" + app.ID.String()
+}
+
+func containerNameFor(req Request) string {
+	if req.PullRequestID > 0 && req.App != nil {
+		return fmt.Sprintf("goolify-%s-pr-%d", req.App.ID.String(), req.PullRequestID)
+	}
+	if req.App == nil {
+		return ""
+	}
+	return containerName(req.App)
 }
 
 func firstHost(fqdn string) string {

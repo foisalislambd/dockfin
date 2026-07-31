@@ -7,16 +7,30 @@ import '@xterm/xterm/css/xterm.css'
 
 type Props = {
   serverId: string
+  /** Pre-select docker exec target (full container name or compose unit). */
+  defaultContainer?: string
+  /** Optional dropdown of container names. */
+  containerOptions?: string[]
+  hideHostShell?: boolean
 }
 
-export function ServerTerminal({ serverId }: Props) {
+export function ServerTerminal({
+  serverId,
+  defaultContainer = '',
+  containerOptions,
+  hideHostShell = false,
+}: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const [status, setStatus] = useState<'idle' | 'connecting' | 'open' | 'closed'>('idle')
   const [error, setError] = useState('')
-  const [container, setContainer] = useState('')
+  const [container, setContainer] = useState(defaultContainer)
+
+  useEffect(() => {
+    setContainer(defaultContainer)
+  }, [defaultContainer, serverId])
 
   const disconnect = () => {
     wsRef.current?.close()
@@ -98,25 +112,46 @@ export function ServerTerminal({ serverId }: Props) {
 
   useEffect(() => () => disconnect(), [serverId])
 
+  const locked = status === 'open' || status === 'connecting'
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-end gap-3">
-        <label className="block min-w-[12rem] flex-1 text-sm">
-          <span className="mb-1 block text-gray-500 dark:text-gray-400">
-            Container (optional docker exec)
-          </span>
-          <input
-            value={container}
-            onChange={(e) => setContainer(e.target.value)}
-            placeholder="leave empty for host shell"
-            disabled={status === 'open' || status === 'connecting'}
-            className="panel-field w-full rounded-lg px-3 py-2 font-mono text-sm"
-          />
-        </label>
+        {containerOptions && containerOptions.length > 0 ? (
+          <label className="block min-w-[12rem] flex-1 text-sm">
+            <span className="mb-1 block text-gray-500 dark:text-gray-400">Container</span>
+            <select
+              value={container}
+              onChange={(e) => setContainer(e.target.value)}
+              disabled={locked}
+              className="panel-field w-full rounded-lg px-3 py-2 font-mono text-sm"
+            >
+              {!hideHostShell && <option value="">Host shell</option>}
+              {containerOptions.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <label className="block min-w-[12rem] flex-1 text-sm">
+            <span className="mb-1 block text-gray-500 dark:text-gray-400">
+              Container (optional docker exec)
+            </span>
+            <input
+              value={container}
+              onChange={(e) => setContainer(e.target.value)}
+              placeholder={hideHostShell ? 'container name required' : 'leave empty for host shell'}
+              disabled={locked}
+              className="panel-field w-full rounded-lg px-3 py-2 font-mono text-sm"
+            />
+          </label>
+        )}
         {status === 'open' ? (
           <Btn onClick={disconnect}>Disconnect</Btn>
         ) : (
-          <Btn primary onClick={() => void connect()}>
+          <Btn primary onClick={() => void connect()} disabled={hideHostShell && !container}>
             {status === 'connecting' ? 'Connecting…' : 'Connect'}
           </Btn>
         )}

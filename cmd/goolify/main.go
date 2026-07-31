@@ -123,12 +123,13 @@ func runServe() error {
 	termMgr := terminal.NewManager(sshPool, logger)
 
 	api := &httpapi.API{
-		Cfg:       cfg,
-		Store:     st,
-		Queue:     q,
-		Hub:       hub,
-		Terminals: termMgr,
-		Logger:    logger,
+		Cfg:        cfg,
+		Store:      st,
+		Queue:      q,
+		Hub:        hub,
+		Terminals:  termMgr,
+		Logger:     logger,
+		TaskRunner: sched,
 	}
 
 	srv := &http.Server{

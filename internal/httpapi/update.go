@@ -34,6 +34,18 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		GitSourceID             *string `json:"git_source_id"`
 		PrivateKeyID            *string `json:"private_key_id"`
 		IsBuildServerEnabled    *bool   `json:"is_build_server_enabled"`
+		IsForceHTTPS            *bool   `json:"is_force_https"`
+		IsPreviewEnabled        *bool   `json:"is_preview_enabled"`
+		HealthCheckEnabled      *bool   `json:"health_check_enabled"`
+		HealthCheckPath         *string `json:"health_check_path"`
+		HealthCheckPort         *int    `json:"health_check_port"`
+		HealthCheckMethod       *string `json:"health_check_method"`
+		HealthCheckReturnCode   *int    `json:"health_check_return_code"`
+		HealthCheckInterval     *int    `json:"health_check_interval"`
+		HealthCheckTimeout      *int    `json:"health_check_timeout"`
+		HealthCheckRetries      *int    `json:"health_check_retries"`
+		LimitsMemory            *string `json:"limits_memory"`
+		LimitsCpus              *string `json:"limits_cpus"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -114,9 +126,52 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 			app.PrivateKeyID = &id
 		}
 	}
+	if body.HealthCheckEnabled != nil {
+		app.HealthCheckEnabled = *body.HealthCheckEnabled
+	}
+	if body.HealthCheckPath != nil {
+		app.HealthCheckPath = *body.HealthCheckPath
+	}
+	if body.HealthCheckPort != nil {
+		if *body.HealthCheckPort <= 0 {
+			app.HealthCheckPort = nil
+		} else {
+			app.HealthCheckPort = body.HealthCheckPort
+		}
+	}
+	if body.HealthCheckMethod != nil {
+		app.HealthCheckMethod = *body.HealthCheckMethod
+	}
+	if body.HealthCheckReturnCode != nil {
+		app.HealthCheckReturnCode = *body.HealthCheckReturnCode
+	}
+	if body.HealthCheckInterval != nil {
+		app.HealthCheckInterval = *body.HealthCheckInterval
+	}
+	if body.HealthCheckTimeout != nil {
+		app.HealthCheckTimeout = *body.HealthCheckTimeout
+	}
+	if body.HealthCheckRetries != nil {
+		app.HealthCheckRetries = *body.HealthCheckRetries
+	}
+	if body.LimitsMemory != nil {
+		app.LimitsMemory = *body.LimitsMemory
+	}
+	if body.LimitsCpus != nil {
+		app.LimitsCpus = *body.LimitsCpus
+	}
+	if body.IsForceHTTPS != nil {
+		app.IsForceHTTPS = *body.IsForceHTTPS
+	}
 	if err := a.Store.UpdateApplication(r.Context(), app); err != nil {
 		mapStoreErr(w, err)
 		return
+	}
+	if body.IsForceHTTPS != nil {
+		if err := a.Store.SetApplicationForceHTTPS(r.Context(), teamID, appID, *body.IsForceHTTPS); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
 	}
 	if body.IsBuildServerEnabled != nil {
 		if err := a.Store.SetApplicationBuildServerEnabled(r.Context(), teamID, appID, *body.IsBuildServerEnabled); err != nil {
@@ -125,7 +180,20 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		}
 		app.IsBuildServerEnabled = *body.IsBuildServerEnabled
 	}
-	writeJSON(w, http.StatusOK, app)
+	if body.IsPreviewEnabled != nil {
+		if err := a.Store.SetApplicationPreviewEnabled(r.Context(), teamID, appID, *body.IsPreviewEnabled); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+		app.IsPreviewEnabled = *body.IsPreviewEnabled
+	}
+	// Re-fetch so response includes settings COALESCE fields.
+	fresh, err := a.Store.GetApplication(r.Context(), teamID, appID)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, fresh)
 }
 
 func (a *API) handleRollbackApplication(w http.ResponseWriter, r *http.Request) {

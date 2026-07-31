@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -550,11 +551,17 @@ func (s *Store) UpdateApplication(ctx context.Context, app *Application) error {
 		UPDATE applications SET
 			name=$2, description=$3, fqdn=$4, git_repository=$5, git_branch=$6,
 			ports_exposes=$7, docker_registry_image_name=$8, docker_registry_image_tag=$9,
-			dockerfile_location=$10, destination_id=$11, git_source_id=$12, private_key_id=$13, updated_at=NOW()
-		WHERE id=$1 AND team_id=$14
+			dockerfile_location=$10, destination_id=$11, git_source_id=$12, private_key_id=$13,
+			health_check_enabled=$14, health_check_path=$15, health_check_port=$16, health_check_method=$17,
+			health_check_return_code=$18, health_check_interval=$19, health_check_timeout=$20, health_check_retries=$21,
+			limits_memory=$22, limits_cpus=$23, is_force_https=$24, updated_at=NOW()
+		WHERE id=$1 AND team_id=$25
 	`, app.ID, app.Name, app.Description, app.FQDN, app.GitRepository, app.GitBranch,
 		app.PortsExposes, app.DockerRegistryImageName, app.DockerRegistryImageTag,
-		app.DockerfileLocation, app.DestinationID, app.GitSourceID, app.PrivateKeyID, app.TeamID)
+		app.DockerfileLocation, app.DestinationID, app.GitSourceID, app.PrivateKeyID,
+		app.HealthCheckEnabled, app.HealthCheckPath, app.HealthCheckPort, app.HealthCheckMethod,
+		app.HealthCheckReturnCode, app.HealthCheckInterval, app.HealthCheckTimeout, app.HealthCheckRetries,
+		app.LimitsMemory, app.LimitsCpus, app.IsForceHTTPS, app.TeamID)
 	return err
 }
 
@@ -563,6 +570,99 @@ func (s *Store) SetApplicationBuildServerEnabled(ctx context.Context, teamID, ap
 		UPDATE application_settings SET is_build_server_enabled=$3, updated_at=NOW()
 		WHERE application_id=$1 AND EXISTS (SELECT 1 FROM applications WHERE id=$1 AND team_id=$2)
 	`, appID, teamID, enabled)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) SetApplicationPreviewEnabled(ctx context.Context, teamID, appID uuid.UUID, enabled bool) error {
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE application_settings SET is_preview_enabled=$3, updated_at=NOW()
+		WHERE application_id=$1 AND EXISTS (SELECT 1 FROM applications WHERE id=$1 AND team_id=$2)
+	`, appID, teamID, enabled)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) SetApplicationForceHTTPS(ctx context.Context, teamID, appID uuid.UUID, enabled bool) error {
+	// Keep applications + settings columns in sync (GET uses COALESCE of both).
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE applications SET is_force_https=$3, updated_at=NOW()
+		WHERE id=$1 AND team_id=$2
+	`, appID, teamID, enabled)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	_, err = s.Pool.Exec(ctx, `
+		UPDATE application_settings SET is_force_https_enabled=$2, updated_at=NOW()
+		WHERE application_id=$1
+	`, appID, enabled)
+	return err
+}
+
+// MoveResource relocates an application, database, or service to another environment.
+// Target must belong to the same team and the same project as the resource's current environment.
+// Runtime containers and destinations are unchanged — only the environment association moves.
+func (s *Store) MoveResource(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID, envID uuid.UUID) error {
+	target, err := s.GetEnvironment(ctx, teamID, envID)
+	if err != nil {
+		return err
+	}
+	var currentEnvID uuid.UUID
+	switch resourceType {
+	case "application":
+		app, err := s.GetApplication(ctx, teamID, resourceID)
+		if err != nil {
+			return err
+		}
+		currentEnvID = app.EnvironmentID
+	case "database":
+		db, err := s.GetDatabase(ctx, teamID, resourceID)
+		if err != nil {
+			return err
+		}
+		currentEnvID = db.EnvironmentID
+	case "service":
+		svc, err := s.GetService(ctx, teamID, resourceID)
+		if err != nil {
+			return err
+		}
+		currentEnvID = svc.EnvironmentID
+	default:
+		return ErrNotFound
+	}
+	if currentEnvID == envID {
+		return nil // already there
+	}
+	current, err := s.GetEnvironment(ctx, teamID, currentEnvID)
+	if err != nil {
+		return err
+	}
+	if current.ProjectID != target.ProjectID {
+		return fmt.Errorf("%w: target environment must be in the same project", ErrConflict)
+	}
+	var query string
+	switch resourceType {
+	case "application":
+		query = `UPDATE applications SET environment_id=$3, updated_at=NOW() WHERE id=$1 AND team_id=$2`
+	case "database":
+		query = `UPDATE databases SET environment_id=$3, updated_at=NOW() WHERE id=$1 AND team_id=$2`
+	case "service":
+		query = `UPDATE services SET environment_id=$3, updated_at=NOW() WHERE id=$1 AND team_id=$2`
+	}
+	tag, err := s.Pool.Exec(ctx, query, resourceID, teamID, envID)
 	if err != nil {
 		return err
 	}
@@ -1051,6 +1151,14 @@ func (s *Store) DeletePreview(ctx context.Context, teamID, appID uuid.UUID, prID
 		return ErrNotFound
 	}
 	return nil
+}
+
+func (s *Store) UpdatePreviewStatus(ctx context.Context, teamID, appID uuid.UUID, prID int, status string) error {
+	_, err := s.Pool.Exec(ctx, `
+		UPDATE application_previews SET status=$4, updated_at=NOW()
+		WHERE team_id=$1 AND application_id=$2 AND pull_request_id=$3
+	`, teamID, appID, prID, status)
+	return err
 }
 
 type S3Storage struct {
