@@ -968,35 +968,6 @@ func (s *Store) DeletePreview(ctx context.Context, teamID, appID uuid.UUID, prID
 	return nil
 }
 
-type NotificationSetting struct {
-	ID        uuid.UUID `json:"id"`
-	TeamID    uuid.UUID `json:"team_id"`
-	Channel   string    `json:"channel"`
-	Enabled   bool      `json:"enabled"`
-	ConfigEnc string    `json:"-"`
-	Events    []string  `json:"events"`
-}
-
-func (s *Store) ListEnabledNotifications(ctx context.Context, teamID uuid.UUID) ([]NotificationSetting, error) {
-	rows, err := s.Pool.Query(ctx, `
-		SELECT id, team_id, channel, enabled, config_enc, events
-		FROM notification_settings WHERE team_id=$1 AND enabled=TRUE
-	`, teamID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []NotificationSetting
-	for rows.Next() {
-		var n NotificationSetting
-		if err := rows.Scan(&n.ID, &n.TeamID, &n.Channel, &n.Enabled, &n.ConfigEnc, &n.Events); err != nil {
-			return nil, err
-		}
-		out = append(out, n)
-	}
-	return out, rows.Err()
-}
-
 type S3Storage struct {
 	ID        uuid.UUID `json:"id"`
 	TeamID    uuid.UUID `json:"team_id"`

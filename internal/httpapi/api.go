@@ -231,6 +231,7 @@ func (a *API) Router() http.Handler {
 
 			r.Get("/notifications", a.handleListNotifications)
 			r.Put("/notifications/{channel}", a.handleUpsertNotification)
+			r.Post("/notifications/{channel}/test", a.handleTestNotification)
 
 			r.Get("/settings", a.handleGetInstanceSettings)
 			r.Patch("/settings", a.handlePatchInstanceSettings)

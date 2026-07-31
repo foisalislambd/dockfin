@@ -2,9 +2,7 @@ package worker
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 
@@ -224,62 +222,19 @@ func (q *Queue) handle(ctx context.Context, job DeployJob) {
 }
 
 func (q *Queue) notifyDeploy(ctx context.Context, teamID uuid.UUID, appName, status, errMsg string) {
-	settings, err := q.Store.ListEnabledNotifications(ctx, teamID)
-	if err != nil || len(settings) == 0 {
-		return
-	}
 	eventType := "deployment_success"
 	title := "Deployment succeeded"
 	msg := appName + " finished successfully"
 	if status == "failed" {
-		eventType = "deployment_failed"
+		eventType = "deployment_failure"
 		title = "Deployment failed"
 		msg = appName + ": " + errMsg
 	}
-	ev := notify.Event{
-		TeamID:  teamID.String(),
+	(&notify.Dispatcher{Store: q.Store}).Send(ctx, teamID, notify.Event{
 		Type:    eventType,
 		Title:   title,
 		Message: msg,
-	}
-	for _, n := range settings {
-		if !eventAllowed(n.Events, eventType) {
-			continue
-		}
-		cfgJSON, decErr := q.Store.Box.DecryptString(n.ConfigEnc)
-		if decErr != nil || cfgJSON == "" {
-			continue
-		}
-		switch n.Channel {
-		case "webhook":
-			var cfg notify.WebhookConfig
-			if json.Unmarshal([]byte(cfgJSON), &cfg) == nil && cfg.URL != "" {
-				_ = notify.SendWebhook(ctx, cfg.URL, ev)
-			}
-		case "discord":
-			var cfg notify.DiscordConfig
-			if json.Unmarshal([]byte(cfgJSON), &cfg) == nil && cfg.WebhookURL != "" {
-				_ = notify.SendDiscord(ctx, cfg.WebhookURL, ev)
-			}
-		case "slack":
-			var cfg notify.SlackConfig
-			if json.Unmarshal([]byte(cfgJSON), &cfg) == nil && cfg.WebhookURL != "" {
-				_ = notify.SendSlack(ctx, cfg.WebhookURL, ev)
-			}
-		}
-	}
-}
-
-func eventAllowed(events []string, want string) bool {
-	if len(events) == 0 {
-		return true
-	}
-	for _, e := range events {
-		if strings.EqualFold(e, want) {
-			return true
-		}
-	}
-	return false
+	})
 }
 
 func (q *Queue) publish(id uuid.UUID, stage, line string) {

@@ -620,69 +620,6 @@ func (a *API) handleListServiceTemplates(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]any{"templates": services.ListTemplates()})
 }
 
-func (a *API) handleListNotifications(w http.ResponseWriter, r *http.Request) {
-	rows, err := a.Store.Pool.Query(r.Context(), `
-		SELECT id, channel, enabled, events, created_at FROM notification_settings WHERE team_id=$1 ORDER BY channel
-	`, currentTeamID(r))
-	if err != nil {
-		mapStoreErr(w, err)
-		return
-	}
-	defer rows.Close()
-	type ns struct {
-		ID        uuid.UUID `json:"id"`
-		Channel   string    `json:"channel"`
-		Enabled   bool      `json:"enabled"`
-		Events    []string  `json:"events"`
-		CreatedAt time.Time `json:"created_at"`
-	}
-	var out []ns
-	for rows.Next() {
-		var n ns
-		if err := rows.Scan(&n.ID, &n.Channel, &n.Enabled, &n.Events, &n.CreatedAt); err != nil {
-			mapStoreErr(w, err)
-			return
-		}
-		out = append(out, n)
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"notifications": out})
-}
-
-func (a *API) handleUpsertNotification(w http.ResponseWriter, r *http.Request) {
-	channel := chi.URLParam(r, "channel")
-	var body struct {
-		Enabled bool            `json:"enabled"`
-		Config  json.RawMessage `json:"config"`
-		Events  []string        `json:"events"`
-	}
-	if err := decodeJSON(r, &body); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid json")
-		return
-	}
-	if len(body.Events) == 0 {
-		body.Events = []string{"deployment_success", "deployment_failed"}
-	}
-	cfg := string(body.Config)
-	if cfg == "" {
-		cfg = "{}"
-	}
-	enc, err := a.Store.Box.EncryptString(cfg)
-	if err != nil {
-		mapStoreErr(w, err)
-		return
-	}
-	_, err = a.Store.Pool.Exec(r.Context(), `
-		INSERT INTO notification_settings (team_id, channel, enabled, config_enc, events)
-		VALUES ($1,$2,$3,$4,$5)
-		ON CONFLICT (team_id, channel) DO UPDATE SET enabled=$3, config_enc=$4, events=$5, updated_at=NOW()
-	`, currentTeamID(r), channel, body.Enabled, enc, body.Events)
-	if err != nil {
-		mapStoreErr(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-}
-
 func (a *API) handleSentinelMetrics(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		ServerID         string  `json:"server_id"`

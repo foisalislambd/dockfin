@@ -427,6 +427,11 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(body),
     }),
+  testNotification: (channel: string, body?: { email?: string }) =>
+    request<{ status: string }>(`/api/v1/notifications/${channel}/test`, {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+    }),
 
   instanceSettings: () => request<{ settings: InstanceSettings }>('/api/v1/settings'),
   patchInstanceSettings: (body: Partial<InstanceSettingsPatch>) =>
@@ -768,11 +773,12 @@ export type S3Storage = {
   created_at: string
 }
 export type NotificationSetting = {
-  id: string
+  id?: string
   channel: string
   enabled: boolean
   events: string[]
-  created_at: string
+  config?: Record<string, unknown>
+  created_at?: string
 }
 export type TeamMember = {
   user_id: string
