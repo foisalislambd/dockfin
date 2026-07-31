@@ -52,7 +52,6 @@ export function ProjectsPage() {
           </Btn>
         }
       />
-      <p className="text-sm text-gray-500 dark:text-gray-400">All your projects are here.</p>
 
       {(projects.data?.projects || []).length > 0 ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">

@@ -83,13 +83,6 @@ export function ProjectShowPage() {
           actions={
             <div className="flex items-center gap-2">
               <Link
-                to="/projects/$projectId/shared-variables"
-                params={{ projectId }}
-                className="inline-flex h-8 items-center rounded-md border border-gray-200 px-2.5 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-white/5"
-              >
-                Shared Variables
-              </Link>
-              <Link
                 to="/projects/$projectId/edit"
                 params={{ projectId }}
                 className="inline-flex h-8 items-center rounded-md border border-gray-200 px-2.5 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-white/5"
@@ -102,7 +95,6 @@ export function ProjectShowPage() {
             </div>
           }
         />
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{project.data.name}.</p>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">

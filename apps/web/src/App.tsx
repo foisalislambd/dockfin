@@ -14,7 +14,7 @@ import { AppShell } from './components/AppShell'
 import { AppShellSkeleton } from './components/ui/Skeleton'
 import { LoginPage, RegisterPage } from './pages/Auth'
 import { DashboardPage } from './pages/Dashboard'
-import { ServersPage } from './pages/Servers'
+import { CreateServerPage, ServersPage } from './pages/Servers'
 import { ProjectsPage } from './pages/Resources'
 import { CreateApplicationPage } from './pages/CreateApplication'
 import { CreateDatabasePage } from './pages/CreateDatabase'
@@ -111,6 +111,12 @@ const serversRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/servers',
   component: ServersPage,
+})
+
+const createServerRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/servers/new',
+  component: CreateServerPage,
 })
 
 const serverDetailRoute = createRoute({
@@ -377,6 +383,7 @@ const routeTree = rootRoute.addChildren([
   appRoute.addChildren([
     dashboardRoute,
     serversRoute,
+    createServerRoute,
     serverDetailRoute,
     projectsRoute,
     projectShowRoute,

@@ -64,10 +64,7 @@ export function SecurityPage({ initialTab }: { initialTab?: TabId }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <Header title="Security" />
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Security related settings.</p>
-      </div>
+      <Header title="Security" />
       <ResourceTabs tabs={[...TABS]} active={tab} onChange={changeTab} />
       {tab === 'private-keys' && (
         <TabPanel>
@@ -404,9 +401,6 @@ function CloudTokensPanel() {
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             Cloud Provider Tokens
           </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Manage API tokens for cloud providers (Hetzner, Vultr, etc.).
-          </p>
         </div>
         <div className="relative">
           <Btn primary type="button" onClick={() => setAddMenu((v) => !v)}>
@@ -590,10 +584,6 @@ function CloudInitPanel() {
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex-1">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Cloud-Init Scripts</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Manage reusable cloud-init scripts for server initialization with Hetzner, Vultr, and
-            DigitalOcean integrations.
-          </p>
         </div>
         <Btn primary type="button" onClick={() => setAddOpen(true)}>
           + Add

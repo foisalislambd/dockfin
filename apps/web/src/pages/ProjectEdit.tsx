@@ -67,7 +67,6 @@ export function ProjectEditPage() {
           ← Projects
         </Link>
         <Header title={project.data.name} />
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Edit project details here.</p>
       </div>
 
       <form
@@ -232,9 +231,6 @@ export function EnvironmentEditPage() {
           <span className="text-gray-900 dark:text-white">Settings</span>
         </nav>
         <Header title="Environment settings" />
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Edit this environment, or delete it when it has no resources.
-        </p>
       </div>
 
       <form

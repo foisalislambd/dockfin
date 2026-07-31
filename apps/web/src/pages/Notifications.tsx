@@ -194,12 +194,7 @@ export function NotificationsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <Header title="Notifications" />
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Get notified about your infrastructure.
-        </p>
-      </div>
+      <Header title="Notifications" />
 
       <ResourceTabs
         tabs={CHANNELS.map((c) => ({ id: c.id, label: c.label }))}

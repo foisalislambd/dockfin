@@ -289,9 +289,6 @@ export function NewResourcePage() {
           <span className="text-gray-900 dark:text-white">New</span>
         </nav>
         <Header title="New Resource" />
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Deploy resources, like Applications, Databases, Services…
-        </p>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -398,9 +395,6 @@ export function NewResourcePage() {
             <Boxes className="h-5 w-5 text-brand-600 dark:text-brand-400" />
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Services</h2>
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            One-click services from the catalog. Click to create in this environment.
-          </p>
           {(dests.data?.destinations || []).length > 0 && (
             <label className="block max-w-md text-sm">
               <span className="mb-1 block text-gray-500 dark:text-gray-400">Destination</span>

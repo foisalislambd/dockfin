@@ -25,7 +25,6 @@ export function StoragesPage() {
           </Link>
         }
       />
-      <p className="text-sm text-gray-500 dark:text-gray-400">Backup destinations for databases and volumes.</p>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {(storages.data?.s3_storages || []).map((s) => (
@@ -83,9 +82,6 @@ export function CreateStoragePage() {
   return (
     <CreatePageShell title="Add S3 storage" backTo="/storages" backLabel="Back to S3 Storages">
       <form className="space-y-4" onSubmit={onSubmit}>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Configure an S3-compatible bucket for database and volume backups.
-        </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <FormInput label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
           <FormInput
@@ -364,12 +360,10 @@ export function SharedVariablesPage({
   scopeType = 'team',
   scopeId,
   title = 'Shared Variables',
-  hint,
 }: {
   scopeType?: 'team' | 'project' | 'environment'
   scopeId?: string
   title?: string
-  hint?: string
 } = {}) {
   const qc = useQueryClient()
   const vars = useQuery({
@@ -393,20 +387,9 @@ export function SharedVariablesPage({
     },
   })
 
-  const placeholder =
-    scopeType === 'environment'
-      ? '{{environment.KEY}}'
-      : scopeType === 'project'
-        ? '{{project.KEY}}'
-        : '{{team.KEY}}'
-
   return (
     <div className="space-y-6">
       <Header title={title} />
-      <p className="text-sm text-gray-500 dark:text-gray-400">
-        {hint ||
-          `${scopeType.charAt(0).toUpperCase() + scopeType.slice(1)}-scoped variables available as ${placeholder} in deployments.`}
-      </p>
 
       <div className="panel-card overflow-hidden">
         <table className="panel-table">
@@ -503,7 +486,6 @@ export function EnvironmentSharedVariablesPage() {
         scopeType="environment"
         scopeId={envId}
         title="Environment Shared Variables"
-        hint="Available as {{environment.KEY}} when deploying resources in this environment."
       />
     </div>
   )
@@ -537,7 +519,6 @@ export function ProjectSharedVariablesPage() {
         scopeType="project"
         scopeId={projectId}
         title="Project Shared Variables"
-        hint="Available as {{project.KEY}} for every environment in this project."
       />
     </div>
   )

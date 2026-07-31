@@ -99,7 +99,6 @@ export function EnvironmentResourcesPage() {
     queryKey: ['environments', projectId],
     queryFn: () => api.environments(projectId),
   })
-  const env = (envs.data?.environments || []).find((e) => e.id === envId)
 
   const destinations = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
   const servers = useQuery({ queryKey: ['servers'], queryFn: api.servers })
@@ -259,20 +258,6 @@ export function EnvironmentResourcesPage() {
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <Link
-                to="/projects/$projectId/environments/$envId/shared-variables"
-                params={{ projectId, envId }}
-                className="inline-flex h-8 items-center rounded-md border border-gray-200 px-2.5 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-white/5"
-              >
-                Env Shared Vars
-              </Link>
-              <Link
-                to="/projects/$projectId/shared-variables"
-                params={{ projectId }}
-                className="inline-flex h-8 items-center rounded-md border border-gray-200 px-2.5 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-white/5"
-              >
-                Project Shared Vars
-              </Link>
-              <Link
                 to="/projects/$projectId/environments/$envId/edit"
                 params={{ projectId, envId }}
                 className="inline-flex h-8 items-center rounded-md border border-gray-200 px-2.5 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-white/5"
@@ -293,9 +278,6 @@ export function EnvironmentResourcesPage() {
             </div>
           }
         />
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          {env?.name || 'Environment'} — applications, databases, and one-click services.
-        </p>
       </div>
 
       {!empty && (

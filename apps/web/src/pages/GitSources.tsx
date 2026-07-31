@@ -52,9 +52,6 @@ export function GitSourcesPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">Sources</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Git sources for your applications.
-          </p>
         </div>
         <Btn primary onClick={() => setShowForm(true)}>
           + Add
@@ -335,9 +332,6 @@ export function GitSourceDetailPage() {
           <h1 className="mt-2 text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
             GitHub App
           </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Your private GitHub App for private repositories.
-          </p>
         </div>
         <div className="flex gap-2">
           {gs.installed && (

@@ -146,11 +146,9 @@ function Toggle({
 
 function SectionHead({
   title,
-  subtitle,
   actions,
 }: {
   title: string
-  subtitle: string
   actions?: ReactNode
 }) {
   return (
@@ -159,7 +157,6 @@ function SectionHead({
         <h2 className="text-lg font-medium text-gray-900 dark:text-white">{title}</h2>
         {actions}
       </div>
-      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>
     </div>
   )
 }
@@ -411,12 +408,7 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <Header title="Settings" />
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Instance wide settings for Goolify.
-        </p>
-      </div>
+      <Header title="Settings" />
 
       <nav className="flex flex-wrap gap-5 border-b border-gray-200 dark:border-gray-800">
         {topTabs.map((t) => (
@@ -477,7 +469,6 @@ export function SettingsPage() {
               >
                 <SectionHead
                   title="General"
-                  subtitle="General configuration for your Goolify instance."
                   actions={
                     <Btn primary type="submit" disabled={!canEdit || save.isPending}>
                       Save
@@ -567,7 +558,6 @@ export function SettingsPage() {
               >
                 <SectionHead
                   title="Advanced"
-                  subtitle="Advanced settings for your Goolify instance."
                   actions={
                     <Btn primary type="submit" disabled={!canEdit || save.isPending}>
                       Save
@@ -684,7 +674,6 @@ export function SettingsPage() {
               >
                 <SectionHead
                   title="Updates"
-                  subtitle="Your instance's update settings."
                   actions={
                     <Btn primary type="submit" disabled={!canEdit || save.isPending}>
                       Save
@@ -762,7 +751,6 @@ export function SettingsPage() {
         >
           <SectionHead
             title="Transactional Email"
-            subtitle="Instance wide email settings for password resets, invitations, etc."
             actions={
               <Btn primary type="submit" disabled={!canEdit || save.isPending}>
                 Save
@@ -868,7 +856,6 @@ export function SettingsPage() {
         <div className="space-y-4">
           <SectionHead
             title="OAuth"
-            subtitle="Configure social / SSO login providers for this instance."
           />
           {oauth.isLoading && <p className="text-sm text-gray-500">Loading…</p>}
           <div className="grid gap-4 lg:grid-cols-2">
@@ -889,7 +876,6 @@ export function SettingsPage() {
         <div className="space-y-4">
           <SectionHead
             title="Backup"
-            subtitle="Backup configuration for your Goolify instance database (local)."
             actions={
               backups.data?.backup.configured ? (
                 <div className="flex flex-wrap gap-2">
@@ -1066,7 +1052,6 @@ export function SettingsPage() {
         <div className="space-y-4">
           <SectionHead
             title="Scheduled Jobs"
-            subtitle="Scheduled tasks configured across your resources."
           />
           <div className="panel-card overflow-hidden">
             <table className="w-full text-left text-sm">
@@ -1104,7 +1089,6 @@ export function SettingsPage() {
         <div className="space-y-4">
           <SectionHead
             title="Profile & License"
-            subtitle="Your account details and Goolify license."
           />
           <div className="panel-card space-y-4 p-6">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Profile</h3>

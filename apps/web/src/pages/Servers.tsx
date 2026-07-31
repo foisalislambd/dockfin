@@ -1,25 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { FormEvent } from 'react'
+import { CreatePageShell, FormActions, FormInput, FormSelect } from '../components/ui/forms'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { api } from '../lib/api'
 
 export function ServersPage() {
   const qc = useQueryClient()
   const servers = useQuery({ queryKey: ['servers'], queryFn: api.servers })
-  const keys = useQuery({ queryKey: ['keys'], queryFn: api.keys })
-  const [show, setShow] = useState(false)
   const [showKey, setShowKey] = useState(false)
 
-  const create = useMutation({
-    mutationFn: api.createServer,
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['servers'] })
-      setShow(false)
-    },
-  })
   const createKey = useMutation({
     mutationFn: ({ name, key }: { name: string; key: string }) => api.createKey(name, key),
     onSuccess: () => {
@@ -37,9 +29,12 @@ export function ServersPage() {
         actions={
           <>
             <Btn onClick={() => setShowKey(true)}>Add SSH key</Btn>
-            <Btn primary onClick={() => setShow(true)}>
+            <Link
+              to="/servers/new"
+              className="inline-flex h-8 items-center rounded-md bg-brand-500 px-2.5 text-xs font-medium text-white hover:bg-brand-600"
+            >
               Add server
-            </Btn>
+            </Link>
           </>
         }
       />
@@ -114,15 +109,6 @@ export function ServersPage() {
         </table>
       </div>
 
-      {show && (
-        <Modal title="Add server" onClose={() => setShow(false)}>
-          <ServerForm
-            keys={keys.data?.private_keys || []}
-            onSubmit={(body) => create.mutate(body)}
-            error={create.error?.message}
-          />
-        </Modal>
-      )}
       {showKey && (
         <Modal title="Add SSH key" onClose={() => setShowKey(false)}>
           <KeyForm onSubmit={(name, key) => createKey.mutate({ name, key })} error={createKey.error?.message} />
@@ -132,87 +118,70 @@ export function ServersPage() {
   )
 }
 
-function ServerForm({
-  keys,
-  onSubmit,
-  error,
-}: {
-  keys: { id: string; name: string }[]
-  onSubmit: (b: {
-    name: string
-    ip: string
-    port: number
-    user_name: string
-    private_key_id?: string
-    proxy_type?: string
-  }) => void
-  error?: string
-}) {
+export function CreateServerPage() {
+  const qc = useQueryClient()
+  const nav = useNavigate()
+  const keys = useQuery({ queryKey: ['keys'], queryFn: api.keys })
   const [name, setName] = useState('')
   const [ip, setIp] = useState('')
-  const [port, setPort] = useState(22)
+  const [port, setPort] = useState('22')
   const [user, setUser] = useState('root')
-  const [keyId, setKeyId] = useState(keys[0]?.id || '')
+  const [keyId, setKeyId] = useState('')
   const [proxyType, setProxyType] = useState('traefik')
+
+  useEffect(() => {
+    if (!keyId && keys.data?.private_keys?.[0]?.id) {
+      setKeyId(keys.data.private_keys[0].id)
+    }
+  }, [keys.data, keyId])
+
+  const create = useMutation({
+    mutationFn: api.createServer,
+    onSuccess: (server) => {
+      void qc.invalidateQueries({ queryKey: ['servers'] })
+      void nav({ to: '/servers/$serverId', params: { serverId: server.id } })
+    },
+  })
+
   return (
-    <form
-      className="space-y-3"
-      onSubmit={(e: FormEvent) => {
-        e.preventDefault()
-        onSubmit({
-          name,
-          ip,
-          port,
-          user_name: user,
-          private_key_id: keyId || undefined,
-          proxy_type: proxyType,
-        })
-      }}
-    >
-      <Input label="Name" value={name} onChange={setName} />
-      <Input label="IP / hostname" value={ip} onChange={setIp} />
-      <Input label="SSH user" value={user} onChange={setUser} />
-      <label className="block text-sm">
-        <span className="mb-1 block text-gray-500 dark:text-gray-400">Port</span>
-        <input
-          type="number"
-          value={port}
-          onChange={(e) => setPort(Number(e.target.value))}
-          className="panel-field w-full rounded-lg px-3 py-2"
-        />
-      </label>
-      <label className="block text-sm">
-        <span className="mb-1 block text-gray-500 dark:text-gray-400">Proxy</span>
-        <select
-          value={proxyType}
-          onChange={(e) => setProxyType(e.target.value)}
-          className="panel-field w-full rounded-lg px-3 py-2"
-        >
-          <option value="traefik">Traefik</option>
-          <option value="caddy">Caddy</option>
-          <option value="none">None</option>
-        </select>
-      </label>
-      <label className="block text-sm">
-        <span className="mb-1 block text-gray-500 dark:text-gray-400">SSH key</span>
-        <select
-          value={keyId}
-          onChange={(e) => setKeyId(e.target.value)}
-          className="panel-field w-full rounded-lg px-3 py-2"
-        >
-          <option value="">None</option>
-          {keys.map((k) => (
-            <option key={k.id} value={k.id}>
-              {k.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      {error && <p className="text-sm text-error-500">{error}</p>}
-      <Btn primary type="submit">
-        Create
-      </Btn>
-    </form>
+    <CreatePageShell title="Add server" backTo="/servers" backLabel="Back to Servers">
+      <form
+        className="space-y-4"
+        onSubmit={(e: FormEvent) => {
+          e.preventDefault()
+          create.mutate({
+            name,
+            ip,
+            port: Number(port) || 22,
+            user_name: user,
+            private_key_id: keyId || undefined,
+            proxy_type: proxyType,
+          })
+        }}
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormInput label="Name" value={name} onChange={setName} />
+          <FormInput label="IP / hostname" value={ip} onChange={setIp} />
+          <FormInput label="SSH user" value={user} onChange={setUser} />
+          <FormInput label="Port" value={port} onChange={setPort} type="number" />
+          <FormSelect label="Proxy" value={proxyType} onChange={setProxyType}>
+            <option value="traefik">Traefik</option>
+            <option value="caddy">Caddy</option>
+            <option value="none">None</option>
+          </FormSelect>
+          <FormSelect label="SSH key" value={keyId} onChange={setKeyId} required={false}>
+            <option value="">None</option>
+            {(keys.data?.private_keys || []).map((k) => (
+              <option key={k.id} value={k.id}>
+                {k.name}
+              </option>
+            ))}
+          </FormSelect>
+        </div>
+        {create.error && <p className="text-sm text-error-500">{create.error.message}</p>}
+        <FormActions busy={create.isPending} submitLabel="Create" cancelTo="/servers" />
+      </form>
+    </CreatePageShell>
   )
 }
 
