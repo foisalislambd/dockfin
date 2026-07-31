@@ -40,7 +40,7 @@ GOOLIFY_HTTP_ADDR=:8000
 GOOLIFY_DATABASE_URL=postgres://goolify:${DB_PASS}@postgres:5432/goolify?sslmode=disable
 GOOLIFY_MASTER_KEY=${MASTER_KEY}
 GOOLIFY_CORS_ORIGINS=*
-GOOLIFY_PUBLIC_URL=http://${PUBLIC_IP}:8000
+GOOLIFY_PUBLIC_URL=http://${PUBLIC_IP}
 GOOLIFY_PUBLIC_IP=${PUBLIC_IP}
 GOOLIFY_BOOTSTRAP_SELF=1
 GOOLIFY_DATA_DIR=/data
@@ -67,9 +67,8 @@ services:
       retries: 20
     restart: unless-stopped
 
-
   api:
-    image: ghcr.io/goolify/goolify:latest
+    image: ghcr.io/foisalislambd/goolify:latest
     env_file: .env
     environment:
       GOOLIFY_DATABASE_URL: ${GOOLIFY_DATABASE_URL}
@@ -84,7 +83,7 @@ services:
     restart: unless-stopped
 
   web:
-    image: ghcr.io/goolify/goolify-web:latest
+    image: ghcr.io/foisalislambd/goolify-web:latest
     ports:
       - "80:80"
     depends_on:

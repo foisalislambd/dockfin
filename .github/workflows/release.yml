@@ -1,0 +1,245 @@
+name: Release
+
+# Push to main → GitHub Release + GHCR images with the same X.Y.Z.
+# Scheme: 1.0.0 → 1.0.1 → … → 1.0.9 → 1.1.0 → … → 1.9.9 → 2.0.0
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Exact version (e.g. 1.0.0). Empty = next automatic bump."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+  actions: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  prepare:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip release]'))
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.ver.outputs.should_release }}
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+      sha: ${{ steps.ver.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve next version (tag after tests pass)
+        id: ver
+        env:
+          INPUT_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || '' }}
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+
+          SHA="$(git rev-parse HEAD)"
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+
+          EXISTING="$(git describe --tags --exact-match HEAD 2>/dev/null || true)"
+          if [[ -n "${EXISTING}" ]]; then
+            echo "HEAD already tagged as ${EXISTING} — skip"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "version=" >> "$GITHUB_OUTPUT"
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          next_ver() {
+            local cur="$1" major minor patch
+            IFS=. read -r major minor patch <<< "${cur}"
+            major="${major:-0}"; minor="${minor:-0}"; patch="${patch:-0}"
+            if (( patch < 9 )); then
+              echo "${major}.${minor}.$((patch + 1))"
+            elif (( minor < 9 )); then
+              echo "${major}.$((minor + 1)).0"
+            else
+              echo "$((major + 1)).0.0"
+            fi
+          }
+
+          if [[ -n "${INPUT_VERSION}" ]]; then
+            VER="$(echo "${INPUT_VERSION}" | sed 's/^v//')"
+          else
+            LATEST="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1 || true)"
+            if [[ -z "${LATEST}" ]]; then
+              VER="1.0.0"
+            else
+              VER="$(next_ver "${LATEST#v}")"
+            fi
+          fi
+
+          if ! [[ "${VER}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid version: ${VER}" >&2
+            exit 1
+          fi
+          MINOR="$(echo "${VER}" | cut -d. -f2)"
+          PATCH="$(echo "${VER}" | cut -d. -f3)"
+          if (( MINOR > 9 || PATCH > 9 )); then
+            echo "minor/patch must be 0–9 (got ${VER})" >&2
+            exit 1
+          fi
+
+          TAG="v${VER}"
+          if git rev-parse "${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists" >&2
+            exit 1
+          fi
+
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+          echo "version=${VER}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Will release ${TAG} after verify (sha=${SHA})"
+
+  verify:
+    needs: prepare
+    if: needs.prepare.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+      - run: go test ./...
+      - name: Build with release version
+        run: |
+          VER="${{ needs.prepare.outputs.version }}"
+          go build -ldflags="-X github.com/goolify/goolify/internal/version.Version=${VER}" -o /tmp/goolify ./cmd/goolify
+          /tmp/goolify version | tee /tmp/ver.out
+          grep -Fq "${VER}" /tmp/ver.out
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - working-directory: apps/web
+        run: |
+          npm ci
+          npm run build
+
+  # Images first (by commit SHA); tag + GitHub Release only after images publish.
+  docker:
+    needs: [prepare, verify]
+    if: needs.prepare.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: goolify
+            file: deploy/docker/Dockerfile.api
+          - name: goolify-web
+            file: deploy/docker/Dockerfile.web
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      - name: Image name
+        id: meta_name
+        run: |
+          owner_lc="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "image=${{ env.REGISTRY }}/${owner_lc}/${{ matrix.name }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.meta_name.outputs.image }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ needs.prepare.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=v${{ needs.prepare.outputs.version }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.version }}
+          cache-from: type=gha,scope=release-${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=release-${{ matrix.name }},ignore-error=true
+
+  tag-and-release:
+    needs: [prepare, verify, docker]
+    if: needs.prepare.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create and push tag
+        run: |
+          set -euo pipefail
+          VER="${{ needs.prepare.outputs.version }}"
+          TAG="${{ needs.prepare.outputs.tag }}"
+          git fetch --tags --force
+          if git rev-parse "${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists" >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG}" -m "Goolify ${VER}"
+          git push origin "${TAG}"
+          echo "Pushed ${TAG}"
+      - name: Build release notes
+        run: |
+          VER="${{ needs.prepare.outputs.version }}"
+          owner_lc="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          {
+            echo "## Goolify ${VER}"
+            echo
+            echo "GitHub Release and Docker tags use the **same version**: \`${VER}\`"
+            echo
+            echo "### Docker"
+            echo "- \`ghcr.io/${owner_lc}/goolify:${VER}\`"
+            echo "- \`ghcr.io/${owner_lc}/goolify-web:${VER}\`"
+            echo "- \`…:latest\`"
+            echo
+            if [[ -f CHANGELOG.md ]]; then
+              awk -v ver="${VER}" '
+                $0 ~ "^## \\[" ver "\\]" {p=1; next}
+                p && /^## \[/ {exit}
+                p {print}
+              ' CHANGELOG.md
+            fi
+          } > /tmp/notes.md
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: ${{ needs.prepare.outputs.version }}
+          body_path: /tmp/notes.md
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

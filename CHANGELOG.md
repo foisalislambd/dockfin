@@ -2,11 +2,15 @@
 
 All notable changes to Goolify will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
-once `1.0.0` is tagged.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+Versioning: `X.Y.Z` where **Y and Z are single digits 0–9**.
+After `1.0.9` the next release is `1.1.0`; after `1.9.9` it is `2.0.0`.
+Git tag, GitHub Release, and Docker image tags always share the same `X.Y.Z` (via GitHub Actions on push to `main`).
 
 ## [Unreleased]
+
+## [1.0.0] - 2026-07-31
 
 ### Added
 
@@ -23,13 +27,10 @@ once `1.0.0` is tagged.
 - Notifications (Discord / Slack / webhook) on deploy finish/fail
 - `glfy` CLI (`health`, `apps`, `servers`, `deploy`, `logs`)
 - `scripts/install.sh` and `scripts/vps-oneclick-test.sh`
+- Release pipeline: tagged `vX.Y.Z` → GHCR images + GitHub Release (same version)
 - Open-source project docs (CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, SUPPORT)
 
 ### Security
 
 - Argon2id password hashing; AES-256-GCM secret box for keys and env values
 - Session cookies + bearer tokens; webhook signature verification when configured
-
-## [0.1.0] - TBD
-
-Initial public preview (planned).

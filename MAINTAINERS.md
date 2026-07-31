@@ -6,12 +6,22 @@ This file lists people who can merge PRs and cut releases.
 |------|------|---------|
 | TBD  | Maintainer | GitHub @… |
 
-## Release process (draft)
+## Version scheme
 
-1. Update [CHANGELOG.md](CHANGELOG.md) under `[Unreleased]` → version section
-2. Tag `vX.Y.Z`
-3. Build and publish container images (when registry is configured)
-4. GitHub Release notes from CHANGELOG
+- Format: `X.Y.Z` (git tag `vX.Y.Z`)
+- **Y and Z are 0–9 only** → `1.0.0` … `1.0.9` → `1.1.0` … `1.9.9` → `2.0.0`
+- Same version for: GitHub Release, Docker tags, `goolify version`, `/api/v1/version`
+
+## Release process
+
+**Push to `main`** → [release.yml](.github/workflows/release.yml):
+
+1. Compute next `X.Y.Z` from latest `v*` tag (first = `1.0.0`)
+2. Run tests / builds
+3. Publish Docker `goolify:X.Y.Z` + `goolify-web:X.Y.Z` (+ `:latest`)
+4. Create git tag `vX.Y.Z` + GitHub Release (same version)
+
+Skip: put `[skip release]` in the commit message.
 
 ## Decision making
 

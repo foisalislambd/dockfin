@@ -9,6 +9,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/goolify/goolify/internal/version"
 )
 
 func main() {
@@ -20,7 +22,7 @@ func main() {
 	token := env("GOOLIFY_TOKEN", "")
 	switch os.Args[1] {
 	case "version":
-		fmt.Println("glfy 0.2.0")
+		fmt.Println("glfy", version.Version)
 	case "health":
 		url := base + "/health"
 		if len(os.Args) > 2 {

@@ -1,0 +1,13 @@
+.git
+.github
+**/*_test.go
+**/testdata/
+apps/web/node_modules
+apps/web/dist
+docs
+*.md
+.env
+.env.*
+opt/
+data/
+bin/

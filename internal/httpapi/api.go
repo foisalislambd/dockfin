@@ -16,6 +16,7 @@ import (
 	"github.com/goolify/goolify/internal/config"
 	"github.com/goolify/goolify/internal/store"
 	"github.com/goolify/goolify/internal/terminal"
+	"github.com/goolify/goolify/internal/version"
 	"github.com/goolify/goolify/internal/worker"
 	"github.com/goolify/goolify/internal/ws"
 )
@@ -63,7 +64,7 @@ func (a *API) Router() http.Handler {
 	})
 	r.Get("/api/v1/version", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"version": "0.1.0",
+			"version": version.Version,
 			"name":    "Goolify",
 			"license": "MIT",
 		})

@@ -18,11 +18,10 @@ import (
 	"github.com/goolify/goolify/internal/sshx"
 	"github.com/goolify/goolify/internal/store"
 	"github.com/goolify/goolify/internal/terminal"
+	"github.com/goolify/goolify/internal/version"
 	"github.com/goolify/goolify/internal/worker"
 	"github.com/goolify/goolify/internal/ws"
 )
-
-const version = "0.1.0"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -32,7 +31,7 @@ func main() {
 	cmd := os.Args[1]
 	switch cmd {
 	case "version":
-		fmt.Println("goolify", version)
+		fmt.Println("goolify", version.Version)
 	case "migrate":
 		if err := runMigrate(); err != nil {
 			fatal(err)
@@ -139,7 +138,7 @@ func runServe() error {
 	}
 
 	go func() {
-		logger.Info("goolify listening", "addr", cfg.HTTPAddr, "version", version)
+		logger.Info("goolify listening", "addr", cfg.HTTPAddr, "version", version.Version)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			fatal(err)
 		}
