@@ -33,6 +33,8 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   MASTER_KEY=$(openssl rand -base64 48 | tr -d '\n' | head -c 48)
   SESSION_SECRET=$(openssl rand -base64 48 | tr -d '\n' | head -c 48)
   DB_PASS=$(openssl rand -base64 24 | tr -d '\n=/+' | head -c 24)
+  PUBLIC_IP="$(curl -4 -fsS --max-time 5 https://api.ipify.org 2>/dev/null || curl -4 -fsS --max-time 5 https://ifconfig.me/ip 2>/dev/null || hostname -I | awk '{print $1}')"
+  PUBLIC_IP="$(echo "${PUBLIC_IP}" | tr -d '[:space:]')"
   cat > "${ENV_FILE}" <<EOF
 GOOLIFY_ENV=production
 GOOLIFY_HTTP_ADDR=:8080
@@ -41,11 +43,13 @@ GOOLIFY_REDIS_URL=redis://redis:6379/0
 GOOLIFY_MASTER_KEY=${MASTER_KEY}
 GOOLIFY_SESSION_SECRET=${SESSION_SECRET}
 GOOLIFY_CORS_ORIGINS=*
-GOOLIFY_PUBLIC_URL=http://$(hostname -I | awk '{print $1}'):8080
+GOOLIFY_PUBLIC_URL=http://${PUBLIC_IP}:8080
+GOOLIFY_PUBLIC_IP=${PUBLIC_IP}
+GOOLIFY_BOOTSTRAP_SELF=1
 GOOLIFY_DATA_DIR=/data
 GOOLIFY_TEMPLATES_DIR=/app/templates
 EOF
-  echo "==> Wrote ${ENV_FILE}"
+  echo "==> Wrote ${ENV_FILE} (public IP: ${PUBLIC_IP})"
 fi
 
 if [[ ! -f "${COMPOSE_FILE}" ]]; then
@@ -116,4 +120,6 @@ echo "  Dashboard: http://$(hostname -I | awk '{print $1}')/"
 echo "  API:       http://$(hostname -I | awk '{print $1}'):8080/health"
 echo "  Data:      ${GOOLIFY_DIR}"
 echo ""
-echo "Create your first admin account in the UI (registration enabled by default)."
+echo "Create your first admin account in the UI."
+echo "That first register auto-adds this VPS as a server (SSH + public IP + Traefik)."
+echo "Or call: POST /api/v1/servers/bootstrap-self"

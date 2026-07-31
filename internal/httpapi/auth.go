@@ -32,6 +32,8 @@ func (a *API) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "email, name, and password (min 8) required")
 		return
 	}
+	// First account on this instance gets the install VPS auto-registered.
+	usersBefore, _ := a.Store.CountUsers(r.Context())
 	hash, err := crypto.HashPassword(body.Password)
 	if err != nil {
 		mapStoreErr(w, err)
@@ -53,7 +55,18 @@ func (a *API) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	setSessionCookie(w, a.Cfg, token, expires)
-	writeJSON(w, http.StatusCreated, map[string]any{"user": user, "team": team, "token": token})
+
+	resp := map[string]any{"user": user, "team": team, "token": token}
+	if a.Cfg.BootstrapSelf && usersBefore == 0 {
+		if boot, err := a.bootstrapSelfServer(r.Context(), team.ID, true); err == nil {
+			resp["server"] = boot.Server
+			resp["bootstrap"] = boot
+		} else if a.Logger != nil {
+			a.Logger.Warn("auto-bootstrap self server failed", "error", err.Error())
+			resp["bootstrap_error"] = err.Error()
+		}
+	}
+	writeJSON(w, http.StatusCreated, resp)
 }
 
 func (a *API) handleLogin(w http.ResponseWriter, r *http.Request) {

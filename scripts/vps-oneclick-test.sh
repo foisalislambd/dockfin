@@ -6,8 +6,11 @@
 #   1) Install Docker / Go / dependencies
 #   2) Start Postgres
 #   3) Build Goolify API, migrate, and serve
-#   4) Add a self-SSH server → validate → Traefik → nginx:alpine deploy
+#   4) Add this VPS as a server (public IP) → validate → Traefik → nginx:alpine deploy
 #   5) Print a pass/fail report
+#
+# First-user register auto-bootstraps the install host with GOOLIFY_PUBLIC_IP
+# (same fields as a manually added remote server — not 127.0.0.1).
 #
 # Usage (as root on the VPS):
 #   curl -fsSL https://raw.githubusercontent.com/YOUR_ORG/goolify/main/scripts/vps-oneclick-test.sh | bash
@@ -185,6 +188,8 @@ GOOLIFY_MASTER_KEY=${MASTER_KEY}
 GOOLIFY_SESSION_SECRET=${SESSION_SECRET}
 GOOLIFY_CORS_ORIGINS=${PUBLIC_API_URL},http://127.0.0.1:${API_PORT}
 GOOLIFY_PUBLIC_URL=${PUBLIC_API_URL}
+GOOLIFY_PUBLIC_IP=${PUBLIC_IP}
+GOOLIFY_BOOTSTRAP_SELF=1
 GOOLIFY_COOKIE_SECURE=0
 GOOLIFY_DATA_DIR=${WORKDIR}/data
 GOOLIFY_TEMPLATES_DIR=${SRC}/templates/compose
@@ -192,7 +197,7 @@ GOOLIFY_WEB_DIR=${SRC}/apps/web/dist
 EOF
 fi
 
-# Refresh public URL / cookie secure if .env already existed from an older run
+# Refresh public URL / cookie secure / bootstrap if .env already existed from an older run
 if [[ -f .env ]]; then
   if [[ -n "${PUBLIC_IP}" ]]; then
     if grep -q '^GOOLIFY_PUBLIC_URL=' .env; then
@@ -200,6 +205,16 @@ if [[ -f .env ]]; then
     else
       echo "GOOLIFY_PUBLIC_URL=${PUBLIC_API_URL}" >> .env
     fi
+    if grep -q '^GOOLIFY_PUBLIC_IP=' .env; then
+      sed -i "s|^GOOLIFY_PUBLIC_IP=.*|GOOLIFY_PUBLIC_IP=${PUBLIC_IP}|" .env
+    else
+      echo "GOOLIFY_PUBLIC_IP=${PUBLIC_IP}" >> .env
+    fi
+  fi
+  if grep -q '^GOOLIFY_BOOTSTRAP_SELF=' .env; then
+    sed -i 's|^GOOLIFY_BOOTSTRAP_SELF=.*|GOOLIFY_BOOTSTRAP_SELF=1|' .env
+  else
+    echo 'GOOLIFY_BOOTSTRAP_SELF=1' >> .env
   fi
   if grep -q '^GOOLIFY_COOKIE_SECURE=' .env; then
     sed -i 's|^GOOLIFY_COOKIE_SECURE=.*|GOOLIFY_COOKIE_SECURE=0|' .env
@@ -297,6 +312,15 @@ BODY=$(api POST /api/v1/auth/register \
 assert_json "${BODY}" '.user.email!=null and .token!=null' "register"
 TOKEN=$(echo "${BODY}" | jq -r .token)
 TEAM_ID=$(echo "${BODY}" | jq -r .team.id)
+# First-user register may auto-add this VPS (public IP) as a server
+BOOTSTRAP_SERVER_ID=$(echo "${BODY}" | jq -r '.server.id // .bootstrap.server.id // empty')
+BOOTSTRAP_ERR=$(echo "${BODY}" | jq -r '.bootstrap_error // empty')
+if [[ -n "${BOOTSTRAP_SERVER_ID}" && "${BOOTSTRAP_SERVER_ID}" != "null" ]]; then
+  report "[PASS] register auto-bootstrap server=${BOOTSTRAP_SERVER_ID}"
+elif [[ -n "${BOOTSTRAP_ERR}" ]]; then
+  warn "register bootstrap: ${BOOTSTRAP_ERR}"
+  report "[WARN] register bootstrap failed (will retry via API)"
+fi
 report "[PASS] register (${TEST_EMAIL})"
 
 BODY=$(api GET /api/v1/auth/me -H "Authorization: Bearer ${TOKEN}")
@@ -304,48 +328,41 @@ assert_json "${BODY}" '.user.email!=null' "me"
 report "[PASS] auth/me"
 
 # -----------------------------------------------------------------------------
-# 6) Self-SSH bootstrap (same VPS as deploy target)
+# 6) Self-VPS bootstrap (public IP server — same as manual "Add server")
 # -----------------------------------------------------------------------------
 if [[ "${SKIP_DEPLOY}" == "1" ]]; then
   warn "SKIP_DEPLOY=1 — skipping SSH/deploy tests"
   report "[SKIP] deploy path"
 else
-  log "=== Self-SSH + deploy smoke ==="
-  SSH_DIR="${WORKDIR}/ssh"
-  mkdir -p "${SSH_DIR}"
-  if [[ ! -f "${SSH_DIR}/id_ed25519" ]]; then
-    ssh-keygen -t ed25519 -N "" -f "${SSH_DIR}/id_ed25519" -C "goolify-smoke" >/dev/null
-  fi
-  mkdir -p /root/.ssh
-  chmod 700 /root/.ssh
-  touch /root/.ssh/authorized_keys
-  chmod 600 /root/.ssh/authorized_keys
-  PUB=$(cat "${SSH_DIR}/id_ed25519.pub")
-  grep -qxF "${PUB}" /root/.ssh/authorized_keys || echo "${PUB}" >>/root/.ssh/authorized_keys
-
-  # ensure docker usable as root
+  log "=== Self-VPS bootstrap (public IP) + deploy smoke ==="
   docker info >/dev/null 2>&1 || fail "Docker not usable"
+  [[ -n "${PUBLIC_IP}" ]] || fail "PUBLIC_IP empty — cannot bootstrap this VPS as a server"
 
-  PRIV_JSON=$(jq -Rs . <"${SSH_DIR}/id_ed25519")
-  BODY=$(api POST /api/v1/private-keys -H "Authorization: Bearer ${TOKEN}" \
-    -d "{\"name\":\"smoke-key\",\"private_key\":${PRIV_JSON}}")
-  assert_json "${BODY}" '.id!=null' "create private key"
-  KEY_ID=$(echo "${BODY}" | jq -r .id)
-  report "[PASS] private-keys create"
+  # First register should auto-bootstrap; otherwise call the endpoint.
+  SERVER_ID="${BOOTSTRAP_SERVER_ID:-}"
+  if [[ -z "${SERVER_ID}" || "${SERVER_ID}" == "null" ]]; then
+    BODY=$(api POST /api/v1/servers/bootstrap-self -H "Authorization: Bearer ${TOKEN}" \
+      -d '{"start_proxy":true}')
+    assert_json "${BODY}" '.server.id!=null' "bootstrap-self"
+    SERVER_ID=$(echo "${BODY}" | jq -r .server.id)
+  fi
+  SERVER_IP=$(api GET "/api/v1/servers/${SERVER_ID}" -H "Authorization: Bearer ${TOKEN}" | jq -r .ip)
+  SERVER_PUB=$(api GET "/api/v1/servers/${SERVER_ID}" -H "Authorization: Bearer ${TOKEN}" | jq -r .public_ip)
+  [[ "${SERVER_IP}" == "${PUBLIC_IP}" ]] || fail "server.ip want ${PUBLIC_IP} got ${SERVER_IP}"
+  [[ "${SERVER_PUB}" == "${PUBLIC_IP}" ]] || fail "server.public_ip want ${PUBLIC_IP} got ${SERVER_PUB}"
+  report "[PASS] bootstrap-self (ip=${SERVER_IP} public_ip=${SERVER_PUB})"
 
-  BODY=$(api POST /api/v1/servers -H "Authorization: Bearer ${TOKEN}" \
-    -d "{\"name\":\"self\",\"ip\":\"127.0.0.1\",\"port\":22,\"user_name\":\"root\",\"private_key_id\":\"${KEY_ID}\",\"proxy_type\":\"traefik\"}")
-  assert_json "${BODY}" '.id!=null' "create server"
-  SERVER_ID=$(echo "${BODY}" | jq -r .id)
-  report "[PASS] servers create"
-
+  # Re-validate in case register-time SSH was still warming up
   BODY=$(api POST "/api/v1/servers/${SERVER_ID}/validate" -H "Authorization: Bearer ${TOKEN}" -d '{}')
   assert_json "${BODY}" '.usable==true' "validate server (docker)"
-  report "[PASS] servers validate (usable=true)"
+  report "[PASS] servers validate (usable=true public_ip=$(echo "${BODY}" | jq -r .public_ip))"
 
-  BODY=$(api POST "/api/v1/servers/${SERVER_ID}/proxy/start" -H "Authorization: Bearer ${TOKEN}" -d '{}')
-  assert_json "${BODY}" '.status=="running"' "start proxy"
-  report "[PASS] proxy start"
+  BODY=$(api GET "/api/v1/servers/${SERVER_ID}" -H "Authorization: Bearer ${TOKEN}")
+  if [[ "$(echo "${BODY}" | jq -r .proxy_status)" != "running" ]]; then
+    BODY=$(api POST "/api/v1/servers/${SERVER_ID}/proxy/start" -H "Authorization: Bearer ${TOKEN}" -d '{}')
+    assert_json "${BODY}" '.status=="running"' "start proxy"
+  fi
+  report "[PASS] proxy running"
 
   BODY=$(api GET /api/v1/destinations -H "Authorization: Bearer ${TOKEN}")
   DEST_ID=$(echo "${BODY}" | jq -r '.destinations[] | select(.server_id=="'"${SERVER_ID}"'") | .id' | head -n1)

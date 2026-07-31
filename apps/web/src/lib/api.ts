@@ -60,9 +60,34 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   register: (name: string, email: string, password: string) =>
-    request<{ user: User; team: Team; token: string }>('/api/v1/auth/register', {
+    request<{
+      user: User
+      team: Team
+      token: string
+      server?: Server
+      bootstrap?: {
+        server: Server
+        public_ip?: string
+        validated?: boolean
+        proxy_started?: boolean
+        message?: string
+      }
+      bootstrap_error?: string
+    }>('/api/v1/auth/register', {
       method: 'POST',
       body: JSON.stringify({ name, email, password }),
+    }),
+  bootstrapSelf: (start_proxy = true) =>
+    request<{
+      server: Server
+      private_key_id: string
+      public_ip: string
+      validated: boolean
+      proxy_started: boolean
+      message?: string
+    }>('/api/v1/servers/bootstrap-self', {
+      method: 'POST',
+      body: JSON.stringify({ start_proxy }),
     }),
   logout: () => request('/api/v1/auth/logout', { method: 'POST' }),
   switchTeam: (team_id: string) =>

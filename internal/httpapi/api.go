@@ -103,6 +103,7 @@ func (a *API) Router() http.Handler {
 			r.Route("/servers", func(r chi.Router) {
 				r.Get("/", a.handleListServers)
 				r.Post("/", a.handleCreateServer)
+				r.Post("/bootstrap-self", a.handleBootstrapSelf)
 				r.Get("/{serverID}", a.handleGetServer)
 				r.Delete("/{serverID}", a.handleDeleteServer)
 				r.Patch("/{serverID}/settings", a.handlePatchServerSettings)

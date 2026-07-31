@@ -205,6 +205,12 @@ func (s *Store) RegistrationEnabled(ctx context.Context) (bool, error) {
 	return enabled, err
 }
 
+func (s *Store) CountUsers(ctx context.Context) (int, error) {
+	var n int
+	err := s.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM users`).Scan(&n)
+	return n, err
+}
+
 func (s *Store) EnsureMembership(ctx context.Context, userID, teamID uuid.UUID) error {
 	_, err := s.UserRoleOnTeam(ctx, userID, teamID)
 	return err

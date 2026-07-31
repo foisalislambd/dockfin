@@ -7,12 +7,11 @@ Install Goolify and run API + deploy smoke tests on a fresh Ubuntu/Debian VPS wi
 1. Installs Docker, Go, jq, and OpenSSH  
 2. Starts Postgres/Redis (`deploy/compose/docker-compose.dev.yml`)  
 3. Builds the `goolify` binary, migrates the DB, and starts the API  
-4. Registers a test user  
-5. Sets up self-SSH (VPS targeting itself): key → server → validate  
-6. Starts the Traefik proxy  
-7. Creates a project and deploys `nginx:alpine`  
-8. Polls until the deployment status is `finished`  
-9. Writes a pass/fail report to `/opt/goolify-smoke/report.txt`
+4. Registers a test user — **first register auto-adds this VPS as a server with its public IP** (SSH key + Traefik)  
+5. Validates the server and ensures the proxy is running  
+6. Creates a project and deploys `nginx:alpine`  
+7. Polls until the deployment status is `finished`  
+8. Writes a pass/fail report to `/opt/goolify-smoke/report.txt`
 
 ## Usage
 

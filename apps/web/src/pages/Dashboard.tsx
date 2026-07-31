@@ -59,9 +59,10 @@ export function DashboardPage() {
 
       {!hasServers && (
         <div className="panel-card border-brand-200 bg-brand-50/60 p-6 dark:border-brand-500/30 dark:bg-brand-500/10">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Welcome — no servers yet</h2>
+          <h2 className="text-lg font-medium text-gray-900 dark:text-white">No servers yet</h2>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-            Add this VPS (or another host) under Servers, then create a project to deploy.
+            On a VPS install the first account should auto-add this host with its public IP. You can also
+            add any host under Servers.
           </p>
           <Link
             to="/servers"
@@ -106,19 +107,31 @@ export function DashboardPage() {
       <div className="panel-card p-6">
         <h2 className="text-lg font-medium text-gray-900 dark:text-white">Quick start</h2>
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-gray-600 dark:text-gray-400">
-          <li>
-            Add an SSH key and server under{' '}
-            <Link to="/servers" className="text-brand-600 dark:text-brand-400">
-              Servers
-            </Link>
-          </li>
-          <li>
-            Create a{' '}
-            <Link to="/projects" className="text-brand-600 dark:text-brand-400">
-              project
-            </Link>{' '}
-            and deploy an application or one-click service
-          </li>
+          {hasServers ? (
+            <li>
+              Create a{' '}
+              <Link to="/projects" className="text-brand-600 dark:text-brand-400">
+                project
+              </Link>{' '}
+              and deploy an application or one-click service on your server
+            </li>
+          ) : (
+            <>
+              <li>
+                Add this VPS (public IP) or another host under{' '}
+                <Link to="/servers" className="text-brand-600 dark:text-brand-400">
+                  Servers
+                </Link>
+              </li>
+              <li>
+                Create a{' '}
+                <Link to="/projects" className="text-brand-600 dark:text-brand-400">
+                  project
+                </Link>{' '}
+                and deploy
+              </li>
+            </>
+          )}
         </ol>
       </div>
     </div>
