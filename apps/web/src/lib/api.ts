@@ -811,6 +811,7 @@ export type Project = {
   name: string
   description: string
   is_empty?: boolean
+  created_at?: string
 }
 export type Environment = {
   id: string

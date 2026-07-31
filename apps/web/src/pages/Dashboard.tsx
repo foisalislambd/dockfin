@@ -1,9 +1,10 @@
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Database, FolderKanban, Rocket, Server } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { PageSkeleton } from '../components/ui/Skeleton'
-import { api } from '../lib/api'
+import { api, type Project } from '../lib/api'
 import { useAuth } from '../lib/auth'
 
 function StatCard({
@@ -36,6 +37,17 @@ function StatCard({
   )
 }
 
+function latestProjects(list: Project[], limit = 6): Project[] {
+  return [...list]
+    .sort((a, b) => {
+      const ta = a.created_at ? Date.parse(a.created_at) : 0
+      const tb = b.created_at ? Date.parse(b.created_at) : 0
+      if (tb !== ta) return tb - ta
+      return a.name.localeCompare(b.name)
+    })
+    .slice(0, limit)
+}
+
 export function DashboardPage() {
   const { user } = useAuth()
   const servers = useQuery({ queryKey: ['servers'], queryFn: api.servers })
@@ -46,6 +58,11 @@ export function DashboardPage() {
   const hasServers = (servers.data?.servers?.length ?? 0) > 0
   const loading =
     servers.isLoading || projects.isLoading || apps.isLoading || dbs.isLoading
+
+  const recent = useMemo(
+    () => latestProjects(projects.data?.projects ?? [], 6),
+    [projects.data?.projects],
+  )
 
   if (loading) return <PageSkeleton cards={2} />
 
@@ -104,35 +121,63 @@ export function DashboardPage() {
         />
       </div>
 
-      <div className="panel-card p-6">
-        <h2 className="text-lg font-medium text-gray-900 dark:text-white">Quick start</h2>
-        <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-gray-600 dark:text-gray-400">
-          {hasServers ? (
-            <li>
-              Create a{' '}
-              <Link to="/projects" className="text-brand-600 dark:text-brand-400">
-                project
-              </Link>{' '}
-              and deploy an application or one-click service on your server
-            </li>
-          ) : (
-            <>
-              <li>
-                Add this VPS (public IP) or another host under{' '}
-                <Link to="/servers" className="text-brand-600 dark:text-brand-400">
-                  Servers
+      <div className="panel-card p-5 sm:p-6">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Latest projects</h2>
+          <Link
+            to="/projects"
+            className="text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+          >
+            View all
+          </Link>
+        </div>
+
+        {recent.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center dark:border-gray-700">
+            <p className="text-sm text-gray-500 dark:text-gray-400">No projects yet.</p>
+            <Link
+              to="/projects"
+              className="mt-3 inline-flex h-8 items-center rounded-md bg-brand-500 px-2.5 text-xs font-medium text-white hover:bg-brand-600"
+            >
+              Create a project
+            </Link>
+          </div>
+        ) : (
+          <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+            {recent.map((p) => (
+              <li key={p.id}>
+                <Link
+                  to="/projects/$projectId"
+                  params={{ projectId: p.id }}
+                  className="flex items-center justify-between gap-3 py-3 transition first:pt-0 last:pb-0 hover:bg-gray-50/80 dark:hover:bg-white/[0.03] -mx-2 px-2 rounded-md"
+                >
+                  <div className="min-w-0 flex items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-500/15">
+                      <FolderKanban className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-gray-900 dark:text-white">{p.name}</p>
+                      {p.description ? (
+                        <p className="truncate text-sm text-gray-500 dark:text-gray-400">{p.description}</p>
+                      ) : (
+                        <p className="text-sm text-gray-400 dark:text-gray-500">No description</p>
+                      )}
+                    </div>
+                  </div>
+                  {p.created_at && (
+                    <time
+                      className="shrink-0 text-xs text-gray-400 dark:text-gray-500"
+                      dateTime={p.created_at}
+                      title={new Date(p.created_at).toLocaleString()}
+                    >
+                      {new Date(p.created_at).toLocaleDateString()}
+                    </time>
+                  )}
                 </Link>
               </li>
-              <li>
-                Create a{' '}
-                <Link to="/projects" className="text-brand-600 dark:text-brand-400">
-                  project
-                </Link>{' '}
-                and deploy
-              </li>
-            </>
-          )}
-        </ol>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   )
