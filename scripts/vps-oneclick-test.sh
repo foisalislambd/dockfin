@@ -42,7 +42,7 @@ if [[ "${EUID}" -ne 0 ]]; then
   fail "Run as root: sudo bash $0"
 fi
 
-API_PORT="${API_PORT:-8080}"
+API_PORT="${API_PORT:-8000}"
 API_URL="http://127.0.0.1:${API_PORT}"
 PUBLIC_IP="$(curl -4 -fsS --max-time 3 ifconfig.me 2>/dev/null || curl -4 -fsS --max-time 3 icanhazip.com 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || true)"
 PUBLIC_IP="$(echo "${PUBLIC_IP}" | tr -d '[:space:]')"

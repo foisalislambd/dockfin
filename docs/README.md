@@ -58,7 +58,7 @@ Reference secrets as:
 ## CLI
 
 ```bash
-export GOOLIFY_URL=http://localhost:8080
+export GOOLIFY_URL=http://localhost:8000
 export GOOLIFY_TOKEN=<session-token-from-login>
 glfy apps
 glfy deploy <app-uuid>

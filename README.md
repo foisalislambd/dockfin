@@ -90,7 +90,7 @@ go run ./cmd/goolify migrate
 go run ./cmd/goolify serve
 ```
 
-API: http://localhost:8080/health
+API: http://localhost:8000/health
 
 ### 4. Run web UI
 
@@ -132,7 +132,7 @@ Full guide: [docs/VPS-SMOKE-TEST.md](docs/VPS-SMOKE-TEST.md)
 ## CLI
 
 ```bash
-export GOOLIFY_URL=http://localhost:8080
+export GOOLIFY_URL=http://localhost:8000
 export GOOLIFY_TOKEN=<token-from-login-response>
 
 glfy version

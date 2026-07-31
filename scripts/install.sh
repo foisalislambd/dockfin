@@ -36,11 +36,11 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   PUBLIC_IP="$(echo "${PUBLIC_IP}" | tr -d '[:space:]')"
   cat > "${ENV_FILE}" <<EOF
 GOOLIFY_ENV=production
-GOOLIFY_HTTP_ADDR=:8080
+GOOLIFY_HTTP_ADDR=:8000
 GOOLIFY_DATABASE_URL=postgres://goolify:${DB_PASS}@postgres:5432/goolify?sslmode=disable
 GOOLIFY_MASTER_KEY=${MASTER_KEY}
 GOOLIFY_CORS_ORIGINS=*
-GOOLIFY_PUBLIC_URL=http://${PUBLIC_IP}:8080
+GOOLIFY_PUBLIC_URL=http://${PUBLIC_IP}:8000
 GOOLIFY_PUBLIC_IP=${PUBLIC_IP}
 GOOLIFY_BOOTSTRAP_SELF=1
 GOOLIFY_DATA_DIR=/data
@@ -73,9 +73,9 @@ services:
     env_file: .env
     environment:
       GOOLIFY_DATABASE_URL: ${GOOLIFY_DATABASE_URL}
-      GOOLIFY_HTTP_ADDR: ":8080"
+      GOOLIFY_HTTP_ADDR: ":8000"
     ports:
-      - "8080:8080"
+      - "8000:8000"
     volumes:
       - goolify-data:/data
     depends_on:
@@ -111,7 +111,7 @@ docker compose up -d
 echo ""
 echo "Goolify is starting."
 echo "  Dashboard: http://$(hostname -I | awk '{print $1}')/"
-echo "  API:       http://$(hostname -I | awk '{print $1}'):8080/health"
+echo "  API:       http://$(hostname -I | awk '{print $1}'):8000/health"
 echo "  Data:      ${GOOLIFY_DIR}"
 echo ""
 echo "Create your first admin account in the UI."

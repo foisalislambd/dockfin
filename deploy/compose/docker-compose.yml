@@ -29,9 +29,9 @@ services:
       - ../../.env
     environment:
       GOOLIFY_DATABASE_URL: postgres://goolify:goolify@postgres:5432/goolify?sslmode=disable
-      GOOLIFY_HTTP_ADDR: ":8080"
+      GOOLIFY_HTTP_ADDR: ":8000"
     ports:
-      - "8080:8080"
+      - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy

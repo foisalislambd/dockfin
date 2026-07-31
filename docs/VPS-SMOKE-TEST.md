@@ -57,7 +57,7 @@ sudo GOOLIFY_GIT_URL=https://github.com/YOUR_USER/goolify.git \
 | `SKIP_DEPLOY=1` | API register/health only (skip SSH deploy) |
 | `SKIP_WEB=1` | Skip Node install / Vite UI build |
 | `KEEP_RUNNING=0` | Stop the API after tests |
-| `API_PORT=8080` | API listen port |
+| `API_PORT=8000` | API listen port |
 | `GOOLIFY_SRC=/path` | Force source path |
 
 Example:
@@ -72,13 +72,13 @@ sudo SKIP_DEPLOY=1 bash scripts/vps-oneclick-test.sh
 - API log: `/opt/goolify-smoke/api.log`
 - Test user/password printed at the end of the script
 - Public VPS IP + URLs are printed, for example:
-  - `API (public): http://YOUR_VPS_IP:8080`
-  - `Health: http://YOUR_VPS_IP:8080/health`
+  - `API (public): http://YOUR_VPS_IP:8000`
+  - `Health: http://YOUR_VPS_IP:8000/health`
 
 ## Notes
 
 - Root is required (Docker + SSH + Traefik on port 80)
 - Control plane and deploy target are the same VPS (self-SSH)
 - No public GHCR image required — builds from source
-- `http://VPS_IP:8080/` serves the API; after the smoke script builds `apps/web/dist`, the same URL also serves the dashboard UI
+- `http://VPS_IP:8000/` serves the API; after the smoke script builds `apps/web/dist`, the same URL also serves the dashboard UI
 - The smoke script installs Node.js 22 and runs `npm ci && npm run build` unless `SKIP_WEB=1`

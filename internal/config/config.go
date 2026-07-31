@@ -34,10 +34,10 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		Env:              getenv("GOOLIFY_ENV", "development"),
-		HTTPAddr:         getenv("GOOLIFY_HTTP_ADDR", ":8080"),
+		HTTPAddr:         getenv("GOOLIFY_HTTP_ADDR", ":8000"),
 		DatabaseURL:      getenv("GOOLIFY_DATABASE_URL", "postgres://goolify:goolify@localhost:5432/goolify?sslmode=disable"),
 		MasterKey:        getenv("GOOLIFY_MASTER_KEY", ""),
-		PublicURL:        getenv("GOOLIFY_PUBLIC_URL", "http://localhost:8080"),
+		PublicURL:        getenv("GOOLIFY_PUBLIC_URL", "http://localhost:8000"),
 		DataDir:          getenv("GOOLIFY_DATA_DIR", "./data"),
 		WebDir:           getenv("GOOLIFY_WEB_DIR", ""),
 		SessionTTL:       7 * 24 * time.Hour,
@@ -66,7 +66,7 @@ func Load() (*Config, error) {
 		cfg.CORSOrigins = append(cfg.CORSOrigins, cfg.PublicURL)
 	}
 
-	// Secure cookies only over HTTPS. HTTP VPS IPs (http://x.x.x.x:8080) must not set Secure.
+	// Secure cookies only over HTTPS. HTTP VPS IPs (http://x.x.x.x:8000) must not set Secure.
 	switch strings.ToLower(strings.TrimSpace(getenv("GOOLIFY_COOKIE_SECURE", ""))) {
 	case "1", "true", "yes":
 		cfg.CookieSecure = true

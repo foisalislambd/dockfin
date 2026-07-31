@@ -16,7 +16,7 @@ func main() {
 		usage()
 		os.Exit(1)
 	}
-	base := env("GOOLIFY_URL", "http://localhost:8080")
+	base := env("GOOLIFY_URL", "http://localhost:8000")
 	token := env("GOOLIFY_TOKEN", "")
 	switch os.Args[1] {
 	case "version":
@@ -72,7 +72,7 @@ Usage:
   glfy logs <deployment-uuid>
 
 Env:
-  GOOLIFY_URL    default http://localhost:8080
+  GOOLIFY_URL    default http://localhost:8000
   GOOLIFY_TOKEN  session/API bearer token
 `)
 }
