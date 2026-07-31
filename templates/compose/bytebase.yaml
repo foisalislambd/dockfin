@@ -14,6 +14,8 @@ services:
       - /var/opt/bytebase
       - --port
       - "8080"
+      - --external-url
+      - ${SERVICE_URL_BYTEBASE}
     environment:
       - SERVICE_URL_BYTEBASE_8080
     volumes:

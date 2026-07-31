@@ -289,6 +289,19 @@ func expandMagicInDoc(doc map[string]any, env map[string]string) {
 		services[name] = svc
 	}
 	doc["services"] = services
+
+	// Coolify also substitutes magic vars inside top-level compose configs.
+	if configs, ok := doc["configs"].(map[string]any); ok {
+		for cname, cfgAny := range configs {
+			cfg, ok := cfgAny.(map[string]any)
+			if !ok {
+				continue
+			}
+			walkSubstitute(cfg, env)
+			configs[cname] = cfg
+		}
+		doc["configs"] = configs
+	}
 }
 
 // persistMagicSecrets keeps Coolify SERVICE_* values (passwords + URL/FQDN pairs)

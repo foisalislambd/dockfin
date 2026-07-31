@@ -17,6 +17,7 @@ services:
       --default-artifact-root /mlflow/artifacts
     environment:
       - SERVICE_URL_MLFLOW_5000
+      - MLFLOW_HOST=0.0.0.0
     volumes:
       - mlflow-artifacts:/mlflow/artifacts
     depends_on:

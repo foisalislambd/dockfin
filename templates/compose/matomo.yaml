@@ -8,7 +8,7 @@
 
 services:
   app:
-    image: app:5.2.1-apache
+    image: matomo:5.2.1-apache
     environment:
       - SERVICE_URL_MATOMO_80
       - MATOMO_DATABASE_HOST=mariadb

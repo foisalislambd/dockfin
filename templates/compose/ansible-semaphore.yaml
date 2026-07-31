@@ -11,6 +11,7 @@ services:
     image: semaphoreui/semaphore:v2.15.0
     environment:
       - SERVICE_URL_SEMAPHORE_3000
+      - SEMAPHORE_WEB_ROOT=${SERVICE_URL_SEMAPHORE}
       - SEMAPHORE_DB_DIALECT=postgres
       - SEMAPHORE_DB_HOST=postgresql
       - SEMAPHORE_DB_PORT=5432

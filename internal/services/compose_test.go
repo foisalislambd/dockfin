@@ -279,6 +279,29 @@ func TestCoolifyEnvForUIPortedPairOnly(t *testing.T) {
 	}
 }
 
+func TestPrepareComposeSubstitutesTopLevelConfigs(t *testing.T) {
+	raw := `services:
+  headscale:
+    image: headscale/headscale
+    environment:
+      - SERVICE_URL_HEADSCALE_8080
+    configs:
+      - source: headscale_config
+        target: /etc/headscale/config.yaml
+configs:
+  headscale_config:
+    content: |
+      server_url: ${SERVICE_URL_HEADSCALE}
+`
+	out, _, err := PrepareCompose(raw, PrepareOpts{BaseURL: "http://hs.example.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "server_url: http://hs.example.com") {
+		t.Fatalf("config magic not substituted:\n%s", out)
+	}
+}
+
 func TestPickProxyServiceExactOverContains(t *testing.T) {
 	got := pickProxyService(map[string]any{
 		"webhook": map[string]any{"image": "x"},

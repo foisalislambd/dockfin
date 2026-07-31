@@ -17,7 +17,7 @@ services:
       - POSTGRES_USER=${SERVICE_USER_POSTGRES}
       - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
       - POSTGRES_DB=${POSTGRES_DB:-djangodb}
-      - ALLOWED_HOSTS=*
+      - ALLOWED_HOSTS=${SERVICE_FQDN_TANDOOR},*
       - DEBUG=0
     volumes:
       - tandoor-static:/opt/recipes/staticfiles

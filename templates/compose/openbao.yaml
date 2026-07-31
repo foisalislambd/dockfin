@@ -12,7 +12,7 @@ services:
     command: server -config=/openbao/config/local.json
     environment:
       - SERVICE_URL_OPENBAO_8200
-      - BAO_ADDR=http://127.0.0.1:8200
+      - BAO_ADDR=${SERVICE_URL_OPENBAO}
     volumes:
       - openbao-data:/openbao/data
       - openbao-config:/openbao/config
@@ -39,5 +39,5 @@ configs:
         },
         "default_lease_ttl": "168h",
         "max_lease_ttl": "720h",
-        "api_addr": "http://0.0.0.0:8200"
+        "api_addr": "${SERVICE_URL_OPENBAO}"
       }

@@ -12,6 +12,7 @@ services:
     environment:
       - SERVICE_URL_CRYPTPAD_3000
       - CPAD_MAIN_DOMAIN=${SERVICE_FQDN_CRYPTPAD}
+      - CPAD_SANDBOX_DOMAIN=${SERVICE_FQDN_CRYPTPAD}
       - CPAD_CONF=/cryptpad/config/config.js
     volumes:
       - cryptpad-blob:/cryptpad/blob

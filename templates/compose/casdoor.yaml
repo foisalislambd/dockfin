@@ -11,6 +11,7 @@ services:
     image: casbin/casdoor:v1.804.0
     environment:
       - SERVICE_URL_CASDOOR_8000
+      - origin=${SERVICE_URL_CASDOOR}
       - RUNNING_IN_DOCKER=true
       - driverName=postgres
       - dataSourceName=user=${SERVICE_USER_POSTGRES} password=${SERVICE_PASSWORD_POSTGRES} host=postgresql port=5432 sslmode=disable dbname=${POSTGRES_DB:-casdoor}

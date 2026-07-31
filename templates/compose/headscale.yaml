@@ -1,6 +1,6 @@
 # name: Headscale
 # documentation: https://headscale.net/stable/setup/install/container/
-# slogan: Self-hosted Tailscale-compatible coordination server. After deploy, set server_url in the Headscale config volume to your public URL.
+# slogan: Self-hosted Tailscale-compatible coordination server. server_url is set from SERVICE_URL_HEADSCALE.
 # category: network
 # tags: headscale,tailscale,vpn,wireguard,networking
 # logo: svgs/headscale.svg
@@ -21,7 +21,7 @@ services:
 configs:
   headscale_config:
     content: |
-      server_url: http://127.0.0.1:8080
+      server_url: ${SERVICE_URL_HEADSCALE}
       listen_addr: 0.0.0.0:8080
       metrics_listen_addr: 127.0.0.1:9090
       grpc_listen_addr: 127.0.0.1:50443
