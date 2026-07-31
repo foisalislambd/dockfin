@@ -44,21 +44,21 @@ export function ServersPage() {
         }
       />
 
-      <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
-        <table className="w-full text-left text-sm">
-          <thead className="panel-card bg-white dark:bg-white/3 text-gray-500 dark:text-gray-400">
+      <div className="panel-card overflow-hidden">
+        <table className="panel-table">
+          <thead>
             <tr>
-              <th className="px-4 py-3 font-medium">Name</th>
-              <th className="px-4 py-3 font-medium">Host</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium">Proxy</th>
-              <th className="px-4 py-3 font-medium">Actions</th>
+              <th>Name</th>
+              <th>Host</th>
+              <th>Status</th>
+              <th>Proxy</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {(servers.data?.servers || []).map((s) => (
-              <tr key={s.id} className="border-t border-gray-200 dark:border-gray-800">
-                <td className="px-4 py-3">
+              <tr key={s.id}>
+                <td>
                   <Link
                     to="/servers/$serverId"
                     params={{ serverId: s.id }}
@@ -67,17 +67,17 @@ export function ServersPage() {
                     {s.name}
                   </Link>
                 </td>
-                <td className="px-4 py-3 font-mono text-xs">
+                <td className="font-mono text-xs text-gray-600 dark:text-gray-400">
                   {s.user_name}@{s.ip}:{s.port}
                 </td>
-                <td className="px-4 py-3">
+                <td>
                   <Status ok={s.is_usable} label={s.is_usable ? `Docker ${s.docker_version || 'ok'}` : s.is_reachable ? 'No Docker' : 'Unreachable'} />
                 </td>
-                <td className="px-4 py-3">
-                  <span className="text-xs text-gray-500 dark:text-gray-400">{s.proxy_type || 'traefik'}</span>
+                <td className="text-xs text-gray-500 dark:text-gray-400">
+                  {s.proxy_type || 'traefik'}
                   {s.proxy_status ? ` · ${s.proxy_status}` : ''}
                 </td>
-                <td className="px-4 py-3 space-x-2">
+                <td className="space-x-2">
                   <Link
                     to="/servers/$serverId"
                     params={{ serverId: s.id }}
@@ -86,14 +86,14 @@ export function ServersPage() {
                     Open
                   </Link>
                   <button
-                    className="text-brand-600 dark:text-brand-400"
+                    className="text-brand-600 hover:underline dark:text-brand-400"
                     type="button"
                     onClick={() => void api.validateServer(s.id).then(() => qc.invalidateQueries({ queryKey: ['servers'] }))}
                   >
                     Validate
                   </button>
                   <button
-                    className="text-brand-600 dark:text-brand-400"
+                    className="text-brand-600 hover:underline dark:text-brand-400 disabled:opacity-40"
                     type="button"
                     disabled={s.proxy_type === 'none'}
                     onClick={() => void api.startProxy(s.id).then(() => qc.invalidateQueries({ queryKey: ['servers'] }))}
@@ -105,7 +105,7 @@ export function ServersPage() {
             ))}
             {!servers.data?.servers?.length && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                <td colSpan={5} className="panel-table-empty">
                   No servers yet.
                 </td>
               </tr>
@@ -368,8 +368,12 @@ export function Input({
 
 export function Status({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 ${ok ? 'text-brand-600 dark:text-brand-400' : 'text-[var(--color-warn)]'}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${ok ? 'bg-brand-500' : 'bg-[var(--color-warn)]'}`} />
+    <span
+      className={`inline-flex items-center gap-1.5 ${
+        ok ? 'text-success-600 dark:text-success-500' : 'text-warning-500'
+      }`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${ok ? 'bg-success-500' : 'bg-warning-500'}`} />
       {label}
     </span>
   )

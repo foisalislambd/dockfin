@@ -44,6 +44,71 @@
   box-shadow: none;
 }
 
+/* Tables sit on the same surface as panel-card */
+.panel-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: #344054;
+}
+
+.dark .panel-table {
+  color: #d0d5dd;
+}
+
+.panel-table thead {
+  background-color: #f9fafb;
+  color: #667085;
+}
+
+.dark .panel-table thead {
+  background-color: rgba(255, 255, 255, 0.04);
+  color: #98a2b3;
+}
+
+.panel-table th {
+  padding: 0.75rem 1rem;
+  font-weight: 500;
+  border-bottom: 1px solid #e4e7ec;
+}
+
+.dark .panel-table th {
+  border-bottom-color: #1d2939;
+}
+
+.panel-table td {
+  padding: 0.75rem 1rem;
+  vertical-align: middle;
+}
+
+.panel-table tbody tr + tr td {
+  border-top: 1px solid #f2f4f7;
+}
+
+.dark .panel-table tbody tr + tr td {
+  border-top-color: #1d2939;
+}
+
+.panel-table tbody tr:hover td {
+  background-color: #f9fafb;
+}
+
+.dark .panel-table tbody tr:hover td {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.panel-table .panel-table-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: #667085;
+}
+
+.dark .panel-table .panel-table-empty {
+  color: #98a2b3;
+}
+
 /* Full-viewport overlay — above sidebar (z-50) so nav sits under the dimmer */
 .panel-modal-backdrop {
   position: fixed;
