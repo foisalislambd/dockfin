@@ -1,0 +1,25 @@
+# name: BorgWarehouse
+# documentation: https://borgwarehouse.com/
+# slogan: Web UI for managing BorgBackup repositories and storage quotas.
+# category: backup
+# tags: borgwarehouse,borg,borgbackup,backup,repositories
+# logo: svgs/borgwarehouse.svg
+# port: 3000
+
+services:
+  borgwarehouse:
+    image: borgwarehouse/borgwarehouse:v2.4.2
+    environment:
+      - SERVICE_URL_BORGWAREHOUSE_3000
+      - NEXTAUTH_URL=${SERVICE_URL_BORGWAREHOUSE}
+      - NEXTAUTH_SECRET=${SERVICE_PASSWORD_SECRET}
+      - CRUD_PASSWORD=${SERVICE_PASSWORD_CRUD}
+    volumes:
+      - borgwarehouse-data:/app/config
+      - borgwarehouse-repos:/home/borgwarehouse
+      - borgwarehouse-ssh:/home/borgwarehouse/.ssh
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10

@@ -1,0 +1,49 @@
+# name: Ansible Semaphore
+# documentation: https://docs.semaphoreui.com/administration-guide/installation
+# slogan: Modern UI and task runner for Ansible, Terraform, and OpenTofu automation.
+# category: devtools
+# tags: semaphore,ansible,terraform,opentofu,automation,devops,ci
+# logo: svgs/ansible-semaphore.svg
+# port: 3000
+
+services:
+  app:
+    image: semaphoreui/semaphore:v2.15.0
+    environment:
+      - SERVICE_URL_SEMAPHORE_3000
+      - SEMAPHORE_DB_DIALECT=postgres
+      - SEMAPHORE_DB_HOST=postgresql
+      - SEMAPHORE_DB_PORT=5432
+      - SEMAPHORE_DB_USER=${SERVICE_USER_POSTGRES}
+      - SEMAPHORE_DB_PASS=${SERVICE_PASSWORD_POSTGRES}
+      - SEMAPHORE_DB=${POSTGRES_DB:-semaphore}
+      - SEMAPHORE_ADMIN=${SERVICE_USER_ADMIN}
+      - SEMAPHORE_ADMIN_PASSWORD=${SERVICE_PASSWORD_ADMIN}
+      - SEMAPHORE_ADMIN_NAME=${SEMAPHORE_ADMIN_NAME:-Admin}
+      - SEMAPHORE_ADMIN_EMAIL=${SEMAPHORE_ADMIN_EMAIL:-admin@example.com}
+      - SEMAPHORE_ACCESS_KEY_ENCRYPTION=${SERVICE_PASSWORD_ENCRYPTION}
+      - TZ=${TZ:-UTC}
+    volumes:
+      - semaphore-data:/etc/semaphore
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-semaphore}
+    volumes:
+      - semaphore-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

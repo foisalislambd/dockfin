@@ -1,0 +1,45 @@
+# name: OpenProject
+# documentation: https://www.openproject.org/docs/installation-and-operations/installation/docker/
+# slogan: Open-source project management with work packages, Gantt charts, and agile boards.
+# category: productivity
+# tags: openproject,project,management,agile,gantt,pm
+# logo: svgs/openproject.svg
+# port: 8080
+services:
+  openproject:
+    image: openproject/openproject:15.4.1
+    environment:
+      - SERVICE_URL_OPENPROJECT_8080
+      - OPENPROJECT_HOST__NAME=${SERVICE_FQDN_OPENPROJECT}
+      - OPENPROJECT_HTTPS=${OPENPROJECT_HTTPS:-false}
+      - OPENPROJECT_SECRET_KEY_BASE=${SERVICE_PASSWORD_SECRET}
+      - OPENPROJECT_DEFAULT__LANGUAGE=${OPENPROJECT_DEFAULT_LANGUAGE:-en}
+      - DATABASE_URL=postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgresql:5432/${POSTGRES_DB:-openproject}
+      - RAILS_MIN_THREADS=4
+      - RAILS_MAX_THREADS=16
+    volumes:
+      - openproject-pgdata:/var/openproject/pgdata
+      - openproject-assets:/var/openproject/assets
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/health_checks/default"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-openproject}
+    volumes:
+      - openproject-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

@@ -1,0 +1,55 @@
+# name: Papermerge DMS
+# documentation: https://docs.papermerge.io/
+# slogan: Open-source document management system designed for scanned documents.
+# category: productivity
+# tags: papermerge,dms,documents,ocr,scan
+# logo: svgs/papermerge.svg
+# port: 8000
+services:
+  papermerge:
+    image: papermerge/papermerge:3.4.1
+    environment:
+      - SERVICE_URL_PAPERMERGE_8000
+      - PAPERMERGE__SECURITY__SECRET_KEY=${SERVICE_PASSWORD_SECRET}
+      - PAPERMERGE__AUTH__USERNAME=${SERVICE_USER_ADMIN}
+      - PAPERMERGE__AUTH__PASSWORD=${SERVICE_PASSWORD_ADMIN}
+      - PAPERMERGE__DATABASE__URL=postgresql://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgresql:5432/${POSTGRES_DB:-papermerge}
+      - PAPERMERGE__REDIS__URL=redis://redis:6379/0
+    volumes:
+      - papermerge-media:/media
+      - papermerge-index:/index
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-papermerge}
+    volumes:
+      - papermerge-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    volumes:
+      - papermerge-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

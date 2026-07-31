@@ -1,0 +1,21 @@
+# name: AdGuard Home
+# documentation: https://github.com/AdguardTeam/AdGuardHome/wiki/Docker
+# slogan: Network-wide DNS ad and tracker blocking with a polished web UI.
+# category: network
+# tags: adguard,dns,adblock,privacy,network
+# logo: svgs/adguard-home.svg
+# port: 3000
+
+services:
+  adguardhome:
+    image: adguard/adguardhome:v0.107.61
+    environment:
+      - SERVICE_URL_ADGUARDHOME_3000
+    volumes:
+      - adguard-work:/opt/adguardhome/work
+      - adguard-conf:/opt/adguardhome/conf
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10

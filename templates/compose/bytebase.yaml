@@ -1,0 +1,25 @@
+# name: Bytebase
+# documentation: https://docs.bytebase.com/get-started/step-by-step/deploy-with-docker
+# slogan: Database schema change, migration review, and database DevOps platform.
+# category: devtools
+# tags: bytebase,database,migration,schema,devops,sql
+# logo: svgs/bytebase.svg
+# port: 8080
+
+services:
+  bytebase:
+    image: bytebase/bytebase:3.7.1
+    command:
+      - --data
+      - /var/opt/bytebase
+      - --port
+      - "8080"
+    environment:
+      - SERVICE_URL_BYTEBASE_8080
+    volumes:
+      - bytebase-data:/var/opt/bytebase
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10

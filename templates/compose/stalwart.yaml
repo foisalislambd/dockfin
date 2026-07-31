@@ -1,0 +1,21 @@
+# name: Stalwart
+# documentation: https://stalw.art/docs/install/platform/docker/
+# slogan: All-in-one mail and collaboration server (SMTP, IMAP, JMAP, CalDAV, CardDAV).
+# category: email
+# tags: stalwart,mail,smtp,imap,jmap,email,server
+# logo: svgs/stalwart.svg
+# port: 8080
+
+services:
+  stalwart:
+    image: stalwartlabs/stalwart:v0.12.1
+    environment:
+      - SERVICE_URL_STALWART_8080
+    volumes:
+      - stalwart-data:/opt/stalwart-mail
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s

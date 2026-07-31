@@ -1,0 +1,23 @@
+# name: Dockge
+# documentation: https://github.com/louislam/dockge
+# slogan: Web UI for managing Docker Compose stacks. Requires Docker socket access.
+# category: devtools
+# tags: dockge,docker,compose,management,admin
+# logo: svgs/dockge.svg
+# port: 5001
+
+services:
+  dockge:
+    image: louislam/dockge:1.5.0
+    environment:
+      - SERVICE_URL_DOCKGE_5001
+      - DOCKGE_STACKS_DIR=/opt/stacks
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - dockge-data:/app/data
+      - dockge-stacks:/opt/stacks
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:5001/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10

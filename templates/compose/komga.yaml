@@ -1,0 +1,24 @@
+# name: Komga
+# documentation: https://komga.org/docs/installation/docker/
+# slogan: Media server for comics, manga, magazines, and ebooks.
+# category: media
+# tags: komga,comics,manga,ebooks,library,media
+# logo: svgs/komga.svg
+# port: 25600
+
+services:
+  komga:
+    image: gotson/komga:1.21.2
+    environment:
+      - SERVICE_URL_KOMGA_25600
+      - SERVER_PORT=25600
+      - TZ=${TZ:-UTC}
+    volumes:
+      - komga-config:/config
+      - komga-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:25600/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s

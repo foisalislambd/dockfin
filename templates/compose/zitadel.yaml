@@ -1,0 +1,50 @@
+# name: ZITADEL
+# documentation: https://zitadel.com/docs/self-hosting/deploy/compose
+# slogan: Cloud-native identity and access management platform with OIDC and SAML.
+# category: auth
+# tags: zitadel,identity,iam,oidc,saml,authentication,sso
+# logo: svgs/zitadel.svg
+# port: 8080
+
+services:
+  app:
+    image: ghcr.io/zitadel/zitadel:v2.71.6
+    command: start-from-init --masterkeyFromEnv --tlsMode disabled
+    environment:
+      - SERVICE_URL_ZITADEL_8080
+      - ZITADEL_EXTERNALDOMAIN=${SERVICE_FQDN_ZITADEL}
+      - ZITADEL_EXTERNALSECURE=false
+      - ZITADEL_TLS_ENABLED=false
+      - ZITADEL_DATABASE_POSTGRES_HOST=postgresql
+      - ZITADEL_DATABASE_POSTGRES_PORT=5432
+      - ZITADEL_DATABASE_POSTGRES_DATABASE=${POSTGRES_DB:-zitadel}
+      - ZITADEL_DATABASE_POSTGRES_USER_USERNAME=${SERVICE_USER_POSTGRES}
+      - ZITADEL_DATABASE_POSTGRES_USER_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME=${SERVICE_USER_POSTGRES}
+      - ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME=${SERVICE_USER_ADMIN}
+      - ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD=${SERVICE_PASSWORD_ADMIN}
+      - ZITADEL_MASTERKEY=${SERVICE_HEX_MASTERKEY}
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/debug/healthz"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-zitadel}
+    volumes:
+      - zitadel-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

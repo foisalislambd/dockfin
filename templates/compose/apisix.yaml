@@ -1,0 +1,56 @@
+# name: Apache APISIX
+# documentation: https://apisix.apache.org/docs/apisix/installation-guide/
+# slogan: Cloud-native API gateway. Default admin API key is in the template config — rotate it after deploy.
+# category: network
+# tags: apisix,api,gateway,proxy,microservices
+# logo: svgs/apisix.svg
+# port: 9180
+
+services:
+  apisix:
+    image: apache/apisix:3.11.0-debian
+    environment:
+      - SERVICE_URL_APISIX_9180
+    volumes:
+      - apisix-logs:/usr/local/apisix/logs
+    configs:
+      - source: apisix_config
+        target: /usr/local/apisix/conf/config.yaml
+    depends_on:
+      etcd:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-H", "X-API-KEY: edd1c9f034335f136f87ad84b625c8f1", "http://127.0.0.1:9180/apisix/admin/routes"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  etcd:
+    image: bitnami/etcd:3.5.16
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+    volumes:
+      - apisix-etcd:/bitnami/etcd
+
+configs:
+  apisix_config:
+    content: |
+      apisix:
+        node_listen: 9080
+        enable_ipv6: false
+      deployment:
+        admin:
+          allow_admin:
+            - 0.0.0.0/0
+          admin_key:
+            - name: admin
+              key: edd1c9f034335f136f87ad84b625c8f1
+              role: admin
+        etcd:
+          host:
+            - http://etcd:2379
+          prefix: /apisix
+          timeout: 30

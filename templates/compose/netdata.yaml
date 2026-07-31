@@ -1,0 +1,37 @@
+# name: Netdata
+# documentation: https://learn.netdata.cloud/docs/netdata-agent/installation/docker
+# slogan: Real-time infrastructure monitoring with per-second metrics and dashboards.
+# category: monitoring
+# tags: netdata,monitoring,metrics,infrastructure,realtime
+# logo: svgs/netdata.svg
+# port: 19999
+
+services:
+  netdata:
+    image: netdata/netdata:v2.5.1
+    hostname: netdata
+    environment:
+      - SERVICE_URL_NETDATA_19999
+      - NETDATA_CLAIM_TOKEN=${NETDATA_CLAIM_TOKEN:-}
+      - NETDATA_CLAIM_URL=${NETDATA_CLAIM_URL:-https://app.netdata.cloud}
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - netdata-config:/etc/netdata
+      - netdata-lib:/var/lib/netdata
+      - netdata-cache:/var/cache/netdata
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/group:/host/etc/group:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/etc/os-release:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    cap_add:
+      - SYS_PTRACE
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:19999/api/v1/info"]
+      interval: 15s
+      timeout: 10s
+      retries: 10

@@ -1,0 +1,66 @@
+# name: Onyx
+# documentation: https://docs.onyx.app/deployment/docker
+# slogan: Open-source AI team assistant with connectors, chat, and RAG search.
+# category: ai
+# tags: onyx,ai,rag,assistant,chat,search,llm
+# logo: svgs/onyx.svg
+# port: 3000
+
+services:
+  frontend:
+    image: onyxdotapp/onyx-web-server:latest
+    environment:
+      - SERVICE_URL_ONYXWEBSERVER_3000
+      - INTERNAL_URL=http://onyx-api:8080
+      - WEB_DOMAIN=${SERVICE_URL_ONYXWEBSERVER}
+    depends_on:
+      - onyx-api
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+
+  onyx-api:
+    image: onyxdotapp/onyx-backend:latest
+    environment:
+      - POSTGRES_HOST=postgresql
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-onyx}
+      - REDIS_HOST=redis
+      - AUTH_TYPE=basic
+      - GEN_AI_MODEL_PROVIDER=openai
+      - GEN_AI_MODEL_VERSION=${ONYX_MODEL:-gpt-4o}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - WEB_DOMAIN=${SERVICE_URL_ONYXWEBSERVER}
+      - SECRET_KEY=${SERVICE_PASSWORD_SECRET}
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-onyx}
+    volumes:
+      - onyx-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    volumes:
+      - onyx-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

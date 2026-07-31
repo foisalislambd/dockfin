@@ -1,0 +1,21 @@
+# name: Apache Solr
+# documentation: https://solr.apache.org/guide/solr/latest/deployment-guide/solr-in-docker.html
+# slogan: Highly reliable open-source enterprise search platform from Apache.
+# category: search
+# tags: solr,apache,search,lucene,indexing
+# logo: svgs/solr.svg
+# port: 8983
+
+services:
+  solr:
+    image: solr:9.8.0
+    environment:
+      - SERVICE_URL_SOLR_8983
+      - SOLR_HEAP=512m
+    volumes:
+      - solr-data:/var/solr
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8983/solr/admin/info/system"]
+      interval: 15s
+      timeout: 5s
+      retries: 10

@@ -1,0 +1,34 @@
+# name: Redpanda
+# documentation: https://docs.redpanda.com/current/deploy/deployment-option/self-hosted/docker-image/
+# slogan: Kafka-compatible streaming platform in a single binary (dev single-node).
+# category: messaging
+# tags: redpanda,kafka,streaming,messaging,events
+# logo: svgs/redpanda.svg
+# port: 9644
+
+services:
+  redpanda:
+    image: redpandadata/redpanda:v24.3.6
+    command:
+      - redpanda
+      - start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://127.0.0.1:19092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr internal://redpanda:8082,external://127.0.0.1:18082
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr redpanda:33145
+      - --advertise-rpc-addr redpanda:33145
+      - --mode dev-container
+      - --smp 1
+      - --default-log-level=info
+    environment:
+      - SERVICE_URL_REDPANDA_9644
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s

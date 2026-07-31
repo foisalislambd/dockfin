@@ -1,0 +1,26 @@
+# name: Frigate
+# documentation: https://docs.frigate.video/frigate/installation/
+# slogan: Local NVR with AI object detection for IP cameras. May need GPU/Coral devices.
+# category: iot
+# tags: frigate,nvr,cameras,ai,detection,security
+# logo: svgs/frigate.svg
+# port: 5000
+
+services:
+  frigate:
+    image: ghcr.io/blakeblackshear/frigate:0.15.0
+    environment:
+      - SERVICE_URL_FRIGATE_5000
+      - FRIGATE_RTSP_PASSWORD=${SERVICE_PASSWORD_RTSP}
+      - TZ=${TZ:-UTC}
+    volumes:
+      - frigate-config:/config
+      - frigate-media:/media/frigate
+      - /etc/localtime:/etc/localtime:ro
+    shm_size: 64mb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:5000/api/version"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s

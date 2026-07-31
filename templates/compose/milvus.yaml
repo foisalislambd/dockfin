@@ -1,0 +1,54 @@
+# name: Milvus
+# documentation: https://milvus.io/docs/install_standalone-docker-compose.md
+# slogan: Open-source vector database built for scalable embedding similarity search.
+# category: database
+# tags: milvus,vector,embeddings,ai,search,database
+# logo: svgs/milvus.svg
+# port: 9091
+
+services:
+  app:
+    image: milvusdb/milvus:v2.5.4
+    command: ["milvus", "run", "standalone"]
+    environment:
+      - SERVICE_URL_MILVUS_9091
+      - ETCD_ENDPOINTS=etcd:2379
+      - MINIO_ADDRESS=minio:9000
+      - MINIO_ACCESS_KEY_ID=${SERVICE_USER_MINIO}
+      - MINIO_SECRET_ACCESS_KEY=${SERVICE_PASSWORD_MINIO}
+    volumes:
+      - milvus-data:/var/lib/milvus
+    depends_on:
+      - etcd
+      - minio
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9091/healthz"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.16
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    volumes:
+      - milvus-etcd:/etcd
+
+  minio:
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    environment:
+      - MINIO_ACCESS_KEY=${SERVICE_USER_MINIO}
+      - MINIO_SECRET_KEY=${SERVICE_PASSWORD_MINIO}
+    command: minio server /minio_data --console-address ":9001"
+    volumes:
+      - milvus-minio:/minio_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 10

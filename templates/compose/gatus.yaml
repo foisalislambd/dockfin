@@ -1,0 +1,33 @@
+# name: Gatus
+# documentation: https://github.com/TwiN/gatus
+# slogan: Automated developer-oriented status page and health monitoring.
+# category: monitoring
+# tags: gatus,status,uptime,health,monitoring
+# logo: svgs/gatus.svg
+# port: 8080
+
+services:
+  gatus:
+    image: twinproduction/gatus:v5.16.0
+    environment:
+      - SERVICE_URL_GATUS_8080
+    volumes:
+      - gatus-data:/data
+    configs:
+      - source: gatus_config
+        target: /config/config.yaml
+    # Image is distroless (no wget/curl). A failing Docker healthcheck makes
+    # Traefik ignore the container and return 404 — so no HEALTHCHECK here.
+
+configs:
+  gatus_config:
+    content: |
+      storage:
+        type: sqlite
+        path: /data/gatus.db
+      endpoints:
+        - name: example
+          url: "https://example.com"
+          interval: 5m
+          conditions:
+            - "[STATUS] == 200"

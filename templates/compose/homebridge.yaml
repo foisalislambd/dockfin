@@ -1,0 +1,22 @@
+# name: Homebridge
+# documentation: https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Docker
+# slogan: Lightweight Node.js server that emulates Apple HomeKit. Uses host networking — proxy/domain routing may not apply.
+# category: iot
+# tags: homebridge,homekit,iot,smarthome,apple
+# logo: svgs/homebridge.svg
+# port: 8581
+
+services:
+  homebridge:
+    image: homebridge/homebridge:2024-12-11
+    network_mode: host
+    environment:
+      - SERVICE_URL_HOMEBRIDGE_8581
+      - TZ=${TZ:-UTC}
+    volumes:
+      - homebridge-data:/homebridge
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8581/"]
+      interval: 20s
+      timeout: 10s
+      retries: 10

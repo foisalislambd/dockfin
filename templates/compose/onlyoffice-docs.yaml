@@ -1,0 +1,27 @@
+# name: ONLYOFFICE Docs
+# documentation: https://helpcenter.onlyoffice.com/docs/installation/docs-community-install-docker.aspx
+# slogan: Online office suite for editing documents, spreadsheets, and presentations.
+# category: productivity
+# tags: onlyoffice,office,documents,spreadsheets,collaboration
+# logo: svgs/onlyoffice.svg
+# port: 80
+
+services:
+  onlyoffice:
+    image: onlyoffice/documentserver:8.3.1
+    environment:
+      - SERVICE_URL_ONLYOFFICE_80
+      - JWT_ENABLED=${JWT_ENABLED:-true}
+      - JWT_SECRET=${SERVICE_PASSWORD_JWT}
+      - JWT_HEADER=${JWT_HEADER:-Authorization}
+    volumes:
+      - onlyoffice-data:/var/www/onlyoffice/Data
+      - onlyoffice-logs:/var/log/onlyoffice
+      - onlyoffice-db:/var/lib/postgresql
+      - onlyoffice-lib:/var/lib/onlyoffice
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s

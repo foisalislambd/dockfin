@@ -1,0 +1,43 @@
+# name: OpenBao
+# documentation: https://openbao.org/docs/commands/server/
+# slogan: Open-source secrets management fork of HashiCorp Vault under MPL.
+# category: security
+# tags: openbao,vault,secrets,security,encryption,pki
+# logo: svgs/openbao.svg
+# port: 8200
+
+services:
+  openbao:
+    image: openbao/openbao:2.2.0
+    command: server -config=/openbao/config/local.json
+    environment:
+      - SERVICE_URL_OPENBAO_8200
+      - BAO_ADDR=http://127.0.0.1:8200
+    volumes:
+      - openbao-data:/openbao/data
+      - openbao-config:/openbao/config
+    configs:
+      - source: openbao_config
+        target: /openbao/config/local.json
+    cap_add:
+      - IPC_LOCK
+configs:
+  openbao_config:
+    content: |
+      {
+        "ui": true,
+        "listener": {
+          "tcp": {
+            "address": "0.0.0.0:8200",
+            "tls_disable": 1
+          }
+        },
+        "storage": {
+          "file": {
+            "path": "/openbao/data"
+          }
+        },
+        "default_lease_ttl": "168h",
+        "max_lease_ttl": "720h",
+        "api_addr": "http://0.0.0.0:8200"
+      }

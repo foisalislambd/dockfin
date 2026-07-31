@@ -1,0 +1,19 @@
+# name: VictoriaMetrics
+# documentation: https://docs.victoriametrics.com/victoriametrics/quick-start/
+# slogan: Fast, cost-efficient Prometheus-compatible time-series database.
+# category: monitoring
+# tags: victoriametrics,metrics,prometheus,timeseries,monitoring
+# logo: svgs/victoria-metrics.svg
+# port: 8428
+
+services:
+  victoria-metrics:
+    image: victoriametrics/victoria-metrics:v1.117.1
+    command:
+      - --storageDataPath=/victoria-metrics-data
+      - --httpListenAddr=:8428
+      - --retentionPeriod=12
+    environment:
+      - SERVICE_URL_VICTORIAMETRICS_8428
+    volumes:
+      - victoria-metrics-data:/victoria-metrics-data

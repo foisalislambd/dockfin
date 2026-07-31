@@ -1,0 +1,16 @@
+# name: Loki
+# documentation: https://grafana.com/docs/loki/latest/setup/install/
+# slogan: Horizontally scalable, highly available log aggregation system inspired by Prometheus.
+# category: monitoring
+# tags: loki,logs,grafana,observability,logging
+# logo: svgs/loki.svg
+# port: 3100
+
+services:
+  loki:
+    image: grafana/loki:3.4.2
+    command: -config.file=/etc/loki/local-config.yaml
+    environment:
+      - SERVICE_URL_LOKI_3100
+    volumes:
+      - loki-data:/loki

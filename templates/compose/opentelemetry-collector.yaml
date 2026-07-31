@@ -1,0 +1,50 @@
+# name: OpenTelemetry Collector
+# documentation: https://opentelemetry.io/docs/collector/install/docker/
+# slogan: Vendor-neutral telemetry pipeline for metrics, logs, and traces.
+# category: monitoring
+# tags: opentelemetry,otel,collector,traces,metrics,logs,observability
+# logo: svgs/opentelemetry.svg
+# port: 13133
+
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.128.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      - SERVICE_URL_OTELCOLLECTOR_13133
+    configs:
+      - source: otel_config
+        target: /etc/otelcol/config.yaml
+configs:
+  otel_config:
+    content: |
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+      processors:
+        batch: {}
+      exporters:
+        debug:
+          verbosity: basic
+      extensions:
+        health_check:
+          endpoint: 0.0.0.0:13133
+      service:
+        extensions: [health_check]
+        pipelines:
+          traces:
+            receivers: [otlp]
+            processors: [batch]
+            exporters: [debug]
+          metrics:
+            receivers: [otlp]
+            processors: [batch]
+            exporters: [debug]
+          logs:
+            receivers: [otlp]
+            processors: [batch]
+            exporters: [debug]

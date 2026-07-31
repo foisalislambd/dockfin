@@ -1,0 +1,20 @@
+# name: Owncast
+# documentation: https://owncast.online/quickstart/container/
+# slogan: Self-hosted live video streaming and chat server.
+# category: media
+# tags: owncast,streaming,live,video,rtmp,broadcast
+# logo: svgs/owncast.svg
+# port: 8080
+
+services:
+  owncast:
+    image: owncast/owncast:0.2.1
+    environment:
+      - SERVICE_URL_OWNCAST_8080
+    volumes:
+      - owncast-data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
+      interval: 15s
+      timeout: 10s
+      retries: 10

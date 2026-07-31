@@ -1,0 +1,27 @@
+# name: Baserow
+# documentation: https://baserow.io/docs/installation%2Finstall-with-docker
+# slogan: Open-source no-code database and Airtable-style collaboration platform.
+# category: productivity
+# tags: baserow,nocode,database,airtable,spreadsheet,collaboration
+# logo: svgs/baserow.svg
+# port: 80
+
+services:
+  baserow:
+    image: baserow/baserow:1.33.3
+    environment:
+      - SERVICE_URL_BASEROW_80
+      - BASEROW_PUBLIC_URL=${SERVICE_URL_BASEROW}
+      - SECRET_KEY=${SERVICE_PASSWORD_SECRET}
+      - DATABASE_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - REDIS_PASSWORD=${SERVICE_PASSWORD_REDIS}
+      - BASEROW_TRIGGER_SYNC_TEMPLATES_AFTER_MIGRATION=true
+      - TZ=${TZ:-UTC}
+    volumes:
+      - baserow-data:/baserow/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1/_health/ || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 120s

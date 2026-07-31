@@ -1,0 +1,22 @@
+# name: Tabby
+# documentation: https://tabby.tabbyml.com/docs/quick-start/installation/docker/
+# slogan: Self-hosted AI coding assistant and open-source GitHub Copilot alternative.
+# category: ai
+# tags: tabby,ai,coding,assistant,copilot,llm
+# logo: svgs/tabby.svg
+# port: 8080
+
+services:
+  tabby:
+    image: tabbyml/tabby:0.25.0
+    command: serve --model StarCoder-1B --device cpu --chat-model Qwen2-1.5B-Instruct
+    environment:
+      - SERVICE_URL_TABBY_8080
+    volumes:
+      - tabby-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s

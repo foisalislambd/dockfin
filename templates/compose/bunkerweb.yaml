@@ -1,0 +1,28 @@
+# name: BunkerWeb
+# documentation: https://docs.bunkerweb.io/latest/quickstart-guide/
+# slogan: Next-generation Web Application Firewall based on NGINX.
+# category: security
+# tags: bunkerweb,waf,nginx,security,firewall
+# logo: svgs/bunkerweb.svg
+# port: 80
+
+services:
+  bunkerweb:
+    image: bunkerity/bunkerweb:1.6.1
+    environment:
+      - SERVICE_URL_BUNKERWEB_80
+      - SERVER_NAME=${SERVICE_FQDN_BUNKERWEB}
+      - API_WHITELIST_IP=127.0.0.0/8 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+      - MULTISITE=no
+      - DISABLE_DEFAULT_SERVER=yes
+      - AUTOCONF_MODE=no
+      - USE_REVERSE_PROXY=yes
+      - REVERSE_PROXY_URL=/
+      - REVERSE_PROXY_HOST=http://127.0.0.1:8080
+    volumes:
+      - bunkerweb-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:5000/ready"]
+      interval: 15s
+      timeout: 10s
+      retries: 10

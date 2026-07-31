@@ -1,0 +1,20 @@
+# name: Jaeger
+# documentation: https://www.jaegertracing.io/docs/latest/deployment/
+# slogan: Distributed tracing platform for monitoring and troubleshooting microservices.
+# category: monitoring
+# tags: jaeger,tracing,opentelemetry,observability,apm
+# logo: svgs/jaeger.svg
+# port: 16686
+
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:1.67.0
+    environment:
+      - SERVICE_URL_JAEGER_16686
+      - COLLECTOR_OTLP_ENABLED=true
+      - SPAN_STORAGE_TYPE=badger
+      - BADGER_EPHEMERAL=false
+      - BADGER_DIRECTORY_VALUE=/badger/data
+      - BADGER_DIRECTORY_KEY=/badger/key
+    volumes:
+      - jaeger-data:/badger

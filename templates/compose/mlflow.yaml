@@ -1,0 +1,43 @@
+# name: MLflow
+# documentation: https://mlflow.org/docs/latest/tracking.html#tracking-server
+# slogan: Open-source platform for ML experiment tracking, models, and registry.
+# category: ai
+# tags: mlflow,mlops,machine-learning,tracking,models
+# logo: svgs/mlflow.svg
+# port: 5000
+
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.21.3
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri postgresql://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgresql:5432/${POSTGRES_DB:-mlflow}
+      --default-artifact-root /mlflow/artifacts
+    environment:
+      - SERVICE_URL_MLFLOW_5000
+    volumes:
+      - mlflow-artifacts:/mlflow/artifacts
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:5000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-mlflow}
+    volumes:
+      - mlflow-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

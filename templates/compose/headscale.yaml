@@ -1,0 +1,51 @@
+# name: Headscale
+# documentation: https://headscale.net/stable/setup/install/container/
+# slogan: Self-hosted Tailscale-compatible coordination server. After deploy, set server_url in the Headscale config volume to your public URL.
+# category: network
+# tags: headscale,tailscale,vpn,wireguard,networking
+# logo: svgs/headscale.svg
+# port: 8080
+
+services:
+  headscale:
+    image: headscale/headscale:0.29.3
+    command: serve
+    environment:
+      - SERVICE_URL_HEADSCALE_8080
+    volumes:
+      - headscale-data:/var/lib/headscale
+      - headscale-config:/etc/headscale
+    configs:
+      - source: headscale_config
+        target: /etc/headscale/config.yaml
+configs:
+  headscale_config:
+    content: |
+      server_url: http://127.0.0.1:8080
+      listen_addr: 0.0.0.0:8080
+      metrics_listen_addr: 127.0.0.1:9090
+      grpc_listen_addr: 127.0.0.1:50443
+      grpc_allow_insecure: false
+      noise:
+        private_key_path: /var/lib/headscale/noise_private.key
+      prefixes:
+        v4: 100.64.0.0/10
+        v6: fd7a:115c:a1e0::/48
+      database:
+        type: sqlite
+        sqlite:
+          path: /var/lib/headscale/db.sqlite
+      dns:
+        magic_dns: true
+        base_domain: headscale.local
+        nameservers:
+          global:
+            - 1.1.1.1
+            - 8.8.8.8
+      derp:
+        server:
+          enabled: false
+        urls:
+          - https://controlplane.tailscale.com/derpmap/default
+      log:
+        level: info

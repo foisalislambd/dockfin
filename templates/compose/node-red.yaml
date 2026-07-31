@@ -1,0 +1,22 @@
+# name: Node-RED
+# documentation: https://nodered.org/docs/getting-started/docker
+# slogan: Flow-based low-code programming for event-driven and IoT automation.
+# category: automation
+# tags: nodered,node-red,iot,automation,flows,mqtt
+# logo: svgs/node-red.svg
+# port: 1880
+
+services:
+  node-red:
+    image: nodered/node-red:4.0.9
+    environment:
+      - SERVICE_URL_NODERED_1880
+      - TZ=${TZ:-UTC}
+      - NODE_RED_CREDENTIAL_SECRET=${SERVICE_PASSWORD_CREDENTIAL}
+    volumes:
+      - node-red-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:1880/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10

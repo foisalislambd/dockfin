@@ -1,0 +1,65 @@
+# name: Kestra
+# documentation: https://kestra.io/docs/installation/docker-compose
+# slogan: Declarative orchestration and automation platform for workflows and data pipelines.
+# category: automation
+# tags: kestra,workflow,orchestration,automation,etl,pipelines
+# logo: svgs/kestra.svg
+# port: 8080
+
+services:
+  kestra:
+    image: kestra/kestra:v0.22.8
+    command: server standalone --worker-thread=4
+    user: root
+    environment:
+      SERVICE_URL_KESTRA_8080: SERVICE_URL_KESTRA_8080
+      SERVICE_USER_POSTGRES: SERVICE_USER_POSTGRES
+      SERVICE_PASSWORD_POSTGRES: SERVICE_PASSWORD_POSTGRES
+      SERVICE_USER_ADMIN: SERVICE_USER_ADMIN
+      SERVICE_PASSWORD_ADMIN: SERVICE_PASSWORD_ADMIN
+      KESTRA_CONFIGURATION: |
+        datasources:
+          postgres:
+            url: jdbc:postgresql://postgresql:5432/kestra
+            driverClassName: org.postgresql.Driver
+            username: ${SERVICE_USER_POSTGRES}
+            password: ${SERVICE_PASSWORD_POSTGRES}
+        kestra:
+          server:
+            basic-auth:
+              username: "${SERVICE_USER_ADMIN}"
+              password: "${SERVICE_PASSWORD_ADMIN}"
+          repository:
+            type: postgres
+          queue:
+            type: postgres
+          storage:
+            type: local
+            local:
+              base-path: "/app/storage"
+    volumes:
+      - kestra-data:/app/storage
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-kestra}
+    volumes:
+      - kestra-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

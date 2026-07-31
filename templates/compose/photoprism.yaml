@@ -1,0 +1,52 @@
+# name: PhotoPrism
+# documentation: https://docs.photoprism.app/getting-started/docker-compose/
+# slogan: AI-powered personal photo management and Google Photos alternative.
+# category: media
+# tags: photoprism,photos,gallery,ai,images,media
+# logo: svgs/photoprism.svg
+# port: 2342
+
+services:
+  app:
+    image: photoprism/photoprism:250426
+    environment:
+      - SERVICE_URL_PHOTOPRISM_2342
+      - PHOTOPRISM_ADMIN_USER=${SERVICE_USER_ADMIN}
+      - PHOTOPRISM_ADMIN_PASSWORD=${SERVICE_PASSWORD_ADMIN}
+      - PHOTOPRISM_SITE_URL=${SERVICE_URL_PHOTOPRISM}/
+      - PHOTOPRISM_ORIGINALS_LIMIT=5000
+      - PHOTOPRISM_HTTP_COMPRESSION=gzip
+      - PHOTOPRISM_DATABASE_DRIVER=mysql
+      - PHOTOPRISM_DATABASE_SERVER=mariadb:3306
+      - PHOTOPRISM_DATABASE_NAME=${MYSQL_DATABASE:-photoprism}
+      - PHOTOPRISM_DATABASE_USER=${SERVICE_USER_MYSQL}
+      - PHOTOPRISM_DATABASE_PASSWORD=${SERVICE_PASSWORD_MYSQL}
+      - TZ=${TZ:-UTC}
+    volumes:
+      - photoprism-originals:/photoprism/originals
+      - photoprism-storage:/photoprism/storage
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:2342/api/v1/status"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  mariadb:
+    image: mariadb:11.4
+    command: --innodb-buffer-pool-size=256M --transaction-isolation=READ-COMMITTED --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      - MYSQL_ROOT_PASSWORD=${SERVICE_PASSWORD_MYSQLROOT}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-photoprism}
+      - MYSQL_USER=${SERVICE_USER_MYSQL}
+      - MYSQL_PASSWORD=${SERVICE_PASSWORD_MYSQL}
+    volumes:
+      - photoprism-db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10

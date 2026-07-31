@@ -1,0 +1,22 @@
+# name: cAdvisor
+# documentation: https://github.com/google/cadvisor
+# slogan: Analyzes resource usage and performance characteristics of running containers.
+# category: monitoring
+# tags: cadvisor,containers,metrics,docker,monitoring,prometheus
+# logo: svgs/cadvisor.svg
+# port: 8080
+
+services:
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    environment:
+      - SERVICE_URL_CADVISOR_8080
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    devices:
+      - /dev/kmsg

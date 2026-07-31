@@ -1,0 +1,22 @@
+# name: Verdaccio
+# documentation: https://verdaccio.org/docs/docker/
+# slogan: Lightweight private npm-compatible package registry.
+# category: devtools
+# tags: verdaccio,npm,registry,packages,javascript,nodejs
+# logo: svgs/verdaccio.svg
+# port: 4873
+
+services:
+  verdaccio:
+    image: verdaccio/verdaccio:6.1.2
+    environment:
+      - SERVICE_URL_VERDACCIO_4873
+      - VERDACCIO_PORT=4873
+    volumes:
+      - verdaccio-storage:/verdaccio/storage
+      - verdaccio-plugins:/verdaccio/plugins
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:4873/-/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10

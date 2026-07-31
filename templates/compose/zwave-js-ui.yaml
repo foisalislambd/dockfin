@@ -1,0 +1,22 @@
+# name: Z-Wave JS UI
+# documentation: https://zwave-js.github.io/zwave-js-ui/#/getting-started/docker
+# slogan: Full-featured Z-Wave control panel and MQTT gateway powered by Z-Wave JS.
+# category: iot
+# tags: zwave,zwave-js,mqtt,iot,smarthome
+# logo: svgs/zwave-js-ui.svg
+# port: 8091
+
+services:
+  zwave-js-ui:
+    image: zwavejs/zwave-js-ui:9.29.0
+    environment:
+      - SERVICE_URL_ZWAVEJSUI_8091
+      - SESSION_SECRET=${SERVICE_PASSWORD_SESSION}
+      - TZ=${TZ:-UTC}
+    volumes:
+      - zwave-data:/usr/src/app/store
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8091/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 10

@@ -1,0 +1,101 @@
+# name: Taiga
+# documentation: https://docs.taiga.io/setup-production.html#docker
+# slogan: Open-source project management platform for agile developers and designers.
+# category: productivity
+# tags: taiga,agile,scrum,kanban,project,management
+# logo: svgs/taiga.svg
+# port: 80
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    environment:
+      - SERVICE_URL_TAIGAGATEWAY_80
+    volumes:
+      - taiga-static:/taiga-static
+      - taiga-media:/taiga-media
+    configs:
+      - source: taiga_nginx
+        target: /etc/nginx/conf.d/default.conf
+    depends_on:
+      - taiga-back
+      - taiga-front
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  taiga-front:
+    image: taigaio/taiga-front:6.8.1
+    environment:
+      - TAIGA_URL=${SERVICE_URL_TAIGAGATEWAY}
+      - TAIGA_WEBSOCKETS_URL=${SERVICE_URL_TAIGAGATEWAY}
+
+  taiga-back:
+    image: taigaio/taiga-back:6.8.1
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-taiga}
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_HOST=postgresql
+      - TAIGA_SECRET_KEY=${SERVICE_PASSWORD_SECRET}
+      - TAIGA_SITES_SCHEME=http
+      - TAIGA_SITES_DOMAIN=${SERVICE_FQDN_TAIGAGATEWAY}
+      - TAIGA_SUBPATH=
+      - EMAIL_BACKEND=console
+      - RABBITMQ_USER=${SERVICE_USER_RABBITMQ}
+      - RABBITMQ_PASS=${SERVICE_PASSWORD_RABBITMQ}
+    volumes:
+      - taiga-static:/taiga-back/static
+      - taiga-media:/taiga-back/media
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      taiga-events-rabbitmq:
+        condition: service_started
+
+  taiga-events-rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      - RABBITMQ_DEFAULT_USER=${SERVICE_USER_RABBITMQ}
+      - RABBITMQ_DEFAULT_PASS=${SERVICE_PASSWORD_RABBITMQ}
+    volumes:
+      - taiga-rabbit:/var/lib/rabbitmq
+
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-taiga}
+    volumes:
+      - taiga-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+configs:
+  taiga_nginx:
+    content: |
+      server {
+        listen 80 default_server;
+        client_max_body_size 100M;
+        location / {
+          proxy_pass http://taiga-front/;
+        }
+        location /api {
+          proxy_pass http://taiga-back:8000/api;
+        }
+        location /admin {
+          proxy_pass http://taiga-back:8000/admin;
+        }
+        location /static {
+          alias /taiga-static;
+        }
+        location /media {
+          alias /taiga-media;
+        }
+      }

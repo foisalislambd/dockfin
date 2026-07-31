@@ -1,0 +1,38 @@
+# name: Casdoor
+# documentation: https://casdoor.org/docs/basic/server-installation/
+# slogan: UI-first Identity Access Management supporting OAuth 2.0, OIDC, SAML, and LDAP.
+# category: auth
+# tags: casdoor,iam,oauth,oidc,saml,authentication,sso
+# logo: svgs/casdoor.svg
+# port: 8000
+
+services:
+  casdoor:
+    image: casbin/casdoor:v1.804.0
+    environment:
+      - SERVICE_URL_CASDOOR_8000
+      - RUNNING_IN_DOCKER=true
+      - driverName=postgres
+      - dataSourceName=user=${SERVICE_USER_POSTGRES} password=${SERVICE_PASSWORD_POSTGRES} host=postgresql port=5432 sslmode=disable dbname=${POSTGRES_DB:-casdoor}
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-casdoor}
+    volumes:
+      - casdoor-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

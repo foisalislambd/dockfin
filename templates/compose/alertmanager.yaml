@@ -1,0 +1,32 @@
+# name: Prometheus Alertmanager
+# documentation: https://prometheus.io/docs/alerting/latest/alertmanager/
+# slogan: Handles alerts sent by Prometheus and routes them to notification channels.
+# category: monitoring
+# tags: alertmanager,prometheus,alerting,notifications,monitoring
+# logo: svgs/alertmanager.svg
+# port: 9093
+
+services:
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    environment:
+      - SERVICE_URL_ALERTMANAGER_9093
+    volumes:
+      - alertmanager-data:/alertmanager
+    configs:
+      - source: alertmanager_config
+        target: /etc/alertmanager/alertmanager.yml
+configs:
+  alertmanager_config:
+    content: |
+      route:
+        receiver: default
+        group_by: ["alertname"]
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: 4h
+      receivers:
+        - name: default

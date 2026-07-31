@@ -1,0 +1,71 @@
+# name: Docspell
+# documentation: https://docspell.org/docs/install/docker/
+# slogan: Document organizer with tagging, search, OCR, and automated processing.
+# category: productivity
+# tags: docspell,documents,dms,ocr,search,paperless
+# logo: svgs/docspell.svg
+# port: 7880
+
+services:
+  app:
+    image: docspell/restserver:0.42.0
+    environment:
+      - SERVICE_URL_DOCSPELLRESTSERVER_7880
+      - DOCSPELL_SERVER_INTERNAL__URL=http://app:7880
+      - DOCSPELL_SERVER_AUTH_SERVER__SECRET=${SERVICE_PASSWORD_SECRET}
+      - DOCSPELL_SERVER_BACKEND_JDBC_URL=jdbc:postgresql://postgresql:5432/${POSTGRES_DB:-docspell}
+      - DOCSPELL_SERVER_BACKEND_JDBC_USER=${SERVICE_USER_POSTGRES}
+      - DOCSPELL_SERVER_BACKEND_JDBC_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - DOCSPELL_SERVER_INTEGRATION__ENDPOINT_ENABLED=true
+      - DOCSPELL_SERVER_FULL__TEXT__SEARCH_ENABLED=true
+      - DOCSPELL_SERVER_FULL__TEXT__SEARCH_SOLR_URL=http://solr:8983/solr/docspell
+      - TZ=${TZ:-UTC}
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      solr:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:7880/api/info/version"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  docspell-joex:
+    image: docspell/joex:0.42.0
+    environment:
+      - DOCSPELL_JOEX_APP__ID=joex1
+      - DOCSPELL_JOEX_BASE__URL=http://docspell-joex:7878
+      - DOCSPELL_JOEX_BIND_ADDRESS=0.0.0.0
+      - DOCSPELL_JOEX_BACKEND_JDBC_URL=jdbc:postgresql://postgresql:5432/${POSTGRES_DB:-docspell}
+      - DOCSPELL_JOEX_BACKEND_JDBC_USER=${SERVICE_USER_POSTGRES}
+      - DOCSPELL_JOEX_BACKEND_JDBC_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - DOCSPELL_JOEX_FULL__TEXT__SEARCH_ENABLED=true
+      - DOCSPELL_JOEX_FULL__TEXT__SEARCH_SOLR_URL=http://solr:8983/solr/docspell
+      - TZ=${TZ:-UTC}
+    depends_on:
+      postgresql:
+        condition: service_healthy
+
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-docspell}
+    volumes:
+      - docspell-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  solr:
+    image: solr:9.7
+    command:
+      - solr-precreate
+      - docspell
+    volumes:
+      - docspell-solr:/var/solr

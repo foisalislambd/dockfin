@@ -1,0 +1,25 @@
+# name: CrowdSec
+# documentation: https://docs.crowdsec.net/u/getting_started/installation/docker/
+# slogan: Collaborative security engine that detects and blocks abusive behavior.
+# category: security
+# tags: crowdsec,security,ids,firewall,ban,threat
+# logo: svgs/crowdsec.svg
+# port: 8080
+
+services:
+  crowdsec:
+    image: crowdsecurity/crowdsec:v1.6.8
+    environment:
+      - SERVICE_URL_CROWDSEC_8080
+      - COLLECTIONS=crowdsecurity/linux crowdsecurity/traefik
+      - GID=1000
+      - TZ=${TZ:-UTC}
+    volumes:
+      - crowdsec-config:/etc/crowdsec
+      - crowdsec-data:/var/lib/crowdsec/data
+      - /var/log:/var/log:ro
+    healthcheck:
+      test: ["CMD", "cscli", "version"]
+      interval: 30s
+      timeout: 10s
+      retries: 5

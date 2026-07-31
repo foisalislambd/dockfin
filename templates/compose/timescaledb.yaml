@@ -1,0 +1,23 @@
+# name: TimescaleDB
+# documentation: https://docs.timescale.com/self-hosted/latest/install/installation-docker/
+# slogan: PostgreSQL extended for time-series workloads. Exposes Postgres wire protocol (not a web UI) — connect via hostname timescaledb:5432.
+# category: database
+# tags: timescaledb,postgresql,timeseries,database,analytics
+# logo: svgs/timescaledb.svg
+# port: 5432
+
+services:
+  timescaledb:
+    image: timescale/timescaledb:2.19.3-pg16
+    environment:
+      - SERVICE_URL_TIMESCALEDB_5432
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-timeseries}
+    volumes:
+      - timescaledb-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

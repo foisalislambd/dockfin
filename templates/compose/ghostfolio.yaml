@@ -1,0 +1,57 @@
+# name: Ghostfolio
+# documentation: https://github.com/ghostfolio/ghostfolio
+# slogan: Open-source wealth management software for tracking investments and portfolios.
+# category: finance
+# tags: ghostfolio,finance,portfolio,investments,wealth,stocks
+# logo: svgs/ghostfolio.svg
+# port: 3333
+
+services:
+  ghostfolio:
+    image: ghostfolio/ghostfolio:2.161.0
+    environment:
+      - SERVICE_URL_GHOSTFOLIO_3333
+      - ACCESS_TOKEN_SALT=${SERVICE_PASSWORD_ACCESSSALT}
+      - JWT_SECRET_KEY=${SERVICE_PASSWORD_JWT}
+      - DATABASE_URL=postgresql://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgresql:5432/${POSTGRES_DB:-ghostfolio}?sslmode=prefer
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${SERVICE_PASSWORD_REDIS}
+      - PORT=3333
+      - TZ=${TZ:-UTC}
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:3333/api/v1/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-ghostfolio}
+    volumes:
+      - ghostfolio-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    command: redis-server --requirepass ${SERVICE_PASSWORD_REDIS}
+    volumes:
+      - ghostfolio-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${SERVICE_PASSWORD_REDIS}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

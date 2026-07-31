@@ -1,0 +1,42 @@
+# name: Linkwarden
+# documentation: https://docs.linkwarden.app/self-hosting/installation
+# slogan: Self-hosted collaborative bookmark manager with full-page archiving.
+# category: productivity
+# tags: linkwarden,bookmarks,archive,links,productivity
+# logo: svgs/linkwarden.svg
+# port: 3000
+
+services:
+  linkwarden:
+    image: ghcr.io/linkwarden/linkwarden:v2.9.3
+    environment:
+      - SERVICE_URL_LINKWARDEN_3000
+      - NEXTAUTH_URL=${SERVICE_URL_LINKWARDEN}
+      - NEXTAUTH_SECRET=${SERVICE_PASSWORD_SECRET}
+      - DATABASE_URL=postgresql://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgresql:5432/${POSTGRES_DB:-linkwarden}
+      - NEXT_PUBLIC_DISABLE_REGISTRATION=${LINKWARDEN_DISABLE_REGISTRATION:-false}
+    volumes:
+      - linkwarden-data:/data/data
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-linkwarden}
+    volumes:
+      - linkwarden-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

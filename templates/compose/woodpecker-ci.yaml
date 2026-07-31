@@ -1,0 +1,62 @@
+# name: Woodpecker CI
+# documentation: https://woodpecker-ci.org/docs/administration/installation/docker-compose
+# slogan: Lightweight container-native CI engine (server). Configure OAuth and add agents separately.
+# category: devtools
+# tags: woodpecker,ci,cd,automation,pipelines,gitea,github
+# logo: svgs/woodpecker.svg
+# port: 8000
+
+services:
+  app:
+    image: woodpeckerci/woodpecker-server:v3.5.0
+    environment:
+      - SERVICE_URL_WOODPECKERSERVER_8000
+      - WOODPECKER_HOST=${SERVICE_URL_WOODPECKERSERVER}
+      - WOODPECKER_OPEN=true
+      - WOODPECKER_ADMIN=${WOODPECKER_ADMIN:-admin}
+      - WOODPECKER_AGENT_SECRET=${SERVICE_PASSWORD_AGENT}
+      - WOODPECKER_GITHUB=${WOODPECKER_GITHUB:-false}
+      - WOODPECKER_GITHUB_CLIENT=${WOODPECKER_GITHUB_CLIENT:-}
+      - WOODPECKER_GITHUB_SECRET=${WOODPECKER_GITHUB_SECRET:-}
+      - WOODPECKER_GITEA=${WOODPECKER_GITEA:-false}
+      - WOODPECKER_GITEA_URL=${WOODPECKER_GITEA_URL:-}
+      - WOODPECKER_GITEA_CLIENT=${WOODPECKER_GITEA_CLIENT:-}
+      - WOODPECKER_GITEA_SECRET=${WOODPECKER_GITEA_SECRET:-}
+      - WOODPECKER_DATABASE_DRIVER=postgres
+      - WOODPECKER_DATABASE_DATASOURCE=postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgresql:5432/${POSTGRES_DB:-woodpecker}?sslmode=disable
+    volumes:
+      - app:/var/lib/woodpecker
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8000/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  woodpecker-agent:
+    image: woodpeckerci/woodpecker-agent:v3.5.0
+    command: agent
+    environment:
+      - WOODPECKER_SERVER=app:9000
+      - WOODPECKER_AGENT_SECRET=${SERVICE_PASSWORD_AGENT}
+      - WOODPECKER_MAX_WORKFLOWS=2
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - woodpecker-agent:/etc/woodpecker
+    depends_on:
+      - app
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-woodpecker}
+    volumes:
+      - woodpecker-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

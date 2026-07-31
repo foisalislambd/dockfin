@@ -1,0 +1,28 @@
+# name: Kopia
+# documentation: https://kopia.io/docs/installation/#docker
+# slogan: Fast and secure open-source backup tool with a web UI and encryption.
+# category: backup
+# tags: kopia,backup,encryption,restore,snapshots
+# logo: svgs/kopia.svg
+# port: 51515
+
+services:
+  kopia:
+    image: kopia/kopia:0.19.0
+    command:
+      - server
+      - start
+      - --disable-csrf-token-checks
+      - --insecure
+      - --address=0.0.0.0:51515
+      - --server-username=${SERVICE_USER_ADMIN}
+      - --server-password=${SERVICE_PASSWORD_ADMIN}
+    environment:
+      - SERVICE_URL_KOPIA_51515
+      - KOPIA_PASSWORD=${SERVICE_PASSWORD_REPO}
+      - TZ=${TZ:-UTC}
+    volumes:
+      - kopia-config:/app/config
+      - kopia-cache:/app/cache
+      - kopia-logs:/app/logs
+      - kopia-repository:/repository

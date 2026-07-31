@@ -1,0 +1,25 @@
+# name: step-ca
+# documentation: https://smallstep.com/docs/tutorials/docker-tls-certificate-authority/
+# slogan: Private certificate authority for internal TLS and ACME certificate issuance.
+# category: security
+# tags: step-ca,pki,certificates,acme,tls,security,smallstep
+# logo: svgs/step-ca.svg
+# port: 9000
+
+services:
+  step-ca:
+    image: smallstep/step-ca:0.28.3
+    environment:
+      - SERVICE_URL_STEPCA_9000
+      - DOCKER_STEPCA_INIT_NAME=${STEPCA_NAME:-GoolifyCA}
+      - DOCKER_STEPCA_INIT_DNS_NAMES=${SERVICE_FQDN_STEPCA}
+      - DOCKER_STEPCA_INIT_PASSWORD=${SERVICE_PASSWORD_CA}
+      - DOCKER_STEPCA_INIT_ACME=true
+    volumes:
+      - step-ca-data:/home/step
+    healthcheck:
+      test: ["CMD", "step", "ca", "health", "--ca-url", "https://127.0.0.1:9000", "--root", "/home/step/certs/root_ca.crt"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s

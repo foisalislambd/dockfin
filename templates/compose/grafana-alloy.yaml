@@ -1,0 +1,33 @@
+# name: Grafana Alloy
+# documentation: https://grafana.com/docs/alloy/latest/
+# slogan: OpenTelemetry Collector distribution with Prometheus pipelines from Grafana Labs.
+# category: monitoring
+# tags: grafana,alloy,otel,prometheus,observability,collector
+# logo: svgs/grafana-alloy.svg
+# port: 12345
+
+services:
+  alloy:
+    image: grafana/alloy:v1.8.1
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --stability.level=generally-available
+    environment:
+      - SERVICE_URL_ALLOY_12345
+    volumes:
+      - alloy-data:/var/lib/alloy
+    configs:
+      - source: alloy_config
+        target: /etc/alloy/config.alloy
+configs:
+  alloy_config:
+    content: |
+      logging {
+        level  = "info"
+        format = "logfmt"
+      }
+      livedebugging {
+        enabled = false
+      }

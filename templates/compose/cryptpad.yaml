@@ -1,0 +1,26 @@
+# name: CryptPad
+# documentation: https://docs.cryptpad.org/en/admin_guide/installation.html
+# slogan: End-to-end encrypted collaborative office suite and document platform.
+# category: productivity
+# tags: cryptpad,encrypted,collaboration,documents,privacy
+# logo: svgs/cryptpad.svg
+# port: 3000
+
+services:
+  cryptpad:
+    image: cryptpad/cryptpad:version-2025.3.0
+    environment:
+      - SERVICE_URL_CRYPTPAD_3000
+      - CPAD_MAIN_DOMAIN=${SERVICE_FQDN_CRYPTPAD}
+      - CPAD_CONF=/cryptpad/config/config.js
+    volumes:
+      - cryptpad-blob:/cryptpad/blob
+      - cryptpad-block:/cryptpad/block
+      - cryptpad-data:/cryptpad/data
+      - cryptpad-files:/cryptpad/datastore
+      - cryptpad-config:/cryptpad/config
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/"]
+      interval: 15s
+      timeout: 10s
+      retries: 10

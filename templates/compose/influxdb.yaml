@@ -1,0 +1,27 @@
+# name: InfluxDB
+# documentation: https://docs.influxdata.com/influxdb/v2/install/?t=Docker
+# slogan: Purpose-built time-series database for metrics and events.
+# category: database
+# tags: influxdb,timeseries,metrics,database,influx
+# logo: svgs/influxdb.svg
+# port: 8086
+
+services:
+  influxdb:
+    image: influxdb:2.7.11
+    environment:
+      - SERVICE_URL_INFLUXDB_8086
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${SERVICE_USER_ADMIN}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${SERVICE_PASSWORD_ADMIN}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG:-goolify}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET:-metrics}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${SERVICE_PASSWORD_TOKEN}
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+      - influxdb-config:/etc/influxdb2
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8086/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10

@@ -1,0 +1,57 @@
+# name: Mayan EDMS
+# documentation: https://docs.mayan-edms.com/chapters/docker/index.html
+# slogan: Open-source document management system with OCR, workflow, and metadata.
+# category: productivity
+# tags: mayan,edms,documents,dms,ocr,workflow
+# logo: svgs/mayan-edms.svg
+# port: 8000
+
+services:
+  mayan:
+    image: mayanedms/mayanedms:v4.11.2
+    environment:
+      - SERVICE_URL_MAYAN_8000
+      - MAYAN_DATABASE_ENGINE=django.db.backends.postgresql
+      - MAYAN_DATABASE_NAME=${POSTGRES_DB:-mayan}
+      - MAYAN_DATABASE_USER=${SERVICE_USER_POSTGRES}
+      - MAYAN_DATABASE_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - MAYAN_DATABASE_HOST=postgresql
+      - MAYAN_CELERY_BROKER_URL=redis://redis:6379/0
+      - MAYAN_CELERY_RESULT_BACKEND=redis://redis:6379/1
+    volumes:
+      - mayan-media:/var/lib/mayan
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/authentication/login/"]
+      interval: 30s
+      timeout: 15s
+      retries: 10
+      start_period: 120s
+
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-mayan}
+    volumes:
+      - mayan-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    volumes:
+      - mayan-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

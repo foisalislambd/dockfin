@@ -1,0 +1,25 @@
+# name: LocalAI
+# documentation: https://localai.io/installation/containers/index.html
+# slogan: Self-hosted OpenAI-compatible API for running local LLMs and AI models.
+# category: ai
+# tags: localai,llm,openai,ai,models,inference
+# logo: svgs/localai.svg
+# port: 8080
+
+services:
+  localai:
+    image: localai/localai:v2.28.0-ffmpeg-core
+    environment:
+      - SERVICE_URL_LOCALAI_8080
+      - DEBUG=${LOCALAI_DEBUG:-false}
+      - THREADS=${LOCALAI_THREADS:-4}
+      - CONTEXT_SIZE=${LOCALAI_CONTEXT_SIZE:-2048}
+    volumes:
+      - localai-models:/models
+      - localai-backends:/backends
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/readyz"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s

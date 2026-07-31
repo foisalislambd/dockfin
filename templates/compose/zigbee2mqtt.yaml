@@ -1,0 +1,22 @@
+# name: Zigbee2MQTT
+# documentation: https://www.zigbee2mqtt.io/guide/installation/02_docker.html
+# slogan: Zigbee to MQTT bridge allowing you to use Zigbee devices without vendor hubs.
+# category: iot
+# tags: zigbee2mqtt,zigbee,mqtt,iot,smarthome
+# logo: svgs/zigbee2mqtt.svg
+# port: 8080
+
+services:
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt:2.1.1
+    environment:
+      - SERVICE_URL_ZIGBEE2MQTT_8080
+      - TZ=${TZ:-UTC}
+    volumes:
+      - zigbee2mqtt-data:/app/data
+      - /run/udev:/run/udev:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
+      interval: 20s
+      timeout: 10s
+      retries: 10

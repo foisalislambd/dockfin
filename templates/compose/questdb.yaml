@@ -1,0 +1,21 @@
+# name: QuestDB
+# documentation: https://questdb.io/docs/guide/docker/
+# slogan: High-performance open-source time-series database with SQL and REST APIs.
+# category: database
+# tags: questdb,timeseries,sql,database,analytics
+# logo: svgs/questdb.svg
+# port: 9000
+
+services:
+  questdb:
+    image: questdb/questdb:8.2.3
+    environment:
+      - SERVICE_URL_QUESTDB_9000
+      - QDB_TELEMETRY_ENABLED=false
+    volumes:
+      - questdb-data:/var/lib/questdb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/status"]
+      interval: 15s
+      timeout: 5s
+      retries: 10

@@ -1,0 +1,33 @@
+# name: Prometheus
+# documentation: https://prometheus.io/docs/prometheus/latest/installation/
+# slogan: Open-source metrics monitoring and time-series database with alerting evaluation.
+# category: monitoring
+# tags: prometheus,metrics,monitoring,observability,timeseries,alerting
+# logo: svgs/prometheus.svg
+# port: 9090
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.13.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+      - --web.enable-admin-api
+    environment:
+      - SERVICE_URL_PROMETHEUS_9090
+    volumes:
+      - prometheus-data:/prometheus
+    configs:
+      - source: prometheus_config
+        target: /etc/prometheus/prometheus.yml
+configs:
+  prometheus_config:
+    content: |
+      global:
+        scrape_interval: 15s
+        evaluation_interval: 15s
+      scrape_configs:
+        - job_name: prometheus
+          static_configs:
+            - targets: ["localhost:9090"]

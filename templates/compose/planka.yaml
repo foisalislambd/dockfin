@@ -1,0 +1,47 @@
+# name: PLANKA
+# documentation: https://docs.planka.cloud/docs/installation/docker/production-version/
+# slogan: Elegant open-source Kanban board for project and team collaboration.
+# category: productivity
+# tags: planka,kanban,trello,project,management,boards
+# logo: svgs/planka.svg
+# port: 1337
+
+services:
+  planka:
+    image: ghcr.io/plankanban/planka:1.26.2
+    environment:
+      - SERVICE_URL_PLANKA_1337
+      - BASE_URL=${SERVICE_URL_PLANKA}
+      - DATABASE_URL=postgresql://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgresql:5432/${POSTGRES_DB:-planka}
+      - SECRET_KEY=${SERVICE_PASSWORD_SECRET}
+      - DEFAULT_ADMIN_EMAIL=${PLANKA_ADMIN_EMAIL:-admin@example.com}
+      - DEFAULT_ADMIN_PASSWORD=${SERVICE_PASSWORD_ADMIN}
+      - DEFAULT_ADMIN_NAME=${PLANKA_ADMIN_NAME:-Admin}
+      - DEFAULT_ADMIN_USERNAME=${SERVICE_USER_ADMIN}
+      - TZ=${TZ:-UTC}
+    volumes:
+      - planka-avatars:/app/public/user-avatars
+      - planka-backgrounds:/app/public/background-images
+      - planka-attachments:/app/private/attachments
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:1337/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-planka}
+    volumes:
+      - planka-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

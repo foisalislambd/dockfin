@@ -1,0 +1,28 @@
+# name: ArchiveBox
+# documentation: https://docs.archivebox.io/en/latest/Docker.html
+# slogan: Self-hosted internet archiving solution for saving websites and bookmarks.
+# category: productivity
+# tags: archivebox,archive,bookmarks,internet,snapshot
+# logo: svgs/archivebox.svg
+# port: 8000
+
+services:
+  archivebox:
+    image: archivebox/archivebox:0.7.2
+    command: server --quick-init 0.0.0.0:8000
+    environment:
+      - SERVICE_URL_ARCHIVEBOX_8000
+      - ALLOWED_HOSTS=*
+      - CSRF_TRUSTED_ORIGINS=${SERVICE_URL_ARCHIVEBOX}
+      - PUBLIC_INDEX=false
+      - PUBLIC_SNAPSHOTS=false
+      - PUBLIC_ADD_VIEW=false
+      - ADMIN_USERNAME=${SERVICE_USER_ADMIN}
+      - ADMIN_PASSWORD=${SERVICE_PASSWORD_ADMIN}
+    volumes:
+      - archivebox-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/health/"]
+      interval: 20s
+      timeout: 10s
+      retries: 10

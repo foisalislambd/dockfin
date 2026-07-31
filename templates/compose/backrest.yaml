@@ -1,0 +1,28 @@
+# name: Backrest
+# documentation: https://github.com/garethgeorge/backrest
+# slogan: Web UI for Restic backups with scheduling, monitoring, and restore workflows.
+# category: backup
+# tags: backrest,restic,backup,restore,scheduler
+# logo: svgs/backrest.svg
+# port: 9898
+
+services:
+  backrest:
+    image: garethgeorge/backrest:v1.8.1
+    environment:
+      - SERVICE_URL_BACKREST_9898
+      - BACKREST_PORT=9898
+      - BACKREST_DATA=/data
+      - BACKREST_CONFIG=/config/config.json
+      - XDG_CACHE_HOME=/cache
+      - TZ=${TZ:-UTC}
+    volumes:
+      - backrest-data:/data
+      - backrest-config:/config
+      - backrest-cache:/cache
+      - backrest-tmp:/tmp
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9898/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10

@@ -1,0 +1,47 @@
+# name: Tandoor Recipes
+# documentation: https://docs.tandoor.dev/install/docker/
+# slogan: Recipe manager and meal planner for self-hosted kitchens.
+# category: productivity
+# tags: tandoor,recipes,cooking,meal,planner,food
+# logo: svgs/tandoor.svg
+# port: 8080
+services:
+  app:
+    image: vabene1111/recipes:1.5.34
+    environment:
+      - SERVICE_URL_TANDOOR_8080
+      - SECRET_KEY=${SERVICE_PASSWORD_SECRET}
+      - DB_ENGINE=django.db.backends.postgresql
+      - POSTGRES_HOST=postgresql
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-djangodb}
+      - ALLOWED_HOSTS=*
+      - DEBUG=0
+    volumes:
+      - tandoor-static:/opt/recipes/staticfiles
+      - tandoor-media:/opt/recipes/mediafiles
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-djangodb}
+    volumes:
+      - tandoor-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

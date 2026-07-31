@@ -1,0 +1,45 @@
+# name: Matomo
+# documentation: https://matomo.org/faq/how-to-install/install-matomo-with-docker/
+# slogan: Full-featured open-source web analytics platform and Google Analytics alternative.
+# category: analytics
+# tags: matomo,analytics,web,privacy,tracking,stats
+# logo: svgs/matomo.svg
+# port: 80
+
+services:
+  app:
+    image: app:5.2.1-apache
+    environment:
+      - SERVICE_URL_MATOMO_80
+      - MATOMO_DATABASE_HOST=mariadb
+      - MATOMO_DATABASE_ADAPTER=mysql
+      - MATOMO_DATABASE_DBNAME=${MYSQL_DATABASE:-matomo}
+      - MATOMO_DATABASE_USERNAME=${SERVICE_USER_MYSQL}
+      - MATOMO_DATABASE_PASSWORD=${SERVICE_PASSWORD_MYSQL}
+      - MATOMO_DATABASE_TABLES_PREFIX=matomo_
+    volumes:
+      - matomo-data:/var/www/html
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  mariadb:
+    image: mariadb:11.4
+    environment:
+      - MYSQL_ROOT_PASSWORD=${SERVICE_PASSWORD_MYSQLROOT}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-matomo}
+      - MYSQL_USER=${SERVICE_USER_MYSQL}
+      - MYSQL_PASSWORD=${SERVICE_PASSWORD_MYSQL}
+    volumes:
+      - matomo-db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10

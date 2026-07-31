@@ -1,0 +1,42 @@
+# name: Grafana Tempo
+# documentation: https://grafana.com/docs/tempo/latest/setup/deployment/
+# slogan: High-scale distributed tracing backend from Grafana Labs (monolithic mode).
+# category: monitoring
+# tags: grafana,tempo,tracing,observability,opentelemetry
+# logo: svgs/grafana-tempo.svg
+# port: 3200
+
+services:
+  tempo:
+    image: grafana/tempo:2.7.2
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    environment:
+      - SERVICE_URL_TEMPO_3200
+    volumes:
+      - tempo-data:/var/tempo
+    configs:
+      - source: tempo_config
+        target: /etc/tempo/tempo.yaml
+configs:
+  tempo_config:
+    content: |
+      server:
+        http_listen_port: 3200
+      distributor:
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317
+              http:
+                endpoint: 0.0.0.0:4318
+      storage:
+        trace:
+          backend: local
+          local:
+            path: /var/tempo/traces
+          wal:
+            path: /var/tempo/wal
+      metrics_generator:
+        storage:
+          path: /var/tempo/generator/wal

@@ -1,0 +1,26 @@
+# name: LLDAP
+# documentation: https://github.com/lldap/lldap
+# slogan: Lightweight LDAP server with a clean web UI for users and groups.
+# category: auth
+# tags: lldap,ldap,directory,authentication,users,groups
+# logo: svgs/lldap.svg
+# port: 17170
+
+services:
+  lldap:
+    image: lldap/lldap:v0.6.2
+    environment:
+      - SERVICE_URL_LLDAP_17170
+      - LLDAP_JWT_SECRET=${SERVICE_PASSWORD_JWT}
+      - LLDAP_KEY_SEED=${SERVICE_PASSWORD_KEYSEED}
+      - LLDAP_LDAP_USER_PASS=${SERVICE_PASSWORD_ADMIN}
+      - LLDAP_LDAP_BASE_DN=${LLDAP_LDAP_BASE_DN:-dc=example,dc=com}
+      - LLDAP_HTTP_URL=${SERVICE_URL_LLDAP}
+      - TZ=${TZ:-UTC}
+    volumes:
+      - lldap-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:17170/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10

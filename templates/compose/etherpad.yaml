@@ -1,0 +1,45 @@
+# name: Etherpad
+# documentation: https://docs.etherpad.org/docker.html
+# slogan: Real-time collaborative text editor with a rich plugin ecosystem.
+# category: productivity
+# tags: etherpad,collaboration,editor,realtime,documents
+# logo: svgs/etherpad.svg
+# port: 9001
+
+services:
+  etherpad:
+    image: etherpad/etherpad:2.2.7
+    environment:
+      - SERVICE_URL_ETHERPAD_9001
+      - TITLE=${ETHERPAD_TITLE:-Etherpad}
+      - DEFAULT_PAD_TEXT=${ETHERPAD_DEFAULT_PAD_TEXT:-Welcome to Etherpad!}
+      - ADMIN_PASSWORD=${SERVICE_PASSWORD_ADMIN}
+      - DB_TYPE=postgres
+      - DB_HOST=postgresql
+      - DB_PORT=5432
+      - DB_NAME=${POSTGRES_DB:-etherpad}
+      - DB_USER=${SERVICE_USER_POSTGRES}
+      - DB_PASS=${SERVICE_PASSWORD_POSTGRES}
+      - TZ=${TZ:-UTC}
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9001/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-etherpad}
+    volumes:
+      - etherpad-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

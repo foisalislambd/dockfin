@@ -1,0 +1,74 @@
+# name: Authelia
+# documentation: https://www.authelia.com/integration/deployment/docker/
+# slogan: Authentication and authorization server for SSO, MFA, and access policies. Default user admin / changeme — change immediately.
+# category: auth
+# tags: authelia,sso,mfa,authentication,authorization,security,oidc
+# logo: svgs/authelia.svg
+# port: 9091
+
+services:
+  authelia:
+    image: authelia/authelia:4.39.4
+    environment:
+      - SERVICE_URL_AUTHELIA_9091
+      - AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET=${SERVICE_PASSWORD_JWT}
+      - AUTHELIA_SESSION_SECRET=${SERVICE_PASSWORD_SESSION}
+      - AUTHELIA_STORAGE_ENCRYPTION_KEY=${SERVICE_PASSWORD_ENCRYPTION}
+      - AUTHELIA_AUTHENTICATION_BACKEND_FILE_PATH=/config/users_database.yml
+      - AUTHELIA_STORAGE_LOCAL_PATH=/config/db.sqlite3
+      - AUTHELIA_NOTIFIER_FILESYSTEM_FILENAME=/config/notification.txt
+      - AUTHELIA_SESSION_COOKIES_0_DOMAIN=${SERVICE_FQDN_AUTHELIA}
+      - AUTHELIA_SESSION_COOKIES_0_AUTHELIA_URL=${SERVICE_URL_AUTHELIA}
+      - TZ=${TZ:-UTC}
+    volumes:
+      - authelia-config:/config
+    configs:
+      - source: authelia_config
+        target: /config/configuration.yml
+      - source: authelia_users
+        target: /config/users_database.yml
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9091/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+configs:
+  authelia_config:
+    content: |
+      server:
+        address: tcp://0.0.0.0:9091/
+      log:
+        level: info
+      totp:
+        disable: false
+      access_control:
+        default_policy: one_factor
+      identity_validation:
+        reset_password:
+          jwt_lifespan: 5m
+      authentication_backend:
+        file:
+          path: /config/users_database.yml
+          password:
+            algorithm: argon2
+      session:
+        name: authelia_session
+        same_site: lax
+        inactivity: 5m
+        expiration: 1h
+      storage:
+        local:
+          path: /config/db.sqlite3
+      notifier:
+        filesystem:
+          filename: /config/notification.txt
+  authelia_users:
+    content: |
+      users:
+        admin:
+          displayname: Admin
+          password: "$argon2id$v=19$m=65536,t=3,p=4$HMy3nul285ssqPG/X9bQ+w$EVMqY+jEuUrQRo7dU43Obosg7siKfK6Wa/7r25kcrf0"
+          email: admin@example.com
+          groups:
+            - admins

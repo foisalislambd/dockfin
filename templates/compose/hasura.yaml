@@ -1,0 +1,41 @@
+# name: Hasura GraphQL Engine
+# documentation: https://hasura.io/docs/latest/getting-started/docker-simple/
+# slogan: Instant GraphQL and REST APIs on PostgreSQL with real-time subscriptions.
+# category: devtools
+# tags: hasura,graphql,api,postgresql,backend
+# logo: svgs/hasura.svg
+# port: 8080
+
+services:
+  hasura:
+    image: hasura/graphql-engine:v2.46.0
+    environment:
+      - SERVICE_URL_HASURA_8080
+      - HASURA_GRAPHQL_DATABASE_URL=postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgresql:5432/${POSTGRES_DB:-hasura}
+      - HASURA_GRAPHQL_ENABLE_CONSOLE=true
+      - HASURA_GRAPHQL_DEV_MODE=false
+      - HASURA_GRAPHQL_ENABLED_LOG_TYPES=startup, http-log, webhook-log, websocket-log, query-log
+      - HASURA_GRAPHQL_ADMIN_SECRET=${SERVICE_PASSWORD_ADMIN}
+      - HASURA_GRAPHQL_METADATA_DATABASE_URL=postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgresql:5432/${POSTGRES_DB:-hasura}
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-hasura}
+    volumes:
+      - hasura-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
