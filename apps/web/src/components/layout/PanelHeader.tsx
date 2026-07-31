@@ -65,7 +65,7 @@ export function PanelHeader() {
 
       {paletteOpen && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/25 p-4 backdrop-blur-[2px] dark:bg-black/40"
+          className="fixed inset-0 z-50 grid place-items-center bg-black/15 p-4 dark:bg-black/25"
           onClick={() => setPaletteOpen(false)}
         >
           <div
