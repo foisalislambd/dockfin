@@ -1,6 +1,6 @@
 name: Docker publish (manual)
 
-# Prefer Release workflow (tag vX.Y.Z). This is a manual rebuild escape hatch.
+# Prefer Release workflow (tag vX.Y.Z). Manual rebuild of the single goolify image.
 on:
   workflow_dispatch:
     inputs:
@@ -20,14 +20,6 @@ env:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: goolify
-            file: deploy/docker/Dockerfile.api
-          - name: goolify-web
-            file: deploy/docker/Dockerfile.web
     steps:
       - name: Normalize version
         id: ver
@@ -49,7 +41,7 @@ jobs:
         id: meta_name
         run: |
           owner_lc="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
-          echo "image=${{ env.REGISTRY }}/${owner_lc}/${{ matrix.name }}" >> "$GITHUB_OUTPUT"
+          echo "image=${{ env.REGISTRY }}/${owner_lc}/goolify" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -61,12 +53,12 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: ${{ matrix.file }}
+          file: deploy/docker/Dockerfile.api
           push: true
           tags: |
             ${{ steps.meta_name.outputs.image }}:${{ steps.ver.outputs.version }}
             ${{ steps.meta_name.outputs.image }}:latest
           build-args: |
             VERSION=${{ steps.ver.outputs.version }}
-          cache-from: type=gha,scope=manual-${{ matrix.name }}
-          cache-to: type=gha,mode=max,scope=manual-${{ matrix.name }},ignore-error=true
+          cache-from: type=gha,scope=manual-goolify
+          cache-to: type=gha,mode=max,scope=manual-goolify,ignore-error=true

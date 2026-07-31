@@ -45,6 +45,7 @@ GOOLIFY_PUBLIC_IP=${PUBLIC_IP}
 GOOLIFY_BOOTSTRAP_SELF=1
 GOOLIFY_DATA_DIR=/data
 GOOLIFY_TEMPLATES_DIR=/app/templates
+GOOLIFY_WEB_DIR=/app/web
 EOF
   echo "==> Wrote ${ENV_FILE} (public IP: ${PUBLIC_IP})"
 fi
@@ -67,13 +68,15 @@ services:
       retries: 20
     restart: unless-stopped
 
-  api:
+  # Single image: API + Vite dashboard on :8000 (host port 80)
+  goolify:
     image: ghcr.io/foisalislambd/goolify:latest
     env_file: .env
     environment:
       GOOLIFY_DATABASE_URL: ${GOOLIFY_DATABASE_URL}
       GOOLIFY_HTTP_ADDR: ":8000"
     ports:
+      - "80:8000"
       - "8000:8000"
     volumes:
       - goolify-data:/data
@@ -82,19 +85,10 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  web:
-    image: ghcr.io/foisalislambd/goolify-web:latest
-    ports:
-      - "80:80"
-    depends_on:
-      - api
-    restart: unless-stopped
-
 volumes:
   goolify-pg:
   goolify-data:
 EOF
-  # Align DB password from .env into compose interpolation if needed
   DBURL=$(grep GOOLIFY_DATABASE_URL "${ENV_FILE}" | cut -d= -f2-)
   DBPASS=$(echo "$DBURL" | sed -n 's#.*goolify:\([^@]*\)@.*#\1#p')
   if [[ -n "${DBPASS}" ]]; then
@@ -110,7 +104,8 @@ docker compose up -d
 echo ""
 echo "Goolify is starting."
 echo "  Dashboard: http://$(hostname -I | awk '{print $1}')/"
-echo "  API:       http://$(hostname -I | awk '{print $1}'):8000/health"
+echo "  API:       http://$(hostname -I | awk '{print $1}')/api/v1/version"
+echo "  Health:    http://$(hostname -I | awk '{print $1}')/health"
 echo "  Data:      ${GOOLIFY_DIR}"
 echo ""
 echo "Create your first admin account in the UI."

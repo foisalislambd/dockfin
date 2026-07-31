@@ -1,4 +1,12 @@
 # syntax=docker/dockerfile:1
+# Single image: API + Vite dashboard (served by goolify on :8000)
+
+FROM node:22-alpine AS web
+WORKDIR /web
+COPY apps/web/package.json apps/web/package-lock.json ./
+RUN npm ci
+COPY apps/web/ ./
+RUN npm run build
 
 FROM golang:1.26-alpine AS build
 WORKDIR /src
@@ -15,8 +23,10 @@ FROM alpine:3.21
 RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=build /out/goolify /usr/local/bin/goolify
+COPY --from=web /web/dist /app/web
 COPY templates/compose /app/templates
 ENV GOOLIFY_TEMPLATES_DIR=/app/templates \
+    GOOLIFY_WEB_DIR=/app/web \
     GOOLIFY_DATA_DIR=/data \
     GOOLIFY_HTTP_ADDR=:8000
 EXPOSE 8000

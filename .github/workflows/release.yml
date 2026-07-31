@@ -135,19 +135,11 @@ jobs:
           npm ci
           npm run build
 
-  # Images first (by commit SHA); tag + GitHub Release only after images publish.
+  # Single image: API + Vite UI. Tag + GitHub Release only after images publish.
   docker:
     needs: [prepare, verify]
     if: needs.prepare.outputs.should_release == 'true'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: goolify
-            file: deploy/docker/Dockerfile.api
-          - name: goolify-web
-            file: deploy/docker/Dockerfile.web
     steps:
       - uses: actions/checkout@v4
         with:
@@ -157,7 +149,7 @@ jobs:
         id: meta_name
         run: |
           owner_lc="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
-          echo "image=${{ env.REGISTRY }}/${owner_lc}/${{ matrix.name }}" >> "$GITHUB_OUTPUT"
+          echo "image=${{ env.REGISTRY }}/${owner_lc}/goolify" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -179,14 +171,14 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: ${{ matrix.file }}
+          file: deploy/docker/Dockerfile.api
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ needs.prepare.outputs.version }}
-          cache-from: type=gha,scope=release-${{ matrix.name }}
-          cache-to: type=gha,mode=max,scope=release-${{ matrix.name }},ignore-error=true
+          cache-from: type=gha,scope=release-goolify
+          cache-to: type=gha,mode=max,scope=release-goolify,ignore-error=true
 
   tag-and-release:
     needs: [prepare, verify, docker]
@@ -222,10 +214,11 @@ jobs:
             echo
             echo "GitHub Release and Docker tags use the **same version**: \`${VER}\`"
             echo
-            echo "### Docker"
+            echo "### Docker (API + dashboard in one image)"
             echo "- \`ghcr.io/${owner_lc}/goolify:${VER}\`"
-            echo "- \`ghcr.io/${owner_lc}/goolify-web:${VER}\`"
-            echo "- \`…:latest\`"
+            echo "- \`ghcr.io/${owner_lc}/goolify:latest\`"
+            echo
+            echo "Dashboard and API share port 8000 (map host \`80:8000\` if desired)."
             echo
             if [[ -f CHANGELOG.md ]]; then
               awk -v ver="${VER}" '

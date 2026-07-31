@@ -21,7 +21,8 @@ services:
       - "6379:6379"
     profiles: ["redis"]
 
-  api:
+  # Single image: API + Vite dashboard
+  goolify:
     build:
       context: ../..
       dockerfile: deploy/docker/Dockerfile.api
@@ -30,6 +31,7 @@ services:
     environment:
       GOOLIFY_DATABASE_URL: postgres://goolify:goolify@postgres:5432/goolify?sslmode=disable
       GOOLIFY_HTTP_ADDR: ":8000"
+      GOOLIFY_WEB_DIR: /app/web
     ports:
       - "8000:8000"
     depends_on:
@@ -37,15 +39,6 @@ services:
         condition: service_healthy
     volumes:
       - goolify-data:/data
-
-  web:
-    build:
-      context: ../..
-      dockerfile: deploy/docker/Dockerfile.web
-    ports:
-      - "5173:80"
-    depends_on:
-      - api
 
 volumes:
   goolify-pg:

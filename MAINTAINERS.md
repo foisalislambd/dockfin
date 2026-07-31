@@ -18,7 +18,7 @@ This file lists people who can merge PRs and cut releases.
 
 1. Compute next `X.Y.Z` from latest `v*` tag (first = `1.0.0`)
 2. Run tests / builds
-3. Publish Docker `goolify:X.Y.Z` + `goolify-web:X.Y.Z` (+ `:latest`)
+3. Publish Docker `ghcr.io/<owner>/goolify:X.Y.Z` (+ `:latest`) — API + Vite UI in one image
 4. Create git tag `vX.Y.Z` + GitHub Release (same version)
 
 Skip: put `[skip release]` in the commit message.

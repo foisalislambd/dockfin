@@ -11,7 +11,7 @@ import (
 )
 
 func resolveWebDir(configured string) string {
-	candidates := []string{configured, "apps/web/dist", "web", "/opt/goolify/web"}
+	candidates := []string{configured, "apps/web/dist", "web", "/app/web", "/opt/goolify/web"}
 	for _, dir := range candidates {
 		if dir == "" {
 			continue
