@@ -1,38 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { Link, useNavigate } from '@tanstack/react-router'
+import { useState, type FormEvent } from 'react'
+import { CreatePageShell, FormActions, FormInput } from '../components/ui/forms'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { Btn, Header, Input, Modal } from './Servers'
+import { Btn, Header, Input } from './Servers'
 
 export function StoragesPage() {
   const qc = useQueryClient()
   const storages = useQuery({ queryKey: ['s3-storages'], queryFn: api.s3Storages })
-  const [show, setShow] = useState(false)
-  const [form, setForm] = useState({
-    name: '',
-    endpoint: '',
-    bucket: '',
-    region: 'us-east-1',
-    access_key: '',
-    secret_key: '',
-  })
-  const create = useMutation({
-    mutationFn: () => api.createS3Storage(form),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['s3-storages'] })
-      setShow(false)
-      setForm({ name: '', endpoint: '', bucket: '', region: 'us-east-1', access_key: '', secret_key: '' })
-    },
-  })
 
   return (
     <div className="space-y-6">
       <Header
         title="S3 Storages"
         actions={
-          <Btn primary onClick={() => setShow(true)}>
+          <Link
+            to="/storages/new"
+            className="inline-flex h-8 items-center rounded-md bg-brand-500 px-2.5 text-xs font-medium text-white transition hover:bg-brand-600"
+          >
             + Add
-          </Btn>
+          </Link>
         }
       />
       <p className="text-sm text-gray-500 dark:text-gray-400">Backup destinations for databases and volumes.</p>
@@ -62,30 +50,72 @@ export function StoragesPage() {
           <div className="panel-card col-span-full p-8 text-center text-sm text-gray-500 dark:text-gray-400">No S3 storages yet.</div>
         )}
       </div>
-
-      {show && (
-        <Modal title="Add S3 storage" onClose={() => setShow(false)}>
-          <form
-            className="space-y-3"
-            onSubmit={(e) => {
-              e.preventDefault()
-              create.mutate()
-            }}
-          >
-            <Input label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
-            <Input label="Endpoint" value={form.endpoint} onChange={(v) => setForm({ ...form, endpoint: v })} />
-            <Input label="Bucket" value={form.bucket} onChange={(v) => setForm({ ...form, bucket: v })} />
-            <Input label="Region" value={form.region} onChange={(v) => setForm({ ...form, region: v })} required={false} />
-            <Input label="Access key" value={form.access_key} onChange={(v) => setForm({ ...form, access_key: v })} />
-            <Input label="Secret key" value={form.secret_key} onChange={(v) => setForm({ ...form, secret_key: v })} />
-            {create.error && <p className="text-sm text-error-500">{create.error.message}</p>}
-            <Btn primary type="submit">
-              Save
-            </Btn>
-          </form>
-        </Modal>
-      )}
     </div>
+  )
+}
+
+export function CreateStoragePage() {
+  const qc = useQueryClient()
+  const nav = useNavigate()
+  const [form, setForm] = useState({
+    name: '',
+    endpoint: '',
+    bucket: '',
+    region: 'us-east-1',
+    access_key: '',
+    secret_key: '',
+  })
+  const create = useMutation({
+    mutationFn: () => api.createS3Storage(form),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['s3-storages'] })
+      void nav({ to: '/storages' })
+    },
+  })
+
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    create.mutate()
+  }
+
+  return (
+    <CreatePageShell title="Add S3 storage" backTo="/storages" backLabel="Back to S3 Storages">
+      <form className="space-y-4" onSubmit={onSubmit}>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Configure an S3-compatible bucket for database and volume backups.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormInput label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
+          <FormInput
+            label="Endpoint"
+            value={form.endpoint}
+            onChange={(v) => setForm({ ...form, endpoint: v })}
+            placeholder="https://s3.amazonaws.com"
+          />
+          <FormInput label="Bucket" value={form.bucket} onChange={(v) => setForm({ ...form, bucket: v })} />
+          <FormInput
+            label="Region"
+            value={form.region}
+            onChange={(v) => setForm({ ...form, region: v })}
+            required={false}
+            hint="optional"
+          />
+          <FormInput
+            label="Access key"
+            value={form.access_key}
+            onChange={(v) => setForm({ ...form, access_key: v })}
+          />
+          <FormInput
+            label="Secret key"
+            type="password"
+            value={form.secret_key}
+            onChange={(v) => setForm({ ...form, secret_key: v })}
+          />
+        </div>
+        {create.error && <p className="text-sm text-error-500">{create.error.message}</p>}
+        <FormActions busy={create.isPending} submitLabel="Save" cancelTo="/storages" />
+      </form>
+    </CreatePageShell>
   )
 }
 

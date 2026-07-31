@@ -31,6 +31,7 @@ import { DeploymentShowPage } from './pages/DeploymentShow'
 import { SettingsPage } from './pages/Settings'
 import { SecurityPage } from './pages/Security'
 import {
+  CreateStoragePage,
   SharedVariablesPage,
   StoragesPage,
   TeamPage,
@@ -293,6 +294,12 @@ const storagesRoute = createRoute({
   component: StoragesPage,
 })
 
+const createStorageRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/storages/new',
+  component: CreateStoragePage,
+})
+
 const teamRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/team',
@@ -376,6 +383,7 @@ const routeTree = rootRoute.addChildren([
     notificationsRoute,
     settingsRoute,
     storagesRoute,
+    createStorageRoute,
     teamRoute,
     sharedVariablesRoute,
     securityRoute,
