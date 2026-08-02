@@ -4,6 +4,7 @@ import { Eye, EyeOff, Lock, Mail, User } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { appConfig } from '../config/app.config'
+import { BrandLogo } from '../components/BrandLogo'
 import { ThemeToggle } from '../components/theme/ThemeToggle'
 import { AuthFormSkeleton } from '../components/ui/Skeleton'
 
@@ -22,11 +23,12 @@ function BrandPanel({ className = '' }: { className?: string }) {
         <div className="absolute top-1/2 left-1/2 h-48 w-48 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-400/10 blur-2xl" />
       </div>
       <div className="relative z-10 w-full max-w-md">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-500 text-xl font-bold text-white shadow-lg shadow-brand-500/25 sm:h-16 sm:w-16 sm:text-2xl">
-          {brand.letter}
-        </div>
-        <h2 className="mt-6 text-2xl font-semibold tracking-tight text-white sm:text-3xl">{brand.name}</h2>
-        <p className="mt-3 text-sm leading-relaxed text-brand-100/90 sm:text-base">{brand.loginDescription}</p>
+        <BrandLogo
+          variant="wordmark"
+          className="mx-auto h-40 w-auto max-w-[280px] rounded-2xl drop-shadow-lg sm:h-48 sm:max-w-[320px]"
+        />
+        <h2 className="sr-only">{brand.name}</h2>
+        <p className="mt-6 text-sm leading-relaxed text-brand-100/90 sm:text-base">{brand.loginDescription}</p>
         <ul className="mt-8 space-y-3 text-left text-sm text-brand-100/85">
           {brand.loginFeatures.map((item) => (
             <li key={item} className="flex items-center gap-3">
@@ -95,9 +97,7 @@ export function LoginPage() {
 
   return (
     <AuthShell>
-      <div className="mb-5 flex h-9 w-9 items-center justify-center rounded-lg bg-brand-500 text-sm font-bold text-white lg:hidden">
-        {appConfig.brand.letter}
-      </div>
+      <BrandLogo className="mb-5 h-10 w-10 rounded-lg lg:hidden" />
       <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
         Sign in
       </h1>
@@ -197,9 +197,7 @@ export function RegisterPage() {
 
   return (
     <AuthShell>
-      <div className="mb-5 flex h-9 w-9 items-center justify-center rounded-lg bg-brand-500 text-sm font-bold text-white lg:hidden">
-        {appConfig.brand.letter}
-      </div>
+      <BrandLogo className="mb-5 h-10 w-10 rounded-lg lg:hidden" />
       <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
         Create account
       </h1>

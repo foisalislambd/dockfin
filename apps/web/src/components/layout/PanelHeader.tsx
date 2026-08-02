@@ -1,3 +1,4 @@
+import { BrandLogo } from '../BrandLogo'
 import { appConfig, navItems } from '../../config/app.config'
 import { useSidebar } from '../../context/sidebar-context'
 import { ThemeToggle } from '../theme/ThemeToggle'
@@ -38,9 +39,7 @@ export function PanelHeader() {
           </button>
 
           <Link to="/dashboard" className="flex items-center gap-2 lg:hidden">
-            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-500 text-xs font-bold text-white">
-              {appConfig.brand.letter}
-            </span>
+            <BrandLogo className="h-8 w-8 rounded-md" />
             <span className="text-sm font-semibold text-gray-900 dark:text-white">
               {appConfig.brand.name}
             </span>

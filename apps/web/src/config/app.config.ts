@@ -17,6 +17,10 @@ export const appConfig = {
     name: 'Dockfin',
     tagline: 'Self-hosted PaaS',
     letter: 'D',
+    /** Full logo (icon + wordmark) — auth / marketing */
+    logo: '/brand/dockfin-logo.png',
+    /** Icon mark only — sidebar, header, compact chrome */
+    mark: '/brand/dockfin-mark.png',
     license: 'MIT',
     copyright: '© 2026 Dockfin Contributors',
     loginDescription:

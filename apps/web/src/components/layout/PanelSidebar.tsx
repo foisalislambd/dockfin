@@ -1,3 +1,4 @@
+import { BrandLogo } from '../BrandLogo'
 import { appConfig, isNavActive, navItems } from '../../config/app.config'
 import {
   SIDEBAR_WIDTH_COLLAPSED,
@@ -41,9 +42,7 @@ export function PanelSidebar() {
           onClick={closeMobileSidebar}
           className={`flex min-w-0 flex-1 items-center gap-3 ${!showLabels ? 'justify-center' : ''}`}
         >
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500 text-sm font-bold text-white">
-            {brand.letter}
-          </span>
+          <BrandLogo className="h-8 w-8 shrink-0 rounded-lg" />
           {showLabels && (
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">

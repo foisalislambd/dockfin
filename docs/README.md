@@ -21,6 +21,7 @@ Full user guide: [README](../README.md)
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Control plane design |
 | [FEATURES.md](FEATURES.md) | Feature parity checklist |
 | [VPS-SMOKE-TEST.md](VPS-SMOKE-TEST.md) | One-click VPS smoke test |
+| [REMOVE-GOOLIFY-DOCKER.md](REMOVE-GOOLIFY-DOCKER.md) | Delete old Goolify Docker images / GHCR package |
 
 ## First steps after install
 
