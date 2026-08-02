@@ -38,6 +38,7 @@ tmp/
 
 # Local favicon pack dump (copied into apps/web/public/)
 /favicon_io/
+/favicon_io-light-mode/
 
 
 coolify

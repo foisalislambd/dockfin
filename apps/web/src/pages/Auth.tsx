@@ -25,6 +25,7 @@ function BrandPanel({ className = '' }: { className?: string }) {
       <div className="relative z-10 w-full max-w-md">
         <BrandLogo
           variant="wordmark"
+          forceTheme="dark"
           className="mx-auto h-40 w-auto max-w-[280px] rounded-2xl drop-shadow-lg sm:h-48 sm:max-w-[320px]"
         />
         <h2 className="sr-only">{brand.name}</h2>
