@@ -6,8 +6,8 @@ import (
 )
 
 func TestParseDatabaseURL(t *testing.T) {
-	u, p, d, err := ParseDatabaseURL("postgres://goolify:secret@127.0.0.1:5432/goolify?sslmode=disable")
-	if err != nil || u != "goolify" || p != "secret" || d != "goolify" {
+	u, p, d, err := ParseDatabaseURL("postgres://dockfin:secret@127.0.0.1:5432/dockfin?sslmode=disable")
+	if err != nil || u != "dockfin" || p != "secret" || d != "dockfin" {
 		t.Fatalf("got %q %q %q %v", u, p, d, err)
 	}
 }
@@ -18,7 +18,7 @@ func TestInstanceDumpFilenameUnique(t *testing.T) {
 	if a == b {
 		t.Fatalf("expected unique filenames, got %q", a)
 	}
-	if !strings.HasPrefix(a, "pg-dump-goolify-") || !strings.HasSuffix(a, ".sql") {
+	if !strings.HasPrefix(a, "pg-dump-dockfin-") || !strings.HasSuffix(a, ".sql") {
 		t.Fatalf("unexpected format: %q", a)
 	}
 }
@@ -30,7 +30,7 @@ func TestDetectAndDump(t *testing.T) {
 	}
 	dir := t.TempDir()
 	fn := InstanceDumpFilename()
-	path, size, err := DumpInstanceLocal(dir, c, "goolify", "goolify", "goolify", fn)
+	path, size, err := DumpInstanceLocal(dir, c, "dockfin", "dockfin", "dockfin", fn)
 	if err != nil {
 		t.Fatal(err)
 	}

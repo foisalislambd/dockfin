@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/crypto"
-	"github.com/goolify/goolify/internal/store"
+	"github.com/dockfin/dockfin/internal/crypto"
+	"github.com/dockfin/dockfin/internal/store"
 )
 
 func (a *API) handleListApiTokens(w http.ResponseWriter, r *http.Request) {
@@ -34,7 +34,7 @@ func (a *API) handleCreateApiToken(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	plain = "glfy_" + plain
+	plain = "dfin_" + plain
 	var expires *time.Time
 	if body.ExpiresIn != nil && *body.ExpiresIn > 0 {
 		t := time.Now().UTC().Add(time.Duration(*body.ExpiresIn) * 24 * time.Hour)

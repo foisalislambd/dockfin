@@ -6,7 +6,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/goolify/goolify/internal/sshx"
+	"github.com/dockfin/dockfin/internal/sshx"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -37,7 +37,7 @@ func UploadRemoteToS3(client *ssh.Client, remotePath, objectKey string, c S3Cred
 	mcHost := fmt.Sprintf("%s://%s:%s@%s", scheme, url.PathEscape(c.AccessKey), url.PathEscape(c.SecretKey), rest)
 	base := path.Base(remotePath)
 	cmd := fmt.Sprintf(
-		`docker run --rm -v /data/goolify/backups:/backups:ro -e MC_HOST_goolify=%s minio/mc:RELEASE.2024-11-17T19-35-25Z cp /backups/%s goolify/%s/%s`,
+		`docker run --rm -v /data/dockfin/backups:/backups:ro -e MC_HOST_dockfin=%s minio/mc:RELEASE.2024-11-17T19-35-25Z cp /backups/%s dockfin/%s/%s`,
 		shellQuote(mcHost), shellQuote(base), shellQuote(c.Bucket), shellQuote(objectKey),
 	)
 	_, errOut, err := sshx.Run(client, cmd)

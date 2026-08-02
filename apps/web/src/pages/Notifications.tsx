@@ -641,7 +641,7 @@ function WebhookFields({
         onChange={(v) => setCfg({ url: v })}
       />
       <FieldHelp>
-        Enter a valid HTTP or HTTPS URL. Goolify will send POST requests to this endpoint when
+        Enter a valid HTTP or HTTPS URL. Dockfin will send POST requests to this endpoint when
         events occur.
       </FieldHelp>
     </div>

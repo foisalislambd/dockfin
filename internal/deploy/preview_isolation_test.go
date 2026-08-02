@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/store"
+	"github.com/dockfin/dockfin/internal/store"
 )
 
 func TestContainerNameForPreviewIsolation(t *testing.T) {
@@ -13,10 +13,10 @@ func TestContainerNameForPreviewIsolation(t *testing.T) {
 	app := &store.Application{ID: id, Name: "web", FQDN: "prod.example.com"}
 	prod := containerNameFor(Request{App: app})
 	prev := containerNameFor(Request{App: app, PullRequestID: 42})
-	if prod != "goolify-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" {
+	if prod != "dockfin-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" {
 		t.Fatalf("prod name: %s", prod)
 	}
-	if prev != "goolify-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee-pr-42" {
+	if prev != "dockfin-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee-pr-42" {
 		t.Fatalf("preview name: %s", prev)
 	}
 	if prod == prev {

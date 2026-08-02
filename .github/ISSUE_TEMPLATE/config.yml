@@ -1,8 +1,8 @@
 blank_issues_enabled: true
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/YOUR_ORG/goolify/security/advisories/new
+    url: https://github.com/YOUR_ORG/dockfin/security/advisories/new
     about: Report a security issue privately (see SECURITY.md).
   - name: Documentation
-    url: https://github.com/YOUR_ORG/goolify/blob/main/docs/README.md
+    url: https://github.com/YOUR_ORG/dockfin/blob/main/docs/README.md
     about: Operator and developer docs.

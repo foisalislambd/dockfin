@@ -10,9 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/backup"
-	"github.com/goolify/goolify/internal/sshx"
-	"github.com/goolify/goolify/internal/store"
+	"github.com/dockfin/dockfin/internal/backup"
+	"github.com/dockfin/dockfin/internal/sshx"
+	"github.com/dockfin/dockfin/internal/store"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -215,7 +215,7 @@ func (a *API) handleRunDatabaseBackup(w http.ResponseWriter, r *http.Request) {
 			_ = a.Store.FinishBackupExecution(context.Background(), exec.ID, "failed", 0, "interrupted")
 		}
 	}()
-	container := "goolify-db-" + id.String()
+	container := "dockfin-db-" + id.String()
 	if err := backup.DumpPostgres(client, container, password, path); err != nil {
 		_ = a.Store.FinishBackupExecution(r.Context(), exec.ID, "failed", 0, err.Error())
 		done = true
@@ -296,7 +296,7 @@ func (a *API) handleRestoreDatabaseBackup(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	container := "goolify-db-" + id.String()
+	container := "dockfin-db-" + id.String()
 	if err := backup.RestorePostgres(client, container, password, backup.DumpPath(filename)); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -433,10 +433,10 @@ func (a *API) handleDeletePreview(w http.ResponseWriter, r *http.Request) {
 	if app.DestinationID != nil {
 		if dest, err := a.Store.GetDestination(r.Context(), teamID, *app.DestinationID); err == nil {
 			if client, err := a.dialServer(r, dest.ServerID); err == nil {
-				cname := fmt.Sprintf("goolify-%s-pr-%d", appID.String(), prID)
+				cname := fmt.Sprintf("dockfin-%s-pr-%d", appID.String(), prID)
 				_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", cname)
-				project := fmt.Sprintf("goolify-%s-pr-%d", appID.String()[:8], prID)
-				workdir := fmt.Sprintf("/data/goolify/applications/%s-pr-%d", appID.String(), prID)
+				project := fmt.Sprintf("dockfin-%s-pr-%d", appID.String()[:8], prID)
+				workdir := fmt.Sprintf("/data/dockfin/applications/%s-pr-%d", appID.String(), prID)
 				composePath := workdir + "/src/docker-compose.yaml"
 				// Try common compose filenames; ignore failures.
 				for _, f := range []string{

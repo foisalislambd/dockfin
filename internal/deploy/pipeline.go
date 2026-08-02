@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/proxy"
-	"github.com/goolify/goolify/internal/sshx"
-	"github.com/goolify/goolify/internal/store"
+	"github.com/dockfin/dockfin/internal/proxy"
+	"github.com/dockfin/dockfin/internal/sshx"
+	"github.com/dockfin/dockfin/internal/store"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -426,11 +426,11 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 		return fmt.Errorf("git repository is required for %s builds", req.App.BuildPack)
 	}
 	name := containerNameFor(req)
-	workdir := "/data/goolify/applications/" + req.App.ID.String()
-	imageTag := "goolify/" + req.App.ID.String() + ":latest"
+	workdir := "/data/dockfin/applications/" + req.App.ID.String()
+	imageTag := "dockfin/" + req.App.ID.String() + ":latest"
 	if req.PullRequestID > 0 {
-		workdir = fmt.Sprintf("/data/goolify/applications/%s-pr-%d", req.App.ID.String(), req.PullRequestID)
-		imageTag = fmt.Sprintf("goolify/%s-pr-%d:latest", req.App.ID.String(), req.PullRequestID)
+		workdir = fmt.Sprintf("/data/dockfin/applications/%s-pr-%d", req.App.ID.String(), req.PullRequestID)
+		imageTag = fmt.Sprintf("dockfin/%s-pr-%d:latest", req.App.ID.String(), req.PullRequestID)
 	}
 
 	p.log("prepare", "Preparing remote workdir "+workdir)
@@ -501,11 +501,11 @@ func (p *Pipeline) deployStatic(ctx context.Context, buildClient, deployClient *
 		return fmt.Errorf("git repository is required for static builds")
 	}
 	name := containerNameFor(req)
-	workdir := "/data/goolify/applications/" + req.App.ID.String()
-	imageTag := "goolify/" + req.App.ID.String() + ":latest"
+	workdir := "/data/dockfin/applications/" + req.App.ID.String()
+	imageTag := "dockfin/" + req.App.ID.String() + ":latest"
 	if req.PullRequestID > 0 {
-		workdir = fmt.Sprintf("/data/goolify/applications/%s-pr-%d", req.App.ID.String(), req.PullRequestID)
-		imageTag = fmt.Sprintf("goolify/%s-pr-%d:latest", req.App.ID.String(), req.PullRequestID)
+		workdir = fmt.Sprintf("/data/dockfin/applications/%s-pr-%d", req.App.ID.String(), req.PullRequestID)
+		imageTag = fmt.Sprintf("dockfin/%s-pr-%d:latest", req.App.ID.String(), req.PullRequestID)
 	}
 
 	p.log("prepare", "Preparing static site workdir "+workdir)
@@ -523,14 +523,14 @@ COPY . /usr/share/nginx/html
 EXPOSE 80
 `
 	p.log("build", "Writing nginx Dockerfile for static site")
-	writeCmd := fmt.Sprintf("cat > %s/src/Dockerfile.goolify-static <<'GOOLIFY_EOF'\n%sGOOLIFY_EOF", workdir, dockerfile)
+	writeCmd := fmt.Sprintf("cat > %s/src/Dockerfile.dockfin-static <<'DOCKFIN_EOF'\n%sDOCKFIN_EOF", workdir, dockerfile)
 	_, errOut, err = sshx.Run(buildClient, writeCmd)
 	if err != nil {
 		return fmt.Errorf("write dockerfile: %v %s", err, errOut)
 	}
 
 	p.log("build", "Building static image "+imageTag)
-	buildArgs := []string{"docker", "build", "-t", imageTag, "-f", workdir + "/src/Dockerfile.goolify-static"}
+	buildArgs := []string{"docker", "build", "-t", imageTag, "-f", workdir + "/src/Dockerfile.dockfin-static"}
 	if req.ForceRebuild {
 		buildArgs = append(buildArgs, "--no-cache")
 	}
@@ -556,11 +556,11 @@ func (p *Pipeline) deployNixpacks(ctx context.Context, buildClient, deployClient
 		return fmt.Errorf("git repository is required for nixpacks builds")
 	}
 	name := containerNameFor(req)
-	workdir := "/data/goolify/applications/" + req.App.ID.String()
-	imageTag := "goolify/" + req.App.ID.String() + ":latest"
+	workdir := "/data/dockfin/applications/" + req.App.ID.String()
+	imageTag := "dockfin/" + req.App.ID.String() + ":latest"
 	if req.PullRequestID > 0 {
-		workdir = fmt.Sprintf("/data/goolify/applications/%s-pr-%d", req.App.ID.String(), req.PullRequestID)
-		imageTag = fmt.Sprintf("goolify/%s-pr-%d:latest", req.App.ID.String(), req.PullRequestID)
+		workdir = fmt.Sprintf("/data/dockfin/applications/%s-pr-%d", req.App.ID.String(), req.PullRequestID)
+		imageTag = fmt.Sprintf("dockfin/%s-pr-%d:latest", req.App.ID.String(), req.PullRequestID)
 	}
 
 	p.log("prepare", "Preparing nixpacks workdir "+workdir)
@@ -601,11 +601,11 @@ func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Re
 	if req.App.GitRepository == "" {
 		return fmt.Errorf("git repository is required for dockercompose")
 	}
-	workdir := "/data/goolify/applications/" + req.App.ID.String()
-	project := "goolify-" + req.App.ID.String()[:8]
+	workdir := "/data/dockfin/applications/" + req.App.ID.String()
+	project := "dockfin-" + req.App.ID.String()[:8]
 	if req.PullRequestID > 0 {
-		workdir = fmt.Sprintf("/data/goolify/applications/%s-pr-%d", req.App.ID.String(), req.PullRequestID)
-		project = fmt.Sprintf("goolify-%s-pr-%d", req.App.ID.String()[:8], req.PullRequestID)
+		workdir = fmt.Sprintf("/data/dockfin/applications/%s-pr-%d", req.App.ID.String(), req.PullRequestID)
+		project = fmt.Sprintf("dockfin-%s-pr-%d", req.App.ID.String()[:8], req.PullRequestID)
 	}
 	p.log("prepare", "Preparing compose workdir "+workdir)
 	_, errOut, err := sshx.RunArgs(client, "mkdir", "-p", workdir)
@@ -641,12 +641,12 @@ func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Re
 }
 
 func containerName(app *store.Application) string {
-	return "goolify-" + app.ID.String()
+	return "dockfin-" + app.ID.String()
 }
 
 func containerNameFor(req Request) string {
 	if req.PullRequestID > 0 && req.App != nil {
-		return fmt.Sprintf("goolify-%s-pr-%d", req.App.ID.String(), req.PullRequestID)
+		return fmt.Sprintf("dockfin-%s-pr-%d", req.App.ID.String(), req.PullRequestID)
 	}
 	if req.App == nil {
 		return ""

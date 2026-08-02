@@ -9,9 +9,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/crypto"
-	"github.com/goolify/goolify/internal/git/githubapp"
-	"github.com/goolify/goolify/internal/store"
+	"github.com/dockfin/dockfin/internal/crypto"
+	"github.com/dockfin/dockfin/internal/git/githubapp"
+	"github.com/dockfin/dockfin/internal/store"
 )
 
 func (a *API) handleListGitSources(w http.ResponseWriter, r *http.Request) {

@@ -33,29 +33,29 @@ func Load() (*Config, error) {
 	_ = godotenv.Load()
 
 	cfg := &Config{
-		Env:              getenv("GOOLIFY_ENV", "development"),
-		HTTPAddr:         getenv("GOOLIFY_HTTP_ADDR", ":8000"),
-		DatabaseURL:      getenv("GOOLIFY_DATABASE_URL", "postgres://goolify:goolify@localhost:5432/goolify?sslmode=disable"),
-		MasterKey:        getenv("GOOLIFY_MASTER_KEY", ""),
-		PublicURL:        getenv("GOOLIFY_PUBLIC_URL", "http://localhost:8000"),
-		DataDir:          getenv("GOOLIFY_DATA_DIR", "./data"),
-		WebDir:           getenv("GOOLIFY_WEB_DIR", ""),
+		Env:              getenv("DOCKFIN_ENV", "development"),
+		HTTPAddr:         getenv("DOCKFIN_HTTP_ADDR", ":8000"),
+		DatabaseURL:      getenv("DOCKFIN_DATABASE_URL", "postgres://dockfin:dockfin@localhost:5432/dockfin?sslmode=disable"),
+		MasterKey:        getenv("DOCKFIN_MASTER_KEY", ""),
+		PublicURL:        getenv("DOCKFIN_PUBLIC_URL", "http://localhost:8000"),
+		DataDir:          getenv("DOCKFIN_DATA_DIR", "./data"),
+		WebDir:           getenv("DOCKFIN_WEB_DIR", ""),
 		SessionTTL:       7 * 24 * time.Hour,
-		TraefikImage:     getenv("GOOLIFY_TRAEFIK_IMAGE", "traefik:v3.6"),
-		CaddyImage:       getenv("GOOLIFY_CADDY_IMAGE", "lucaslorentz/caddy-docker-proxy:2.9-alpine"),
-		AcmeEmail:        getenv("GOOLIFY_ACME_EMAIL", "admin@sslip.io"),
-		PublicIP:         strings.TrimSpace(getenv("GOOLIFY_PUBLIC_IP", "")),
-		BootstrapSSHUser: getenv("GOOLIFY_BOOTSTRAP_SSH_USER", "root"),
+		TraefikImage:     getenv("DOCKFIN_TRAEFIK_IMAGE", "traefik:v3.6"),
+		CaddyImage:       getenv("DOCKFIN_CADDY_IMAGE", "lucaslorentz/caddy-docker-proxy:2.9-alpine"),
+		AcmeEmail:        getenv("DOCKFIN_ACME_EMAIL", "admin@sslip.io"),
+		PublicIP:         strings.TrimSpace(getenv("DOCKFIN_PUBLIC_IP", "")),
+		BootstrapSSHUser: getenv("DOCKFIN_BOOTSTRAP_SSH_USER", "root"),
 		BootstrapSSHPort: 22,
 	}
-	cfg.BootstrapSelf = parseBool(getenv("GOOLIFY_BOOTSTRAP_SELF", "1"), true)
-	if p := getenv("GOOLIFY_BOOTSTRAP_SSH_PORT", ""); p != "" {
+	cfg.BootstrapSelf = parseBool(getenv("DOCKFIN_BOOTSTRAP_SELF", "1"), true)
+	if p := getenv("DOCKFIN_BOOTSTRAP_SSH_PORT", ""); p != "" {
 		if n, err := fmt.Sscanf(p, "%d", &cfg.BootstrapSSHPort); n != 1 || err != nil || cfg.BootstrapSSHPort <= 0 {
 			cfg.BootstrapSSHPort = 22
 		}
 	}
 
-	origins := getenv("GOOLIFY_CORS_ORIGINS", "http://localhost:5173")
+	origins := getenv("DOCKFIN_CORS_ORIGINS", "http://localhost:5173")
 	for _, o := range strings.Split(origins, ",") {
 		o = strings.TrimSpace(o)
 		if o != "" {
@@ -67,7 +67,7 @@ func Load() (*Config, error) {
 	}
 
 	// Secure cookies only over HTTPS. HTTP VPS IPs (http://x.x.x.x:8000) must not set Secure.
-	switch strings.ToLower(strings.TrimSpace(getenv("GOOLIFY_COOKIE_SECURE", ""))) {
+	switch strings.ToLower(strings.TrimSpace(getenv("DOCKFIN_COOKIE_SECURE", ""))) {
 	case "1", "true", "yes":
 		cfg.CookieSecure = true
 	case "0", "false", "no":
@@ -77,7 +77,7 @@ func Load() (*Config, error) {
 	}
 
 	if len(cfg.MasterKey) < 32 {
-		return nil, fmt.Errorf("GOOLIFY_MASTER_KEY must be at least 32 characters")
+		return nil, fmt.Errorf("DOCKFIN_MASTER_KEY must be at least 32 characters")
 	}
 	return cfg, nil
 }

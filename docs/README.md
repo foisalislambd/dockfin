@@ -1,16 +1,16 @@
-# Goolify docs
+# Dockfin docs
 
 ## Install (production)
 
-Pulls **`ghcr.io/foisalislambd/goolify:latest`** from GitHub Packages, then starts the stack:
+Pulls **`ghcr.io/foisalislambd/dockfin:latest`** from GitHub Packages, then starts the stack:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/foisalislambd/goolify/main/scripts/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/foisalislambd/dockfin/main/scripts/install.sh | sudo bash
 ```
 
 Then open `http://YOUR_SERVER_IP:8000/` and register.
 
-Pin a version: `sudo GOOLIFY_VERSION=1.0.9 bash -c 'curl -fsSL …/install.sh | bash'`
+Pin a version: `sudo DOCKFIN_VERSION=1.0.9 bash -c 'curl -fsSL …/install.sh | bash'`
 
 Full user guide: [README](../README.md)
 
@@ -43,15 +43,15 @@ Or hot-reload:
 ```bash
 cp .env.example .env
 docker compose -f deploy/compose/docker-compose.yml up -d postgres
-go run ./cmd/goolify migrate
-go run ./cmd/goolify serve
+go run ./cmd/dockfin migrate
+go run ./cmd/dockfin serve
 cd apps/web && npm install && npm run dev
 ```
 
 | Script | Environment |
 |--------|-------------|
-| `scripts/install.sh` | Production (GHCR → `/data/goolify`) |
-| `scripts/install-dev.sh` | Local build (`goolify:local` → same `/data/goolify`) |
+| `scripts/install.sh` | Production (GHCR → `/data/dockfin`) |
+| `scripts/install-dev.sh` | Local build (`dockfin:local` → same `/data/dockfin`) |
 
 ## Webhooks
 
@@ -68,8 +68,8 @@ Set a webhook secret via `POST /api/v1/applications/{id}/webhook-secret`.
 ## CLI
 
 ```bash
-export GOOLIFY_URL=http://YOUR_SERVER_IP
-export GOOLIFY_TOKEN=<token-from-login>
-glfy apps
-glfy deploy <app-uuid>
+export DOCKFIN_URL=http://YOUR_SERVER_IP
+export DOCKFIN_TOKEN=<token-from-login>
+dfin apps
+dfin deploy <app-uuid>
 ```

@@ -14,11 +14,11 @@ import {
 
 export const appConfig = {
   brand: {
-    name: 'Goolify',
+    name: 'Dockfin',
     tagline: 'Self-hosted PaaS',
-    letter: 'G',
+    letter: 'D',
     license: 'MIT',
-    copyright: '© 2026 Goolify Contributors',
+    copyright: '© 2026 Dockfin Contributors',
     loginDescription:
       'Deploy applications, databases, and one-click services on your own servers over SSH + Docker.',
     loginFeatures: [
@@ -31,7 +31,7 @@ export const appConfig = {
 
 export const MIT_LICENSE_TEXT = `MIT License
 
-Copyright (c) 2026 Goolify Contributors
+Copyright (c) 2026 Dockfin Contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

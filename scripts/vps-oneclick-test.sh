@@ -1,26 +1,26 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Goolify — one-click VPS install + smoke test
+# Dockfin — one-click VPS install + smoke test
 # =============================================================================
 # On a fresh Ubuntu/Debian VPS this script will:
 #   1) Install Docker / Go / dependencies
 #   2) Start Postgres
-#   3) Build Goolify API, migrate, and serve
+#   3) Build Dockfin API, migrate, and serve
 #   4) Add this VPS as a server (public IP) → validate → Traefik → nginx:alpine deploy
 #   5) Print a pass/fail report
 #
-# First-user register auto-bootstraps the install host with GOOLIFY_PUBLIC_IP
+# First-user register auto-bootstraps the install host with DOCKFIN_PUBLIC_IP
 # (same fields as a manually added remote server — not 127.0.0.1).
 #
 # Usage (as root on the VPS):
-#   curl -fsSL https://raw.githubusercontent.com/YOUR_ORG/goolify/main/scripts/vps-oneclick-test.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/YOUR_ORG/dockfin/main/scripts/vps-oneclick-test.sh | bash
 #
 # Or from a cloned repo:
 #   sudo bash scripts/vps-oneclick-test.sh
 #
 # Optional env:
-#   GOOLIFY_SRC=/path/to/goolify   # default: auto-detect or clone
-#   GOOLIFY_GIT_URL=...            # git clone URL if source missing
+#   DOCKFIN_SRC=/path/to/dockfin   # default: auto-detect or clone
+#   DOCKFIN_GIT_URL=...            # git clone URL if source missing
 #   SKIP_DEPLOY=1                  # only API smoke (no SSH deploy)
 #   KEEP_RUNNING=1                 # don't stop API after tests (default: keep)
 # =============================================================================
@@ -51,10 +51,10 @@ if [[ -n "${PUBLIC_IP}" ]]; then
 else
   PUBLIC_API_URL="${API_URL}"
 fi
-TEST_EMAIL="smoke-$(date +%s)@goolify.test"
+TEST_EMAIL="smoke-$(date +%s)@dockfin.test"
 TEST_PASS="SmokeTestPass123!"
 TEST_NAME="Smoke Tester"
-WORKDIR="${GOOLIFY_WORKDIR:-/opt/goolify-smoke}"
+WORKDIR="${DOCKFIN_WORKDIR:-/opt/dockfin-smoke}"
 COOKIE_JAR="${WORKDIR}/cookies.txt"
 REPORT="${WORKDIR}/report.txt"
 KEEP_RUNNING="${KEEP_RUNNING:-1}"
@@ -127,8 +127,8 @@ npm -v
 # 2) Source tree
 # -----------------------------------------------------------------------------
 detect_src() {
-  if [[ -n "${GOOLIFY_SRC:-}" && -f "${GOOLIFY_SRC}/go.mod" ]]; then
-    echo "${GOOLIFY_SRC}"
+  if [[ -n "${DOCKFIN_SRC:-}" && -f "${DOCKFIN_SRC}/go.mod" ]]; then
+    echo "${DOCKFIN_SRC}"
     return
   fi
   # script lives in repo?
@@ -138,8 +138,8 @@ detect_src() {
     echo "${here}"
     return
   fi
-  if [[ -f /data/goolify-src/go.mod ]]; then
-    echo /data/goolify-src
+  if [[ -f /data/dockfin-src/go.mod ]]; then
+    echo /data/dockfin-src
     return
   fi
   echo ""
@@ -147,14 +147,14 @@ detect_src() {
 
 SRC="$(detect_src)"
 if [[ -z "${SRC}" ]]; then
-  GIT_URL="${GOOLIFY_GIT_URL:-}"
+  GIT_URL="${DOCKFIN_GIT_URL:-}"
   if [[ -z "${GIT_URL}" ]]; then
-    fail "Source not found. Set GOOLIFY_SRC=/path/to/goolify or GOOLIFY_GIT_URL=https://github.com/.../goolify.git"
+    fail "Source not found. Set DOCKFIN_SRC=/path/to/dockfin or DOCKFIN_GIT_URL=https://github.com/.../dockfin.git"
   fi
   log "Cloning ${GIT_URL}..."
-  rm -rf /data/goolify-src
-  git clone --depth 1 "${GIT_URL}" /data/goolify-src
-  SRC=/data/goolify-src
+  rm -rf /data/dockfin-src
+  git clone --depth 1 "${GIT_URL}" /data/dockfin-src
+  SRC=/data/dockfin-src
 fi
 log "Using source: ${SRC}"
 cd "${SRC}"
@@ -166,7 +166,7 @@ log "Starting Postgres + Redis..."
 docker compose -f deploy/compose/docker-compose.dev.yml up -d
 sleep 3
 for i in $(seq 1 30); do
-  if docker compose -f deploy/compose/docker-compose.dev.yml exec -T postgres pg_isready -U goolify >/dev/null 2>&1; then
+  if docker compose -f deploy/compose/docker-compose.dev.yml exec -T postgres pg_isready -U dockfin >/dev/null 2>&1; then
     break
   fi
   sleep 1
@@ -179,58 +179,58 @@ log "Preparing .env..."
 if [[ ! -f .env ]]; then
   MASTER_KEY=$(openssl rand -base64 48 | tr -d '\n' | head -c 48)
   cat > .env <<EOF
-GOOLIFY_ENV=production
-GOOLIFY_HTTP_ADDR=:${API_PORT}
-GOOLIFY_DATABASE_URL=postgres://goolify:goolify@127.0.0.1:5432/goolify?sslmode=disable
-GOOLIFY_MASTER_KEY=${MASTER_KEY}
-GOOLIFY_CORS_ORIGINS=${PUBLIC_API_URL},http://127.0.0.1:${API_PORT}
-GOOLIFY_PUBLIC_URL=${PUBLIC_API_URL}
-GOOLIFY_PUBLIC_IP=${PUBLIC_IP}
-GOOLIFY_BOOTSTRAP_SELF=1
-GOOLIFY_COOKIE_SECURE=0
-GOOLIFY_DATA_DIR=${WORKDIR}/data
-GOOLIFY_TEMPLATES_DIR=${SRC}/templates/compose
-GOOLIFY_WEB_DIR=${SRC}/apps/web/dist
+DOCKFIN_ENV=production
+DOCKFIN_HTTP_ADDR=:${API_PORT}
+DOCKFIN_DATABASE_URL=postgres://dockfin:dockfin@127.0.0.1:5432/dockfin?sslmode=disable
+DOCKFIN_MASTER_KEY=${MASTER_KEY}
+DOCKFIN_CORS_ORIGINS=${PUBLIC_API_URL},http://127.0.0.1:${API_PORT}
+DOCKFIN_PUBLIC_URL=${PUBLIC_API_URL}
+DOCKFIN_PUBLIC_IP=${PUBLIC_IP}
+DOCKFIN_BOOTSTRAP_SELF=1
+DOCKFIN_COOKIE_SECURE=0
+DOCKFIN_DATA_DIR=${WORKDIR}/data
+DOCKFIN_TEMPLATES_DIR=${SRC}/templates/compose
+DOCKFIN_WEB_DIR=${SRC}/apps/web/dist
 EOF
 fi
 
 # Refresh public URL / cookie secure / bootstrap if .env already existed from an older run
 if [[ -f .env ]]; then
   if [[ -n "${PUBLIC_IP}" ]]; then
-    if grep -q '^GOOLIFY_PUBLIC_URL=' .env; then
-      sed -i "s|^GOOLIFY_PUBLIC_URL=.*|GOOLIFY_PUBLIC_URL=${PUBLIC_API_URL}|" .env
+    if grep -q '^DOCKFIN_PUBLIC_URL=' .env; then
+      sed -i "s|^DOCKFIN_PUBLIC_URL=.*|DOCKFIN_PUBLIC_URL=${PUBLIC_API_URL}|" .env
     else
-      echo "GOOLIFY_PUBLIC_URL=${PUBLIC_API_URL}" >> .env
+      echo "DOCKFIN_PUBLIC_URL=${PUBLIC_API_URL}" >> .env
     fi
-    if grep -q '^GOOLIFY_PUBLIC_IP=' .env; then
-      sed -i "s|^GOOLIFY_PUBLIC_IP=.*|GOOLIFY_PUBLIC_IP=${PUBLIC_IP}|" .env
+    if grep -q '^DOCKFIN_PUBLIC_IP=' .env; then
+      sed -i "s|^DOCKFIN_PUBLIC_IP=.*|DOCKFIN_PUBLIC_IP=${PUBLIC_IP}|" .env
     else
-      echo "GOOLIFY_PUBLIC_IP=${PUBLIC_IP}" >> .env
+      echo "DOCKFIN_PUBLIC_IP=${PUBLIC_IP}" >> .env
     fi
   fi
-  if grep -q '^GOOLIFY_BOOTSTRAP_SELF=' .env; then
-    sed -i 's|^GOOLIFY_BOOTSTRAP_SELF=.*|GOOLIFY_BOOTSTRAP_SELF=1|' .env
+  if grep -q '^DOCKFIN_BOOTSTRAP_SELF=' .env; then
+    sed -i 's|^DOCKFIN_BOOTSTRAP_SELF=.*|DOCKFIN_BOOTSTRAP_SELF=1|' .env
   else
-    echo 'GOOLIFY_BOOTSTRAP_SELF=1' >> .env
+    echo 'DOCKFIN_BOOTSTRAP_SELF=1' >> .env
   fi
-  if grep -q '^GOOLIFY_COOKIE_SECURE=' .env; then
-    sed -i 's|^GOOLIFY_COOKIE_SECURE=.*|GOOLIFY_COOKIE_SECURE=0|' .env
+  if grep -q '^DOCKFIN_COOKIE_SECURE=' .env; then
+    sed -i 's|^DOCKFIN_COOKIE_SECURE=.*|DOCKFIN_COOKIE_SECURE=0|' .env
   else
-    echo 'GOOLIFY_COOKIE_SECURE=0' >> .env
+    echo 'DOCKFIN_COOKIE_SECURE=0' >> .env
   fi
 fi
 
 # Ensure web dir + templates are set even on older .env files
 touch .env
-grep -q '^GOOLIFY_WEB_DIR=' .env || echo "GOOLIFY_WEB_DIR=${SRC}/apps/web/dist" >> .env
-sed -i "s|^GOOLIFY_WEB_DIR=.*|GOOLIFY_WEB_DIR=${SRC}/apps/web/dist|" .env
-grep -q '^GOOLIFY_TEMPLATES_DIR=' .env || echo "GOOLIFY_TEMPLATES_DIR=${SRC}/templates/compose" >> .env
-sed -i "s|^GOOLIFY_TEMPLATES_DIR=.*|GOOLIFY_TEMPLATES_DIR=${SRC}/templates/compose|" .env
+grep -q '^DOCKFIN_WEB_DIR=' .env || echo "DOCKFIN_WEB_DIR=${SRC}/apps/web/dist" >> .env
+sed -i "s|^DOCKFIN_WEB_DIR=.*|DOCKFIN_WEB_DIR=${SRC}/apps/web/dist|" .env
+grep -q '^DOCKFIN_TEMPLATES_DIR=' .env || echo "DOCKFIN_TEMPLATES_DIR=${SRC}/templates/compose" >> .env
+sed -i "s|^DOCKFIN_TEMPLATES_DIR=.*|DOCKFIN_TEMPLATES_DIR=${SRC}/templates/compose|" .env
 
 mkdir -p "${WORKDIR}/data" "${WORKDIR}/bin"
-log "Building goolify..."
-go build -o "${WORKDIR}/bin/goolify" ./cmd/goolify
-go build -o "${WORKDIR}/bin/glfy" ./cmd/glfy
+log "Building dockfin..."
+go build -o "${WORKDIR}/bin/dockfin" ./cmd/dockfin
+go build -o "${WORKDIR}/bin/dfin" ./cmd/dfin
 
 if [[ "${SKIP_WEB:-0}" != "1" ]] && [[ -f apps/web/package.json ]]; then
   log "Building web UI (Vite static)..."
@@ -252,10 +252,10 @@ if [[ -f "${WORKDIR}/api.pid" ]]; then
 fi
 
 log "Migrating database..."
-"${WORKDIR}/bin/goolify" migrate
+"${WORKDIR}/bin/dockfin" migrate
 
 log "Starting API on :${API_PORT}..."
-nohup "${WORKDIR}/bin/goolify" serve >"${WORKDIR}/api.log" 2>&1 &
+nohup "${WORKDIR}/bin/dockfin" serve >"${WORKDIR}/api.log" 2>&1 &
 echo $! >"${WORKDIR}/api.pid"
 
 for i in $(seq 1 40); do
@@ -301,7 +301,7 @@ assert_json "${BODY}" '.status=="ok"' "health"
 report "[PASS] health"
 
 BODY=$(curl -fsS "${API_URL}/api/v1/version")
-assert_json "${BODY}" '.name=="Goolify"' "version"
+assert_json "${BODY}" '.name=="Dockfin"' "version"
 report "[PASS] version"
 
 BODY=$(api POST /api/v1/auth/register \
@@ -399,18 +399,18 @@ else
   done
   [[ "${FINAL}" == "finished" ]] || {
     echo "${BODY}" | jq . 2>/dev/null || echo "${BODY}"
-    docker ps -a --filter name=goolify- || true
+    docker ps -a --filter name=dockfin- || true
     fail "deployment did not finish successfully (got: ${FINAL:-timeout})"
   }
   report "[PASS] deployment finished"
 
   # container should be running
-  if docker ps --format '{{.Names}}' | grep -q "goolify-${APP_ID}"; then
+  if docker ps --format '{{.Names}}' | grep -q "dockfin-${APP_ID}"; then
     report "[PASS] container running"
   else
-    # name format goolify-<uuid>
-    if docker ps --format '{{.Names}}' | grep -q "goolify-"; then
-      report "[PASS] goolify container present"
+    # name format dockfin-<uuid>
+    if docker ps --format '{{.Names}}' | grep -q "dockfin-"; then
+      report "[PASS] dockfin container present"
     else
       warn "container name not found — checking proxy network"
       docker ps
@@ -440,7 +440,7 @@ echo "Logs:         ${WORKDIR}/api.log"
 echo "Report:       ${REPORT}"
 echo "Source:       ${SRC}"
 if [[ -f "${SRC}/apps/web/dist/index.html" ]]; then
-  echo "UI dist:      ${SRC}/apps/web/dist (served by goolify)"
+  echo "UI dist:      ${SRC}/apps/web/dist (served by dockfin)"
 else
   echo "UI dist:      missing — re-run without SKIP_WEB=1"
 fi

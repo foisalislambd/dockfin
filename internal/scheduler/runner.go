@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/backup"
-	"github.com/goolify/goolify/internal/services"
-	"github.com/goolify/goolify/internal/sshx"
-	"github.com/goolify/goolify/internal/store"
+	"github.com/dockfin/dockfin/internal/backup"
+	"github.com/dockfin/dockfin/internal/services"
+	"github.com/dockfin/dockfin/internal/sshx"
+	"github.com/dockfin/dockfin/internal/store"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -269,7 +269,7 @@ func (r *Runner) executeBackup(ctx context.Context, db *store.Database, execID u
 		return
 	}
 	path := backup.DumpPath(filename)
-	container := "goolify-db-" + db.ID.String()
+	container := "dockfin-db-" + db.ID.String()
 	if err := backup.DumpPostgres(client, container, password, path); err != nil {
 		_ = r.Store.FinishBackupExecution(ctx, execID, "failed", 0, err.Error())
 		done = true
@@ -329,7 +329,7 @@ func (r *Runner) dialForResource(ctx context.Context, teamID uuid.UUID, resource
 			return nil, "", fmt.Errorf("application has no destination")
 		}
 		client, err := r.dialDestination(ctx, teamID, *app.DestinationID)
-		return client, "goolify-" + app.ID.String(), err
+		return client, "dockfin-" + app.ID.String(), err
 	case "database":
 		db, err := r.Store.GetDatabase(ctx, teamID, resourceID)
 		if err != nil {
@@ -339,7 +339,7 @@ func (r *Runner) dialForResource(ctx context.Context, teamID uuid.UUID, resource
 			return nil, "", fmt.Errorf("database has no destination")
 		}
 		client, err := r.dialDestination(ctx, teamID, *db.DestinationID)
-		return client, "goolify-db-" + db.ID.String(), err
+		return client, "dockfin-db-" + db.ID.String(), err
 	case "service":
 		svc, err := r.Store.GetService(ctx, teamID, resourceID)
 		if err != nil {
@@ -373,7 +373,7 @@ func defaultServiceContainer(serviceID uuid.UUID, composeYAML string) string {
 	if len(units) == 0 {
 		return ""
 	}
-	return fmt.Sprintf("goolify-svc-%s-%s-1", serviceID.String()[:8], units[0].Name)
+	return fmt.Sprintf("dockfin-svc-%s-%s-1", serviceID.String()[:8], units[0].Name)
 }
 
 // resolveServiceContainer maps a compose service name (or full container name) to a docker name.
@@ -382,11 +382,11 @@ func resolveServiceContainer(resourceType string, resourceID uuid.UUID, named, f
 	if named == "" {
 		return fallback
 	}
-	if strings.HasPrefix(named, "goolify-svc-") || strings.HasPrefix(named, "goolify-db-") || strings.HasPrefix(named, "goolify-") {
+	if strings.HasPrefix(named, "dockfin-svc-") || strings.HasPrefix(named, "dockfin-db-") || strings.HasPrefix(named, "dockfin-") {
 		return named
 	}
 	if resourceType == "service" {
-		return fmt.Sprintf("goolify-svc-%s-%s-1", resourceID.String()[:8], named)
+		return fmt.Sprintf("dockfin-svc-%s-%s-1", resourceID.String()[:8], named)
 	}
 	return named
 }

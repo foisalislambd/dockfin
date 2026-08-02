@@ -6,7 +6,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/terminal"
+	"github.com/dockfin/dockfin/internal/terminal"
 )
 
 func (a *API) handleCreateTerminal(w http.ResponseWriter, r *http.Request) {

@@ -1,6 +1,6 @@
 -- +goose Up
 ALTER TABLE instance_settings
-    ADD COLUMN IF NOT EXISTS instance_name TEXT NOT NULL DEFAULT 'Goolify',
+    ADD COLUMN IF NOT EXISTS instance_name TEXT NOT NULL DEFAULT 'Dockfin',
     ADD COLUMN IF NOT EXISTS instance_timezone TEXT NOT NULL DEFAULT 'UTC',
     ADD COLUMN IF NOT EXISTS public_ipv4 TEXT NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS public_ipv6 TEXT NOT NULL DEFAULT '',

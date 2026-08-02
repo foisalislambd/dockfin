@@ -51,7 +51,7 @@ CREATE TABLE destinations (
     server_id       UUID NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
     name            TEXT NOT NULL,
     kind            TEXT NOT NULL DEFAULT 'standalone' CHECK (kind IN ('standalone', 'swarm')),
-    network         TEXT NOT NULL DEFAULT 'goolify',
+    network         TEXT NOT NULL DEFAULT 'dockfin',
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (server_id, network)

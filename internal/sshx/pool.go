@@ -54,7 +54,7 @@ func (p *Pool) Dial(t Target) (*DialResult, error) {
 	defer p.mu.Unlock()
 	k := p.key(t)
 	if c, ok := p.conns[k]; ok {
-		_, _, err := c.SendRequest("goolify-keepalive", true, nil)
+		_, _, err := c.SendRequest("dockfin-keepalive", true, nil)
 		if err == nil {
 			return &DialResult{Client: c, Fingerprint: t.ExpectedFingerprint, KeyType: t.ExpectedKeyType}, nil
 		}
@@ -233,11 +233,11 @@ func EnsureNetwork(client *ssh.Client, name string) error {
 
 func EnsureDataDirs(client *ssh.Client) error {
 	_, errOut, err := RunArgs(client, "mkdir", "-p",
-		"/data/goolify/applications",
-		"/data/goolify/databases",
-		"/data/goolify/services",
-		"/data/goolify/backups",
-		"/data/goolify/proxy",
+		"/data/dockfin/applications",
+		"/data/dockfin/databases",
+		"/data/dockfin/services",
+		"/data/dockfin/backups",
+		"/data/dockfin/proxy",
 	)
 	if err != nil {
 		return fmt.Errorf("mkdir data dirs: %v %s", err, errOut)

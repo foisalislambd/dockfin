@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/goolify/goolify/internal/store"
+	"github.com/dockfin/dockfin/internal/store"
 )
 
 func writeConflictDetail(w http.ResponseWriter, err error) {

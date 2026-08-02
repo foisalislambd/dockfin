@@ -181,7 +181,7 @@ export function CreateServicePage() {
               Docker Compose
             </h2>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Paste a full compose file. Goolify will prepare Traefik labels and magic domains on
+              Paste a full compose file. Dockfin will prepare Traefik labels and magic domains on
               deploy (Coolify-style empty compose).
             </p>
             <textarea

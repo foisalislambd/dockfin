@@ -146,7 +146,7 @@ func SendWebhook(ctx context.Context, cfg WebhookConfig, event Event) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "Goolify/0.1")
+	req.Header.Set("User-Agent", "Dockfin/0.1")
 	for k, v := range cfg.Headers {
 		req.Header.Set(k, v)
 	}
@@ -192,7 +192,7 @@ func SendTelegram(ctx context.Context, cfg TelegramConfig, event Event) error {
 	apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", cfg.BotToken)
 	payload := map[string]any{
 		"chat_id": cfg.ChatID,
-		"text":    fmt.Sprintf("Goolify: %s\n%s", event.Title, event.Message),
+		"text":    fmt.Sprintf("Dockfin: %s\n%s", event.Title, event.Message),
 	}
 	if cfg.ThreadIDs != nil {
 		tid := strings.TrimSpace(cfg.ThreadIDs[event.Type])

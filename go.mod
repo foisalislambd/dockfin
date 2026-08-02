@@ -1,4 +1,4 @@
-module github.com/goolify/goolify
+module github.com/dockfin/dockfin
 
 go 1.26.0
 

@@ -5,8 +5,8 @@ package database
 import (
 	"fmt"
 
-	"github.com/goolify/goolify/internal/sshx"
-	"github.com/goolify/goolify/internal/store"
+	"github.com/dockfin/dockfin/internal/sshx"
+	"github.com/dockfin/dockfin/internal/store"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -15,7 +15,7 @@ func Start(client *ssh.Client, db *store.Database, network, password string) err
 	if err := sshx.EnsureNetwork(client, network); err != nil {
 		return err
 	}
-	name := "goolify-db-" + db.ID.String()
+	name := "dockfin-db-" + db.ID.String()
 	_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", name)
 
 	args := []string{
@@ -39,7 +39,7 @@ func Start(client *ssh.Client, db *store.Database, network, password string) err
 }
 
 func Stop(client *ssh.Client, dbID string) error {
-	name := "goolify-db-" + dbID
+	name := "dockfin-db-" + dbID
 	_, errOut, err := sshx.RunArgs(client, "docker", "rm", "-f", name)
 	if err != nil {
 		return fmt.Errorf("stop database: %v %s", err, errOut)
@@ -67,11 +67,11 @@ func defaultPort(engine string) int {
 func engineEnv(engine, password string) []string {
 	switch engine {
 	case "postgresql":
-		return []string{"-e", "POSTGRES_PASSWORD=" + password, "-e", "POSTGRES_USER=goolify", "-e", "POSTGRES_DB=goolify"}
+		return []string{"-e", "POSTGRES_PASSWORD=" + password, "-e", "POSTGRES_USER=dockfin", "-e", "POSTGRES_DB=dockfin"}
 	case "mysql", "mariadb":
-		return []string{"-e", "MYSQL_ROOT_PASSWORD=" + password, "-e", "MYSQL_DATABASE=goolify"}
+		return []string{"-e", "MYSQL_ROOT_PASSWORD=" + password, "-e", "MYSQL_DATABASE=dockfin"}
 	case "mongodb":
-		return []string{"-e", "MONGO_INITDB_ROOT_USERNAME=goolify", "-e", "MONGO_INITDB_ROOT_PASSWORD=" + password}
+		return []string{"-e", "MONGO_INITDB_ROOT_USERNAME=dockfin", "-e", "MONGO_INITDB_ROOT_PASSWORD=" + password}
 	case "redis", "keydb", "dragonfly":
 		// Password is applied via engineCmd (--requirepass); official images ignore REDIS_PASSWORD alone.
 		return nil

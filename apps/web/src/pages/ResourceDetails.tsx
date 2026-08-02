@@ -80,7 +80,7 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Manual dumps write to `/data/goolify/backups` on the server (PostgreSQL).
+          Manual dumps write to `/data/dockfin/backups` on the server (PostgreSQL).
         </p>
         <Btn primary onClick={() => runNow.mutate()}>
           {runNow.isPending ? 'Dumping…' : 'Run backup now'}
@@ -348,7 +348,7 @@ export function DatabaseDetailPage() {
             <div className="panel-card space-y-3 border-error-200 p-5 dark:border-error-500/30">
               <h2 className="text-sm font-semibold text-error-500">Stop database</h2>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Stops the container on the remote server without removing Goolify configuration.
+                Stops the container on the remote server without removing Dockfin configuration.
               </p>
               <p className="text-sm text-gray-600 dark:text-gray-300">
                 Current status: <span className="font-medium capitalize">{d.status || 'unknown'}</span>
@@ -362,7 +362,7 @@ export function DatabaseDetailPage() {
                 <h3 className="text-sm font-semibold text-error-500">Delete Resource</h3>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   This will stop your containers, delete related data, and remove the database from
-                  Goolify. Beware — there is no coming back.
+                  Dockfin. Beware — there is no coming back.
                 </p>
                 <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
                   Container status:{' '}
@@ -389,7 +389,7 @@ export function DatabaseDetailPage() {
               }
               actions={[
                 'Permanently delete all containers of this resource.',
-                'Remove schedules, backup history, and the database record from Goolify.',
+                'Remove schedules, backup history, and the database record from Dockfin.',
               ]}
               requirePassword
               showResourceCheckboxes
@@ -505,7 +505,7 @@ export function ServerDetailPage() {
   const [tab, setTab] = useState('overview')
   const [destName, setDestName] = useState('')
   const [destKind, setDestKind] = useState('standalone')
-  const [destNetwork, setDestNetwork] = useState('goolify')
+  const [destNetwork, setDestNetwork] = useState('dockfin')
   const [wildcardDomain, setWildcardDomain] = useState('')
   const [magicDomain, setMagicDomain] = useState('sslip.io')
   const [publicIP, setPublicIP] = useState('')
@@ -513,7 +513,7 @@ export function ServerDetailPage() {
     setTab('overview')
     setDestName('')
     setDestKind('standalone')
-    setDestNetwork('goolify')
+    setDestNetwork('dockfin')
   }, [serverId])
 
   const server = useQuery({ queryKey: ['server', serverId], queryFn: () => api.getServer(serverId) })
@@ -822,13 +822,13 @@ export function ServerDetailPage() {
           <div className="panel-card space-y-4 border-error-200 p-5 dark:border-error-500/30">
             <h2 className="text-sm font-semibold text-error-500">Danger zone</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Remove this server from Goolify. Containers on the host are not deleted.
+              Remove this server from Dockfin. Containers on the host are not deleted.
             </p>
             <button
               type="button"
               className="inline-flex h-8 items-center rounded-md border border-error-500 px-2.5 text-xs font-medium text-error-500 hover:bg-error-500/10"
               onClick={() => {
-                if (confirm('Delete this server from Goolify?')) remove.mutate()
+                if (confirm('Delete this server from Dockfin?')) remove.mutate()
               }}
             >
               Delete server

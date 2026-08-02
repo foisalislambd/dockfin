@@ -3,7 +3,7 @@ package crypto_test
 import (
 	"testing"
 
-	"github.com/goolify/goolify/internal/crypto"
+	"github.com/dockfin/dockfin/internal/crypto"
 )
 
 func TestBoxRoundTrip(t *testing.T) {

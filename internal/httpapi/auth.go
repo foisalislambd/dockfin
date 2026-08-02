@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/crypto"
-	"github.com/goolify/goolify/internal/store"
+	"github.com/dockfin/dockfin/internal/crypto"
+	"github.com/dockfin/dockfin/internal/store"
 )
 
 func (a *API) handleRegister(w http.ResponseWriter, r *http.Request) {

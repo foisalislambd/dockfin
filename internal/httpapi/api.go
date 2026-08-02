@@ -13,12 +13,12 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/config"
-	"github.com/goolify/goolify/internal/store"
-	"github.com/goolify/goolify/internal/terminal"
-	"github.com/goolify/goolify/internal/version"
-	"github.com/goolify/goolify/internal/worker"
-	"github.com/goolify/goolify/internal/ws"
+	"github.com/dockfin/dockfin/internal/config"
+	"github.com/dockfin/dockfin/internal/store"
+	"github.com/dockfin/dockfin/internal/terminal"
+	"github.com/dockfin/dockfin/internal/version"
+	"github.com/dockfin/dockfin/internal/worker"
+	"github.com/dockfin/dockfin/internal/ws"
 )
 
 type ctxKey string
@@ -60,12 +60,12 @@ func (a *API) Router() http.Handler {
 	}))
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "service": "goolify"})
+		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "service": "dockfin"})
 	})
 	r.Get("/api/v1/version", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"version": version.Version,
-			"name":    "Goolify",
+			"name":    "Dockfin",
 			"license": "MIT",
 		})
 	})
@@ -332,7 +332,7 @@ func (a *API) requireAuth(next http.Handler) http.Handler {
 			writeError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
-		// Prefer session cookie / session bearer; fall back to API tokens (glfy_…).
+		// Prefer session cookie / session bearer; fall back to API tokens (dfin_…).
 		sess, err := a.Store.GetSession(r.Context(), token)
 		if err == nil {
 			user, err := a.Store.GetUserByID(r.Context(), sess.UserID)
@@ -419,7 +419,7 @@ func currentTeamID(r *http.Request) uuid.UUID {
 }
 
 func sessionToken(r *http.Request) string {
-	if c, err := r.Cookie("goolify_session"); err == nil && c.Value != "" {
+	if c, err := r.Cookie("dockfin_session"); err == nil && c.Value != "" {
 		return c.Value
 	}
 	auth := r.Header.Get("Authorization")
@@ -431,7 +431,7 @@ func sessionToken(r *http.Request) string {
 
 func setSessionCookie(w http.ResponseWriter, cfg *config.Config, token string, expires time.Time) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     "goolify_session",
+		Name:     "dockfin_session",
 		Value:    token,
 		Path:     "/",
 		Expires:  expires,
@@ -443,7 +443,7 @@ func setSessionCookie(w http.ResponseWriter, cfg *config.Config, token string, e
 
 func clearSessionCookie(w http.ResponseWriter, cfg *config.Config) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     "goolify_session",
+		Name:     "dockfin_session",
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,

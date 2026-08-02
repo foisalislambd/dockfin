@@ -259,7 +259,7 @@ func applyInstanceSettingsPatch(cur *InstanceSettings, patch *InstanceSettingsPa
 	if patch.InstanceName != nil {
 		cur.InstanceName = strings.TrimSpace(*patch.InstanceName)
 		if cur.InstanceName == "" {
-			cur.InstanceName = "Goolify"
+			cur.InstanceName = "Dockfin"
 		}
 	}
 	if patch.InstanceTimezone != nil {

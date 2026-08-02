@@ -142,7 +142,7 @@
     0 8px 10px -6px rgba(0, 0, 0, 0.35);
 }
 
-@keyframes goolify-skeleton-shimmer {
+@keyframes dockfin-skeleton-shimmer {
   0% {
     background-position: 100% 0;
   }
@@ -151,7 +151,7 @@
   }
 }
 
-.goolify-skeleton {
+.dockfin-skeleton {
   background: linear-gradient(
     90deg,
     #e4e7ec 0%,
@@ -159,10 +159,10 @@
     #e4e7ec 80%
   );
   background-size: 200% 100%;
-  animation: goolify-skeleton-shimmer 1.4s ease-in-out infinite;
+  animation: dockfin-skeleton-shimmer 1.4s ease-in-out infinite;
 }
 
-.dark .goolify-skeleton {
+.dark .dockfin-skeleton {
   background: linear-gradient(
     90deg,
     #1d2939 0%,

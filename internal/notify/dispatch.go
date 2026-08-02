@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/mailer"
-	"github.com/goolify/goolify/internal/store"
+	"github.com/dockfin/dockfin/internal/mailer"
+	"github.com/dockfin/dockfin/internal/store"
 )
 
 // Dispatcher sends events to all enabled team notification channels.
@@ -96,8 +96,8 @@ func (d *Dispatcher) sendEmail(ctx context.Context, teamID uuid.UUID, cfg EmailC
 		FromName: cfg.SMTPFromName,
 		From:     cfg.SMTPFromAddress,
 		To:       to,
-		Subject:  "Goolify: " + event.Title,
-		Body:     event.Message + "\n\n— Goolify",
+		Subject:  "Dockfin: " + event.Title,
+		Body:     event.Message + "\n\n— Dockfin",
 	}
 
 	if cfg.UseInstanceEmailSettings {

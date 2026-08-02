@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/bootstrap"
-	"github.com/goolify/goolify/internal/proxy"
-	"github.com/goolify/goolify/internal/sshx"
-	"github.com/goolify/goolify/internal/store"
+	"github.com/dockfin/dockfin/internal/bootstrap"
+	"github.com/dockfin/dockfin/internal/proxy"
+	"github.com/dockfin/dockfin/internal/sshx"
+	"github.com/dockfin/dockfin/internal/store"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -33,7 +33,7 @@ type BootstrapSelfResult struct {
 func (a *API) bootstrapSelfServer(ctx context.Context, teamID uuid.UUID, startProxy bool) (*BootstrapSelfResult, error) {
 	publicIP := a.resolvedPublicIP()
 	if publicIP == "" {
-		return nil, fmt.Errorf("could not detect public IP — set GOOLIFY_PUBLIC_IP")
+		return nil, fmt.Errorf("could not detect public IP — set DOCKFIN_PUBLIC_IP")
 	}
 
 	servers, err := a.Store.ListServers(ctx, teamID)
@@ -234,7 +234,7 @@ func (a *API) validateAndMaybeProxy(ctx context.Context, teamID, serverID uuid.U
 		_ = a.Store.UpdateServerStatus(ctx, serverID, true, false, "", "unknown")
 		return false, false, err
 	}
-	_ = sshx.EnsureNetwork(client, "goolify")
+	_ = sshx.EnsureNetwork(client, "dockfin")
 	proxyStatus := proxy.ProxyStatus(client)
 	_ = a.Store.UpdateServerStatus(ctx, serverID, true, true, version, proxyStatus)
 	validated = true
@@ -246,7 +246,7 @@ func (a *API) validateAndMaybeProxy(ctx context.Context, teamID, serverID uuid.U
 		_ = a.Store.UpdateServerProxyStatus(ctx, serverID, "running")
 		return validated, true, nil
 	}
-	network := "goolify"
+	network := "dockfin"
 	if dests, err := a.Store.ListDestinations(ctx, teamID, &serverID); err == nil && len(dests) > 0 && dests[0].Network != "" {
 		network = dests[0].Network
 	}
@@ -259,7 +259,7 @@ func (a *API) validateAndMaybeProxy(ctx context.Context, teamID, serverID uuid.U
 
 func (a *API) handleBootstrapSelf(w http.ResponseWriter, r *http.Request) {
 	if !a.Cfg.BootstrapSelf {
-		writeError(w, http.StatusForbidden, "bootstrap disabled (GOOLIFY_BOOTSTRAP_SELF=0)")
+		writeError(w, http.StatusForbidden, "bootstrap disabled (DOCKFIN_BOOTSTRAP_SELF=0)")
 		return
 	}
 	var body struct {

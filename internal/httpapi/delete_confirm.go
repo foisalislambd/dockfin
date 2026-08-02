@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/goolify/goolify/internal/crypto"
-	"github.com/goolify/goolify/internal/sshx"
+	"github.com/dockfin/dockfin/internal/crypto"
+	"github.com/dockfin/dockfin/internal/sshx"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -96,7 +96,7 @@ func (a *API) authorizeDestructiveAction(w http.ResponseWriter, r *http.Request,
 
 var protectedNetworks = map[string]struct{}{
 	"bridge": {}, "host": {}, "none": {},
-	"goolify": {}, "coolify": {},
+	"dockfin": {}, "coolify": {},
 }
 
 // removeResourceScopedNetwork mirrors Coolify deleteConnectedNetworks: remove a network
@@ -109,7 +109,7 @@ func removeResourceScopedNetwork(client *ssh.Client, resourceID string) {
 	if _, protected := protectedNetworks[name]; protected {
 		return
 	}
-	_, _, _ = sshx.RunArgs(client, "docker", "network", "disconnect", name, "goolify-proxy")
+	_, _, _ = sshx.RunArgs(client, "docker", "network", "disconnect", name, "dockfin-proxy")
 	_, _, _ = sshx.RunArgs(client, "docker", "network", "rm", name)
 }
 

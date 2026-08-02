@@ -7,11 +7,11 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/goolify/goolify/internal/services"
+	"github.com/dockfin/dockfin/internal/services"
 )
 
 func resolveWebDir(configured string) string {
-	candidates := []string{configured, "apps/web/dist", "web", "/app/web", "/opt/goolify/web"}
+	candidates := []string{configured, "apps/web/dist", "web", "/app/web", "/opt/dockfin/web"}
 	for _, dir := range candidates {
 		if dir == "" {
 			continue
@@ -66,7 +66,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Goolify API</title>
+  <title>Dockfin API</title>
   <style>
     :root { color-scheme: dark; }
     body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: #0b1220; color: #e5eefc; }
@@ -81,7 +81,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 </head>
 <body>
   <main>
-    <h1>Goolify API is running</h1>
+    <h1>Dockfin API is running</h1>
     <p>This port serves the control-plane API. Opening <code>/</code> in a browser is not the dashboard UI.</p>
     <div class="box">
       <ul>
@@ -90,7 +90,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
         <li>API base: <code>/api/v1</code></li>
       </ul>
     </div>
-    <p>Build the UI with <code>cd apps/web &amp;&amp; npm i &amp;&amp; npm run build</code>, set <code>GOOLIFY_WEB_DIR=apps/web/dist</code>, restart <code>goolify serve</code>, then reload this page.</p>
+    <p>Build the UI with <code>cd apps/web &amp;&amp; npm i &amp;&amp; npm run build</code>, set <code>DOCKFIN_WEB_DIR=apps/web/dist</code>, restart <code>dockfin serve</code>, then reload this page.</p>
   </main>
 </body>
 </html>`))

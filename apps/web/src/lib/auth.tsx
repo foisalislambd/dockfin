@@ -41,8 +41,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTeams([])
       setLoading(false)
     }
-    window.addEventListener('goolify:unauthorized', onUnauth)
-    return () => window.removeEventListener('goolify:unauthorized', onUnauth)
+    window.addEventListener('dockfin:unauthorized', onUnauth)
+    return () => window.removeEventListener('dockfin:unauthorized', onUnauth)
   }, [])
 
   const logout = async () => {

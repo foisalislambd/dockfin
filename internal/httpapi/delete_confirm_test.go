@@ -31,7 +31,7 @@ func TestDeleteOptionsDefaults(t *testing.T) {
 }
 
 func TestProtectedNetworks(t *testing.T) {
-	for _, name := range []string{"bridge", "host", "none", "goolify", "coolify"} {
+	for _, name := range []string{"bridge", "host", "none", "dockfin", "coolify"} {
 		if _, ok := protectedNetworks[name]; !ok {
 			t.Fatalf("expected %q to be protected", name)
 		}

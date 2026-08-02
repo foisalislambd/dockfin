@@ -63,7 +63,7 @@
 
 ## Polish
 - [x] Command palette (⌘K)
-- [x] CLI `glfy` (deploy/logs/apps/servers)
+- [x] CLI `dfin` (deploy/logs/apps/servers)
 - [x] Production install.sh
 - [x] OpenAPI skeleton
 - [x] Docs + FEATURES

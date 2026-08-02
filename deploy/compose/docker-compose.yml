@@ -2,15 +2,15 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: goolify
-      POSTGRES_PASSWORD: goolify
-      POSTGRES_DB: goolify
+      POSTGRES_USER: dockfin
+      POSTGRES_PASSWORD: dockfin
+      POSTGRES_DB: dockfin
     ports:
       - "5432:5432"
     volumes:
-      - goolify-pg:/var/lib/postgresql/data
+      - dockfin-pg:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U goolify"]
+      test: ["CMD-SHELL", "pg_isready -U dockfin"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -22,24 +22,24 @@ services:
     profiles: ["redis"]
 
   # Single image: API + Vite dashboard
-  goolify:
+  dockfin:
     build:
       context: ../..
       dockerfile: deploy/docker/Dockerfile.api
     env_file:
       - ../../.env
     environment:
-      GOOLIFY_DATABASE_URL: postgres://goolify:goolify@postgres:5432/goolify?sslmode=disable
-      GOOLIFY_HTTP_ADDR: ":8000"
-      GOOLIFY_WEB_DIR: /app/web
+      DOCKFIN_DATABASE_URL: postgres://dockfin:dockfin@postgres:5432/dockfin?sslmode=disable
+      DOCKFIN_HTTP_ADDR: ":8000"
+      DOCKFIN_WEB_DIR: /app/web
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
-      - goolify-data:/data
+      - dockfin-data:/data
 
 volumes:
-  goolify-pg:
-  goolify-data:
+  dockfin-pg:
+  dockfin-data:

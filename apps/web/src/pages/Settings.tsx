@@ -165,7 +165,7 @@ function emptyForm(): InstanceSettings {
   return {
     id: 1,
     public_url: '',
-    instance_name: 'Goolify',
+    instance_name: 'Dockfin',
     instance_timezone: 'UTC',
     public_ipv4: '',
     public_ipv6: '',
@@ -239,13 +239,13 @@ export function SettingsPage() {
   })
   const [backupFreq, setBackupFreq] = useState('0 0 * * *')
   const [backupRetention, setBackupRetention] = useState('7')
-  const [backupDesc, setBackupDesc] = useState('Goolify database')
+  const [backupDesc, setBackupDesc] = useState('Dockfin database')
 
   useEffect(() => {
     if (backups.data?.backup) {
       setBackupFreq(backups.data.backup.frequency || '0 0 * * *')
       setBackupRetention(String(backups.data.backup.retention ?? 7))
-      setBackupDesc(backups.data.backup.description || 'Goolify database')
+      setBackupDesc(backups.data.backup.description || 'Dockfin database')
     }
   }, [backups.data])
 
@@ -481,7 +481,7 @@ export function SettingsPage() {
                     helper="Full URL of the instance (include https:// for TLS)."
                     value={form.public_url}
                     onChange={(v) => set('public_url', v)}
-                    placeholder="https://goolify.yourdomain.com"
+                    placeholder="https://dockfin.yourdomain.com"
                     required={false}
                   />
                   <TextField
@@ -489,7 +489,7 @@ export function SettingsPage() {
                     helper="Custom name shown for this instance."
                     value={form.instance_name}
                     onChange={(v) => set('instance_name', v)}
-                    placeholder="Goolify"
+                    placeholder="Dockfin"
                     required={false}
                   />
                   <div className="relative w-full text-sm">
@@ -696,7 +696,7 @@ export function SettingsPage() {
                 />
                 <TextField
                   label="Frequency (cron expression)"
-                  helper="When Goolify auto-updates (default: daily at 00:00)."
+                  helper="When Dockfin auto-updates (default: daily at 00:00)."
                   value={form.auto_update_frequency}
                   onChange={(v) => set('auto_update_frequency', v)}
                   placeholder="0 0 * * *"
@@ -706,7 +706,7 @@ export function SettingsPage() {
                 <label className="block max-w-md text-sm">
                   <FieldLabel
                     label="Docker Registry"
-                    helper="Registry used to pull Goolify images during updates."
+                    helper="Registry used to pull Dockfin images during updates."
                   />
                   <select
                     value={form.docker_registry_url}
@@ -733,7 +733,7 @@ export function SettingsPage() {
                 </label>
                 <div className="panel-card mt-4 p-4 text-sm text-gray-600 dark:text-gray-300">
                   Running <span className="font-mono">{version.data?.version || '—'}</span> (
-                  {version.data?.name || 'Goolify'})
+                  {version.data?.name || 'Dockfin'})
                 </div>
               </form>
             )}
@@ -909,13 +909,13 @@ export function SettingsPage() {
           {backups.data && !backups.data.backup.configured && (
             <div className="panel-card space-y-3 p-5">
               <p className="text-sm text-gray-600 dark:text-gray-300">
-                To configure automatic local backup for your Goolify instance, add the instance database
+                To configure automatic local backup for your Dockfin instance, add the instance database
                 resource. Dumps are stored under{' '}
                 <span className="font-mono text-xs">{backups.data.runtime.backup_dir}</span>.
               </p>
               {!backups.data.runtime.detected_container && (
                 <p className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">
-                  No running Postgres container detected. Start the Goolify database container, then try again.
+                  No running Postgres container detected. Start the Dockfin database container, then try again.
                 </p>
               )}
               <Btn
@@ -947,7 +947,7 @@ export function SettingsPage() {
                     label="Password"
                     value="••••••••"
                     onChange={() => {}}
-                    placeholder="from GOOLIFY_DATABASE_URL"
+                    placeholder="from DOCKFIN_DATABASE_URL"
                   />
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
@@ -1108,7 +1108,7 @@ export function SettingsPage() {
           <div className="panel-card space-y-4 p-6">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">License</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Goolify is free and open source software licensed under the MIT License.
+              Dockfin is free and open source software licensed under the MIT License.
             </p>
             <pre className="max-h-72 overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-3 font-mono text-xs whitespace-pre-wrap dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
               {MIT_LICENSE_TEXT}

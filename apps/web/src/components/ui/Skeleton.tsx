@@ -13,7 +13,7 @@ export function Skeleton({
   return (
     <div
       aria-hidden
-      className={cx('goolify-skeleton rounded-md', className)}
+      className={cx('dockfin-skeleton rounded-md', className)}
       style={style}
       {...rest}
     />

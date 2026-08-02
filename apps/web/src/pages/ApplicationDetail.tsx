@@ -541,7 +541,7 @@ export function ApplicationDetailPage() {
             }}
           >
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              After deploy, Goolify probes this HTTP endpoint inside the container (path / port /
+              After deploy, Dockfin probes this HTTP endpoint inside the container (path / port /
               expected status). Retries use the interval below until healthy or exhausted.
             </p>
             <label className="flex items-center gap-3 text-sm">
@@ -780,8 +780,8 @@ export function ApplicationDetailPage() {
           {serverId ? (
             <ServerTerminal
               serverId={serverId}
-              defaultContainer={`goolify-${appId}`}
-              containerOptions={[`goolify-${appId}`]}
+              defaultContainer={`dockfin-${appId}`}
+              containerOptions={[`dockfin-${appId}`]}
               hideHostShell
             />
           ) : (
@@ -881,7 +881,7 @@ export function ApplicationDetailPage() {
                 <h3 className="text-sm font-semibold text-error-500">Delete Resource</h3>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   This will stop your containers, delete related data on the server, and remove the
-                  application from Goolify. Beware — there is no coming back.
+                  application from Dockfin. Beware — there is no coming back.
                 </p>
                 <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
                   Container status:{' '}
@@ -890,7 +890,7 @@ export function ApplicationDetailPage() {
                     ? ' — container will be stopped and removed.'
                     : a.status === 'exited' || a.status === 'stopped'
                       ? ' — container is already stopped; it will still be removed.'
-                      : ' — Goolify will best-effort remove any matching container.'}
+                      : ' — Dockfin will best-effort remove any matching container.'}
                 </p>
               </div>
               <Btn type="button" onClick={() => setDeleteOpen(true)}>
@@ -912,7 +912,7 @@ export function ApplicationDetailPage() {
               }
               actions={[
                 'Permanently delete all containers of this resource.',
-                'Remove the application record, env vars, and scheduled jobs from Goolify.',
+                'Remove the application record, env vars, and scheduled jobs from Dockfin.',
               ]}
               requirePassword
               showResourceCheckboxes

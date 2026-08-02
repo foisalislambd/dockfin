@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/proxy"
-	"github.com/goolify/goolify/internal/store"
+	"github.com/dockfin/dockfin/internal/proxy"
+	"github.com/dockfin/dockfin/internal/store"
 )
 
 // resolveServerForDomain returns the server used for magic/wildcard FQDN generation.

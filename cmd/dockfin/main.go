@@ -10,17 +10,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/goolify/goolify/internal/config"
-	"github.com/goolify/goolify/internal/crypto"
-	"github.com/goolify/goolify/internal/db"
-	"github.com/goolify/goolify/internal/httpapi"
-	"github.com/goolify/goolify/internal/scheduler"
-	"github.com/goolify/goolify/internal/sshx"
-	"github.com/goolify/goolify/internal/store"
-	"github.com/goolify/goolify/internal/terminal"
-	"github.com/goolify/goolify/internal/version"
-	"github.com/goolify/goolify/internal/worker"
-	"github.com/goolify/goolify/internal/ws"
+	"github.com/dockfin/dockfin/internal/config"
+	"github.com/dockfin/dockfin/internal/crypto"
+	"github.com/dockfin/dockfin/internal/db"
+	"github.com/dockfin/dockfin/internal/httpapi"
+	"github.com/dockfin/dockfin/internal/scheduler"
+	"github.com/dockfin/dockfin/internal/sshx"
+	"github.com/dockfin/dockfin/internal/store"
+	"github.com/dockfin/dockfin/internal/terminal"
+	"github.com/dockfin/dockfin/internal/version"
+	"github.com/dockfin/dockfin/internal/worker"
+	"github.com/dockfin/dockfin/internal/ws"
 )
 
 func main() {
@@ -31,7 +31,7 @@ func main() {
 	cmd := os.Args[1]
 	switch cmd {
 	case "version":
-		fmt.Println("goolify", version.Version)
+		fmt.Println("dockfin", version.Version)
 	case "migrate":
 		if err := runMigrate(); err != nil {
 			fatal(err)
@@ -42,7 +42,7 @@ func main() {
 		}
 	case "worker":
 		// Alias of serve — workers are embedded in the API process (not a separate binary).
-		fmt.Fprintln(os.Stderr, "note: 'goolify worker' is an alias of 'goolify serve' (workers run in-process)")
+		fmt.Fprintln(os.Stderr, "note: 'dockfin worker' is an alias of 'dockfin serve' (workers run in-process)")
 		if err := runServe(); err != nil {
 			fatal(err)
 		}
@@ -53,13 +53,13 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Fprintf(os.Stderr, `Goolify — open-source self-hosted PaaS
+	fmt.Fprintf(os.Stderr, `Dockfin — open-source self-hosted PaaS
 
 Usage:
-  goolify migrate   Run database migrations
-  goolify serve     Start API + embedded workers
-  goolify worker    Alias of serve (workers are not a separate process)
-  goolify version   Print version
+  dockfin migrate   Run database migrations
+  dockfin serve     Start API + embedded workers
+  dockfin worker    Alias of serve (workers are not a separate process)
+  dockfin version   Print version
 `)
 }
 
@@ -138,7 +138,7 @@ func runServe() error {
 	}
 
 	go func() {
-		logger.Info("goolify listening", "addr", cfg.HTTPAddr, "version", version.Version)
+		logger.Info("dockfin listening", "addr", cfg.HTTPAddr, "version", version.Version)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			fatal(err)
 		}

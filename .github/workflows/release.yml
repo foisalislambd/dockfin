@@ -127,8 +127,8 @@ jobs:
       - name: Build with release version
         run: |
           VER="${{ needs.prepare.outputs.version }}"
-          go build -ldflags="-X github.com/goolify/goolify/internal/version.Version=${VER}" -o /tmp/goolify ./cmd/goolify
-          /tmp/goolify version | tee /tmp/ver.out
+          go build -ldflags="-X github.com/dockfin/dockfin/internal/version.Version=${VER}" -o /tmp/dockfin ./cmd/dockfin
+          /tmp/dockfin version | tee /tmp/ver.out
           grep -Fq "${VER}" /tmp/ver.out
       - uses: actions/setup-node@v4
         with:
@@ -159,8 +159,8 @@ jobs:
             echo "DOCKERHUB_USERNAME secret is required" >&2
             exit 1
           fi
-          echo "ghcr=${{ env.REGISTRY }}/${owner_lc}/goolify" >> "$GITHUB_OUTPUT"
-          echo "hub=${hub_user}/goolify" >> "$GITHUB_OUTPUT"
+          echo "ghcr=${{ env.REGISTRY }}/${owner_lc}/dockfin" >> "$GITHUB_OUTPUT"
+          echo "hub=${hub_user}/dockfin" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -198,8 +198,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ needs.prepare.outputs.version }}
-          cache-from: type=gha,scope=release-goolify
-          cache-to: type=gha,mode=max,scope=release-goolify,ignore-error=true
+          cache-from: type=gha,scope=release-dockfin
+          cache-to: type=gha,mode=max,scope=release-dockfin,ignore-error=true
 
   tag-and-release:
     needs: [prepare, verify, docker]
@@ -223,7 +223,7 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "${TAG}" -m "Goolify ${VER}"
+          git tag -a "${TAG}" -m "Dockfin ${VER}"
           git push origin "${TAG}"
           echo "Pushed ${TAG}"
       - name: Build release notes
@@ -232,19 +232,19 @@ jobs:
           owner_lc="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
           hub_user="${{ secrets.DOCKERHUB_USERNAME }}"
           {
-            echo "## Goolify ${VER}"
+            echo "## Dockfin ${VER}"
             echo
             echo "GitHub Release and Docker tags use the **same version**: \`${VER}\`"
             echo
             echo "### Docker (API + dashboard in one image)"
             echo
             echo "**Docker Hub**"
-            echo "- \`${hub_user}/goolify:${VER}\`"
-            echo "- \`${hub_user}/goolify:latest\`"
+            echo "- \`${hub_user}/dockfin:${VER}\`"
+            echo "- \`${hub_user}/dockfin:latest\`"
             echo
             echo "**GitHub Container Registry**"
-            echo "- \`ghcr.io/${owner_lc}/goolify:${VER}\`"
-            echo "- \`ghcr.io/${owner_lc}/goolify:latest\`"
+            echo "- \`ghcr.io/${owner_lc}/dockfin:${VER}\`"
+            echo "- \`ghcr.io/${owner_lc}/dockfin:latest\`"
             echo
             echo "Dashboard and API share port 8000 (map host \`80:8000\` if desired)."
             echo

@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/goolify/goolify/internal/notify"
-	"github.com/goolify/goolify/internal/store"
+	"github.com/dockfin/dockfin/internal/notify"
+	"github.com/dockfin/dockfin/internal/store"
 )
 
 var notificationChannels = []string{"email", "discord", "telegram", "slack", "pushover", "webhook"}

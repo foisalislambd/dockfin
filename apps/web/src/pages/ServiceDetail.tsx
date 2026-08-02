@@ -123,7 +123,7 @@ export function ServiceDetailPage() {
     const s = svc.data
     if (!s) return [] as string[]
     const units = s.units || []
-    return units.map((u) => `goolify-svc-${svcId.slice(0, 8)}-${u.name}-1`)
+    return units.map((u) => `dockfin-svc-${svcId.slice(0, 8)}-${u.name}-1`)
   }, [svc.data, svcId])
 
   const save = useMutation({
@@ -457,7 +457,7 @@ export function ServiceDetailPage() {
                     <h3 className="text-sm font-semibold text-error-500">Delete Resource</h3>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                       This will stop your compose stack, optionally remove volumes/config files, and
-                      delete the service from Goolify. Beware — there is no coming back.
+                      delete the service from Dockfin. Beware — there is no coming back.
                     </p>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
                       Stack status:{' '}
@@ -485,7 +485,7 @@ export function ServiceDetailPage() {
                   actions={[
                     'Permanently delete all containers of this resource.',
                     'Optionally remove volumes, config directory, and run docker image prune.',
-                    'Remove the service record from Goolify.',
+                    'Remove the service record from Dockfin.',
                   ]}
                   requirePassword
                   showResourceCheckboxes
@@ -570,7 +570,7 @@ function GeneralPanel({
           Connect To Predefined Network
         </label>
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Stack joins the destination Docker network (usually <code>goolify</code>) so Traefik can
+          Stack joins the destination Docker network (usually <code>dockfin</code>) so Traefik can
           route public domains.
         </p>
       </section>

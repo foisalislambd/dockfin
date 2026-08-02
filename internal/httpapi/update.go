@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/worker"
+	"github.com/dockfin/dockfin/internal/worker"
 )
 
 func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {

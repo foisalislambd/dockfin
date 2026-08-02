@@ -33,7 +33,7 @@ services:
 `
 	out, env, err := PrepareCompose(raw, PrepareOpts{
 		ServiceID: "test",
-		Network:   "goolify",
+		Network:   "dockfin",
 		BaseURL:   "https://wp.example.com",
 	})
 	if err != nil {
@@ -66,7 +66,7 @@ services:
 	if !strings.Contains(out, "SERVICE_URL_WORDPRESS=https://wp.example.com") {
 		t.Fatalf("bare SERVICE_URL not expanded to KEY=value:\n%s", out)
 	}
-	if !strings.Contains(out, "goolify") {
+	if !strings.Contains(out, "dockfin") {
 		t.Fatalf("expected network attachment:\n%s", out)
 	}
 	// Proxy-facing wordpress joins shared network; mysql stays on default only.
@@ -105,7 +105,7 @@ services:
 	out, env, err := PrepareCompose(raw, PrepareOpts{
 		BaseURL:    "http://n8n.1.2.3.4.sslip.io",
 		FQDN:       "n8n.1.2.3.4.sslip.io",
-		Network:    "goolify",
+		Network:    "dockfin",
 		RouterName: "n8n",
 	})
 	if err != nil {
@@ -146,7 +146,7 @@ services:
 	out, env, err := PrepareCompose(raw, PrepareOpts{
 		BaseURL:    "http://n8n.1.2.3.4.sslip.io",
 		FQDN:       "n8n.1.2.3.4.sslip.io",
-		Network:    "goolify",
+		Network:    "dockfin",
 		RouterName: "n8n",
 	})
 	if err != nil {
@@ -271,7 +271,7 @@ services:
 	out, env, err := PrepareCompose(raw, PrepareOpts{
 		BaseURL: "http://gatus.example.com",
 		FQDN:    "gatus.example.com",
-		Network: "goolify",
+		Network: "dockfin",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -323,7 +323,7 @@ func TestGatusConfigUsesServiceURL(t *testing.T) {
 	out, env, err := PrepareCompose(string(raw), PrepareOpts{
 		BaseURL:    "http://gatus.example.com",
 		FQDN:       "gatus.example.com",
-		Network:    "goolify",
+		Network:    "dockfin",
 		RouterName: "gatus",
 	})
 	if err != nil {
@@ -393,30 +393,30 @@ services:
 	out, _, err := PrepareCompose(raw, PrepareOpts{
 		BaseURL:    "http://planka.example.com",
 		FQDN:       "planka.example.com",
-		Network:    "goolify",
+		Network:    "dockfin",
 		RouterName: "planka",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Crude but effective: postgresql service block should not list goolify before volumes/networks end
+	// Crude but effective: postgresql service block should not list dockfin before volumes/networks end
 	pgIdx := strings.Index(out, "postgresql:")
 	plankaIdx := strings.Index(out, "planka:")
 	if pgIdx < 0 || plankaIdx < 0 {
 		t.Fatalf("missing services:\n%s", out)
 	}
 	// Find networks under planka vs postgresql by splitting on service keys is hard in yaml order.
-	// Check that "goolify" appears as external and planka has both networks.
+	// Check that "dockfin" appears as external and planka has both networks.
 	if !strings.Contains(out, "external: true") && !strings.Contains(out, "external:true") {
-		t.Fatalf("expected external goolify network:\n%s", out)
+		t.Fatalf("expected external dockfin network:\n%s", out)
 	}
-	if !strings.Contains(out, "goolify") {
-		t.Fatalf("expected goolify:\n%s", out)
+	if !strings.Contains(out, "dockfin") {
+		t.Fatalf("expected dockfin:\n%s", out)
 	}
-	// Count goolify attachments under services — should be once (planka only), plus networks section.
+	// Count dockfin attachments under services — should be once (planka only), plus networks section.
 	// After prepare, postgresql must resolve via default, not shared DNS.
-	if strings.Count(out, "- goolify") < 1 {
-		t.Fatalf("expected proxy service on goolify:\n%s", out)
+	if strings.Count(out, "- dockfin") < 1 {
+		t.Fatalf("expected proxy service on dockfin:\n%s", out)
 	}
 }
 

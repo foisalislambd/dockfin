@@ -718,7 +718,7 @@ func namedVolumeFromMount(item any) string {
 // ensureExternalNetwork attaches only the Traefik-facing service to the shared
 // proxy network. All services stay on the Compose project default network so
 // short names like "postgresql" resolve inside the stack only — not to another
-// project's DB on the shared goolify network (which caused Planka 404s).
+// project's DB on the shared dockfin network (which caused Planka 404s).
 func ensureExternalNetwork(doc map[string]any, network string) {
 	if network == "" {
 		return

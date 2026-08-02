@@ -7,18 +7,18 @@ tidy:
 	go mod tidy
 
 migrate:
-	go run ./cmd/goolify migrate
+	go run ./cmd/dockfin migrate
 
 api:
-	go run ./cmd/goolify serve
+	go run ./cmd/dockfin serve
 
 web:
 	cd apps/web && npm run dev
 
 build:
-	go build -o bin/goolify.exe ./cmd/goolify
-	go build -o bin/glfy.exe ./cmd/glfy
-	go build -o bin/goolify-sentinel.exe ./cmd/goolify-sentinel
+	go build -o bin/dockfin.exe ./cmd/dockfin
+	go build -o bin/dfin.exe ./cmd/dfin
+	go build -o bin/dockfin-sentinel.exe ./cmd/dockfin-sentinel
 
 test:
 	go test ./...

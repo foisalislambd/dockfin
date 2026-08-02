@@ -16,7 +16,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/store"
+	"github.com/dockfin/dockfin/internal/store"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -108,7 +108,7 @@ func (a *API) handleGenerateKey(w http.ResponseWriter, r *http.Request) {
 	}
 	desc := body.Description
 	if desc == "" {
-		desc = "Created by Goolify"
+		desc = "Created by Dockfin"
 	}
 	enc, err := a.Store.Box.EncryptString(privPEM)
 	if err != nil {

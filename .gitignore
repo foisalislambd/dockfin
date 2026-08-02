@@ -6,8 +6,8 @@
 *.dll
 *.so
 *.dylib
-# Built binary at repo root only (do not ignore cmd/goolify/)
-/goolify
+# Built binary at repo root only (do not ignore cmd/dockfin/)
+/dockfin
 
 # Env / secrets
 .env

@@ -12,10 +12,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/proxy"
-	"github.com/goolify/goolify/internal/services"
-	"github.com/goolify/goolify/internal/sshx"
-	"github.com/goolify/goolify/internal/store"
+	"github.com/dockfin/dockfin/internal/proxy"
+	"github.com/dockfin/dockfin/internal/services"
+	"github.com/dockfin/dockfin/internal/sshx"
+	"github.com/dockfin/dockfin/internal/store"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -439,7 +439,7 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	remoteDir := "/data/goolify/services/" + id.String()
+	remoteDir := "/data/dockfin/services/" + id.String()
 	emit("setup", fmt.Sprintf("Creating remote dir %s", remoteDir))
 	_, errOut, err := sshx.RunArgs(client, "mkdir", "-p", remoteDir)
 	if err != nil {
@@ -450,7 +450,7 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 
 	composePath := remoteDir + "/docker-compose.yml"
 	emit("setup", "Writing docker-compose.yml…")
-	writeCmd := fmt.Sprintf("cat > %s <<'GOOLIFY_COMPOSE_EOF'\n%s\nGOOLIFY_COMPOSE_EOF", composePath, composeYAML)
+	writeCmd := fmt.Sprintf("cat > %s <<'DOCKFIN_COMPOSE_EOF'\n%s\nDOCKFIN_COMPOSE_EOF", composePath, composeYAML)
 	_, errOut, err = sshx.Run(client, writeCmd)
 	if err != nil {
 		_ = a.Store.UpdateServiceStatus(r.Context(), id, "exited")
@@ -459,7 +459,7 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 	}
 	emit("setup", "Compose file written")
 
-	project := "goolify-svc-" + id.String()[:8]
+	project := "dockfin-svc-" + id.String()[:8]
 	upArgs := []string{"docker", "compose", "-p", project, "-f", composePath, "up", "-d", "--remove-orphans"}
 	if force {
 		upArgs = append(upArgs, "--force-recreate")
@@ -585,9 +585,9 @@ func (a *API) handleDeleteService(w http.ResponseWriter, r *http.Request) {
 	// Best-effort: tear down compose stack (+ volumes), then remove remote dir.
 	if serverID, _, err := a.resolveServiceTarget(r.Context(), teamID, svc); err == nil {
 		if client, err := a.dialServer(r, serverID); err == nil {
-			remoteDir := "/data/goolify/services/" + id.String()
+			remoteDir := "/data/dockfin/services/" + id.String()
 			composePath := remoteDir + "/docker-compose.yml"
-			project := "goolify-svc-" + id.String()[:8]
+			project := "dockfin-svc-" + id.String()[:8]
 			downArgs := []string{"docker", "compose", "-p", project, "-f", composePath, "down", "--remove-orphans"}
 			if opts.volumes() {
 				downArgs = append(downArgs, "-v")
@@ -641,9 +641,9 @@ func (a *API) runServiceComposeAction(w http.ResponseWriter, r *http.Request, ac
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	remoteDir := "/data/goolify/services/" + id.String()
+	remoteDir := "/data/dockfin/services/" + id.String()
 	composePath := remoteDir + "/docker-compose.yml"
-	project := "goolify-svc-" + id.String()[:8]
+	project := "dockfin-svc-" + id.String()[:8]
 
 	// Cloned / never-deployed services have no compose file on disk.
 	if _, _, existsErr := sshx.RunArgs(client, "test", "-f", composePath); existsErr != nil {

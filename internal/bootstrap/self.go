@@ -37,7 +37,7 @@ func DetectPublicIP() string {
 		if err != nil {
 			continue
 		}
-		req.Header.Set("User-Agent", "goolify-bootstrap/1.0")
+		req.Header.Set("User-Agent", "dockfin-bootstrap/1.0")
 		res, err := client.Do(req)
 		if err != nil {
 			continue

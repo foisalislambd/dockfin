@@ -17,14 +17,14 @@ func ParseDatabaseURL(raw string) (user, password, dbName string, err error) {
 	if err != nil {
 		return "", "", "", err
 	}
-	user = "goolify"
+	user = "dockfin"
 	if u.User != nil {
 		user = u.User.Username()
 		password, _ = u.User.Password()
 	}
 	dbName = strings.TrimPrefix(u.Path, "/")
 	if dbName == "" {
-		dbName = "goolify"
+		dbName = "dockfin"
 	}
 	return user, password, dbName, nil
 }
@@ -38,7 +38,7 @@ func DetectPostgresContainer(preferred string) (string, error) {
 		}
 		// Preferred exists but is not running — fall through to auto-detect.
 	}
-	candidates := []string{"compose-postgres-1", "goolify-postgres-1", "postgres", "coolify-db"}
+	candidates := []string{"compose-postgres-1", "dockfin-postgres-1", "postgres", "coolify-db"}
 	for _, name := range candidates {
 		out, err := exec.Command("docker", "inspect", "-f", "{{.State.Running}}", name).Output()
 		if err == nil && strings.TrimSpace(string(out)) == "true" {
@@ -64,12 +64,12 @@ func DetectPostgresContainer(preferred string) (string, error) {
 
 // InstanceDumpDir returns the local directory for instance DB dumps.
 func InstanceDumpDir(dataDir string) string {
-	return filepath.Join(dataDir, "backups", "goolify")
+	return filepath.Join(dataDir, "backups", "dockfin")
 }
 
 // InstanceDumpFilename builds a Coolify-like dump filename (unique per call).
 func InstanceDumpFilename() string {
-	return fmt.Sprintf("pg-dump-goolify-%s-%d.sql", time.Now().UTC().Format("20060102-150405"), time.Now().UTC().UnixNano()%1_000_000)
+	return fmt.Sprintf("pg-dump-dockfin-%s-%d.sql", time.Now().UTC().Format("20060102-150405"), time.Now().UTC().UnixNano()%1_000_000)
 }
 
 // DumpInstanceLocal runs pg_dump inside the instance postgres container onto the host filesystem.
@@ -78,10 +78,10 @@ func DumpInstanceLocal(dataDir, container, user, password, dbName, filename stri
 		return "", 0, fmt.Errorf("container required")
 	}
 	if user == "" {
-		user = "goolify"
+		user = "dockfin"
 	}
 	if dbName == "" {
-		dbName = "goolify"
+		dbName = "dockfin"
 	}
 	if filename == "" {
 		filename = InstanceDumpFilename()
@@ -133,7 +133,7 @@ func EnforceLocalRetention(dataDir string, keepCount int) error {
 	}
 	var files []fileInfo
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasPrefix(e.Name(), "pg-dump-goolify-") {
+		if e.IsDir() || !strings.HasPrefix(e.Name(), "pg-dump-dockfin-") {
 			continue
 		}
 		info, err := e.Info()

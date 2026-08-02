@@ -5,21 +5,21 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/goolify/goolify/internal/sshx"
+	"github.com/dockfin/dockfin/internal/sshx"
 	"golang.org/x/crypto/ssh"
 )
 
-const ProxyContainer = TraefikContainer // shared name: goolify-proxy
+const ProxyContainer = TraefikContainer // shared name: dockfin-proxy
 
-// StartCaddy runs lucaslorentz/caddy-docker-proxy as the shared goolify-proxy container.
+// StartCaddy runs lucaslorentz/caddy-docker-proxy as the shared dockfin-proxy container.
 func StartCaddy(client *ssh.Client, image, network string) error {
 	if network == "" {
-		network = "goolify"
+		network = "dockfin"
 	}
 	if err := sshx.EnsureNetwork(client, network); err != nil {
 		return err
 	}
-	_, _, _ = sshx.Run(client, "mkdir -p /data/goolify/proxy/caddy/data /data/goolify/proxy/caddy/config")
+	_, _, _ = sshx.Run(client, "mkdir -p /data/dockfin/proxy/caddy/data /data/dockfin/proxy/caddy/config")
 	_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", ProxyContainer)
 
 	if image == "" {
@@ -33,8 +33,8 @@ func StartCaddy(client *ssh.Client, image, network string) error {
 		"-p", "80:80",
 		"-p", "443:443",
 		"-v", "/var/run/docker.sock:/var/run/docker.sock:ro",
-		"-v", "/data/goolify/proxy/caddy/data:/data",
-		"-v", "/data/goolify/proxy/caddy/config:/config",
+		"-v", "/data/dockfin/proxy/caddy/data:/data",
+		"-v", "/data/dockfin/proxy/caddy/config:/config",
 		"-e", "CADDY_INGRESS_NETWORKS=" + network,
 		image,
 	}
@@ -104,7 +104,7 @@ func safeCaddyPort(port string) bool {
 // StartProxy starts Traefik or Caddy based on proxyType.
 func StartProxy(client *ssh.Client, proxyType, traefikImage, caddyImage, network, acmeEmail string) error {
 	if network == "" {
-		network = "goolify"
+		network = "dockfin"
 	}
 	switch strings.ToLower(proxyType) {
 	case "", "traefik":

@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/backup"
-	"github.com/goolify/goolify/internal/store"
+	"github.com/dockfin/dockfin/internal/backup"
+	"github.com/dockfin/dockfin/internal/store"
 )
 
 func (a *API) requireSettingsAdmin(w http.ResponseWriter, r *http.Request) bool {
@@ -73,7 +73,7 @@ func (a *API) handleConfigureInstanceBackup(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	cfg, err := a.Store.ConfigureInstanceBackup(r.Context(), container, user, dbName, "Goolify database")
+	cfg, err := a.Store.ConfigureInstanceBackup(r.Context(), container, user, dbName, "Dockfin database")
 	if err != nil {
 		mapStoreErr(w, err)
 		return

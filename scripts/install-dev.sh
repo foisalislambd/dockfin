@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Goolify — local / development install
+# Dockfin — local / development install
 #
 # Builds a local Docker image from this repo and runs compose (no registry pull).
 # Uses the same install dir as production by default so rebuilds keep your DB.
@@ -11,24 +11,24 @@ set -euo pipefail
 #   sudo bash scripts/install-dev.sh
 #
 # Optional:
-#   GOOLIFY_DIR=/data/goolify      # same as production (default)
-#   GOOLIFY_IMAGE=goolify:local
-#   GOOLIFY_VERSION=dev
-#   GOOLIFY_HOST_PORT=8000         # host port published to the panel
+#   DOCKFIN_DIR=/data/dockfin      # same as production (default)
+#   DOCKFIN_IMAGE=dockfin:local
+#   DOCKFIN_VERSION=dev
+#   DOCKFIN_HOST_PORT=8000         # host port published to the panel
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-GOOLIFY_DIR="${GOOLIFY_DIR:-/data/goolify}"
-COMPOSE_FILE="${GOOLIFY_DIR}/docker-compose.yml"
-ENV_FILE="${GOOLIFY_DIR}/.env"
-IMAGE="${GOOLIFY_IMAGE:-goolify:local}"
-VERSION="${GOOLIFY_VERSION:-dev}"
-HOST_PORT="${GOOLIFY_HOST_PORT:-8000}"
+DOCKFIN_DIR="${DOCKFIN_DIR:-/data/dockfin}"
+COMPOSE_FILE="${DOCKFIN_DIR}/docker-compose.yml"
+ENV_FILE="${DOCKFIN_DIR}/.env"
+IMAGE="${DOCKFIN_IMAGE:-dockfin:local}"
+VERSION="${DOCKFIN_VERSION:-dev}"
+HOST_PORT="${DOCKFIN_HOST_PORT:-8000}"
 
-echo "==> Goolify development installer"
+echo "==> Dockfin development installer"
 echo "    Repo:        ${REPO_ROOT}"
-echo "    Install dir: ${GOOLIFY_DIR}"
+echo "    Install dir: ${DOCKFIN_DIR}"
 echo "    Image:       ${IMAGE} (built locally — no pull)"
 echo "    Port:        ${HOST_PORT}"
 
@@ -38,8 +38,8 @@ if [[ "${EUID}" -ne 0 ]]; then
 fi
 
 if [[ ! -f "${REPO_ROOT}/deploy/docker/Dockerfile.api" ]]; then
-  echo "Dockerfile not found. Run this script from a goolify git checkout:"
-  echo "  cd /path/to/goolify && sudo bash scripts/install-dev.sh"
+  echo "Dockerfile not found. Run this script from a dockfin git checkout:"
+  echo "  cd /path/to/dockfin && sudo bash scripts/install-dev.sh"
   exit 1
 fi
 
@@ -61,8 +61,8 @@ docker build \
   -t "${IMAGE}" \
   "${REPO_ROOT}"
 
-mkdir -p "${GOOLIFY_DIR}"
-cd "${GOOLIFY_DIR}"
+mkdir -p "${DOCKFIN_DIR}"
+cd "${DOCKFIN_DIR}"
 
 PUBLIC_IP="$(curl -4 -fsS --max-time 5 https://api.ipify.org 2>/dev/null \
   || curl -4 -fsS --max-time 5 https://ifconfig.me/ip 2>/dev/null \
@@ -76,33 +76,33 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   MASTER_KEY=$(openssl rand -base64 48 | tr -d '\n' | head -c 48)
   DB_PASS=$(openssl rand -base64 24 | tr -d '\n=/+' | head -c 24)
   cat > "${ENV_FILE}" <<EOF
-GOOLIFY_ENV=development
-GOOLIFY_HTTP_ADDR=:8000
-GOOLIFY_DATABASE_URL=postgres://goolify:${DB_PASS}@postgres:5432/goolify?sslmode=disable
-GOOLIFY_MASTER_KEY=${MASTER_KEY}
-GOOLIFY_CORS_ORIGINS=*
-GOOLIFY_PUBLIC_URL=http://${PUBLIC_IP}:${HOST_PORT}
-GOOLIFY_PUBLIC_IP=${PUBLIC_IP}
-GOOLIFY_BOOTSTRAP_SELF=1
-GOOLIFY_DATA_DIR=/data
-GOOLIFY_TEMPLATES_DIR=/app/templates
-GOOLIFY_WEB_DIR=/app/web
+DOCKFIN_ENV=development
+DOCKFIN_HTTP_ADDR=:8000
+DOCKFIN_DATABASE_URL=postgres://dockfin:${DB_PASS}@postgres:5432/dockfin?sslmode=disable
+DOCKFIN_MASTER_KEY=${MASTER_KEY}
+DOCKFIN_CORS_ORIGINS=*
+DOCKFIN_PUBLIC_URL=http://${PUBLIC_IP}:${HOST_PORT}
+DOCKFIN_PUBLIC_IP=${PUBLIC_IP}
+DOCKFIN_BOOTSTRAP_SELF=1
+DOCKFIN_DATA_DIR=/data
+DOCKFIN_TEMPLATES_DIR=/app/templates
+DOCKFIN_WEB_DIR=/app/web
 POSTGRES_PASSWORD=${DB_PASS}
 EOF
   chmod 600 "${ENV_FILE}"
   echo "==> Generated .env for development"
 else
   if ! grep -q '^POSTGRES_PASSWORD=' "${ENV_FILE}"; then
-    DBURL=$(grep '^GOOLIFY_DATABASE_URL=' "${ENV_FILE}" | cut -d= -f2-)
-    DBPASS=$(echo "$DBURL" | sed -n 's#.*goolify:\([^@]*\)@.*#\1#p')
+    DBURL=$(grep '^DOCKFIN_DATABASE_URL=' "${ENV_FILE}" | cut -d= -f2-)
+    DBPASS=$(echo "$DBURL" | sed -n 's#.*dockfin:\([^@]*\)@.*#\1#p')
     if [[ -n "${DBPASS}" ]]; then
       echo "POSTGRES_PASSWORD=${DBPASS}" >> "${ENV_FILE}"
     fi
   fi
-  if grep -q '^GOOLIFY_ENV=' "${ENV_FILE}"; then
-    sed -i 's/^GOOLIFY_ENV=.*/GOOLIFY_ENV=development/' "${ENV_FILE}"
+  if grep -q '^DOCKFIN_ENV=' "${ENV_FILE}"; then
+    sed -i 's/^DOCKFIN_ENV=.*/DOCKFIN_ENV=development/' "${ENV_FILE}"
   else
-    echo "GOOLIFY_ENV=development" >> "${ENV_FILE}"
+    echo "DOCKFIN_ENV=development" >> "${ENV_FILE}"
   fi
   echo "==> Using existing ${ENV_FILE}"
 fi
@@ -113,40 +113,40 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: goolify
-      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD:-goolify}
-      POSTGRES_DB: goolify
+      POSTGRES_USER: dockfin
+      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD:-dockfin}
+      POSTGRES_DB: dockfin
     volumes:
-      - goolify-pg:/var/lib/postgresql/data
+      - dockfin-pg:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U goolify"]
+      test: ["CMD-SHELL", "pg_isready -U dockfin"]
       interval: 5s
       timeout: 5s
       retries: 30
     restart: unless-stopped
 
-  goolify:
+  dockfin:
     image: ${IMAGE}
     pull_policy: never
     env_file: .env
     environment:
-      GOOLIFY_HTTP_ADDR: ":8000"
+      DOCKFIN_HTTP_ADDR: ":8000"
     ports:
       - "${HOST_PORT}:8000"
     volumes:
-      - goolify-data:/data
+      - dockfin-data:/data
     depends_on:
       postgres:
         condition: service_healthy
     restart: unless-stopped
 
 volumes:
-  goolify-pg:
-  goolify-data:
+  dockfin-pg:
+  dockfin-data:
 EOF
 
 echo "==> Starting (local image, skip pull)…"
-unset GOOLIFY_DATABASE_URL GOOLIFY_MASTER_KEY GOOLIFY_HTTP_ADDR GOOLIFY_PUBLIC_URL 2>/dev/null || true
+unset DOCKFIN_DATABASE_URL DOCKFIN_MASTER_KEY DOCKFIN_HTTP_ADDR DOCKFIN_PUBLIC_URL 2>/dev/null || true
 docker compose up -d --pull never --force-recreate --remove-orphans
 
 echo "==> Waiting for health…"
@@ -164,20 +164,20 @@ IP="${IP:-$PUBLIC_IP}"
 
 echo ""
 if [[ "${ok}" -eq 1 ]]; then
-  echo "Goolify is ready (development)."
+  echo "Dockfin is ready (development)."
 else
   echo "Containers started; check logs:"
-  echo "  cd ${GOOLIFY_DIR} && docker compose logs -f goolify"
+  echo "  cd ${DOCKFIN_DIR} && docker compose logs -f dockfin"
 fi
 echo ""
 echo "  Dashboard: http://${IP}:${HOST_PORT}/"
 echo "  Health:    http://${IP}:${HOST_PORT}/health"
-echo "  Data:      ${GOOLIFY_DIR}"
+echo "  Data:      ${DOCKFIN_DIR}"
 echo "  Image:     ${IMAGE}"
 echo ""
 echo "Rebuild after code changes:"
 echo "  sudo bash ${SCRIPT_DIR}/install-dev.sh"
 echo ""
 echo "Switch to production image (GHCR):"
-echo "  curl -fsSL https://raw.githubusercontent.com/foisalislambd/goolify/main/scripts/install.sh | sudo bash"
+echo "  curl -fsSL https://raw.githubusercontent.com/foisalislambd/dockfin/main/scripts/install.sh | sudo bash"
 echo ""

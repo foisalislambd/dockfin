@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/goolify/goolify/internal/version"
+	"github.com/dockfin/dockfin/internal/version"
 )
 
 func main() {
@@ -18,11 +18,11 @@ func main() {
 		usage()
 		os.Exit(1)
 	}
-	base := env("GOOLIFY_URL", "http://localhost:8000")
-	token := env("GOOLIFY_TOKEN", "")
+	base := env("DOCKFIN_URL", "http://localhost:8000")
+	token := env("DOCKFIN_TOKEN", "")
 	switch os.Args[1] {
 	case "version":
-		fmt.Println("glfy", version.Version)
+		fmt.Println("dfin", version.Version)
 	case "health":
 		url := base + "/health"
 		if len(os.Args) > 2 {
@@ -37,7 +37,7 @@ func main() {
 		fmt.Println(resp.StatusCode, string(b))
 	case "deploy":
 		if len(os.Args) < 3 {
-			fatal(fmt.Errorf("usage: glfy deploy <application-uuid>"))
+			fatal(fmt.Errorf("usage: dfin deploy <application-uuid>"))
 		}
 		appID := os.Args[2]
 		body := map[string]any{"force_rebuild": false}
@@ -45,7 +45,7 @@ func main() {
 		fmt.Println(code, out)
 	case "logs":
 		if len(os.Args) < 3 {
-			fatal(fmt.Errorf("usage: glfy logs <deployment-uuid>"))
+			fatal(fmt.Errorf("usage: dfin logs <deployment-uuid>"))
 		}
 		depID := os.Args[2]
 		code, out := api(base, token, http.MethodGet, "/api/v1/deployments/"+depID, nil)
@@ -63,19 +63,19 @@ func main() {
 }
 
 func usage() {
-	fmt.Print(`glfy — Goolify CLI
+	fmt.Print(`dfin — Dockfin CLI
 
 Usage:
-  glfy version
-  glfy health [url]
-  glfy servers
-  glfy apps
-  glfy deploy <application-uuid>
-  glfy logs <deployment-uuid>
+  dfin version
+  dfin health [url]
+  dfin servers
+  dfin apps
+  dfin deploy <application-uuid>
+  dfin logs <deployment-uuid>
 
 Env:
-  GOOLIFY_URL    default http://localhost:8000
-  GOOLIFY_TOKEN  session/API bearer token
+  DOCKFIN_URL    default http://localhost:8000
+  DOCKFIN_TOKEN  session/API bearer token
 `)
 }
 

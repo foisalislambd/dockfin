@@ -46,8 +46,8 @@ jobs:
             echo "DOCKERHUB_USERNAME secret is required" >&2
             exit 1
           fi
-          echo "ghcr=${{ env.REGISTRY }}/${owner_lc}/goolify" >> "$GITHUB_OUTPUT"
-          echo "hub=${hub_user}/goolify" >> "$GITHUB_OUTPUT"
+          echo "ghcr=${{ env.REGISTRY }}/${owner_lc}/dockfin" >> "$GITHUB_OUTPUT"
+          echo "hub=${hub_user}/dockfin" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -76,5 +76,5 @@ jobs:
             ${{ steps.meta_name.outputs.hub }}:latest
           build-args: |
             VERSION=${{ steps.ver.outputs.version }}
-          cache-from: type=gha,scope=manual-goolify
-          cache-to: type=gha,mode=max,scope=manual-goolify,ignore-error=true
+          cache-from: type=gha,scope=manual-dockfin
+          cache-to: type=gha,mode=max,scope=manual-dockfin,ignore-error=true

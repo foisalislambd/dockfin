@@ -35,9 +35,9 @@ func ensureLoaded() {
 	for k, v := range builtin {
 		catalog[k] = v
 	}
-	// Prefer Goolify's shipped catalog (optional GOOLIFY_TEMPLATES_DIR override).
+	// Prefer Dockfin's shipped catalog (optional DOCKFIN_TEMPLATES_DIR override).
 	dirs := []string{
-		os.Getenv("GOOLIFY_TEMPLATES_DIR"),
+		os.Getenv("DOCKFIN_TEMPLATES_DIR"),
 		"templates/compose",
 		filepath.Join("..", "templates", "compose"),
 	}
@@ -165,12 +165,12 @@ func normalizeLogoPath(logo string) string {
 
 func LogosDirs() []string {
 	dirs := []string{
-		os.Getenv("GOOLIFY_LOGOS_DIR"),
+		os.Getenv("DOCKFIN_LOGOS_DIR"),
 		"templates/svgs",
 		filepath.Join("..", "templates", "svgs"),
 		"apps/web/public/svgs",
 		"apps/web/dist/svgs",
-		"/opt/goolify/svgs",
+		"/opt/dockfin/svgs",
 	}
 	var out []string
 	seen := map[string]bool{}

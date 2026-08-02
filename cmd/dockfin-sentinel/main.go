@@ -10,13 +10,13 @@ import (
 	"time"
 )
 
-// goolify-sentinel pushes host metrics to the control plane.
+// dockfin-sentinel pushes host metrics to the control plane.
 func main() {
-	url := env("GOOLIFY_URL", "")
-	token := env("GOOLIFY_TOKEN", "")
-	serverID := env("GOOLIFY_SERVER_ID", "")
+	url := env("DOCKFIN_URL", "")
+	token := env("DOCKFIN_TOKEN", "")
+	serverID := env("DOCKFIN_SERVER_ID", "")
 	if url == "" || serverID == "" {
-		fmt.Fprintln(os.Stderr, "GOOLIFY_URL and GOOLIFY_SERVER_ID required")
+		fmt.Fprintln(os.Stderr, "DOCKFIN_URL and DOCKFIN_SERVER_ID required")
 		os.Exit(1)
 	}
 	interval := 30 * time.Second

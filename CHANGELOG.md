@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Goolify will be documented in this file.
+All notable changes to Dockfin will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
@@ -14,7 +14,7 @@ Git tag, GitHub Release, and Docker image tags always share the same `X.Y.Z` (vi
 
 ### Added
 
-- Go control plane (`goolify serve` / `migrate`) with Chi HTTP API
+- Go control plane (`dockfin serve` / `migrate`) with Chi HTTP API
 - React + Vite dashboard (auth, servers, projects, apps, databases, services)
 - PostgreSQL schema via Goose migrations (embedded)
 - SSH pool with host-key TOFU / fingerprint persistence
@@ -25,7 +25,7 @@ Git tag, GitHub Release, and Docker image tags always share the same `X.Y.Z` (vi
 - Managed database start/stop over SSH; S3 / scheduled backup APIs
 - One-click service catalog loader (Coolify-compatible compose templates)
 - Notifications (Discord / Slack / webhook) on deploy finish/fail
-- `glfy` CLI (`health`, `apps`, `servers`, `deploy`, `logs`)
+- `dfin` CLI (`health`, `apps`, `servers`, `deploy`, `logs`)
 - `scripts/install.sh` and `scripts/vps-oneclick-test.sh`
 - Release pipeline: tagged `vX.Y.Z` → GHCR images + GitHub Release (same version)
 - Open-source project docs (CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, SUPPORT)

@@ -11,7 +11,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/sshx"
+	"github.com/dockfin/dockfin/internal/sshx"
 	"golang.org/x/crypto/ssh"
 )
 

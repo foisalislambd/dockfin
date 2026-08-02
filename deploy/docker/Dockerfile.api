@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Single image: API + Vite dashboard (served by goolify on :8000)
+# Single image: API + Vite dashboard (served by dockfin on :8000)
 
 FROM node:22-alpine AS web
 WORKDIR /web
@@ -16,20 +16,20 @@ RUN go mod download
 COPY . .
 ARG VERSION=dev
 RUN CGO_ENABLED=0 go build \
-  -ldflags="-s -w -X github.com/goolify/goolify/internal/version.Version=${VERSION}" \
-  -o /out/goolify ./cmd/goolify
+  -ldflags="-s -w -X github.com/dockfin/dockfin/internal/version.Version=${VERSION}" \
+  -o /out/dockfin ./cmd/dockfin
 
 FROM alpine:3.21
 RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
-COPY --from=build /out/goolify /usr/local/bin/goolify
+COPY --from=build /out/dockfin /usr/local/bin/dockfin
 COPY --from=web /web/dist /app/web
 COPY templates/compose /app/templates
-ENV GOOLIFY_TEMPLATES_DIR=/app/templates \
-    GOOLIFY_WEB_DIR=/app/web \
-    GOOLIFY_DATA_DIR=/data \
-    GOOLIFY_HTTP_ADDR=:8000
+ENV DOCKFIN_TEMPLATES_DIR=/app/templates \
+    DOCKFIN_WEB_DIR=/app/web \
+    DOCKFIN_DATA_DIR=/data \
+    DOCKFIN_HTTP_ADDR=:8000
 EXPOSE 8000
 VOLUME ["/data"]
-ENTRYPOINT ["goolify"]
+ENTRYPOINT ["dockfin"]
 CMD ["serve"]

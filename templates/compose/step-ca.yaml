@@ -10,7 +10,7 @@ services:
     image: smallstep/step-ca:0.28.3
     environment:
       - SERVICE_URL_STEPCA
-      - DOCKER_STEPCA_INIT_NAME=${STEPCA_NAME:-GoolifyCA}
+      - DOCKER_STEPCA_INIT_NAME=${STEPCA_NAME:-DockfinCA}
       - DOCKER_STEPCA_INIT_DNS_NAMES=${SERVICE_FQDN_STEPCA}
       - DOCKER_STEPCA_INIT_PASSWORD=${SERVICE_PASSWORD_CA}
       - DOCKER_STEPCA_INIT_ACME=true

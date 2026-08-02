@@ -11,9 +11,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/proxy"
-	"github.com/goolify/goolify/internal/sshx"
-	"github.com/goolify/goolify/internal/store"
+	"github.com/dockfin/dockfin/internal/proxy"
+	"github.com/dockfin/dockfin/internal/sshx"
+	"github.com/dockfin/dockfin/internal/store"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -219,7 +219,7 @@ func (a *API) handleValidateServer(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"reachable": true, "usable": false, "error": err.Error()})
 		return
 	}
-	_ = sshx.EnsureNetwork(client, "goolify")
+	_ = sshx.EnsureNetwork(client, "dockfin")
 	proxyStatus := proxy.ProxyStatus(client)
 
 	publicIP := strings.TrimSpace(srv.PublicIP)
@@ -280,7 +280,7 @@ func (a *API) handleStartProxy(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	network := "goolify"
+	network := "dockfin"
 	if dests, err := a.Store.ListDestinations(r.Context(), teamID, &id); err == nil && len(dests) > 0 && dests[0].Network != "" {
 		network = dests[0].Network
 	}

@@ -5,17 +5,17 @@ import (
 	"os"
 	"testing"
 
-	"github.com/goolify/goolify/internal/crypto"
-	"github.com/goolify/goolify/internal/db"
-	"github.com/goolify/goolify/internal/envvars"
-	"github.com/goolify/goolify/internal/store"
+	"github.com/dockfin/dockfin/internal/crypto"
+	"github.com/dockfin/dockfin/internal/db"
+	"github.com/dockfin/dockfin/internal/envvars"
+	"github.com/dockfin/dockfin/internal/store"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func TestCryptoEnvResolveCancelDeployment(t *testing.T) {
-	dsn := os.Getenv("GOOLIFY_DATABASE_URL")
+	dsn := os.Getenv("DOCKFIN_DATABASE_URL")
 	if dsn == "" {
-		t.Skip("GOOLIFY_DATABASE_URL not set")
+		t.Skip("DOCKFIN_DATABASE_URL not set")
 	}
 
 	box, err := crypto.NewBox("test-master-key-for-integration-32b!")

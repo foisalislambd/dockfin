@@ -5,14 +5,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/goolify/goolify/internal/sshx"
+	"github.com/dockfin/dockfin/internal/sshx"
 	"golang.org/x/crypto/ssh"
 )
 
 // DumpPostgres runs pg_dump inside a database container and writes to a remote path.
 func DumpPostgres(client *ssh.Client, container, password, outPath string) error {
 	cmd := fmt.Sprintf(
-		`mkdir -p /data/goolify/backups && docker exec -e PGPASSWORD=%s %s pg_dump -U goolify goolify > %s`,
+		`mkdir -p /data/dockfin/backups && docker exec -e PGPASSWORD=%s %s pg_dump -U dockfin dockfin > %s`,
 		shellQuote(password), shellQuote(container), shellQuote(outPath),
 	)
 	_, errOut, err := sshx.Run(client, cmd)
@@ -25,7 +25,7 @@ func DumpPostgres(client *ssh.Client, container, password, outPath string) error
 // RestorePostgres pipes a SQL dump into the database container.
 func RestorePostgres(client *ssh.Client, container, password, dumpPath string) error {
 	cmd := fmt.Sprintf(
-		`docker exec -i -e PGPASSWORD=%s %s psql -U goolify goolify < %s`,
+		`docker exec -i -e PGPASSWORD=%s %s psql -U dockfin dockfin < %s`,
 		shellQuote(password), shellQuote(container), shellQuote(dumpPath),
 	)
 	_, errOut, err := sshx.Run(client, cmd)
@@ -51,7 +51,7 @@ func DefaultFilename(engine, id string) string {
 }
 
 func DumpPath(filename string) string {
-	return "/data/goolify/backups/" + filename
+	return "/data/dockfin/backups/" + filename
 }
 
 func shellQuote(s string) string {

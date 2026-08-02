@@ -12,7 +12,7 @@ export type DeleteResourceBody = {
   docker_cleanup?: boolean
 }
 
-export const LAST_ENV_KEY = 'goolify:last_environment_id'
+export const LAST_ENV_KEY = 'dockfin:last_environment_id'
 
 export class ApiError extends Error {
   status: number
@@ -47,7 +47,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       !path.includes('/auth/register') &&
       !path.includes('/auth/me')
     ) {
-      window.dispatchEvent(new CustomEvent('goolify:unauthorized'))
+      window.dispatchEvent(new CustomEvent('dockfin:unauthorized'))
     }
     throw new ApiError(res.status, msg)
   }

@@ -10,7 +10,7 @@ func ptr[T any](v T) *T { return &v }
 func TestApplyInstanceSettingsPatch_General(t *testing.T) {
 	cur := &InstanceSettings{
 		PublicURL:        "",
-		InstanceName:     "Goolify",
+		InstanceName:     "Dockfin",
 		InstanceTimezone: "UTC",
 		SMTPFromAddress:  "bad-not-an-email", // must not fail general patch
 		SMTPEnabled:      true,
@@ -44,7 +44,7 @@ func TestApplyInstanceSettingsPatch_General(t *testing.T) {
 }
 
 func TestApplyInstanceSettingsPatch_RejectsBadURLAndIPs(t *testing.T) {
-	cur := &InstanceSettings{InstanceName: "Goolify", InstanceTimezone: "UTC"}
+	cur := &InstanceSettings{InstanceName: "Dockfin", InstanceTimezone: "UTC"}
 	if err := applyInstanceSettingsPatch(cur, &InstanceSettingsPatch{PublicURL: ptr("not-a-url")}); !errors.Is(err, ErrConflict) {
 		t.Fatalf("want conflict for bad url, got %v", err)
 	}

@@ -20,4 +20,4 @@ Sensitive reports: [SECURITY.md](SECURITY.md)
 
 ## Commercial / consulting
 
-Goolify is free and open source. Maintainers may offer paid consulting separately; there is no paid product tier inside Goolify itself.
+Dockfin is free and open source. Maintainers may offer paid consulting separately; there is no paid product tier inside Dockfin itself.

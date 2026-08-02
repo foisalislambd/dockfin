@@ -1,17 +1,17 @@
 # VPS one-click smoke test
 
-Install Goolify and run API + deploy smoke tests on a fresh Ubuntu/Debian VPS with a single command.
+Install Dockfin and run API + deploy smoke tests on a fresh Ubuntu/Debian VPS with a single command.
 
 ## What it does
 
 1. Installs Docker, Go, jq, and OpenSSH  
 2. Starts Postgres/Redis (`deploy/compose/docker-compose.dev.yml`)  
-3. Builds the `goolify` binary, migrates the DB, and starts the API  
+3. Builds the `dockfin` binary, migrates the DB, and starts the API  
 4. Registers a test user — **first register auto-adds this VPS as a server with its public IP** (SSH key + Traefik)  
 5. Validates the server and ensures the proxy is running  
 6. Creates a project and deploys `nginx:alpine`  
 7. Polls until the deployment status is `finished`  
-8. Writes a pass/fail report to `/opt/goolify-smoke/report.txt`
+8. Writes a pass/fail report to `/opt/dockfin-smoke/report.txt`
 
 ## Usage
 
@@ -19,7 +19,7 @@ Install Goolify and run API + deploy smoke tests on a fresh Ubuntu/Debian VPS wi
 
 ```bash
 # After upload or git clone:
-cd /path/to/goolify
+cd /path/to/dockfin
 sudo bash scripts/vps-oneclick-test.sh
 ```
 
@@ -27,26 +27,26 @@ sudo bash scripts/vps-oneclick-test.sh
 
 ```bash
 # From your PC:
-scp -r ./goolify root@VPS_IP:/opt/goolify
+scp -r ./dockfin root@VPS_IP:/opt/dockfin
 
 # On the VPS:
 ssh root@VPS_IP
-cd /opt/goolify
+cd /opt/dockfin
 sudo bash scripts/vps-oneclick-test.sh
 ```
 
 ### C) Clone from Git
 
 ```bash
-git clone https://github.com/YOUR_USER/goolify.git /opt/goolify
-cd /opt/goolify
+git clone https://github.com/YOUR_USER/dockfin.git /opt/dockfin
+cd /opt/dockfin
 sudo bash scripts/vps-oneclick-test.sh
 ```
 
 Or set a clone URL if the source is missing:
 
 ```bash
-sudo GOOLIFY_GIT_URL=https://github.com/YOUR_USER/goolify.git \
+sudo DOCKFIN_GIT_URL=https://github.com/YOUR_USER/dockfin.git \
   bash scripts/vps-oneclick-test.sh
 ```
 
@@ -58,7 +58,7 @@ sudo GOOLIFY_GIT_URL=https://github.com/YOUR_USER/goolify.git \
 | `SKIP_WEB=1` | Skip Node install / Vite UI build |
 | `KEEP_RUNNING=0` | Stop the API after tests |
 | `API_PORT=8000` | API listen port |
-| `GOOLIFY_SRC=/path` | Force source path |
+| `DOCKFIN_SRC=/path` | Force source path |
 
 Example:
 
@@ -68,8 +68,8 @@ sudo SKIP_DEPLOY=1 bash scripts/vps-oneclick-test.sh
 
 ## Output
 
-- Report: `/opt/goolify-smoke/report.txt`
-- API log: `/opt/goolify-smoke/api.log`
+- Report: `/opt/dockfin-smoke/report.txt`
+- API log: `/opt/dockfin-smoke/api.log`
 - Test user/password printed at the end of the script
 - Public VPS IP + URLs are printed, for example:
   - `API (public): http://YOUR_VPS_IP:8000`

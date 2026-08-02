@@ -10,7 +10,7 @@ This file lists people who can merge PRs and cut releases.
 
 - Format: `X.Y.Z` (git tag `vX.Y.Z`)
 - **Y and Z are 0–9 only** → `1.0.0` … `1.0.9` → `1.1.0` … `1.9.9` → `2.0.0`
-- Same version for: GitHub Release, Docker Hub, GHCR, `goolify version`
+- Same version for: GitHub Release, Docker Hub, GHCR, `dockfin version`
 
 ## Release process
 
@@ -18,7 +18,7 @@ This file lists people who can merge PRs and cut releases.
 
 1. Compute next `X.Y.Z`
 2. Run tests / builds
-3. Publish `foisalislambd/goolify` + `ghcr.io/<owner>/goolify` (`:X.Y.Z` and `:latest`)
+3. Publish `foisalislambd/dockfin` + `ghcr.io/<owner>/dockfin` (`:X.Y.Z` and `:latest`)
 4. Create git tag + GitHub Release
 
 ### Skip release

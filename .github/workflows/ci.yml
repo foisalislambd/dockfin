@@ -18,8 +18,8 @@ jobs:
         run: go test ./...
       - name: Build
         run: |
-          go build -o /tmp/goolify ./cmd/goolify
-          go build -o /tmp/glfy ./cmd/glfy
+          go build -o /tmp/dockfin ./cmd/dockfin
+          go build -o /tmp/dfin ./cmd/dfin
 
   web:
     runs-on: ubuntu-latest

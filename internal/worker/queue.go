@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/deploy"
-	"github.com/goolify/goolify/internal/notify"
-	"github.com/goolify/goolify/internal/sshx"
-	"github.com/goolify/goolify/internal/store"
-	"github.com/goolify/goolify/internal/ws"
+	"github.com/dockfin/dockfin/internal/deploy"
+	"github.com/dockfin/dockfin/internal/notify"
+	"github.com/dockfin/dockfin/internal/sshx"
+	"github.com/dockfin/dockfin/internal/store"
+	"github.com/dockfin/dockfin/internal/ws"
 )
 
 type DeployJob struct {

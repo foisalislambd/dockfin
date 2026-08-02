@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a bug in Goolify
+description: Report a bug in Dockfin
 labels: ["bug"]
 body:
   - type: markdown
@@ -39,7 +39,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Goolify version / commit
+      label: Dockfin version / commit
       placeholder: e.g. main @ abc1234
     validations:
       required: true

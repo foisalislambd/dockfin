@@ -2,15 +2,15 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: goolify
-      POSTGRES_PASSWORD: goolify
-      POSTGRES_DB: goolify
+      POSTGRES_USER: dockfin
+      POSTGRES_PASSWORD: dockfin
+      POSTGRES_DB: dockfin
     ports:
       - "5432:5432"
     volumes:
-      - goolify-pg-dev:/var/lib/postgresql/data
+      - dockfin-pg-dev:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U goolify"]
+      test: ["CMD-SHELL", "pg_isready -U dockfin"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -21,4 +21,4 @@ services:
       - "6379:6379"
 
 volumes:
-  goolify-pg-dev:
+  dockfin-pg-dev:

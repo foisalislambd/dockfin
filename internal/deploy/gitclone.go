@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/goolify/goolify/internal/git/githubapp"
-	"github.com/goolify/goolify/internal/sshx"
+	"github.com/dockfin/dockfin/internal/git/githubapp"
+	"github.com/dockfin/dockfin/internal/sshx"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -111,7 +111,7 @@ func (p *Pipeline) gitClone(ctx context.Context, client *ssh.Client, req Request
 		if err != nil {
 			return fmt.Errorf("decrypt deploy key: %w", err)
 		}
-		keyPath := "/tmp/goolify-deploy-" + req.App.PrivateKeyID.String()
+		keyPath := "/tmp/dockfin-deploy-" + req.App.PrivateKeyID.String()
 		b64 := base64.StdEncoding.EncodeToString([]byte(plain))
 		writeCmd := fmt.Sprintf("printf '%%s' %q | base64 -d > %s && chmod 600 %s", b64, keyPath, keyPath)
 		if _, errOut, err := sshx.Run(client, writeCmd); err != nil {

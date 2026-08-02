@@ -16,7 +16,7 @@ var InstanceBackupResourceID = uuid.MustParse("00000000-0000-0000-0000-000000000
 
 const InstanceBackupResourceType = "instance"
 
-// InstanceBackupConfig is Coolify-like local backup settings for the Goolify DB.
+// InstanceBackupConfig is Coolify-like local backup settings for the Dockfin DB.
 type InstanceBackupConfig struct {
 	Configured  bool   `json:"configured"`
 	Enabled     bool   `json:"enabled"`
@@ -43,7 +43,7 @@ func (s *Store) GetInstanceBackupConfig(ctx context.Context) (*InstanceBackupCon
 	if err != nil {
 		return nil, err
 	}
-	c.Name = "goolify-db"
+	c.Name = "dockfin-db"
 	c.UUID = InstanceBackupResourceID.String()
 	return &c, nil
 }
@@ -60,13 +60,13 @@ type InstanceBackupPatch struct {
 
 func (s *Store) ConfigureInstanceBackup(ctx context.Context, container, dbUser, dbName, description string) (*InstanceBackupConfig, error) {
 	if strings.TrimSpace(dbUser) == "" {
-		dbUser = "goolify"
+		dbUser = "dockfin"
 	}
 	if strings.TrimSpace(dbName) == "" {
-		dbName = "goolify"
+		dbName = "dockfin"
 	}
 	if strings.TrimSpace(description) == "" {
-		description = "Goolify database"
+		description = "Dockfin database"
 	}
 	_, err := s.Pool.Exec(ctx, `
 		UPDATE instance_settings SET

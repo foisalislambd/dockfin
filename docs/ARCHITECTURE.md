@@ -2,10 +2,10 @@
 
 ## Overview
 
-Goolify is a **central control plane** that manages remote Docker hosts over **SSH**. There is no long-lived deploy agent on target machines. Desired state lives in PostgreSQL; workers execute builds and lifecycle actions on servers via SSH.
+Dockfin is a **central control plane** that manages remote Docker hosts over **SSH**. There is no long-lived deploy agent on target machines. Desired state lives in PostgreSQL; workers execute builds and lifecycle actions on servers via SSH.
 
 ```
-Browser (React) ──REST/SSE──► goolify serve (Go)
+Browser (React) ──REST/SSE──► dockfin serve (Go)
                                   │
                                   ├── PostgreSQL (state, deployments, secrets)
                                   ├── in-process deploy queue (workers)
@@ -39,7 +39,7 @@ Logs stream to the UI via SSE (`/api/v1/deployments/{id}/logs/stream`).
 
 ## Secrets
 
-- Master key: `GOOLIFY_MASTER_KEY` (AES-256-GCM envelope)
+- Master key: `DOCKFIN_MASTER_KEY` (AES-256-GCM envelope)
 - Passwords: argon2id
 - SSH private keys and env values stored encrypted in Postgres
 - Webhook secrets optional; when set, signatures are required
@@ -50,4 +50,4 @@ Logs stream to the UI via SSE (`/api/v1/deployments/{id}/logs/stream`).
 
 ## Related Coolify concepts
 
-Goolify mirrors Coolify’s operator mental model (SSH hosts, Traefik, build packs, one-click services) but reimplements the control plane in Go with an API-first SPA.
+Dockfin mirrors Coolify’s operator mental model (SSH hosts, Traefik, build packs, one-click services) but reimplements the control plane in Go with an API-first SPA.

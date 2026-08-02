@@ -1,4 +1,4 @@
-# Contributing to Goolify
+# Contributing to Dockfin
 
 Thanks for contributing. This document explains how to develop, test, and submit changes.
 
@@ -19,8 +19,8 @@ Participation is governed by our [Code of Conduct](CODE_OF_CONDUCT.md).
 ```bash
 cp .env.example .env
 docker compose -f deploy/compose/docker-compose.dev.yml up -d
-go run ./cmd/goolify migrate
-go run ./cmd/goolify serve
+go run ./cmd/dockfin migrate
+go run ./cmd/dockfin serve
 ```
 
 In another terminal:
@@ -72,7 +72,7 @@ Use short, imperative subjects:
 
 Use GitHub Issues with:
 
-- Goolify version / commit
+- Dockfin version / commit
 - OS and Docker version
 - Steps to reproduce
 - Relevant logs (redact secrets)

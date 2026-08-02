@@ -196,7 +196,7 @@ func (s *Store) CreateServer(ctx context.Context, teamID uuid.UUID, keyID *uuid.
 	}
 	if _, err = tx.Exec(ctx, `
 		INSERT INTO destinations (team_id, server_id, name, network)
-		VALUES ($1, $2, 'Default', 'goolify')
+		VALUES ($1, $2, 'Default', 'dockfin')
 	`, teamID, srv.ID); err != nil {
 		return nil, err
 	}
@@ -345,7 +345,7 @@ func (s *Store) CreateDestination(ctx context.Context, teamID, serverID uuid.UUI
 		kind = "standalone"
 	}
 	if network == "" {
-		network = "goolify"
+		network = "dockfin"
 	}
 	var d Destination
 	err := s.Pool.QueryRow(ctx, `

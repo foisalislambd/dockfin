@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/goolify/goolify/internal/sshx"
+	"github.com/dockfin/dockfin/internal/sshx"
 	"golang.org/x/crypto/ssh"
 )
 
-const TraefikContainer = "goolify-proxy"
+const TraefikContainer = "dockfin-proxy"
 
 func StartTraefik(client *ssh.Client, image, network, acmeEmail string) error {
 	if network == "" {
-		network = "goolify"
+		network = "dockfin"
 	}
 	if image == "" {
 		// Docker Engine 29+ requires Traefik ≥ v3.6 (API negotiation).
@@ -24,7 +24,7 @@ func StartTraefik(client *ssh.Client, image, network, acmeEmail string) error {
 	if err := sshx.EnsureNetwork(client, network); err != nil {
 		return err
 	}
-	_, _, _ = sshx.Run(client, "mkdir -p /data/goolify/proxy/traefik/letsencrypt && touch /data/goolify/proxy/traefik/letsencrypt/acme.json && chmod 600 /data/goolify/proxy/traefik/letsencrypt/acme.json")
+	_, _, _ = sshx.Run(client, "mkdir -p /data/dockfin/proxy/traefik/letsencrypt && touch /data/dockfin/proxy/traefik/letsencrypt/acme.json && chmod 600 /data/dockfin/proxy/traefik/letsencrypt/acme.json")
 	// Remove existing if any
 	_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", TraefikContainer)
 
@@ -36,7 +36,7 @@ func StartTraefik(client *ssh.Client, image, network, acmeEmail string) error {
 		"-p", "80:80",
 		"-p", "443:443",
 		"-v", "/var/run/docker.sock:/var/run/docker.sock:ro",
-		"-v", "/data/goolify/proxy/traefik/letsencrypt:/letsencrypt",
+		"-v", "/data/dockfin/proxy/traefik/letsencrypt:/letsencrypt",
 		image,
 		"--providers.docker=true",
 		"--providers.docker.exposedbydefault=false",

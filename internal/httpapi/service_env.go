@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/proxy"
-	"github.com/goolify/goolify/internal/services"
-	"github.com/goolify/goolify/internal/store"
+	"github.com/dockfin/dockfin/internal/proxy"
+	"github.com/dockfin/dockfin/internal/services"
+	"github.com/dockfin/dockfin/internal/store"
 )
 
 // syncServiceCoolifyEnv mirrors Coolify: after prepare, push generated SERVICE_*

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/envvars"
+	"github.com/dockfin/dockfin/internal/envvars"
 	"github.com/jackc/pgx/v5"
 )
 

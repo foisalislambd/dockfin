@@ -751,7 +751,7 @@ function ApiTokensPanel() {
         ) : (
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Tokens are created with the current team as scope. Use{' '}
-            <code className="font-mono text-xs">Authorization: Bearer glfy_…</code>
+            <code className="font-mono text-xs">Authorization: Bearer dfin_…</code>
           </p>
         )}
       </div>

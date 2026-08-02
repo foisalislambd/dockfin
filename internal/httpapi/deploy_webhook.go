@@ -9,9 +9,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/goolify/goolify/internal/crypto"
-	"github.com/goolify/goolify/internal/store"
-	"github.com/goolify/goolify/internal/worker"
+	"github.com/dockfin/dockfin/internal/crypto"
+	"github.com/dockfin/dockfin/internal/store"
+	"github.com/dockfin/dockfin/internal/worker"
 )
 
 // handleDeployByUUID is Coolify-compatible: GET|POST /api/v1/deploy?uuid=&force=

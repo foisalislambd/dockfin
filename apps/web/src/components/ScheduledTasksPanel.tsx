@@ -80,7 +80,7 @@ export function ScheduledTasksPanel({ resourceType, resourceId, containerOptions
         <div>
           <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Scheduled Tasks</h2>
           <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-            Cron jobs run every minute from the Goolify control plane. Commands execute via{' '}
+            Cron jobs run every minute from the Dockfin control plane. Commands execute via{' '}
             <code className="font-mono text-xs">docker exec</code>
             {resourceType === 'service'
               ? ' inside the selected compose container.'

@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Goolify API
+  title: Dockfin API
   version: 0.1.0
   description: |
     Self-hosted PaaS control plane API (Coolify alternative).
@@ -110,4 +110,4 @@ components:
     cookieAuth:
       type: apiKey
       in: cookie
-      name: goolify_session
+      name: dockfin_session
