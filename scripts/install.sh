@@ -91,6 +91,13 @@ else
   echo "==> Using existing ${ENV_FILE}"
 fi
 
+echo "==> Ensuring host SSH dir for bootstrap (first-user auto-add server)…"
+SSH_USER_HOME="/root"
+mkdir -p "${SSH_USER_HOME}/.ssh"
+chmod 700 "${SSH_USER_HOME}/.ssh"
+touch "${SSH_USER_HOME}/.ssh/authorized_keys"
+chmod 600 "${SSH_USER_HOME}/.ssh/authorized_keys"
+
 cat > "${COMPOSE_FILE}" <<EOF
 services:
   postgres:
@@ -118,6 +125,7 @@ services:
       - "8000:8000"
     volumes:
       - dockfin-data:/data
+      - ${SSH_USER_HOME}/.ssh:/root/.ssh
     depends_on:
       postgres:
         condition: service_healthy

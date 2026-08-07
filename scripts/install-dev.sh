@@ -107,7 +107,16 @@ else
   echo "==> Using existing ${ENV_FILE}"
 fi
 
+echo "==> Ensuring host SSH dir for bootstrap (first-user auto-add server)…"
+SSH_USER_HOME="/root"
+mkdir -p "${SSH_USER_HOME}/.ssh"
+chmod 700 "${SSH_USER_HOME}/.ssh"
+touch "${SSH_USER_HOME}/.ssh/authorized_keys"
+chmod 600 "${SSH_USER_HOME}/.ssh/authorized_keys"
+
 # Same volume names as production so switching install.sh ↔ install-dev.sh keeps DB/data.
+# Mount host root .ssh so AuthorizePublicKey writes the bootstrap key on the VPS
+# (container filesystem alone cannot SSH back to the host → "No Docker").
 cat > "${COMPOSE_FILE}" <<EOF
 services:
   postgres:
@@ -135,6 +144,7 @@ services:
       - "${HOST_PORT}:8000"
     volumes:
       - dockfin-data:/data
+      - ${SSH_USER_HOME}/.ssh:/root/.ssh
     depends_on:
       postgres:
         condition: service_healthy
