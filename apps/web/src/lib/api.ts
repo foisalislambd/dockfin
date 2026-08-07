@@ -403,7 +403,7 @@ export const api = {
       `/api/v1/services${environment_id ? `?environment_id=${environment_id}` : ''}`,
     ),
   getService: (id: string) => request<Service>(`/api/v1/services/${id}`),
-  updateService: (id: string, body: { name?: string; description?: string }) =>
+  updateService: (id: string, body: { name?: string; description?: string; fqdn?: string }) =>
     request<Service>(`/api/v1/services/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   stopService: (id: string) =>
     request<Service>(`/api/v1/services/${id}/stop`, { method: 'POST' }),

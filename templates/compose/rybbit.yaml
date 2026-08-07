@@ -27,7 +27,7 @@ services:
       - NODE_ENV=production
       - TRUST_PROXY=true
       - 'BASE_URL=${SERVICE_URL_RYBBIT}'
-      # --- Coolify-Managed Secrets ---
+      # --- Managed Secrets ---
       - 'CLICKHOUSE_PASSWORD=${SERVICE_PASSWORD_CLICKHOUSE}'
       - 'POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}'
       - 'BETTER_AUTH_SECRET=${SERVICE_BASE64_64_BACKEND}'

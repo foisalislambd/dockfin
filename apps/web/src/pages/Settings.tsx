@@ -992,7 +992,7 @@ export function SettingsPage() {
                   />
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Local-only backups (Coolify-style). Optional S3 destinations remain under{' '}
+                  Local-only backups. Optional S3 destinations remain under{' '}
                   <Link to="/storages" className="text-brand-600 hover:underline dark:text-brand-400">
                     S3 Storages
                   </Link>

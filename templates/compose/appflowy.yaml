@@ -327,7 +327,7 @@ services:
       timeout: 20s
       retries: 3
     volumes:
-      # Coolify will manage this named volume for persistent object storage.
+      # Dockfin will manage this named volume for persistent object storage.
       - minio_data:/data
 
   postgres:
@@ -338,7 +338,7 @@ services:
       - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
       - POSTGRES_HOST=postgres
     volumes:
-      # Coolify will manage this named volume for persistent database storage.
+      # Dockfin will manage this named volume for persistent database storage.
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: [ "CMD", "pg_isready", "-U", "${SERVICE_USER_POSTGRES}", "-d", "${POSTGRES_DB:-appflowy}" ]

@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/dockfin/dockfin/internal/proxy"
 	"gopkg.in/yaml.v3"
 )
 
@@ -78,8 +79,7 @@ func collectAndGenerateMagic(raw string, opts PrepareOpts) map[string]string {
 	if baseURL == "" {
 		baseURL = "http://127.0.0.1"
 	}
-	fqdn := strings.TrimPrefix(strings.TrimPrefix(baseURL, "https://"), "http://")
-	fqdn = strings.Split(fqdn, "/")[0]
+	fqdn := proxy.HostFromDomainEntry(baseURL)
 	if fqdn == "" {
 		fqdn = "127.0.0.1"
 	}
@@ -91,9 +91,14 @@ func collectAndGenerateMagic(raw string, opts PrepareOpts) map[string]string {
 	}
 
 	for key := range keys {
-		if v := strings.TrimSpace(reuse[key]); v != "" {
-			env[key] = v
-			continue
+		// Domain keys always follow this prepare's BaseURL — never sticky-reuse
+		// stale SERVICE_URL_*/FQDN_* from ExistingEnv (Domains / preferURL set BaseURL).
+		isDomainKey := strings.HasPrefix(key, "SERVICE_URL_") || strings.HasPrefix(key, "SERVICE_FQDN_")
+		if !isDomainKey {
+			if v := strings.TrimSpace(reuse[key]); v != "" {
+				env[key] = v
+				continue
+			}
 		}
 		switch {
 		case strings.HasPrefix(key, "SERVICE_PASSWORD_"):
@@ -1002,7 +1007,8 @@ func injectProxyLabels(doc map[string]any, opts PrepareOpts) {
 		fqdn = strings.TrimPrefix(strings.TrimPrefix(base, "https://"), "http://")
 		fqdn = strings.Split(fqdn, "/")[0]
 	}
-	if fqdn == "" || fqdn == "127.0.0.1" || fqdn == "localhost" {
+	primary := proxy.PrimaryHost(fqdn)
+	if primary == "" || primary == "127.0.0.1" || primary == "localhost" {
 		return
 	}
 	services, _ := doc["services"].(map[string]any)
@@ -1031,19 +1037,27 @@ func injectProxyLabels(doc map[string]any, opts PrepareOpts) {
 		"traefik.enable": "true",
 		fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port", router): port,
 	}
+	hosts := proxy.HostsFromDomainList(fqdn)
+	if len(hosts) == 0 {
+		hosts = []string{primary}
+	}
+	rule := proxy.TraefikHostRule(hosts)
+	if rule == "" {
+		return
+	}
 	useHTTPS := strings.HasPrefix(strings.ToLower(strings.TrimSpace(opts.BaseURL)), "https://")
 	if useHTTPS {
-		labels[fmt.Sprintf("traefik.http.routers.%s.rule", router)] = fmt.Sprintf("Host(`%s`)", fqdn)
+		labels[fmt.Sprintf("traefik.http.routers.%s.rule", router)] = rule
 		labels[fmt.Sprintf("traefik.http.routers.%s.entrypoints", router)] = "https"
 		labels[fmt.Sprintf("traefik.http.routers.%s.tls", router)] = "true"
 		labels[fmt.Sprintf("traefik.http.routers.%s.tls.certresolver", router)] = "letsencrypt"
-		labels[fmt.Sprintf("traefik.http.routers.%s-http.rule", router)] = fmt.Sprintf("Host(`%s`)", fqdn)
+		labels[fmt.Sprintf("traefik.http.routers.%s-http.rule", router)] = rule
 		labels[fmt.Sprintf("traefik.http.routers.%s-http.entrypoints", router)] = "http"
 		labels[fmt.Sprintf("traefik.http.routers.%s-http.middlewares", router)] = router + "-redirect"
 		labels[fmt.Sprintf("traefik.http.middlewares.%s-redirect.redirectscheme.scheme", router)] = "https"
 		labels[fmt.Sprintf("traefik.http.middlewares.%s-redirect.redirectscheme.permanent", router)] = "true"
 	} else {
-		labels[fmt.Sprintf("traefik.http.routers.%s.rule", router)] = fmt.Sprintf("Host(`%s`)", fqdn)
+		labels[fmt.Sprintf("traefik.http.routers.%s.rule", router)] = rule
 		labels[fmt.Sprintf("traefik.http.routers.%s.entrypoints", router)] = "http"
 	}
 	if opts.Network != "" {

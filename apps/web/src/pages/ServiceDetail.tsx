@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { DeployLogPanel } from '../components/DeployLogPanel'
+import { DomainsPanel } from '../components/DomainsPanel'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { LinksMenu, LinksPanel } from '../components/LinksMenu'
 import { MoveResourcePanel } from '../components/MoveResourcePanel'
@@ -24,6 +25,7 @@ const TOP_TABS = [
 
 const SIDE_ITEMS = [
   { id: 'general', label: 'General' },
+  { id: 'domains', label: 'Domains' },
   { id: 'environment', label: 'Environment Variables' },
   { id: 'storages', label: 'Persistent Storages' },
   { id: 'tasks', label: 'Scheduled Tasks' },
@@ -78,6 +80,7 @@ export function ServiceDetailPage() {
   const [side, setSide] = useState<(typeof SIDE_ITEMS)[number]['id']>('general')
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [fqdn, setFqdn] = useState('')
   const [showCompose, setShowCompose] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
   const [deployLines, setDeployLines] = useState<string[]>([])
@@ -92,6 +95,7 @@ export function ServiceDetailPage() {
     setSide('general')
     setShowCompose(false)
     setShowDetails(false)
+    setFqdn('')
     setDeployLines([])
     setDeployError('')
     setDeployBusy(false)
@@ -107,6 +111,7 @@ export function ServiceDetailPage() {
     if (!svc.data) return
     setName(svc.data.name || '')
     setDescription(svc.data.description || '')
+    setFqdn(svc.data.fqdn || '')
   }, [svc.data])
 
   const serverId = useMemo(() => {
@@ -128,6 +133,10 @@ export function ServiceDetailPage() {
 
   const save = useMutation({
     mutationFn: () => api.updateService(svcId, { name, description }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['service', svcId] }),
+  })
+  const saveDomains = useMutation({
+    mutationFn: () => api.updateService(svcId, { fqdn }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['service', svcId] }),
   })
   const stop = useMutation({
@@ -298,9 +307,9 @@ export function ServiceDetailPage() {
         </nav>
       </div>
 
-      {(stop.error || restart.error || save.error) && (
+      {(stop.error || restart.error || save.error || saveDomains.error) && (
         <p className="text-sm text-error-500">
-          {(stop.error || restart.error || save.error)?.message}
+          {(stop.error || restart.error || save.error || saveDomains.error)?.message}
         </p>
       )}
 
@@ -395,6 +404,24 @@ export function ServiceDetailPage() {
                 onRestartUnit={() => restart.mutate()}
                 restartBusy={restart.isPending}
               />
+            )}
+            {side === 'domains' && (
+              <div className="panel-card space-y-4 p-5">
+                <DomainsPanel
+                  value={fqdn}
+                  onChange={setFqdn}
+                  onSave={() => saveDomains.mutate()}
+                  saveBusy={saveDomains.isPending}
+                  serverId={serverId || undefined}
+                  destinationId={s.destination_id || undefined}
+                  resourceId={svcId}
+                  resourceName={s.name}
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  After saving a custom domain, click <strong>Deploy</strong> so Traefik and{' '}
+                  <code className="font-mono">SERVICE_URL_*</code> env vars update.
+                </p>
+              </div>
             )}
             {side === 'environment' && (
               <EnvVarsPanel resourceType="service" resourceId={svcId} />

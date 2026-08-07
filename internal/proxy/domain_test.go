@@ -66,10 +66,37 @@ func TestPublicURL(t *testing.T) {
 	if got := PublicURL("127.0.0.1"); got != "http://127.0.0.1" {
 		t.Fatalf("localhost got %q", got)
 	}
+	if got := PublicURL("https://a.example.com,https://b.example.com"); got != "https://a.example.com" {
+		t.Fatalf("multi got %q", got)
+	}
 	if !SslipHTTPSWarning("https://foo.1.2.3.4.sslip.io") {
 		t.Fatal("expected sslip https warning")
 	}
 	if SslipHTTPSWarning("http://foo.1.2.3.4.sslip.io") {
 		t.Fatal("http sslip should not warn")
+	}
+}
+
+func TestDomainParsing(t *testing.T) {
+	if got := HostFromDomainEntry("https://App.Example.com:8080/path"); got != "app.example.com" {
+		t.Fatalf("host got %q", got)
+	}
+	if got := HostFromDomainEntry("HTTPS://App.Example.com"); got != "app.example.com" {
+		t.Fatalf("case host got %q", got)
+	}
+	if got := PrimaryHost("https://a.example.com,https://www.example.com"); got != "a.example.com" {
+		t.Fatalf("primary got %q", got)
+	}
+	if got := TraefikHostRule([]string{"a.example.com", "www.example.com"}); got != "Host(`a.example.com`) || Host(`www.example.com`)" {
+		t.Fatalf("rule got %q", got)
+	}
+	if got := PrimaryPublicURL("app.example.com,www.example.com"); got != "https://app.example.com" {
+		t.Fatalf("url got %q", got)
+	}
+	if got := PublicURL("HTTPS://App.Example.com"); got != "https://App.Example.com" {
+		t.Fatalf("public case got %q", got)
+	}
+	if !IsMagicDomainHost("HTTPS://foo.1.2.3.4.sslip.io") {
+		t.Fatal("expected magic host")
 	}
 }

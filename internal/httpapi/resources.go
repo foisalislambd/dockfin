@@ -731,8 +731,8 @@ func (a *API) handleCreateDatabase(w http.ResponseWriter, r *http.Request) {
 }
 
 func isValidHostnameList(fqdn string) bool {
-	for _, part := range strings.Split(fqdn, ",") {
-		h := strings.TrimSpace(part)
+	for _, part := range proxy.SplitDomainEntries(fqdn) {
+		h := proxy.HostFromDomainEntry(part)
 		if h == "" || strings.ContainsAny(h, "`'\" \t\n\\") {
 			return false
 		}
@@ -751,7 +751,7 @@ func isValidHostnameList(fqdn string) bool {
 			}
 		}
 	}
-	return true
+	return len(proxy.SplitDomainEntries(fqdn)) > 0 || strings.TrimSpace(fqdn) == ""
 }
 
 func (a *API) handleGetDatabase(w http.ResponseWriter, r *http.Request) {

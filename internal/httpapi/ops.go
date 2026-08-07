@@ -106,6 +106,11 @@ func (a *API) handleCreateService(w http.ResponseWriter, r *http.Request) {
 		svc.DestinationID = &id
 	}
 
+	if svc.FQDN != "" && !isValidHostnameList(svc.FQDN) {
+		writeError(w, http.StatusBadRequest, "invalid fqdn — use hostnames like example.com or https://example.com (comma-separated OK)")
+		return
+	}
+
 	opts := services.PrepareOpts{BaseURL: "http://127.0.0.1"}
 	if svc.DestinationID != nil {
 		if dest, err := a.Store.GetDestination(r.Context(), teamID, *svc.DestinationID); err == nil {
@@ -119,9 +124,8 @@ func (a *API) handleCreateService(w http.ResponseWriter, r *http.Request) {
 			svc.FQDN = generateResourceFQDN(svc.Name, svc.ID, srv)
 		}
 		if svc.FQDN != "" {
-			host := strings.TrimSpace(strings.Split(svc.FQDN, ",")[0])
-			opts.BaseURL = proxy.PublicURL(host)
-			opts.FQDN = host
+			opts.BaseURL = proxy.PrimaryPublicURL(svc.FQDN)
+			opts.FQDN = svc.FQDN
 			// Unique Traefik router/service names — plain svc.Name collides when
 			// two resources share a name (e.g. two Planka installs → 404).
 			opts.RouterName = svc.Name + "-" + svc.ID.String()[:8]
@@ -347,10 +351,10 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	fqdnHost := strings.TrimSpace(strings.Split(svc.FQDN, ",")[0])
+	fqdnHost := proxy.PrimaryHost(svc.FQDN)
 	needPrepare := composeYAML == "" || composeYAML == svc.DockerComposeRaw || looksLikeUnpreparedCompose(svc.DockerComposeRaw, composeYAML)
 	if fqdnHost != "" && composeYAML != "" {
-		wantURL := proxy.PublicURL(fqdnHost)
+		wantURL := proxy.PrimaryPublicURL(svc.FQDN)
 		// Re-bake when host missing OR scheme outdated (http→https).
 		if !strings.Contains(composeYAML, fqdnHost) || !strings.Contains(composeYAML, wantURL) {
 			needPrepare = true
@@ -376,16 +380,22 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		}
 		if u, host := preferURLFromMagicEnv(existing); u != "" {
 			opts.BaseURL = u
-			opts.FQDN = host
+			// Keep multi-host Domains list when the env URL matches the primary host.
+			if host != "" && host == fqdnHost && strings.TrimSpace(svc.FQDN) != "" {
+				opts.FQDN = svc.FQDN
+			} else {
+				opts.FQDN = host
+			}
 			if host != "" && host != fqdnHost {
+				// Environment Variables domain differs — sync resource FQDN (Coolify pair).
 				svc.FQDN = host
 				_ = a.Store.UpdateServiceFQDN(r.Context(), id, host)
 				fqdnHost = host
 				emit("prepare", fmt.Sprintf("Using domain from Environment Variables: %s", host))
 			}
 		} else if svc.FQDN != "" {
-			opts.BaseURL = proxy.PublicURL(svc.FQDN)
-			opts.FQDN = fqdnHost
+			opts.BaseURL = proxy.PrimaryPublicURL(svc.FQDN)
+			opts.FQDN = svc.FQDN
 		}
 		prepared, fullEnv, err := services.PrepareCompose(rawCompose, opts)
 		if err != nil {
@@ -490,7 +500,10 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 // waitServiceHTTPReady polls Traefik via Host header until the backend answers
 // with a non-gateway error (not 502/503/504) or the deadline expires.
 func waitServiceHTTPReady(client *ssh.Client, fqdn string, emit func(stage, line string)) {
-	host := strings.TrimSpace(strings.Split(fqdn, ",")[0])
+	host := proxy.PrimaryHost(fqdn)
+	if host == "" {
+		host = strings.TrimSpace(strings.Split(fqdn, ",")[0])
+	}
 	if host == "" || client == nil {
 		return
 	}
@@ -531,6 +544,7 @@ func (a *API) handlePatchService(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Name        *string `json:"name"`
 		Description *string `json:"description"`
+		FQDN        *string `json:"fqdn"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -557,6 +571,25 @@ func (a *API) handlePatchService(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		mapStoreErr(w, err)
 		return
+	}
+	if body.FQDN != nil {
+		fqdn := strings.TrimSpace(*body.FQDN)
+		if fqdn != "" && !isValidHostnameList(fqdn) {
+			writeError(w, http.StatusBadRequest, "invalid fqdn — use hostnames like example.com or https://example.com (comma-separated OK)")
+			return
+		}
+		if err := a.Store.UpdateServiceFQDN(r.Context(), id, fqdn); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+		// Force next deploy to re-bake Traefik labels / SERVICE_URL_* pairs.
+		_ = a.Store.UpdateServiceCompose(r.Context(), id, "")
+		a.rewriteServiceDomainEnv(r.Context(), teamID, id, fqdn)
+		updated, err = a.Store.GetService(r.Context(), teamID, id)
+		if err != nil {
+			mapStoreErr(w, err)
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, serviceWithLinks(updated))
 }

@@ -21,7 +21,7 @@ export function ProjectShowPage() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
 
-  // Coolify navigateTo(): single environment → resources directly
+  // Single environment → resources directly
   useEffect(() => {
     const list = envs.data?.environments
     if (!list || list.length !== 1) return

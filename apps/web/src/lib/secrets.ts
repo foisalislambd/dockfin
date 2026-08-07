@@ -1,4 +1,4 @@
-/** Keys that should stay masked in the Environment Variables UI (Coolify-style). */
+/** Keys that should stay masked in the Environment Variables UI. */
 export function isSecretEnvKey(key: string): boolean {
   const k = key.trim().toUpperCase()
   if (!k) return false

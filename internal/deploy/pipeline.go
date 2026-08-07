@@ -246,8 +246,8 @@ func (p *Pipeline) proxyLabelArgs(app *store.Application, proxyType string) []st
 		return nil
 	default:
 		// Coolify: TLS only when URL scheme is https (magic sslip stays http).
-		forceHTTPS := app.IsForceHTTPS || strings.HasPrefix(proxy.PublicURL(host), "https://")
-		labels = proxy.TraefikLabelsHTTPS(app.Name, host, port, forceHTTPS)
+		forceHTTPS := app.IsForceHTTPS || strings.HasPrefix(proxy.PrimaryPublicURL(app.FQDN), "https://")
+		labels = proxy.TraefikLabelsHTTPS(app.Name, app.FQDN, port, forceHTTPS)
 	}
 	var args []string
 	for _, l := range labels {
@@ -756,11 +756,12 @@ func (p *Pipeline) adaptComposeForDockfin(ctx context.Context, client *ssh.Clien
 		return "", fmt.Errorf("compose file is empty: %s", composePath)
 	}
 
-	fqdn := firstHost(req.App.FQDN)
+	domainList := strings.TrimSpace(req.App.FQDN)
 	if req.PullRequestID > 0 {
-		fqdn = firstHost(req.PreviewFQDN)
+		domainList = strings.TrimSpace(req.PreviewFQDN)
 	}
-	baseURL := proxy.PublicURL(fqdn)
+	fqdn := firstHost(domainList)
+	baseURL := proxy.PrimaryPublicURL(domainList)
 	if req.App.IsForceHTTPS && fqdn != "" && !proxy.IsMagicDomainHost(fqdn) {
 		baseURL = "https://" + fqdn
 	}
@@ -774,7 +775,7 @@ func (p *Pipeline) adaptComposeForDockfin(ctx context.Context, client *ssh.Clien
 		ServiceID:  req.App.ID.String(),
 		Network:    "",
 		BaseURL:    baseURL,
-		FQDN:       fqdn,
+		FQDN:       domainList,
 		RouterName: routerName,
 		Port:       port,
 	}
@@ -900,8 +901,7 @@ func containerNameFor(req Request) string {
 }
 
 func firstHost(fqdn string) string {
-	parts := strings.Split(fqdn, ",")
-	return strings.TrimSpace(parts[0])
+	return proxy.PrimaryHost(fqdn)
 }
 
 func firstPort(ports string) string {

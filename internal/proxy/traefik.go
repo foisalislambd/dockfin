@@ -82,20 +82,28 @@ func TraefikLabels(appName, fqdn, port string) []string {
 }
 
 // TraefikLabelsHTTPS builds Traefik labels; when forceHTTPS is true, routes HTTPS
-// with TLS and redirects HTTP to HTTPS.
+// with TLS and redirects HTTP to HTTPS. fqdn may be a Coolify multi-domain list.
 func TraefikLabelsHTTPS(appName, fqdn, port string, forceHTTPS bool) []string {
 	router := sanitize(appName)
+	rule := TraefikHostRule(HostsFromDomainList(fqdn))
+	if rule == "" {
+		if h := HostFromDomainEntry(fqdn); h != "" {
+			rule = fmt.Sprintf("Host(`%s`)", h)
+		} else {
+			return nil
+		}
+	}
 	labels := []string{
 		"traefik.enable=true",
 		fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port=%s", router, port),
 	}
 	if forceHTTPS {
 		labels = append(labels,
-			fmt.Sprintf("traefik.http.routers.%s.rule=Host(`%s`)", router, fqdn),
+			fmt.Sprintf("traefik.http.routers.%s.rule=%s", router, rule),
 			fmt.Sprintf("traefik.http.routers.%s.entrypoints=https", router),
 			fmt.Sprintf("traefik.http.routers.%s.tls=true", router),
 			fmt.Sprintf("traefik.http.routers.%s.tls.certresolver=letsencrypt", router),
-			fmt.Sprintf("traefik.http.routers.%s-http.rule=Host(`%s`)", router, fqdn),
+			fmt.Sprintf("traefik.http.routers.%s-http.rule=%s", router, rule),
 			fmt.Sprintf("traefik.http.routers.%s-http.entrypoints=http", router),
 			fmt.Sprintf("traefik.http.routers.%s-http.middlewares=%s-redirect", router, router),
 			fmt.Sprintf("traefik.http.middlewares.%s-redirect.redirectscheme.scheme=https", router),
@@ -103,7 +111,7 @@ func TraefikLabelsHTTPS(appName, fqdn, port string, forceHTTPS bool) []string {
 		)
 	} else {
 		labels = append(labels,
-			fmt.Sprintf("traefik.http.routers.%s.rule=Host(`%s`)", router, fqdn),
+			fmt.Sprintf("traefik.http.routers.%s.rule=%s", router, rule),
 			fmt.Sprintf("traefik.http.routers.%s.entrypoints=http", router),
 		)
 	}

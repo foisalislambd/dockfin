@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
+import { DomainsPanel } from '../components/DomainsPanel'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { LinksMenu, LinksPanel } from '../components/LinksMenu'
 import { MoveResourcePanel } from '../components/MoveResourcePanel'
@@ -404,42 +405,22 @@ export function ApplicationDetailPage() {
           >
             <div className="grid gap-4 sm:grid-cols-2">
               <Input label="Name" value={cfg.name} onChange={(v) => setCfg({ ...cfg, name: v })} />
-              <div className="space-y-2">
-                <Input
-                  label="FQDN"
-                  value={cfg.fqdn}
-                  onChange={(v) => setCfg({ ...cfg, fqdn: v })}
-                  required={false}
-                />
-                <button
-                  type="button"
-                  className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
-                  onClick={() => {
-                    void api
-                      .generateDomain({
-                        name: cfg.name || a.name,
-                        destination_id: cfg.destination_id || a.destination_id || undefined,
-                        resource_id: a.id,
-                      })
-                      .then((d) => setCfg((c) => ({ ...c, fqdn: d.fqdn })))
-                      .catch(() => undefined)
-                  }}
-                >
-                  Generate free domain (sslip.io / nip.io)
-                </button>
-                {cfg.fqdn ? (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Multiple hosts: comma-separated. Optional path/port:{" "}
-                    <code className="font-mono">example.com:8080</code>
-                  </p>
-                ) : null}
-              </div>
               <Input
                 label="Description"
                 value={cfg.description}
                 onChange={(v) => setCfg({ ...cfg, description: v })}
                 required={false}
               />
+              <div className="sm:col-span-2">
+                <DomainsPanel
+                  value={cfg.fqdn}
+                  onChange={(v) => setCfg({ ...cfg, fqdn: v })}
+                  serverId={serverId || undefined}
+                  destinationId={cfg.destination_id || a.destination_id || undefined}
+                  resourceId={a.id}
+                  resourceName={cfg.name || a.name}
+                />
+              </div>
               <Input
                 label="Ports exposes"
                 value={cfg.ports_exposes}

@@ -5,7 +5,7 @@ export type ResourceLink = {
   url: string
 }
 
-/** Coolify-style Links dropdown — open public URLs in a new tab. */
+/** Links dropdown — open public URLs in a new tab. */
 export function LinksMenu({ links, className = '' }: { links: ResourceLink[]; className?: string }) {
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
@@ -86,7 +86,7 @@ export function LinksPanel({ links }: { links: ResourceLink[] }) {
       l.url.includes('localhost') ||
       l.url.includes('.0.0.0.0.'),
   )
-  // Coolify warning.sslipdomain — https + sslip is rate-limited by Let's Encrypt.
+  // https + sslip is rate-limited by Let's Encrypt.
   const hasSslipHttps = items.some(
     (l) => l.url.startsWith('https://') && l.url.includes('sslip'),
   )
@@ -113,8 +113,7 @@ export function LinksPanel({ links }: { links: ResourceLink[] }) {
       {hasSslipHttps && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
           sslip.io with <strong>https</strong> is not recommended (Let&apos;s Encrypt rate-limits this
-          public domain). Coolify-style free domains use <code>http://</code> — for HTTPS, use your
-          own domain.
+          public domain). Free domains use <code>http://</code> — for HTTPS, use your own domain.
         </div>
       )}
       <ul className="divide-y divide-gray-200 overflow-hidden rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">

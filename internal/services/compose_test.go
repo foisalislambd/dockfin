@@ -232,6 +232,38 @@ func TestExtractMagicEnvPreservesPasswords(t *testing.T) {
 	}
 }
 
+func TestPrepareComposeDomainKeysFollowBaseURL(t *testing.T) {
+	raw := `services:
+  app:
+    image: nginx
+    environment:
+      - SERVICE_URL_APP
+      - SERVICE_FQDN_APP
+      - SERVICE_PASSWORD_APP
+`
+	_, env1, err := PrepareCompose(raw, PrepareOpts{BaseURL: "http://old.1.2.3.4.sslip.io"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, env2, err := PrepareCompose(raw, PrepareOpts{
+		BaseURL:     "https://app.example.com",
+		FQDN:        "https://app.example.com,https://www.example.com",
+		ExistingEnv: env1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env2["SERVICE_PASSWORD_APP"] != env1["SERVICE_PASSWORD_APP"] {
+		t.Fatalf("password should stick: %q -> %q", env1["SERVICE_PASSWORD_APP"], env2["SERVICE_PASSWORD_APP"])
+	}
+	if env2["SERVICE_URL_APP"] != "https://app.example.com" {
+		t.Fatalf("stale URL reused: %#v", env2["SERVICE_URL_APP"])
+	}
+	if env2["SERVICE_FQDN_APP"] != "app.example.com" {
+		t.Fatalf("fqdn: %#v", env2["SERVICE_FQDN_APP"])
+	}
+}
+
 func TestCoolifyEnvForUIWordPressPair(t *testing.T) {
 	raw := `services:
   wordpress:

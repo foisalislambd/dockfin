@@ -8,6 +8,7 @@ import {
   FormInput,
   FormSelect,
 } from '../components/ui/forms'
+import { DomainsPanel } from '../components/DomainsPanel'
 import { api, fetchAllEnvironments, LAST_ENV_KEY } from '../lib/api'
 
 const BUILD_PACKS = [
@@ -394,31 +395,17 @@ export function CreateApplicationPage() {
                   : undefined
               }
             />
-            <div className="space-y-2">
-              <FormInput
-                label="FQDN"
+            <div className="space-y-2 sm:col-span-2">
+              <DomainsPanel
                 value={form.fqdn}
                 onChange={(v) => setForm({ ...form, fqdn: v })}
-                required={false}
-                placeholder="Leave empty for free sslip.io"
-                hint="Empty = auto free domain (sslip.io / nip.io)"
+                serverId={
+                  (dests.data?.destinations || []).find((d) => d.id === form.destination_id)
+                    ?.server_id || undefined
+                }
+                destinationId={form.destination_id || undefined}
+                resourceName={form.name || 'app'}
               />
-              <button
-                type="button"
-                className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
-                disabled={!form.name || !form.destination_id}
-                onClick={() => {
-                  void api
-                    .generateDomain({
-                      name: form.name || 'app',
-                      destination_id: form.destination_id || undefined,
-                    })
-                    .then((d) => setForm((f) => ({ ...f, fqdn: d.fqdn })))
-                    .catch(() => undefined)
-                }}
-              >
-                Generate free domain
-              </button>
             </div>
           </div>
 

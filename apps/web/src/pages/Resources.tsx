@@ -22,7 +22,7 @@ export function ProjectsPage() {
       setShow(false)
       setName('')
       setDescription('')
-      // Coolify: land in the new production environment resources
+      // Land in the new production environment resources
       void nav({
         to: '/projects/$projectId/environments/$envId',
         params: { projectId: data.project.id, envId: data.environment.id },
@@ -57,7 +57,7 @@ export function ProjectsPage() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
           {(projects.data?.projects || []).map((p) => {
             const envIds = envsByProject.get(p.id) || []
-            // Coolify navigateTo(): single env → resources; else environments list
+            // Single env → resources; else environments list
             const singleEnvId = envIds.length === 1 ? envIds[0] : undefined
             const projectHref = singleEnvId
               ? ({

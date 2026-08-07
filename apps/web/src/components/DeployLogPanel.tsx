@@ -7,7 +7,7 @@ type Props = {
   className?: string
 }
 
-/** Coolify-style deploy output panel (read-only live logs). */
+/** Deploy output panel (read-only live logs). */
 export function DeployLogPanel({
   lines,
   busy,

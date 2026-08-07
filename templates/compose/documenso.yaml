@@ -121,7 +121,7 @@ services:
         # Clean up passphrase file immediately after use
         rm -f "$$PASSPHRASE_FILE"
         
-        # Set permissions (may fail if not root, but will work in Coolify)
+        # Set permissions (may fail if not root)
         chown 1001:1001 cert.p12 private.key certificate.crt 2>/dev/null || true
         chmod 400 cert.p12 private.key certificate.crt
         

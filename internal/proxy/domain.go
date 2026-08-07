@@ -122,29 +122,122 @@ func GenerateFQDN(resourceName string, resourceID uuid.UUID, serverIP, wildcardD
 
 // IsMagicDomainHost reports sslip.io / nip.io free-DNS hostnames (Coolify magic domains).
 func IsMagicDomainHost(host string) bool {
-	host = strings.ToLower(strings.TrimSpace(host))
-	host = strings.TrimPrefix(strings.TrimPrefix(host, "https://"), "http://")
-	if i := strings.IndexByte(host, '/'); i >= 0 {
-		host = host[:i]
-	}
-	if i := strings.IndexByte(host, ':'); i >= 0 {
-		host = host[:i]
-	}
+	host = HostFromDomainEntry(host)
 	return strings.HasSuffix(host, ".sslip.io") || host == "sslip.io" ||
 		strings.HasSuffix(host, ".nip.io") || host == "nip.io"
+}
+
+// SplitDomainEntries splits a Coolify-style domains field (comma-separated).
+func SplitDomainEntries(domains string) []string {
+	var out []string
+	for _, part := range strings.Split(domains, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		out = append(out, part)
+	}
+	return out
+}
+
+// HostFromDomainEntry extracts the bare hostname from one Coolify domain entry.
+// Accepts "example.com", "https://example.com", "https://example.com:8080/path".
+func HostFromDomainEntry(entry string) string {
+	entry = strings.TrimSpace(entry)
+	if entry == "" {
+		return ""
+	}
+	lower := strings.ToLower(entry)
+	switch {
+	case strings.HasPrefix(lower, "https://"):
+		entry = entry[len("https://"):]
+	case strings.HasPrefix(lower, "http://"):
+		entry = entry[len("http://"):]
+	}
+	if i := strings.IndexByte(entry, '/'); i >= 0 {
+		entry = entry[:i]
+	}
+	if i := strings.IndexByte(entry, ':'); i >= 0 {
+		// Strip :port (not IPv6 — Coolify domain entries are hostnames).
+		entry = entry[:i]
+	}
+	return strings.ToLower(strings.TrimSpace(entry))
+}
+
+// HostsFromDomainList returns unique bare hostnames from a domains field.
+func HostsFromDomainList(domains string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, entry := range SplitDomainEntries(domains) {
+		h := HostFromDomainEntry(entry)
+		if h == "" || seen[h] {
+			continue
+		}
+		seen[h] = true
+		out = append(out, h)
+	}
+	return out
+}
+
+// PrimaryHost is the first hostname in a domains list (Coolify primary FQDN).
+func PrimaryHost(domains string) string {
+	hosts := HostsFromDomainList(domains)
+	if len(hosts) == 0 {
+		return ""
+	}
+	return hosts[0]
+}
+
+// PrimaryPublicURL returns the browser URL for the first domain entry.
+func PrimaryPublicURL(domains string) string {
+	entries := SplitDomainEntries(domains)
+	if len(entries) == 0 {
+		return PublicURL("")
+	}
+	return PublicURL(entries[0])
+}
+
+// TraefikHostRule builds Host(`a`) or Host(`a`) || Host(`b`) for multi-domain.
+func TraefikHostRule(hosts []string) string {
+	var parts []string
+	for _, h := range hosts {
+		h = HostFromDomainEntry(h)
+		if h == "" {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("Host(`%s`)", h))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, " || ")
 }
 
 // PublicURL returns a browser URL for an FQDN — Coolify-compatible.
 // Magic domains (sslip.io / nip.io) and localhost stay http:// (Coolify sslip() is always http;
 // https+sslip is discouraged because Let's Encrypt rate-limits those public domains).
 // Custom hostnames default to https://.
+// Comma-separated lists use the first entry only.
 func PublicURL(fqdn string) string {
 	fqdn = strings.TrimSpace(fqdn)
 	if fqdn == "" {
 		return "http://127.0.0.1"
 	}
-	if strings.HasPrefix(fqdn, "http://") || strings.HasPrefix(fqdn, "https://") {
-		return strings.TrimRight(fqdn, "/")
+	if i := strings.IndexByte(fqdn, ','); i >= 0 {
+		fqdn = strings.TrimSpace(fqdn[:i])
+	}
+	lower := strings.ToLower(fqdn)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+		// Normalize scheme casing; keep path/port as typed after scheme.
+		rest := fqdn
+		scheme := "http"
+		if strings.HasPrefix(lower, "https://") {
+			scheme = "https"
+			rest = fqdn[len("https://"):]
+		} else {
+			rest = fqdn[len("http://"):]
+		}
+		return scheme + "://" + strings.TrimRight(rest, "/")
 	}
 	host := fqdn
 	if i := strings.IndexByte(host, '/'); i >= 0 {
@@ -213,11 +306,17 @@ func sanitizeSlug(name string) string {
 // TraefikComposeLabels returns a map suitable for compose `labels:` on a service.
 func TraefikComposeLabels(routerName, fqdn, port, dockerNetwork string) map[string]string {
 	router := sanitize(routerName)
+	rule := TraefikHostRule(HostsFromDomainList(fqdn))
+	if rule == "" {
+		if h := HostFromDomainEntry(fqdn); h != "" {
+			rule = fmt.Sprintf("Host(`%s`)", h)
+		}
+	}
 	out := map[string]string{
 		"traefik.enable": "true",
-		fmt.Sprintf("traefik.http.routers.%s.rule", router):                             fmt.Sprintf("Host(`%s`)", fqdn),
-		fmt.Sprintf("traefik.http.routers.%s.entrypoints", router):                      "http",
-		fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port", router):        port,
+		fmt.Sprintf("traefik.http.routers.%s.rule", router):                      rule,
+		fmt.Sprintf("traefik.http.routers.%s.entrypoints", router):               "http",
+		fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port", router): port,
 	}
 	if dockerNetwork != "" {
 		out["traefik.docker.network"] = dockerNetwork

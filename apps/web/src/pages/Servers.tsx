@@ -266,10 +266,12 @@ export function Modal({
   title,
   children,
   onClose,
+  wide,
 }: {
   title: string
   children: React.ReactNode
   onClose: () => void
+  wide?: boolean
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -288,7 +290,7 @@ export function Modal({
   return createPortal(
     <div className="panel-modal-backdrop" onClick={onClose} role="presentation">
       <div
-        className="panel-modal w-full max-w-md p-5"
+        className={`panel-modal w-full p-5 ${wide ? 'max-w-xl' : 'max-w-md'}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}

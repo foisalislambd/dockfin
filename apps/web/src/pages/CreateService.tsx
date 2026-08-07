@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { DomainsPanel } from '../components/DomainsPanel'
 import { ServiceLogo } from '../components/ServiceLogo'
 import { CreatePageShell, FormActions, FormInput, FormSelect } from '../components/ui/forms'
 import { PageSkeleton } from '../components/ui/Skeleton'
@@ -34,6 +35,7 @@ export function CreateServicePage() {
     environment_id: prefillEnv,
     destination_id: '',
     template: '',
+    fqdn: '',
   })
 
   useEffect(() => {
@@ -86,6 +88,7 @@ export function CreateServicePage() {
               destination_id: form.destination_id || undefined,
               docker_compose_raw: composeRaw,
               service_type: 'custom',
+              fqdn: form.fqdn || undefined,
             }
           : form,
       ),
@@ -173,6 +176,17 @@ export function CreateServicePage() {
               ))}
             </FormSelect>
           </div>
+          <DomainsPanel
+            value={form.fqdn}
+            onChange={(v) => setForm({ ...form, fqdn: v })}
+            serverId={
+              (dests.data?.destinations || []).find((d) => d.id === form.destination_id)?.server_id ||
+              undefined
+            }
+            destinationId={form.destination_id || undefined}
+            resourceName={form.name || selected?.name || 'service'}
+            hint="Optional. Leave empty to auto-assign a free sslip.io / nip.io domain on create."
+          />
         </section>
 
         {emptyCompose ? (
@@ -182,7 +196,7 @@ export function CreateServicePage() {
             </h2>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Paste a full compose file. Dockfin will prepare Traefik labels and magic domains on
-              deploy (Coolify-style empty compose).
+              deploy.
             </p>
             <textarea
               value={composeRaw}

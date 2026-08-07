@@ -84,14 +84,19 @@ func preferURLFromMagicEnv(env map[string]string) (baseURL, fqdn string) {
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		u, err := url.Parse(env[k])
-		if err != nil || u.Host == "" {
+		raw := strings.TrimSpace(env[k])
+		host := proxy.HostFromDomainEntry(raw)
+		if host == "" {
+			u, err := url.Parse(raw)
+			if err != nil || u.Host == "" {
+				continue
+			}
+			host = u.Hostname()
+		}
+		if proxy.FQDNUsesUnusableMagicIP(host) {
 			continue
 		}
-		if proxy.FQDNUsesUnusableMagicIP(u.Host) {
-			continue
-		}
-		return strings.TrimRight(env[k], "/"), u.Host
+		return proxy.PublicURL(raw), host
 	}
 	fqKeys := make([]string, 0)
 	for k, v := range env {
@@ -101,11 +106,53 @@ func preferURLFromMagicEnv(env map[string]string) (baseURL, fqdn string) {
 	}
 	sort.Strings(fqKeys)
 	for _, k := range fqKeys {
-		host := env[k]
-		if proxy.FQDNUsesUnusableMagicIP(host) {
+		host := proxy.HostFromDomainEntry(env[k])
+		if host == "" || proxy.FQDNUsesUnusableMagicIP(host) {
 			continue
 		}
-		return "http://" + host, host
+		return proxy.PublicURL(host), host
 	}
 	return "", ""
+}
+
+// rewriteServiceDomainEnv updates SERVICE_URL_* / SERVICE_FQDN_* pairs to match
+// the resource domains field (Coolify: changing Domains rewrites magic env).
+func (a *API) rewriteServiceDomainEnv(ctx context.Context, teamID, serviceID uuid.UUID, domains string) {
+	baseURL := proxy.PrimaryPublicURL(domains)
+	host := proxy.PrimaryHost(domains)
+	if host == "" {
+		baseURL = ""
+	}
+	vars, err := a.Store.ListEnvVars(ctx, teamID, "service", serviceID, true)
+	if err != nil {
+		return
+	}
+	for _, v := range vars {
+		switch {
+		case strings.HasPrefix(v.Key, "SERVICE_URL_"):
+			if baseURL == "" {
+				continue
+			}
+			_, _ = a.Store.UpsertEnvVar(ctx, teamID, "service", serviceID, store.UpsertEnvVarInput{
+				Key:        v.Key,
+				Value:      baseURL,
+				Runtime:    true,
+				Buildtime:  true,
+				Literal:    true,
+				BypassLock: true,
+			})
+		case strings.HasPrefix(v.Key, "SERVICE_FQDN_"):
+			if host == "" {
+				continue
+			}
+			_, _ = a.Store.UpsertEnvVar(ctx, teamID, "service", serviceID, store.UpsertEnvVarInput{
+				Key:        v.Key,
+				Value:      host,
+				Runtime:    true,
+				Buildtime:  true,
+				Literal:    true,
+				BypassLock: true,
+			})
+		}
+	}
 }

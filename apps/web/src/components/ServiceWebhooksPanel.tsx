@@ -51,15 +51,14 @@ export function ServiceWebhooksPanel({ serviceId }: Props) {
       <div>
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Webhooks</h2>
         <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-          Trigger a redeploy of this service from CI or an external system — same idea as Coolify
-          deploy webhooks.
+          Trigger a redeploy of this service from CI or an external system.
         </p>
       </div>
 
       <section className="panel-card space-y-3 p-5">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Deploy webhook</h3>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Coolify-compatible URL. Authenticate with an{' '}
+          Authenticate with an{' '}
           <Link to="/security" search={{ tab: 'api-tokens' }} className="text-brand-600 hover:underline dark:text-brand-400">
             API token
           </Link>{' '}

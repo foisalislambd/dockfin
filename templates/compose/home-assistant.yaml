@@ -21,7 +21,7 @@ services:
           # Loads default set of integrations. Do not remove.
           default_config:
 
-          # Configuration for reverse proxy support (required for Coolify)
+          # Configuration for reverse proxy support
           http:
             use_x_forwarded_for: true
             trusted_proxies:
