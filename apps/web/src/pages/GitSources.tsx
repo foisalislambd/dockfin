@@ -166,12 +166,29 @@ export function GitSourceDetailPage() {
     queryKey: ['git-source', sourceId],
     queryFn: () => api.getGitSource(sourceId),
   })
+  const settings = useQuery({
+    queryKey: ['instance-settings'],
+    queryFn: api.instanceSettings,
+  })
   const [tab, setTab] = useState<'general' | 'resources' | 'repositories'>('general')
   const [manualOpen, setManualOpen] = useState(false)
   const [previewPerms, setPreviewPerms] = useState(true)
   const [endpoint, setEndpoint] = useState('')
+  const [endpointTouched, setEndpointTouched] = useState(false)
   const [toast, setToast] = useState('')
   const [error, setError] = useState('')
+
+  const panelDomain = useMemo(() => {
+    const fromSettings = (settings.data?.settings?.public_url || '').trim().replace(/\/$/, '')
+    if (fromSettings) return fromSettings
+    if (typeof window !== 'undefined') return window.location.origin
+    return ''
+  }, [settings.data?.settings?.public_url])
+
+  useEffect(() => {
+    if (endpointTouched) return
+    if (panelDomain) setEndpoint(panelDomain)
+  }, [panelDomain, endpointTouched])
 
   const [form, setForm] = useState({
     name: '',
@@ -370,13 +387,27 @@ export function GitSourceDetailPage() {
               pre-configured.
             </p>
             <Input
-              label="Webhook / public endpoint"
+              label="Panel domain (webhook / callback URL)"
               value={endpoint}
-              onChange={setEndpoint}
+              onChange={(v) => {
+                setEndpointTouched(true)
+                setEndpoint(v)
+              }}
               required={false}
             />
             <p className="-mt-2 text-xs text-gray-500 dark:text-gray-400">
-              Leave empty to use Settings → Domain (or DOCKFIN_PUBLIC_URL).
+              Uses Settings → Domain
+              {panelDomain ? (
+                <>
+                  {' '}
+                  (
+                  <Link to="/settings" className="text-brand-600 hover:underline dark:text-brand-400">
+                    {panelDomain}
+                  </Link>
+                  )
+                </>
+              ) : null}
+              . GitHub must reach this URL for the App webhook and callback.
             </p>
             <label className="flex items-center gap-2 text-sm">
               <input
