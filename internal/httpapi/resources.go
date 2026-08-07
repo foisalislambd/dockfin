@@ -12,6 +12,7 @@ import (
 	"github.com/dockfin/dockfin/internal/database"
 	"github.com/dockfin/dockfin/internal/git"
 	"github.com/dockfin/dockfin/internal/proxy"
+	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/dockfin/dockfin/internal/worker"
@@ -288,7 +289,10 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 		body.DockerfileLocation = "/Dockerfile"
 	}
 	if body.DockerComposeLocation == "" {
-		body.DockerComposeLocation = "/docker-compose.yaml"
+		// Empty = auto-detect on deploy / via detect-compose API.
+		body.DockerComposeLocation = ""
+	} else {
+		body.DockerComposeLocation = services.NormalizeComposeLocation(body.DockerComposeLocation)
 	}
 	if body.PortsExposes == "" && body.BuildPack != "dockercompose" {
 		body.PortsExposes = "3000"

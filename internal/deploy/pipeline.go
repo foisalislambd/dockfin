@@ -3,6 +3,7 @@ package deploy
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -616,11 +617,15 @@ func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Re
 	if err := p.gitClone(ctx, client, req, workdir+"/src"); err != nil {
 		return err
 	}
-	composeFile := strings.TrimPrefix(req.App.DockerComposeLocation, "/")
-	if composeFile == "" {
-		composeFile = "docker-compose.yaml"
+	composePath, loc, err := p.resolveComposePath(client, req, workdir+"/src")
+	if err != nil {
+		return err
 	}
-	composePath := workdir + "/src/" + composeFile
+	if loc != "" && req.PullRequestID == 0 && p.Store != nil && loc != req.App.DockerComposeLocation {
+		req.App.DockerComposeLocation = loc
+		_ = p.Store.UpdateApplication(context.Background(), req.App)
+		p.log("prepare", "Using compose file "+loc)
+	}
 	deployPath := composePath
 
 	if req.App.ComposePrepare {
@@ -663,6 +668,79 @@ func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Re
 		_ = p.Store.UpdatePreviewStatus(context.Background(), req.TeamID, req.App.ID, req.PullRequestID, "running")
 	}
 	return nil
+}
+
+// resolveComposePath picks the compose file after clone.
+// Tries the configured location first; if missing (or empty/auto), scans common names.
+// Returns absolute remote path and repo-relative location ("/docker-compose.yml").
+func (p *Pipeline) resolveComposePath(client *ssh.Client, req Request, srcDir string) (absPath, location string, err error) {
+	preferred := services.NormalizeComposeLocation(req.App.DockerComposeLocation)
+	if preferred != "" {
+		rel := strings.TrimPrefix(preferred, "/")
+		candidate := srcDir + "/" + rel
+		if remoteFileExists(client, candidate) {
+			return candidate, preferred, nil
+		}
+		p.log("prepare", fmt.Sprintf("Compose path %s not found — auto-detecting…", preferred))
+	} else {
+		p.log("prepare", "Compose path empty — auto-detecting…")
+	}
+
+	found, findErr := p.findComposeFilesRemote(client, srcDir)
+	if findErr != nil {
+		return "", "", findErr
+	}
+	best := services.PreferComposeFile(found)
+	if best == "" {
+		hint := "docker-compose.yaml / docker-compose.yml / compose.yaml"
+		if preferred != "" {
+			return "", "", fmt.Errorf("compose file %s not found (also searched for %s)", preferred, hint)
+		}
+		return "", "", fmt.Errorf("no compose file found in repository (looked for %s under the repo, max depth 3)", hint)
+	}
+	if len(found) > 1 {
+		p.log("prepare", fmt.Sprintf("Found %d compose files; using %s", len(found), best))
+	} else {
+		p.log("prepare", "Auto-detected compose file "+best)
+	}
+	return srcDir + "/" + strings.TrimPrefix(best, "/"), best, nil
+}
+
+func remoteFileExists(client *ssh.Client, path string) bool {
+	_, _, err := sshx.RunArgs(client, "test", "-f", path)
+	return err == nil
+}
+
+func (p *Pipeline) findComposeFilesRemote(client *ssh.Client, srcDir string) ([]string, error) {
+	// -maxdepth 3 ≡ local WalkDir (dirs up to depth 2): ./a/b/compose.yml is included.
+	// -iname for case-insensitive names on Linux remotes.
+	script := fmt.Sprintf(`cd %s && find . -maxdepth 3 \( -iname 'docker-compose.yaml' -o -iname 'docker-compose.yml' -o -iname 'compose.yaml' -o -iname 'compose.yml' \) ! -path './.git/*' ! -path '*/node_modules/*' ! -path '*/vendor/*' ! -path '*/.venv/*' 2>/dev/null | sed 's|^\./||' || true`, shellSingleQuote(srcDir))
+	out, errOut, err := sshx.Run(client, script)
+	if err != nil {
+		// Fall back to root-only probes when find is unavailable.
+		p.log("prepare", fmt.Sprintf("find compose warning: %v %s — trying root filenames", err, errOut))
+		var found []string
+		for _, name := range services.CommonComposeFilenames {
+			candidate := srcDir + "/" + name
+			if remoteFileExists(client, candidate) {
+				found = append(found, "/"+name)
+			}
+		}
+		return services.SortComposeFiles(found), nil
+	}
+	var found []string
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		found = append(found, "/"+strings.TrimPrefix(filepath.ToSlash(line), "/"))
+	}
+	return services.SortComposeFiles(found), nil
+}
+
+func shellSingleQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // adaptComposeForDockfin reads the cloned compose file, runs PrepareCompose (Traefik

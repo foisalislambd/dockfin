@@ -292,6 +292,21 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ force_rebuild }),
     }),
+  detectCompose: (body: {
+    git_repository: string
+    git_branch?: string
+    git_source_id?: string
+    private_key_id?: string
+  }) =>
+    request<{ location: string; candidates: string[] }>('/api/v1/applications/detect-compose', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  detectComposeForApp: (id: string, save = true) =>
+    request<{ location: string; candidates: string[]; saved?: boolean }>(
+      `/api/v1/applications/${id}/detect-compose`,
+      { method: 'POST', body: JSON.stringify({ save }) },
+    ),
   rollbackApplication: (id: string, force_rebuild = true) =>
     request<Deployment>(`/api/v1/applications/${id}/rollback`, {
       method: 'POST',

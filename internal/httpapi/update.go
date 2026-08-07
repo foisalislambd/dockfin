@@ -2,10 +2,10 @@ package httpapi
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/worker"
 )
 
@@ -86,14 +86,7 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		app.DockerfileLocation = *body.DockerfileLocation
 	}
 	if body.DockerComposeLocation != nil {
-		loc := strings.TrimSpace(*body.DockerComposeLocation)
-		if loc == "" {
-			loc = "/docker-compose.yaml"
-		}
-		if !strings.HasPrefix(loc, "/") {
-			loc = "/" + loc
-		}
-		app.DockerComposeLocation = loc
+		app.DockerComposeLocation = services.NormalizeComposeLocation(*body.DockerComposeLocation)
 	}
 	if body.ComposePrepare != nil {
 		app.ComposePrepare = *body.ComposePrepare

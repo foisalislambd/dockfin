@@ -189,10 +189,12 @@ func (a *API) Router() http.Handler {
 			r.Route("/applications", func(r chi.Router) {
 				r.Get("/", a.handleListApplications)
 				r.Post("/", a.handleCreateApplication)
+				r.Post("/detect-compose", a.handleDetectCompose)
 				r.Get("/{appID}", a.handleGetApplication)
 				r.Patch("/{appID}", a.handleUpdateApplication)
 				r.With(a.requireAdmin).Delete("/{appID}", a.handleDeleteApplication)
 				r.Post("/{appID}/deploy", a.handleDeployApplication)
+				r.Post("/{appID}/detect-compose", a.handleDetectComposeForApp)
 				r.Get("/{appID}/deployments", a.handleListDeployments)
 				r.Post("/{appID}/webhook-secret", a.handleSetWebhookSecret)
 				r.Post("/{appID}/rollback", a.handleRollbackApplication)

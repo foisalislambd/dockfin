@@ -133,7 +133,7 @@ export function ApplicationDetailPage() {
         app.data.build_pack === 'dockercompose'
           ? app.data.ports_exposes || ''
           : app.data.ports_exposes || '80',
-      docker_compose_location: app.data.docker_compose_location || '/docker-compose.yaml',
+      docker_compose_location: app.data.docker_compose_location || '',
       compose_prepare: app.data.compose_prepare !== false,
       docker_registry_image_name: app.data.docker_registry_image_name || '',
       docker_registry_image_tag: app.data.docker_registry_image_tag || '',
@@ -181,7 +181,7 @@ export function ApplicationDetailPage() {
         updated.build_pack === 'dockercompose'
           ? updated.ports_exposes || ''
           : updated.ports_exposes || '80',
-      docker_compose_location: updated.docker_compose_location || '/docker-compose.yaml',
+      docker_compose_location: updated.docker_compose_location || '',
       compose_prepare: updated.compose_prepare !== false,
       docker_registry_image_name: updated.docker_registry_image_name || '',
       docker_registry_image_tag: updated.docker_registry_image_tag || '',
@@ -460,6 +460,28 @@ export function ApplicationDetailPage() {
                     onChange={(v) => setCfg({ ...cfg, docker_compose_location: v })}
                     required={false}
                   />
+                  <div className="sm:col-span-2 -mt-2 flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                      onClick={() => {
+                        void api
+                          .detectComposeForApp(appId, true)
+                          .then((d) => {
+                            setCfg((c) => ({ ...c, docker_compose_location: d.location }))
+                            void qc.invalidateQueries({ queryKey: ['application', appId] })
+                          })
+                          .catch(() => undefined)
+                      }}
+                    >
+                      Auto-detect from repository
+                    </button>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Empty path = auto-find on deploy (
+                      <code className="font-mono">docker-compose.yml</code> /{' '}
+                      <code className="font-mono">compose.yaml</code>, depth 3).
+                    </span>
+                  </div>
                   <fieldset className="space-y-3 sm:col-span-2">
                     <legend className="text-sm text-gray-500 dark:text-gray-400">
                       Compose adaptation

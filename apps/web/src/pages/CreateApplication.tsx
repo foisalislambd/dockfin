@@ -65,9 +65,12 @@ export function CreateApplicationPage() {
     git_branch: 'main',
     git_source_id: '',
     private_key_id: '',
-    docker_compose_location: '/docker-compose.yaml',
+    docker_compose_location: '',
     compose_prepare: true,
   })
+  const [composeCandidates, setComposeCandidates] = useState<string[]>([])
+  const [detectError, setDetectError] = useState('')
+  const [detecting, setDetecting] = useState(false)
 
   const [repoOwner, setRepoOwner] = useState('')
   const [repoName, setRepoName] = useState('')
@@ -421,13 +424,88 @@ export function CreateApplicationPage() {
 
           {form.build_pack === 'dockercompose' ? (
             <div className="space-y-4 rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-              <FormInput
-                label="Compose file path"
-                value={form.docker_compose_location}
-                onChange={(v) => setForm({ ...form, docker_compose_location: v })}
-                placeholder="/docker-compose.yaml"
-                hint="Path inside the repository (leading slash optional)."
-              />
+              <div className="space-y-2">
+                <FormInput
+                  label="Compose file path"
+                  value={form.docker_compose_location}
+                  onChange={(v) => {
+                    setComposeCandidates([])
+                    setForm({ ...form, docker_compose_location: v })
+                  }}
+                  required={false}
+                  placeholder="Leave empty to auto-detect on deploy"
+                  hint="Empty = Dockfin finds docker-compose.yml / compose.yaml in the repo."
+                />
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-brand-600 hover:underline disabled:opacity-50 dark:text-brand-400"
+                    disabled={
+                      detecting ||
+                      (!form.git_repository && sourceType !== 'private-gh-app') ||
+                      (sourceType === 'private-gh-app' && (!form.git_source_id || !repoOwner || !repoName))
+                    }
+                    onClick={() => {
+                      setDetectError('')
+                      setDetecting(true)
+                      const repo =
+                        sourceType === 'private-gh-app' && repoOwner && repoName
+                          ? `${repoOwner}/${repoName}`
+                          : form.git_repository
+                      void api
+                        .detectCompose({
+                          git_repository: repo,
+                          git_branch: form.git_branch || 'main',
+                          git_source_id: form.git_source_id || undefined,
+                          private_key_id: form.private_key_id || undefined,
+                        })
+                        .then((d) => {
+                          setForm((f) => ({ ...f, docker_compose_location: d.location }))
+                          setComposeCandidates(d.candidates || [])
+                        })
+                        .catch((e: Error) => setDetectError(e.message || 'Detect failed'))
+                        .finally(() => setDetecting(false))
+                    }}
+                  >
+                    {detecting ? 'Detecting…' : 'Auto-detect from repository'}
+                  </button>
+                  {form.docker_compose_location ? (
+                    <button
+                      type="button"
+                      className="text-xs text-gray-500 hover:underline dark:text-gray-400"
+                      onClick={() => {
+                        setForm((f) => ({ ...f, docker_compose_location: '' }))
+                        setComposeCandidates([])
+                      }}
+                    >
+                      Clear (auto on deploy)
+                    </button>
+                  ) : null}
+                </div>
+                {detectError ? (
+                  <p className="text-xs text-error-500" role="alert">
+                    {detectError}
+                  </p>
+                ) : null}
+                {composeCandidates.length > 1 ? (
+                  <label className="block text-sm">
+                    <span className="mb-1 block text-gray-500 dark:text-gray-400">
+                      Found {composeCandidates.length} files — pick one
+                    </span>
+                    <select
+                      value={form.docker_compose_location}
+                      onChange={(e) => setForm({ ...form, docker_compose_location: e.target.value })}
+                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-950"
+                    >
+                      {composeCandidates.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+              </div>
               <fieldset className="space-y-3">
                 <legend className="text-sm font-medium text-gray-800 dark:text-gray-200">
                   Compose adaptation
