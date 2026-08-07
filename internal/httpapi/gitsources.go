@@ -468,12 +468,18 @@ func (a *API) handleGitSourceRepositories(w http.ResponseWriter, r *http.Request
 		APIURL:        gs.APIURL,
 		Name:          gs.Name,
 	}
-	repos, err := app.ListRepos(gs.InstallationID, page)
+	all := r.URL.Query().Get("all") == "1" || r.URL.Query().Get("all") == "true"
+	var repos []map[string]any
+	if all {
+		repos, err = app.ListAllRepositories(gs.InstallationID)
+	} else {
+		repos, err = app.ListRepos(gs.InstallationID, page)
+	}
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"repositories": repos, "page": page})
+	writeJSON(w, http.StatusOK, map[string]any{"repositories": repos, "page": page, "count": len(repos)})
 }
 
 func (a *API) handleGitSourceBranches(w http.ResponseWriter, r *http.Request) {

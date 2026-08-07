@@ -6,6 +6,7 @@ import {
   CreatePageShell,
   FormActions,
   FormInput,
+  FormSearchSelect,
   FormSelect,
 } from '../components/ui/forms'
 import { DomainsPanel, normalizeDomains } from '../components/DomainsPanel'
@@ -77,10 +78,21 @@ export function CreateApplicationPage() {
   const [repoName, setRepoName] = useState('')
 
   const repos = useQuery({
-    queryKey: ['git-source-repos', form.git_source_id],
-    queryFn: () => api.gitSourceRepositories(form.git_source_id),
+    queryKey: ['git-source-repos-all', form.git_source_id],
+    queryFn: () => api.gitSourceRepositoriesAll(form.git_source_id),
     enabled: Boolean(form.git_source_id) && sourceType === 'private-gh-app',
   })
+
+  const repoOptions = useMemo(() => {
+    return (repos.data?.repositories || [])
+      .map((r) => {
+        const full = String(r.full_name || '')
+        const clone = String(r.clone_url || r.html_url || full)
+        return { value: clone || full, label: full || clone }
+      })
+      .filter((o) => o.value && o.label)
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [repos.data])
 
   const branches = useQuery({
     queryKey: ['git-source-branches', form.git_source_id, repoOwner, repoName],
@@ -300,9 +312,19 @@ export function CreateApplicationPage() {
                   + Add GitHub App
                 </Link>
               )}
-              <FormSelect
+              <FormSearchSelect
                 label="Repository"
                 value={form.git_repository}
+                loading={repos.isLoading}
+                placeholder="Search repositories…"
+                emptyMessage={
+                  repos.isError
+                    ? repos.error.message
+                    : repos.isLoading
+                      ? 'Loading…'
+                      : 'No repositories found'
+                }
+                options={repoOptions}
                 onChange={(v) => {
                   const full = v.replace(/\.git$/, '')
                   const [owner, name] = full.includes('/')
@@ -312,18 +334,7 @@ export function CreateApplicationPage() {
                   setRepoName((name || '').replace(/\.git$/, ''))
                   setForm({ ...form, git_repository: v, git_branch: 'main' })
                 }}
-              >
-                <option value="">Select…</option>
-                {(repos.data?.repositories || []).map((r) => {
-                  const full = String(r.full_name || '')
-                  const clone = String(r.clone_url || r.html_url || full)
-                  return (
-                    <option key={full} value={clone || full}>
-                      {full}
-                    </option>
-                  )
-                })}
-              </FormSelect>
+              />
               <FormSelect
                 label="Branch"
                 value={form.git_branch}

@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 export const fieldClass =
   'panel-field h-9 w-full rounded-md px-2.5 text-sm shadow-sm transition placeholder:text-gray-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20 focus:outline-none'
@@ -91,6 +91,131 @@ export function FormSelect(props: {
         {children}
       </select>
     </label>
+  )
+}
+
+export type SearchSelectOption = { value: string; label: string }
+
+/** Combobox-style select with filter — better for long lists (repos, etc.). */
+export function FormSearchSelect(props: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  options: SearchSelectOption[]
+  required?: boolean
+  hint?: string
+  placeholder?: string
+  loading?: boolean
+  emptyMessage?: string
+}) {
+  const {
+    label,
+    value,
+    onChange,
+    options,
+    required = true,
+    hint,
+    placeholder = 'Search…',
+    loading,
+    emptyMessage = 'No matches',
+  } = props
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  const selected = options.find((o) => o.value === value)
+  const q = query.trim().toLowerCase()
+  const filtered = useMemo(() => {
+    if (!q) return options
+    return options.filter(
+      (o) => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q),
+    )
+  }, [options, q])
+
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
+  useEffect(() => {
+    if (!open) setQuery('')
+  }, [open])
+
+  return (
+    <div className="block" ref={rootRef}>
+      <FieldLabel hint={hint || (loading ? 'Loading…' : options.length ? `${options.length} total` : undefined)}>
+        {label}
+      </FieldLabel>
+      <div className="relative">
+        <button
+          type="button"
+          className={`${fieldClass} flex items-center justify-between gap-2 text-left`}
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-haspopup="listbox"
+        >
+          <span className={selected ? 'truncate text-gray-900 dark:text-white' : 'truncate text-gray-400'}>
+            {selected?.label || (loading ? 'Loading…' : 'Select…')}
+          </span>
+          <span className="shrink-0 text-gray-400">▾</span>
+        </button>
+        {/* Keep a hidden required input for native form validation */}
+        <input tabIndex={-1} className="sr-only" required={required} value={value} onChange={() => {}} />
+        {open && (
+          <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950">
+            <div className="border-b border-gray-100 p-2 dark:border-gray-800">
+              <input
+                autoFocus
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={placeholder}
+                className={`${fieldClass} h-8`}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setOpen(false)
+                  if (e.key === 'Enter' && filtered[0]) {
+                    e.preventDefault()
+                    onChange(filtered[0].value)
+                    setOpen(false)
+                  }
+                }}
+              />
+            </div>
+            <ul className="max-h-64 overflow-y-auto py-1" role="listbox">
+              {filtered.map((o) => (
+                <li key={o.value}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={o.value === value}
+                    className={`block w-full truncate px-3 py-2 text-left text-sm hover:bg-brand-50 dark:hover:bg-brand-500/10 ${
+                      o.value === value
+                        ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-300'
+                        : 'text-gray-800 dark:text-gray-200'
+                    }`}
+                    onClick={() => {
+                      onChange(o.value)
+                      setOpen(false)
+                    }}
+                  >
+                    {o.label}
+                  </button>
+                </li>
+              ))}
+              {!filtered.length && (
+                <li className="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                  {emptyMessage}
+                </li>
+              )}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 

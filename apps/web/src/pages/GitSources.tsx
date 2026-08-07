@@ -239,10 +239,21 @@ export function GitSourceDetailPage() {
     enabled: Boolean(source.data?.configured && source.data?.installed),
   })
   const repos = useQuery({
-    queryKey: ['git-source-repos', sourceId],
-    queryFn: () => api.gitSourceRepositories(sourceId),
+    queryKey: ['git-source-repos-all', sourceId],
+    queryFn: () => api.gitSourceRepositoriesAll(sourceId),
     enabled: Boolean(source.data?.installed) && tab === 'repositories',
   })
+  const [repoFilter, setRepoFilter] = useState('')
+  const filteredRepos = useMemo(() => {
+    const list = repos.data?.repositories || []
+    const q = repoFilter.trim().toLowerCase()
+    if (!q) return list
+    return list.filter((r) => {
+      const full = String(r.full_name || r.name || '').toLowerCase()
+      const url = String(r.clone_url || r.html_url || '').toLowerCase()
+      return full.includes(q) || url.includes(q)
+    })
+  }, [repos.data, repoFilter])
 
   const registerManifest = useMutation({
     mutationFn: () =>
@@ -576,18 +587,35 @@ export function GitSourceDetailPage() {
 
               {gs.installed && tab === 'repositories' && (
                 <div className="panel-card overflow-hidden">
-                  <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-800">
-                    <span className="text-sm font-medium">Repositories</span>
-                    <button
-                      type="button"
-                      className="text-xs text-brand-600 hover:underline dark:text-brand-400"
-                      onClick={() => install.mutate()}
-                    >
-                      Update Repositories
-                    </button>
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-3 py-2 dark:border-gray-800">
+                    <span className="text-sm font-medium">
+                      Repositories
+                      {repos.data?.count != null ? (
+                        <span className="ml-1 text-xs font-normal text-gray-500">
+                          ({filteredRepos.length}
+                          {repoFilter.trim() ? ` of ${repos.data.count}` : ''})
+                        </span>
+                      ) : null}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="search"
+                        value={repoFilter}
+                        onChange={(e) => setRepoFilter(e.target.value)}
+                        placeholder="Search…"
+                        className="h-8 w-44 rounded-md border border-gray-200 bg-white px-2 text-xs dark:border-gray-700 dark:bg-gray-950"
+                      />
+                      <button
+                        type="button"
+                        className="text-xs text-brand-600 hover:underline dark:text-brand-400"
+                        onClick={() => install.mutate()}
+                      >
+                        Update Repositories
+                      </button>
+                    </div>
                   </div>
                   <ul className="divide-y divide-gray-200 dark:divide-gray-800">
-                    {(repos.data?.repositories || []).map((r, i) => {
+                    {filteredRepos.map((r, i) => {
                       const full = String(r.full_name || r.name || i)
                       const url = String(r.clone_url || r.html_url || '')
                       return (
@@ -599,9 +627,11 @@ export function GitSourceDetailPage() {
                         </li>
                       )
                     })}
-                    {!repos.data?.repositories?.length && !repos.isLoading && (
+                    {!filteredRepos.length && !repos.isLoading && (
                       <li className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                        No repositories visible. Update installation permissions on GitHub.
+                        {repoFilter.trim()
+                          ? 'No repositories match your search.'
+                          : 'No repositories visible. Update installation permissions on GitHub.'}
                       </li>
                     )}
                   </ul>

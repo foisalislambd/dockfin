@@ -252,35 +252,57 @@ func ConvertManifest(apiURL, code string) (*ManifestConversion, error) {
 }
 
 func (a *App) ListRepos(installationID string, page int) ([]map[string]any, error) {
+	repos, _, err := a.listRepositoriesPage(installationID, page)
+	return repos, err
+}
+
+// ListAllRepositories pages through every installation repo (50 per page, max 2000).
+func (a *App) ListAllRepositories(installationID string) ([]map[string]any, error) {
+	var all []map[string]any
+	for page := 1; page <= 40; page++ {
+		repos, total, err := a.listRepositoriesPage(installationID, page)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, repos...)
+		if len(repos) < 50 || (total > 0 && len(all) >= total) {
+			break
+		}
+	}
+	return all, nil
+}
+
+func (a *App) listRepositoriesPage(installationID string, page int) ([]map[string]any, int, error) {
 	token, err := a.InstallationToken(installationID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if page < 1 {
 		page = 1
 	}
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/installation/repositories?per_page=50&page=%d", a.apiBase(), page), nil)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("list repos: %s %s", resp.Status, string(body))
+		return nil, 0, fmt.Errorf("list repos: %s %s", resp.Status, string(body))
 	}
 	var out struct {
+		TotalCount   int              `json:"total_count"`
 		Repositories []map[string]any `json:"repositories"`
 	}
 	if err := json.Unmarshal(body, &out); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return out.Repositories, nil
+	return out.Repositories, out.TotalCount, nil
 }
 
 func (a *App) ListBranches(installationID, owner, repo string) ([]string, error) {

@@ -777,8 +777,12 @@ export const api = {
     }>(`/api/v1/git-sources/${id}/manifest${qs ? `?${qs}` : ''}`)
   },
   gitSourceRepositories: (id: string, page = 1) =>
-    request<{ repositories: Record<string, unknown>[] }>(
+    request<{ repositories: Record<string, unknown>[]; page: number; count: number }>(
       `/api/v1/git-sources/${id}/repositories?page=${page}`,
+    ),
+  gitSourceRepositoriesAll: (id: string) =>
+    request<{ repositories: Record<string, unknown>[]; count: number }>(
+      `/api/v1/git-sources/${id}/repositories?all=1`,
     ),
   gitSourceBranches: (id: string, owner: string, repo: string) =>
     request<{ branches: string[] }>(
