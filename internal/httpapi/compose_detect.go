@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -193,7 +194,9 @@ func (a *API) composeDetectCloneAuth(r *http.Request, teamID uuid.UUID, body det
 		if !strings.HasPrefix(sshURL, "git@") && !strings.HasPrefix(sshURL, "ssh://") {
 			return "", nil, nil, fmt.Errorf("could not build SSH clone URL from %q", body.GitRepository)
 		}
-		sshCmd := fmt.Sprintf("ssh -i %s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null", keyPath)
+		knownHosts := filepath.Join(a.Cfg.DataDir, "ssh", "known_hosts")
+		_ = os.MkdirAll(filepath.Dir(knownHosts), 0o700)
+		sshCmd := fmt.Sprintf("ssh -i %s -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=%s", keyPath, knownHosts)
 		return sshURL, []string{"GIT_SSH_COMMAND=" + sshCmd}, func() { _ = os.Remove(keyPath) }, nil
 	}
 

@@ -126,7 +126,8 @@ func (p *Pipeline) gitClone(ctx context.Context, client *ssh.Client, req Request
 			}
 		}
 		repo := githubapp.ToSSHURL(req.App.GitRepository, user)
-		sshCmd := fmt.Sprintf("ssh -i %s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null", keyPath)
+		_, _, _ = sshx.RunArgs(client, "mkdir", "-p", "/data/dockfin/.ssh")
+		sshCmd := fmt.Sprintf("ssh -i %s -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/data/dockfin/.ssh/known_hosts", keyPath)
 		if err := runClone([]string{"env", "GIT_SSH_COMMAND=" + sshCmd}, repo); err != nil {
 			return fmt.Errorf("git clone (deploy key): %w", err)
 		}

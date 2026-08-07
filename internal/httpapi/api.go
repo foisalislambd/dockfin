@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -93,6 +94,7 @@ func (a *API) Router() http.Handler {
 
 		r.Group(func(r chi.Router) {
 			r.Use(a.requireAuth)
+			r.Use(a.enforceAPITokenPolicy)
 			r.Use(a.requireTeam)
 			r.Use(timeoutExceptSSE(120 * time.Second))
 
@@ -365,6 +367,7 @@ func (a *API) requireAuth(next http.Handler) http.Handler {
 		}
 		ctx := context.WithValue(r.Context(), ctxUser, user)
 		ctx = context.WithValue(ctx, ctxSession, synth)
+		ctx = withAPIAbilities(ctx, apiTok.Abilities)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -486,17 +489,33 @@ func clearSessionCookie(w http.ResponseWriter, r *http.Request, cfg *config.Conf
 
 // cookieSecureForRequest prefers HTTPS (custom domain via Traefik) over the
 // install-time DOCKFIN_PUBLIC_URL scheme (often http://IP:8000).
+// X-Forwarded-Proto is only honored when the immediate peer is a private/loopback
+// address (typical reverse-proxy hop), to avoid client-spoofed Secure cookies.
 func cookieSecureForRequest(r *http.Request, cfg *config.Config) bool {
 	if r != nil {
-		proto := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")))
-		if r.TLS != nil || proto == "https" {
+		if r.TLS != nil {
 			return true
 		}
-		if proto == "http" {
-			return false
+		if forwardedProtoTrusted(r) {
+			proto := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")))
+			if proto == "https" {
+				return true
+			}
+			if proto == "http" {
+				return false
+			}
 		}
 	}
 	return cfg != nil && cfg.CookieSecure
+}
+
+func forwardedProtoTrusted(r *http.Request) bool {
+	ipStr := requestClientIP(r)
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
 }
 
 func mapStoreErr(w http.ResponseWriter, err error) {

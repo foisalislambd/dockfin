@@ -49,19 +49,24 @@ func (d *Dispatcher) SendChannel(ctx context.Context, teamID uuid.UUID, channel,
 }
 
 func (d *Dispatcher) sendChannel(ctx context.Context, teamID uuid.UUID, channel, cfgJSON string, event Event) error {
+	policy := URLPolicy{}
+	if st, err := d.Store.GetInstanceSettings(ctx); err == nil {
+		policy.AllowLocalhost = st.WebhookAllowLocalhost
+		policy.AllowedHosts = ParseAllowedHosts(st.WebhookAllowedInternalHosts)
+	}
 	switch channel {
 	case "webhook":
 		var cfg WebhookConfig
 		_ = json.Unmarshal([]byte(cfgJSON), &cfg)
-		return SendWebhook(ctx, cfg, event)
+		return SendWebhook(ctx, cfg, event, policy)
 	case "discord":
 		var cfg DiscordConfig
 		_ = json.Unmarshal([]byte(cfgJSON), &cfg)
-		return SendDiscord(ctx, cfg, event)
+		return SendDiscord(ctx, cfg, event, policy)
 	case "slack":
 		var cfg SlackConfig
 		_ = json.Unmarshal([]byte(cfgJSON), &cfg)
-		return SendSlack(ctx, cfg, event)
+		return SendSlack(ctx, cfg, event, policy)
 	case "telegram":
 		var cfg TelegramConfig
 		_ = json.Unmarshal([]byte(cfgJSON), &cfg)

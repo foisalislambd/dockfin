@@ -15,7 +15,7 @@ import (
 )
 
 // handleDeployByUUID is Coolify-compatible: GET|POST /api/v1/deploy?uuid=&force=
-// Auth: session cookie, API token (deploy/write/root/*), or the resource webhook secret as Bearer.
+// Auth: session cookie (POST only), API token (deploy/write/root/*), or the resource webhook secret as Bearer.
 func (a *API) handleDeployByUUID(w http.ResponseWriter, r *http.Request) {
 	raw := strings.TrimSpace(r.URL.Query().Get("uuid"))
 	if raw == "" {
@@ -28,6 +28,12 @@ func (a *API) handleDeployByUUID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	force := r.URL.Query().Get("force") == "true" || r.URL.Query().Get("force") == "1"
+
+	// Cookie-authenticated GET is a CSRF vector (img/link navigation). Require POST for sessions.
+	if r.Method == http.MethodGet && cookieSessionWithoutBearer(r) {
+		writeError(w, http.StatusMethodNotAllowed, "cookie sessions must POST /api/v1/deploy")
+		return
+	}
 
 	teamID, ok := a.authorizeDeployWebhook(r, id)
 	if !ok {
@@ -44,6 +50,18 @@ func (a *API) handleDeployByUUID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeError(w, http.StatusNotFound, "resource not found")
+}
+
+func cookieSessionWithoutBearer(r *http.Request) bool {
+	c, err := r.Cookie("dockfin_session")
+	if err != nil || c.Value == "" {
+		return false
+	}
+	auth := r.Header.Get("Authorization")
+	if len(auth) > 7 && strings.EqualFold(auth[:7], "Bearer ") {
+		return false
+	}
+	return true
 }
 
 // handleServiceDeployWebhook triggers redeploy using the service's webhook secret.
@@ -137,7 +155,7 @@ func secureTokenEqual(want, got string) bool {
 
 func apiTokenCanDeploy(abilities []string) bool {
 	if len(abilities) == 0 {
-		return true
+		return false
 	}
 	for _, a := range abilities {
 		switch strings.ToLower(strings.TrimSpace(a)) {
@@ -149,10 +167,8 @@ func apiTokenCanDeploy(abilities []string) bool {
 }
 
 func bearerOrQueryToken(r *http.Request) string {
-	if t := sessionToken(r); t != "" {
-		return t
-	}
-	return strings.TrimSpace(r.URL.Query().Get("token"))
+	// Prefer Authorization header only — query tokens leak into access logs and Referer.
+	return sessionToken(r)
 }
 
 func (a *API) triggerServiceDeploy(w http.ResponseWriter, r *http.Request, svc *store.Service) {

@@ -1,0 +1,57 @@
+package httpapi
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func TestAPITokenAllows(t *testing.T) {
+	if !apiTokenAllows([]string{"read"}, http.MethodGet, "/api/v1/applications") {
+		t.Fatal("read should allow GET apps")
+	}
+	if apiTokenAllows([]string{"read"}, http.MethodPost, "/api/v1/applications/x/deploy") {
+		t.Fatal("read should deny deploy")
+	}
+	if !apiTokenAllows([]string{"deploy"}, http.MethodPost, "/api/v1/applications/x/deploy") {
+		t.Fatal("deploy should allow deploy")
+	}
+	if apiTokenAllows([]string{"read"}, http.MethodGet, "/api/v1/env-vars") {
+		t.Fatal("read should deny sensitive GET")
+	}
+	if !apiTokenAllows([]string{"read:sensitive"}, http.MethodGet, "/api/v1/env-vars") {
+		t.Fatal("read:sensitive should allow env-vars")
+	}
+	if !apiTokenAllows([]string{"write"}, http.MethodDelete, "/api/v1/services/x") {
+		t.Fatal("write should allow delete")
+	}
+}
+
+func TestClientIPAllowed(t *testing.T) {
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r.RemoteAddr = "203.0.113.10:9999"
+	if !clientIPAllowed(r, "") {
+		t.Fatal("empty allowlist should allow")
+	}
+	if !clientIPAllowed(r, "203.0.113.10") {
+		t.Fatal("exact IP should allow")
+	}
+	if clientIPAllowed(r, "10.0.0.1") {
+		t.Fatal("other IP should deny")
+	}
+	if !clientIPAllowed(r, "203.0.113.0/24") {
+		t.Fatal("CIDR should allow")
+	}
+}
+
+func TestCookieSessionWithoutBearer(t *testing.T) {
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/deploy", nil)
+	r.AddCookie(&http.Cookie{Name: "dockfin_session", Value: "sess"})
+	if !cookieSessionWithoutBearer(r) {
+		t.Fatal("expected cookie-only session")
+	}
+	r.Header.Set("Authorization", "Bearer tok")
+	if cookieSessionWithoutBearer(r) {
+		t.Fatal("bearer should disable cookie-only flag")
+	}
+}

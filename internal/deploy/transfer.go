@@ -4,12 +4,18 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"regexp"
 
 	"golang.org/x/crypto/ssh"
 )
 
+var dockerImageRe = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._/:@-]*$`)
+
 // TransferImage streams docker save on buildHost into docker load on deployHost.
 func TransferImage(buildHost, deployHost *ssh.Client, image string) error {
+	if !dockerImageRe.MatchString(image) || len(image) > 256 {
+		return fmt.Errorf("invalid image name")
+	}
 	buildSess, err := buildHost.NewSession()
 	if err != nil {
 		return fmt.Errorf("build session: %w", err)

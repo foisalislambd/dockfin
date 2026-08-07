@@ -51,7 +51,11 @@ type CreateOpts struct {
 func (m *Manager) Create(opts CreateOpts) (uuid.UUID, error) {
 	cmd := ""
 	if opts.Container != "" {
-		cmd = DockerExec(opts.Container)
+		var err error
+		cmd, err = DockerExec(opts.Container)
+		if err != nil {
+			return uuid.Nil, err
+		}
 	}
 	term, err := Start(opts.Client, cmd)
 	if err != nil {

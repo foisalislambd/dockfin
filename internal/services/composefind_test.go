@@ -100,6 +100,12 @@ func TestNormalizeComposeLocation(t *testing.T) {
 	if got := NormalizeComposeLocation("docker-compose.yml"); got != "/docker-compose.yml" {
 		t.Fatalf("got %q", got)
 	}
+	if got := NormalizeComposeLocation("../etc/passwd"); got != "" {
+		t.Fatalf("expected empty for traversal, got %q", got)
+	}
+	if got := NormalizeComposeLocation("/ok/../evil.yml"); got != "" {
+		t.Fatalf("expected empty for cleaned traversal, got %q", got)
+	}
 }
 
 func mustWrite(t *testing.T, path, body string) {

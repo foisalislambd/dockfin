@@ -29,8 +29,9 @@ func TestPublicBaseURLPriority(t *testing.T) {
 	t.Run("https via forwarded proto", func(t *testing.T) {
 		a := &API{}
 		rf := &http.Request{
-			Host:   "panel.example.com",
-			Header: http.Header{"X-Forwarded-Proto": []string{"https"}, "X-Forwarded-Host": []string{"panel.example.com"}},
+			RemoteAddr: "127.0.0.1:443",
+			Host:       "panel.example.com",
+			Header:     http.Header{"X-Forwarded-Proto": []string{"https"}, "X-Forwarded-Host": []string{"panel.example.com"}},
 		}
 		got := a.publicBaseURL(rf)
 		if got != "https://panel.example.com" {
@@ -49,11 +50,24 @@ func TestPublicBaseURLPriority(t *testing.T) {
 
 func TestCookieSecureForRequest(t *testing.T) {
 	cfg := &config.Config{CookieSecure: false}
-	httpsReq := &http.Request{Header: http.Header{"X-Forwarded-Proto": []string{"https"}}}
-	if !cookieSecureForRequest(httpsReq, cfg) {
-		t.Fatal("expected secure on https forwarded proto")
+	httpsReq := &http.Request{
+		RemoteAddr: "127.0.0.1:1234",
+		Header:     http.Header{"X-Forwarded-Proto": []string{"https"}},
 	}
-	httpReq := &http.Request{Header: http.Header{"X-Forwarded-Proto": []string{"http"}}}
+	if !cookieSecureForRequest(httpsReq, cfg) {
+		t.Fatal("expected secure on https forwarded proto from loopback")
+	}
+	spoofed := &http.Request{
+		RemoteAddr: "8.8.8.8:1234",
+		Header:     http.Header{"X-Forwarded-Proto": []string{"https"}},
+	}
+	if cookieSecureForRequest(spoofed, cfg) {
+		t.Fatal("expected insecure when X-Forwarded-Proto is spoofed from public IP")
+	}
+	httpReq := &http.Request{
+		RemoteAddr: "10.0.0.2:1234",
+		Header:     http.Header{"X-Forwarded-Proto": []string{"http"}},
+	}
 	if cookieSecureForRequest(httpReq, cfg) {
 		t.Fatal("expected insecure on http forwarded proto")
 	}

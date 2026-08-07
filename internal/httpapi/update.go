@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"net/http"
+	"path/filepath"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -84,10 +86,31 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		app.DockerRegistryImageTag = *body.DockerRegistryImageTag
 	}
 	if body.DockerfileLocation != nil {
-		app.DockerfileLocation = *body.DockerfileLocation
+		loc := strings.TrimSpace(*body.DockerfileLocation)
+		loc = filepath.ToSlash(loc)
+		if loc == "" || strings.Contains(loc, "..") {
+			writeError(w, http.StatusBadRequest, "invalid dockerfile_location")
+			return
+		}
+		cleaned := filepath.ToSlash(filepath.Clean("/" + strings.TrimPrefix(loc, "/")))
+		if cleaned == "/" || strings.Contains(cleaned, "..") {
+			writeError(w, http.StatusBadRequest, "invalid dockerfile_location")
+			return
+		}
+		app.DockerfileLocation = cleaned
 	}
 	if body.DockerComposeLocation != nil {
-		app.DockerComposeLocation = services.NormalizeComposeLocation(*body.DockerComposeLocation)
+		raw := strings.TrimSpace(*body.DockerComposeLocation)
+		if raw != "" && raw != "auto" && raw != "auto-detect" {
+			norm := services.NormalizeComposeLocation(raw)
+			if norm == "" {
+				writeError(w, http.StatusBadRequest, "invalid docker_compose_location")
+				return
+			}
+			app.DockerComposeLocation = norm
+		} else {
+			app.DockerComposeLocation = services.NormalizeComposeLocation(raw)
+		}
 	}
 	if body.ComposePrepare != nil {
 		app.ComposePrepare = *body.ComposePrepare

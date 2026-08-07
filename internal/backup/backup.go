@@ -50,7 +50,7 @@ func DumpRedis(client *ssh.Client, container, password, outPath string) error {
 			`if docker exec %s test -f /data/dump.rdb; then docker cp %s:/data/dump.rdb %s; `+
 			`elif docker exec %s test -f /data/appendonly.aof; then docker cp %s:/data/appendonly.aof %s; `+
 			`else echo 'no redis dump file found' >&2; exit 1; fi`,
-		auth, c, cli, auth, c, c, container, out, c, container, out,
+		auth, c, cli, auth, c, c, c, out, c, c, out,
 	)
 	_, errOut, err := sshx.Run(client, cmd)
 	if err != nil {
@@ -129,10 +129,19 @@ func EnforceRemoteRetention(client *ssh.Client, engine, resourceID string, keepC
 		return nil
 	}
 	prefix := fmt.Sprintf("%s-%s-", engine, resourceID)
-	prefix = strings.ReplaceAll(prefix, "'", "")
+	// Keep the glob literal-safe: only allow alnum, dash, underscore, dot.
+	safe := make([]rune, 0, len(prefix))
+	for _, r := range prefix {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
+			safe = append(safe, r)
+		}
+	}
+	if len(safe) == 0 {
+		return nil
+	}
 	cmd := fmt.Sprintf(
 		`cd /data/dockfin/backups 2>/dev/null && ls -1t %s* 2>/dev/null | tail -n +%d | xargs -r rm -f`,
-		prefix, keepCount+1,
+		string(safe), keepCount+1,
 	)
 	_, _, err := sshx.Run(client, cmd)
 	return err

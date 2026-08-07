@@ -93,6 +93,11 @@ func (a *API) handleRegistrationStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleLogin(w http.ResponseWriter, r *http.Request) {
+	ip := loginClientIP(r)
+	if !globalLoginLimiter.allow(ip) {
+		writeError(w, http.StatusTooManyRequests, "too many login attempts")
+		return
+	}
 	var body struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -103,10 +108,14 @@ func (a *API) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	user, hash, err := a.Store.GetUserByEmail(r.Context(), body.Email)
 	if err != nil {
+		// Burn similar CPU as a real verify to reduce user-enumeration timing signal.
+		_, _ = crypto.HashPassword("dockfin-login-timing-pad")
+		globalLoginLimiter.fail(ip)
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
 	if !crypto.VerifyPassword(hash, body.Password) {
+		globalLoginLimiter.fail(ip)
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
@@ -125,6 +134,7 @@ func (a *API) handleLogin(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
+	globalLoginLimiter.success(ip)
 	setSessionCookie(w, r, a.Cfg, token, expires)
 	writeJSON(w, http.StatusOK, map[string]any{"user": user, "team": teams[0], "teams": teams, "token": token})
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -362,9 +363,23 @@ func (p *Pipeline) waitHealthy(client *ssh.Client, name string, app *store.Appli
 // httpHealthStatus probes the app from inside the container (127.0.0.1) so it works
 // without published ports. Prefers curl, then wget.
 func httpHealthStatus(client *ssh.Client, container, method, port, path string, timeoutSec int) (int, error) {
+	method = strings.ToUpper(strings.TrimSpace(method))
+	switch method {
+	case "GET", "HEAD", "POST":
+	default:
+		method = "GET"
+	}
+	if !regexp.MustCompile(`^[0-9]{1,5}$`).MatchString(port) {
+		return 0, fmt.Errorf("invalid health check port")
+	}
+	if path == "" || path[0] != '/' || strings.ContainsAny(path, " \t\n\r\"'`$;&|<>(){}") {
+		return 0, fmt.Errorf("invalid health check path")
+	}
+	if !ValidContainerNameForHealth(container) {
+		return 0, fmt.Errorf("invalid container name")
+	}
 	url := fmt.Sprintf("http://127.0.0.1:%s%s", port, path)
 	timeout := fmt.Sprintf("%d", timeoutSec)
-	// curl path
 	out, _, err := sshx.RunArgs(client, "docker", "exec", container, "sh", "-lc",
 		fmt.Sprintf(`if command -v curl >/dev/null 2>&1; then curl -s -o /dev/null -w '%%{http_code}' -X %s --max-time %s %q; elif command -v wget >/dev/null 2>&1; then wget -q -S -O /dev/null --timeout=%s %q 2>&1 | awk '/^  HTTP\//{c=$2} END{print c+0}'; else echo NOCLIENT; fi`,
 			method, timeout, url, timeout, url))
@@ -380,6 +395,19 @@ func httpHealthStatus(client *ssh.Client, container, method, port, path string, 
 		return 0, fmt.Errorf("health probe returned %q", codeStr)
 	}
 	return code, nil
+}
+
+func ValidContainerNameForHealth(name string) bool {
+	if name == "" || len(name) > 128 {
+		return false
+	}
+	for _, r := range name {
+		ok := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '.' || r == '-'
+		if !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func (p *Pipeline) deployImage(ctx context.Context, client *ssh.Client, req Request) error {
@@ -429,7 +457,16 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 	if dockerfile == "" {
 		dockerfile = "/Dockerfile"
 	}
+	dockerfile = filepath.ToSlash(strings.TrimSpace(dockerfile))
 	dockerfile = strings.TrimPrefix(dockerfile, "/")
+	if dockerfile == "" || strings.Contains(dockerfile, "..") {
+		return fmt.Errorf("invalid dockerfile path")
+	}
+	cleaned := filepath.ToSlash(filepath.Clean("/" + dockerfile))
+	if cleaned == "/" || strings.Contains(cleaned, "..") {
+		return fmt.Errorf("invalid dockerfile path")
+	}
+	dockerfile = strings.TrimPrefix(cleaned, "/")
 
 	p.log("build", "Building image "+imageTag)
 	buildArgs := []string{"docker", "build", "-t", imageTag, "-f", workdir + "/src/" + dockerfile}
@@ -557,14 +594,13 @@ COPY . /usr/share/nginx/html
 EXPOSE 80
 `
 	p.log("build", "Writing nginx Dockerfile for static site")
-	writeCmd := fmt.Sprintf("cat > %s/src/Dockerfile.dockfin-static <<'DOCKFIN_EOF'\n%sDOCKFIN_EOF", workdir, dockerfile)
-	_, errOut, err = sshx.Run(buildClient, writeCmd)
-	if err != nil {
-		return fmt.Errorf("write dockerfile: %v %s", err, errOut)
+	dfPath := workdir + "/src/Dockerfile.dockfin-static"
+	if err := sshx.WriteFile(buildClient, dfPath, []byte(dockerfile)); err != nil {
+		return fmt.Errorf("write dockerfile: %w", err)
 	}
 
 	p.log("build", "Building static image "+imageTag)
-	buildArgs := []string{"docker", "build", "-t", imageTag, "-f", workdir + "/src/Dockerfile.dockfin-static"}
+	buildArgs := []string{"docker", "build", "-t", imageTag, "-f", dfPath}
 	if req.ForceRebuild {
 		buildArgs = append(buildArgs, "--no-cache")
 	}
@@ -707,9 +743,18 @@ func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Re
 // Returns absolute remote path and repo-relative location ("/docker-compose.yml").
 func (p *Pipeline) resolveComposePath(client *ssh.Client, req Request, srcDir string) (absPath, location string, err error) {
 	preferred := services.NormalizeComposeLocation(req.App.DockerComposeLocation)
+	if req.App.DockerComposeLocation != "" && preferred == "" &&
+		strings.TrimSpace(req.App.DockerComposeLocation) != "auto" &&
+		strings.TrimSpace(req.App.DockerComposeLocation) != "auto-detect" {
+		return "", "", fmt.Errorf("invalid compose path")
+	}
 	if preferred != "" {
 		rel := strings.TrimPrefix(preferred, "/")
 		candidate := srcDir + "/" + rel
+		// Ensure candidate stays under srcDir.
+		if !strings.HasPrefix(candidate, srcDir+"/") && candidate != srcDir {
+			return "", "", fmt.Errorf("compose path escapes repository")
+		}
 		if remoteFileExists(client, candidate) {
 			return candidate, preferred, nil
 		}
@@ -826,10 +871,8 @@ func (p *Pipeline) adaptComposeForDockfin(ctx context.Context, client *ssh.Clien
 		dir = composePath[:i]
 	}
 	preparedPath := dir + "/docker-compose.dockfin.yml"
-	writeCmd := fmt.Sprintf("cat > %s <<'DOCKFIN_COMPOSE_EOF'\n%s\nDOCKFIN_COMPOSE_EOF", preparedPath, prepared)
-	_, errOut, err = sshx.Run(client, writeCmd)
-	if err != nil {
-		return "", fmt.Errorf("write prepared compose: %v %s", err, errOut)
+	if err := sshx.WriteFile(client, preparedPath, []byte(prepared)); err != nil {
+		return "", fmt.Errorf("write prepared compose: %w", err)
 	}
 	p.log("prepare", fmt.Sprintf("Wrote adapted compose %s (proxy port %s)", preparedPath, port))
 
@@ -872,10 +915,8 @@ func (p *Pipeline) writeComposeEnvFile(ctx context.Context, client *ssh.Client, 
 	}
 	envPath := dir + "/.env.dockfin"
 	body := services.FormatEnvFile(envMap)
-	writeCmd := fmt.Sprintf("cat > %s <<'DOCKFIN_ENV_EOF'\n%sDOCKFIN_ENV_EOF", envPath, body)
-	_, errOut, err := sshx.Run(client, writeCmd)
-	if err != nil {
-		return "", fmt.Errorf("%v %s", err, errOut)
+	if err := sshx.WriteFile(client, envPath, []byte(body)); err != nil {
+		return "", err
 	}
 	p.log("prepare", "Wrote compose env file "+envPath)
 	return envPath, nil

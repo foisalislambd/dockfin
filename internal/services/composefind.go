@@ -82,6 +82,7 @@ func SortComposeFiles(paths []string) []string {
 }
 
 // NormalizeComposeLocation ensures a leading-slash repo path.
+// Rejects path traversal (`..`) and empty/auto sentinels.
 func NormalizeComposeLocation(loc string) string {
 	loc = strings.TrimSpace(loc)
 	loc = strings.TrimPrefix(loc, "./")
@@ -89,10 +90,17 @@ func NormalizeComposeLocation(loc string) string {
 		return ""
 	}
 	loc = filepath.ToSlash(loc)
+	if strings.Contains(loc, "..") {
+		return ""
+	}
 	if !strings.HasPrefix(loc, "/") {
 		loc = "/" + loc
 	}
-	return loc
+	cleaned := filepath.ToSlash(filepath.Clean(loc))
+	if cleaned != loc || strings.Contains(cleaned, "..") {
+		return ""
+	}
+	return cleaned
 }
 
 func isComposeFilename(name string) bool {

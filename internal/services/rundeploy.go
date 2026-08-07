@@ -187,11 +187,9 @@ func RunDeploy(ctx context.Context, p DeployParams) error {
 
 	composePath := remoteDir + "/docker-compose.yml"
 	emit("setup", "Writing docker-compose.yml…")
-	writeCmd := fmt.Sprintf("cat > %s <<'DOCKFIN_COMPOSE_EOF'\n%s\nDOCKFIN_COMPOSE_EOF", composePath, composeYAML)
-	_, errOut, err = sshx.Run(p.Client, writeCmd)
-	if err != nil {
+	if err := sshx.WriteFile(p.Client, composePath, []byte(composeYAML)); err != nil {
 		_ = p.Store.UpdateServiceStatus(ctx, id, "exited")
-		return fmt.Errorf("write compose: %v %s", err, errOut)
+		return fmt.Errorf("write compose: %w", err)
 	}
 	emit("setup", "Compose file written")
 

@@ -14,6 +14,7 @@ import (
 	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
+	"github.com/dockfin/dockfin/internal/terminal"
 	"github.com/dockfin/dockfin/internal/worker"
 )
 
@@ -612,7 +613,7 @@ func (a *API) handleSentinelMetrics(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "invalid server or token")
 		return
 	}
-	if expectedToken == "" || body.Token == "" || body.Token != expectedToken {
+	if expectedToken == "" || body.Token == "" || !secureTokenEqual(expectedToken, body.Token) {
 		writeError(w, http.StatusUnauthorized, "invalid server or token")
 		return
 	}
@@ -666,6 +667,10 @@ func (a *API) handleCreateScheduledTask(w http.ResponseWriter, r *http.Request) 
 	if body.ResourceType == "" {
 		body.ResourceType = "application"
 	}
+	if body.ContainerName != "" && !terminal.ValidContainerName(body.ContainerName) {
+		writeError(w, http.StatusBadRequest, "invalid container_name")
+		return
+	}
 	teamID := currentTeamID(r)
 	switch body.ResourceType {
 	case "application":
@@ -710,6 +715,10 @@ func (a *API) handlePatchScheduledTask(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	if body.ContainerName != nil && *body.ContainerName != "" && !terminal.ValidContainerName(*body.ContainerName) {
+		writeError(w, http.StatusBadRequest, "invalid container_name")
 		return
 	}
 	task, err := a.Store.UpdateScheduledTask(r.Context(), currentTeamID(r), id, store.UpdateScheduledTaskInput{

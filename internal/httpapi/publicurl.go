@@ -21,7 +21,7 @@ func (a *API) publicBaseURL(r *http.Request) string {
 		}
 	}
 	scheme := "http"
-	if r != nil && (r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https") {
+	if r != nil && (r.TLS != nil || (forwardedProtoTrusted(r) && r.Header.Get("X-Forwarded-Proto") == "https")) {
 		scheme = "https"
 	}
 	host := ""

@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 )
 
 type Event struct {
@@ -128,9 +127,12 @@ func DefaultEvents() []string {
 	}
 }
 
-func SendWebhook(ctx context.Context, cfg WebhookConfig, event Event) error {
+func SendWebhook(ctx context.Context, cfg WebhookConfig, event Event, policy URLPolicy) error {
 	if cfg.URL == "" {
 		return fmt.Errorf("webhook url required")
+	}
+	if err := policy.ValidateHTTPURL(cfg.URL); err != nil {
+		return fmt.Errorf("webhook url blocked: %w", err)
 	}
 	success := event.Type == "test" || !IsCritical(event.Type)
 	body, _ := json.Marshal(map[string]any{
@@ -150,12 +152,15 @@ func SendWebhook(ctx context.Context, cfg WebhookConfig, event Event) error {
 	for k, v := range cfg.Headers {
 		req.Header.Set(k, v)
 	}
-	return doRequest(req)
+	return doRequest(req, policy)
 }
 
-func SendDiscord(ctx context.Context, cfg DiscordConfig, event Event) error {
+func SendDiscord(ctx context.Context, cfg DiscordConfig, event Event, policy URLPolicy) error {
 	if cfg.WebhookURL == "" {
 		return fmt.Errorf("discord webhook required")
+	}
+	if err := policy.ValidateHTTPURL(cfg.WebhookURL); err != nil {
+		return fmt.Errorf("discord webhook blocked: %w", err)
 	}
 	content := fmt.Sprintf("**%s**\n%s", event.Title, event.Message)
 	if cfg.PingEnabled && (event.Critical || IsCritical(event.Type)) {
@@ -167,12 +172,15 @@ func SendDiscord(ctx context.Context, cfg DiscordConfig, event Event) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	return doRequest(req)
+	return doRequest(req, policy)
 }
 
-func SendSlack(ctx context.Context, cfg SlackConfig, event Event) error {
+func SendSlack(ctx context.Context, cfg SlackConfig, event Event, policy URLPolicy) error {
 	if cfg.WebhookURL == "" {
 		return fmt.Errorf("slack webhook required")
+	}
+	if err := policy.ValidateHTTPURL(cfg.WebhookURL); err != nil {
+		return fmt.Errorf("slack webhook blocked: %w", err)
 	}
 	body, _ := json.Marshal(map[string]any{
 		"text": fmt.Sprintf("*%s*\n%s", event.Title, event.Message),
@@ -182,7 +190,7 @@ func SendSlack(ctx context.Context, cfg SlackConfig, event Event) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	return doRequest(req)
+	return doRequest(req, policy)
 }
 
 func SendTelegram(ctx context.Context, cfg TelegramConfig, event Event) error {
@@ -213,7 +221,7 @@ func SendTelegram(ctx context.Context, cfg TelegramConfig, event Event) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	return doRequest(req)
+	return doRequest(req, URLPolicy{})
 }
 
 func SendPushover(ctx context.Context, cfg PushoverConfig, event Event) error {
@@ -230,11 +238,11 @@ func SendPushover(ctx context.Context, cfg PushoverConfig, event Event) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	return doRequest(req)
+	return doRequest(req, URLPolicy{})
 }
 
-func doRequest(req *http.Request) error {
-	client := &http.Client{Timeout: 15 * time.Second}
+func doRequest(req *http.Request, policy URLPolicy) error {
+	client := safeHTTPClient(policy)
 	resp, err := client.Do(req)
 	if err != nil {
 		return err

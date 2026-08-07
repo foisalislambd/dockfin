@@ -3,6 +3,7 @@ package terminal
 import (
 	"fmt"
 	"io"
+	"regexp"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -62,7 +63,17 @@ func (s *Session) Close() error {
 	return s.SSH.Close()
 }
 
-// DockerExec builds a docker exec argv for container shells.
-func DockerExec(container string) string {
-	return fmt.Sprintf("docker exec -it %s sh", container)
+var dockerNameRe = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
+
+// ValidContainerName restricts docker exec targets to Docker's name charset.
+func ValidContainerName(name string) bool {
+	return name != "" && len(name) <= 128 && dockerNameRe.MatchString(name)
+}
+
+// DockerExec builds a docker exec command for a validated container name.
+func DockerExec(container string) (string, error) {
+	if !ValidContainerName(container) {
+		return "", fmt.Errorf("invalid container name")
+	}
+	return fmt.Sprintf("docker exec -it %s sh", container), nil
 }
