@@ -1,3 +1,4 @@
+import { lazy, Suspense, type ComponentType } from 'react'
 import {
   Navigate,
   Outlet,
@@ -13,36 +14,60 @@ import { ThemeProvider } from './components/theme/ThemeProvider'
 import { AppShell } from './components/AppShell'
 import { AppShellSkeleton } from './components/ui/Skeleton'
 import { LoginPage, RegisterPage } from './pages/Auth'
-import { DashboardPage } from './pages/Dashboard'
-import { CreateServerPage, ServersPage } from './pages/Servers'
-import { ProjectsPage } from './pages/Resources'
-import { CreateApplicationPage } from './pages/CreateApplication'
-import { CreateDatabasePage } from './pages/CreateDatabase'
-import { CreateServicePage } from './pages/CreateService'
-import { ApplicationDetailPage } from './pages/ApplicationDetail'
-import { NotificationsPage } from './pages/Notifications'
-import { ProjectShowPage } from './pages/ProjectShow'
-import { ProjectEditPage, EnvironmentEditPage } from './pages/ProjectEdit'
-import { EnvironmentResourcesPage } from './pages/EnvironmentResources'
-import { NewResourcePage } from './pages/NewResource'
-import { DatabaseDetailPage, ServerDetailPage } from './pages/ResourceDetails'
-import { ServiceDetailPage } from './pages/ServiceDetail'
-import { DeploymentShowPage } from './pages/DeploymentShow'
-import { SettingsPage } from './pages/Settings'
-import { SecurityPage } from './pages/Security'
-import {
-  CreateStoragePage,
-  EnvironmentSharedVariablesPage,
-  ProjectSharedVariablesPage,
-  SharedVariablesPage,
-  StoragesPage,
-  TeamPage,
-} from './pages/OpsPages'
-import { GitSourceDetailPage, GitSourcesPage } from './pages/GitSources'
 import { api, ApiError } from './lib/api'
 import './index.css'
 
 const queryClient = new QueryClient()
+
+/** Named-export page → React.lazy default component. */
+function lazyPage(loader: () => Promise<Record<string, unknown>>, name: string) {
+  return lazy(async () => {
+    const mod = await loader()
+    const Comp = mod[name]
+    if (typeof Comp !== 'function') {
+      throw new Error(`lazyPage: ${name} is not a component export`)
+    }
+    return { default: Comp as ComponentType }
+  })
+}
+
+const DashboardPage = lazyPage(() => import('./pages/Dashboard'), 'DashboardPage')
+const ServersPage = lazyPage(() => import('./pages/Servers'), 'ServersPage')
+const CreateServerPage = lazyPage(() => import('./pages/Servers'), 'CreateServerPage')
+const ProjectsPage = lazyPage(() => import('./pages/Resources'), 'ProjectsPage')
+const CreateApplicationPage = lazyPage(() => import('./pages/CreateApplication'), 'CreateApplicationPage')
+const CreateDatabasePage = lazyPage(() => import('./pages/CreateDatabase'), 'CreateDatabasePage')
+const CreateServicePage = lazyPage(() => import('./pages/CreateService'), 'CreateServicePage')
+const ApplicationDetailPage = lazyPage(() => import('./pages/ApplicationDetail'), 'ApplicationDetailPage')
+const NotificationsPage = lazyPage(() => import('./pages/Notifications'), 'NotificationsPage')
+const ProjectShowPage = lazyPage(() => import('./pages/ProjectShow'), 'ProjectShowPage')
+const ProjectEditPage = lazyPage(() => import('./pages/ProjectEdit'), 'ProjectEditPage')
+const EnvironmentEditPage = lazyPage(() => import('./pages/ProjectEdit'), 'EnvironmentEditPage')
+const EnvironmentResourcesPage = lazyPage(
+  () => import('./pages/EnvironmentResources'),
+  'EnvironmentResourcesPage',
+)
+const NewResourcePage = lazyPage(() => import('./pages/NewResource'), 'NewResourcePage')
+const DatabaseDetailPage = lazyPage(() => import('./pages/ResourceDetails'), 'DatabaseDetailPage')
+const ServerDetailPage = lazyPage(() => import('./pages/ResourceDetails'), 'ServerDetailPage')
+const ServiceDetailPage = lazyPage(() => import('./pages/ServiceDetail'), 'ServiceDetailPage')
+const DeploymentShowPage = lazyPage(() => import('./pages/DeploymentShow'), 'DeploymentShowPage')
+const SettingsPage = lazyPage(() => import('./pages/Settings'), 'SettingsPage')
+const SecurityPage = lazyPage(() => import('./pages/Security'), 'SecurityPage')
+const CreateStoragePage = lazyPage(() => import('./pages/OpsPages'), 'CreateStoragePage')
+const EnvironmentSharedVariablesPage = lazyPage(
+  () => import('./pages/OpsPages'),
+  'EnvironmentSharedVariablesPage',
+)
+const ProjectSharedVariablesPage = lazyPage(
+  () => import('./pages/OpsPages'),
+  'ProjectSharedVariablesPage',
+)
+const SharedVariablesPage = lazyPage(() => import('./pages/OpsPages'), 'SharedVariablesPage')
+const StoragesPage = lazyPage(() => import('./pages/OpsPages'), 'StoragesPage')
+const TeamPage = lazyPage(() => import('./pages/OpsPages'), 'TeamPage')
+const GitSourcesPage = lazyPage(() => import('./pages/GitSources'), 'GitSourcesPage')
+const GitSourceDetailPage = lazyPage(() => import('./pages/GitSources'), 'GitSourceDetailPage')
 
 function RootComponent() {
   return (
@@ -62,7 +87,11 @@ function RequireAuth() {
   if (!user) {
     return <Navigate to="/login" />
   }
-  return <AppShell />
+  return (
+    <Suspense fallback={<AppShellSkeleton />}>
+      <AppShell />
+    </Suspense>
+  )
 }
 
 const rootRoute = createRootRoute({ component: RootComponent })
