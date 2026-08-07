@@ -275,13 +275,16 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "deploy queue unavailable")
 		return
 	}
-	if err := a.Queue.Enqueue(worker.DeployJob{DeploymentID: dep.ID, TeamID: teamID, ForceRebuild: force}); err != nil {
-		writeError(w, http.StatusInternalServerError, "enqueue failed")
-		return
-	}
 
 	if stream {
-		a.streamQueuedDeployment(w, r, teamID, dep.ID)
+		// Subscribe / open SSE before enqueue so early worker logs are not missed.
+		a.streamQueuedDeployment(w, r, teamID, dep.ID, func() error {
+			return a.Queue.Enqueue(worker.DeployJob{DeploymentID: dep.ID, TeamID: teamID, ForceRebuild: force})
+		})
+		return
+	}
+	if err := a.Queue.Enqueue(worker.DeployJob{DeploymentID: dep.ID, TeamID: teamID, ForceRebuild: force}); err != nil {
+		writeError(w, http.StatusInternalServerError, "enqueue failed")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -293,7 +296,8 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 }
 
 // streamQueuedDeployment bridges Hub publish events to an SSE response until the job finishes.
-func (a *API) streamQueuedDeployment(w http.ResponseWriter, r *http.Request, teamID, depID uuid.UUID) {
+// optionalEnqueue runs after the SSE subscription is ready (avoids missing early log lines).
+func (a *API) streamQueuedDeployment(w http.ResponseWriter, r *http.Request, teamID, depID uuid.UUID, optionalEnqueue func() error) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeError(w, http.StatusInternalServerError, "streaming unsupported")
@@ -311,26 +315,41 @@ func (a *API) streamQueuedDeployment(w http.ResponseWriter, r *http.Request, tea
 		_, _ = fmt.Fprintf(w, "data: %s\n\n", b)
 		flusher.Flush()
 	}
-	emit(map[string]string{"stage": "queue", "line": "Queued deployment " + depID.String()})
-
-	if dep, err := a.Store.GetDeployment(r.Context(), teamID, depID); err == nil && len(dep.Logs) > 2 {
-		var logs []map[string]any
-		if json.Unmarshal(dep.Logs, &logs) == nil {
-			for _, entry := range logs {
-				stage, _ := entry["stage"].(string)
-				line, _ := entry["line"].(string)
-				if line != "" {
-					emit(map[string]string{"stage": stage, "line": line})
-				}
-			}
-		}
-	}
 
 	var ch chan []byte
 	if a.Hub != nil {
 		ch = a.Hub.Subscribe(depID)
 		defer a.Hub.Unsubscribe(depID, ch)
 	}
+
+	if optionalEnqueue != nil {
+		if err := optionalEnqueue(); err != nil {
+			emit(map[string]string{"stage": "error", "line": "enqueue failed", "status": "failed"})
+			return
+		}
+	}
+	emit(map[string]string{"stage": "queue", "line": "Queued deployment " + depID.String()})
+
+	seen := 0
+	replayLogs := func() {
+		dep, err := a.Store.GetDeployment(r.Context(), teamID, depID)
+		if err != nil || len(dep.Logs) <= 2 {
+			return
+		}
+		var logs []map[string]any
+		if json.Unmarshal(dep.Logs, &logs) != nil {
+			return
+		}
+		for i := seen; i < len(logs); i++ {
+			stage, _ := logs[i]["stage"].(string)
+			line, _ := logs[i]["line"].(string)
+			if line != "" {
+				emit(map[string]string{"stage": stage, "line": line})
+			}
+		}
+		seen = len(logs)
+	}
+	replayLogs()
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -345,6 +364,7 @@ func (a *API) streamQueuedDeployment(w http.ResponseWriter, r *http.Request, tea
 				flusher.Flush()
 			}
 		case <-ticker.C:
+			replayLogs()
 			dep, err := a.Store.GetDeployment(r.Context(), teamID, depID)
 			if err != nil {
 				emit(map[string]string{"stage": "error", "line": err.Error(), "status": "failed"})

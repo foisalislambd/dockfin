@@ -36,15 +36,21 @@ func DumpMySQL(client *ssh.Client, container, password, outPath string) error {
 }
 
 // DumpRedis copies the Redis RDB (or AOF) from the container data dir via docker cp.
-func DumpRedis(client *ssh.Client, container, outPath string) error {
+func DumpRedis(client *ssh.Client, container, password, outPath string) error {
 	c := shellQuote(container)
 	out := shellQuote(outPath)
+	auth := ""
+	if password != "" {
+		// REDISCLI_AUTH avoids putting the password on the process argv list.
+		auth = fmt.Sprintf("-e REDISCLI_AUTH=%s ", shellQuote(password))
+	}
+	cli := "redis-cli"
 	cmd := fmt.Sprintf(
-		`mkdir -p /data/dockfin/backups && docker exec %s redis-cli BGSAVE >/dev/null 2>&1 || true; sleep 1; `+
+		`mkdir -p /data/dockfin/backups && docker exec %s%s %s BGSAVE >/dev/null 2>&1 || docker exec %s%s keydb-cli BGSAVE >/dev/null 2>&1 || true; sleep 1; `+
 			`if docker exec %s test -f /data/dump.rdb; then docker cp %s:/data/dump.rdb %s; `+
 			`elif docker exec %s test -f /data/appendonly.aof; then docker cp %s:/data/appendonly.aof %s; `+
 			`else echo 'no redis dump file found' >&2; exit 1; fi`,
-		c, c, container, out, c, container, out,
+		auth, c, cli, auth, c, c, container, out, c, container, out,
 	)
 	_, errOut, err := sshx.Run(client, cmd)
 	if err != nil {
@@ -61,7 +67,7 @@ func DumpDatabase(client *ssh.Client, engine, container, password, outPath strin
 	case "mysql", "mariadb":
 		return DumpMySQL(client, container, password, outPath)
 	case "redis", "keydb":
-		return DumpRedis(client, container, outPath)
+		return DumpRedis(client, container, password, outPath)
 	default:
 		return fmt.Errorf("backup not supported for engine %q", engine)
 	}

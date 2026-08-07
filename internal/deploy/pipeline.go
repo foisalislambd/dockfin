@@ -452,8 +452,9 @@ func (p *Pipeline) runBuiltImage(ctx context.Context, client *ssh.Client, req Re
 	return p.runWithHealthCutover(ctx, client, req, name, imageTag)
 }
 
-// runWithHealthCutover starts a candidate container, waits for health, then swaps it
-// into the production name. If health fails, the previous container is left running.
+// runWithHealthCutover starts a candidate container without Traefik labels, waits
+// for health, then swaps traffic by replacing the production container. If health
+// fails, the previous container is left running.
 func (p *Pipeline) runWithHealthCutover(ctx context.Context, client *ssh.Client, req Request, name, image string) error {
 	candidate := name + "-new"
 	p.log("run", "Starting candidate container "+candidate)
@@ -465,8 +466,8 @@ func (p *Pipeline) runWithHealthCutover(ctx context.Context, client *ssh.Client,
 		oldRunning = true
 	}
 
-	// Candidate gets full Traefik labels. Until cutover, Traefik may briefly see both
-	// Host rules; after health passes we remove the old container.
+	// Omit Traefik labels on the candidate so production traffic stays on the old
+	// container until health passes (avoids duplicate Host routers).
 	args := []string{
 		"docker", "run", "-d",
 		"--name", candidate,
@@ -475,7 +476,6 @@ func (p *Pipeline) runWithHealthCutover(ctx context.Context, client *ssh.Client,
 	}
 	args = append(args, p.limitArgs(req.App)...)
 	args = append(args, p.runtimeEnvArgs(ctx, req)...)
-	args = append(args, p.proxyLabelArgsReq(req)...)
 	args = append(args, image)
 
 	_, errOut, err := sshx.RunArgs(client, args...)
@@ -492,9 +492,30 @@ func (p *Pipeline) runWithHealthCutover(ctx context.Context, client *ssh.Client,
 		return fmt.Errorf("%w (previous container left running)", err)
 	}
 
-	p.log("run", "Candidate healthy — cutting over")
+	p.log("run", "Candidate healthy — cutting over with proxy labels")
+	// Production needs Traefik labels; rename cannot add them, so recreate under
+	// the final name then drop the unlabeled candidate.
+	finalArgs := []string{
+		"docker", "run", "-d",
+		"--name", name + "-cutover",
+		"--restart", "unless-stopped",
+		"--network", req.Destination.Network,
+	}
+	finalArgs = append(finalArgs, p.limitArgs(req.App)...)
+	finalArgs = append(finalArgs, p.runtimeEnvArgs(ctx, req)...)
+	finalArgs = append(finalArgs, p.proxyLabelArgsReq(req)...)
+	finalArgs = append(finalArgs, image)
+
+	_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", name+"-cutover")
+	_, errOut, err = sshx.RunArgs(client, finalArgs...)
+	if err != nil {
+		_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", candidate)
+		return fmt.Errorf("docker run (cutover): %v %s", err, errOut)
+	}
+
 	_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", name)
-	_, errOut, err = sshx.RunArgs(client, "docker", "rename", candidate, name)
+	_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", candidate)
+	_, errOut, err = sshx.RunArgs(client, "docker", "rename", name+"-cutover", name)
 	if err != nil {
 		return fmt.Errorf("docker rename: %v %s", err, errOut)
 	}
