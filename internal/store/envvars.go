@@ -78,6 +78,7 @@ type UpsertEnvVarInput struct {
 	Literal     bool
 	Multiline   bool
 	Locked      bool
+	IsPreview   bool
 	Comment     string
 	KeepValue   bool // when true, do not overwrite value_enc on conflict
 	BypassLock  bool // system sync may update even when locked (e.g. SERVICE_URL_*)
@@ -90,8 +91,8 @@ func (s *Store) UpsertEnvVar(ctx context.Context, teamID uuid.UUID, resourceType
 	var locked bool
 	err := s.Pool.QueryRow(ctx, `
 		SELECT is_shown_once FROM environment_variables
-		WHERE team_id=$1 AND resource_type=$2 AND resource_id=$3 AND key=$4 AND is_preview=FALSE
-	`, teamID, resourceType, resourceID, in.Key).Scan(&locked)
+		WHERE team_id=$1 AND resource_type=$2 AND resource_id=$3 AND key=$4 AND is_preview=$5
+	`, teamID, resourceType, resourceID, in.Key, in.IsPreview).Scan(&locked)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
@@ -109,22 +110,22 @@ func (s *Store) UpsertEnvVar(ctx context.Context, teamID uuid.UUID, resourceType
 	var v EnvVar
 	var encOut string
 	err = s.Pool.QueryRow(ctx, `
-		INSERT INTO environment_variables (team_id, resource_type, resource_id, key, value_enc, is_runtime, is_buildtime, is_literal, is_multiline, is_shown_once, comment)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+		INSERT INTO environment_variables (team_id, resource_type, resource_id, key, value_enc, is_preview, is_runtime, is_buildtime, is_literal, is_multiline, is_shown_once, comment)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
 		ON CONFLICT (resource_type, resource_id, key, is_preview) DO UPDATE
 		SET value_enc=CASE
-		      WHEN $12 THEN environment_variables.value_enc
-		      WHEN environment_variables.is_shown_once AND NOT $13 THEN environment_variables.value_enc
+		      WHEN $13 THEN environment_variables.value_enc
+		      WHEN environment_variables.is_shown_once AND NOT $14 THEN environment_variables.value_enc
 		      ELSE EXCLUDED.value_enc
 		    END,
-		    is_runtime=CASE WHEN environment_variables.is_shown_once AND NOT $13 THEN environment_variables.is_runtime ELSE EXCLUDED.is_runtime END,
-		    is_buildtime=CASE WHEN environment_variables.is_shown_once AND NOT $13 THEN environment_variables.is_buildtime ELSE EXCLUDED.is_buildtime END,
-		    is_literal=CASE WHEN environment_variables.is_shown_once AND NOT $13 THEN environment_variables.is_literal ELSE EXCLUDED.is_literal END,
-		    is_multiline=CASE WHEN environment_variables.is_shown_once AND NOT $13 THEN environment_variables.is_multiline ELSE EXCLUDED.is_multiline END,
-		    comment=CASE WHEN environment_variables.is_shown_once AND NOT $13 THEN environment_variables.comment ELSE EXCLUDED.comment END,
+		    is_runtime=CASE WHEN environment_variables.is_shown_once AND NOT $14 THEN environment_variables.is_runtime ELSE EXCLUDED.is_runtime END,
+		    is_buildtime=CASE WHEN environment_variables.is_shown_once AND NOT $14 THEN environment_variables.is_buildtime ELSE EXCLUDED.is_buildtime END,
+		    is_literal=CASE WHEN environment_variables.is_shown_once AND NOT $14 THEN environment_variables.is_literal ELSE EXCLUDED.is_literal END,
+		    is_multiline=CASE WHEN environment_variables.is_shown_once AND NOT $14 THEN environment_variables.is_multiline ELSE EXCLUDED.is_multiline END,
+		    comment=CASE WHEN environment_variables.is_shown_once AND NOT $14 THEN environment_variables.comment ELSE EXCLUDED.comment END,
 		    updated_at=NOW()
 		RETURNING id, team_id, resource_type, resource_id, key, value_enc, is_preview, is_runtime, is_buildtime, is_literal, is_multiline, is_shown_once, comment, created_at
-	`, teamID, resourceType, resourceID, in.Key, enc, in.Runtime, in.Buildtime, in.Literal, in.Multiline, in.Locked, in.Comment, in.KeepValue, bypass).Scan(
+	`, teamID, resourceType, resourceID, in.Key, enc, in.IsPreview, in.Runtime, in.Buildtime, in.Literal, in.Multiline, in.Locked, in.Comment, in.KeepValue, bypass).Scan(
 		&v.ID, &v.TeamID, &v.ResourceType, &v.ResourceID, &v.Key, &encOut, &v.IsPreview, &v.IsRuntime, &v.IsBuildtime, &v.IsLiteral, &v.IsMultiline, &v.IsLocked, &v.Comment, &v.CreatedAt,
 	)
 	if err != nil {
@@ -173,6 +174,15 @@ func (s *Store) DeleteEnvVar(ctx context.Context, teamID, id uuid.UUID) error {
 }
 
 func (s *Store) ResolvedEnvMap(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID, projectID, envID, serverID *uuid.UUID) (map[string]string, error) {
+	return s.resolvedEnvMap(ctx, teamID, resourceType, resourceID, projectID, envID, serverID, false)
+}
+
+// ResolvedEnvMapPreview merges production + preview overrides (preview wins).
+func (s *Store) ResolvedEnvMapPreview(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID, projectID, envID, serverID *uuid.UUID) (map[string]string, error) {
+	return s.resolvedEnvMap(ctx, teamID, resourceType, resourceID, projectID, envID, serverID, true)
+}
+
+func (s *Store) resolvedEnvMap(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID, projectID, envID, serverID *uuid.UUID, forPreview bool) (map[string]string, error) {
 	vars, err := s.ListEnvVars(ctx, teamID, resourceType, resourceID, true)
 	if err != nil {
 		return nil, err
@@ -222,15 +232,24 @@ func (s *Store) ResolvedEnvMap(ctx context.Context, teamID uuid.UUID, resourceTy
 	}
 
 	out := map[string]string{}
-	for _, v := range vars {
-		if !v.IsRuntime {
-			continue
+	apply := func(previewOnly bool) {
+		for _, v := range vars {
+			if v.IsPreview != previewOnly {
+				continue
+			}
+			if !v.IsRuntime {
+				continue
+			}
+			if v.IsLiteral {
+				out[v.Key] = v.Value
+				continue
+			}
+			out[v.Key] = envvars.Resolve(v.Value, scopes)
 		}
-		if v.IsLiteral {
-			out[v.Key] = v.Value
-			continue
-		}
-		out[v.Key] = envvars.Resolve(v.Value, scopes)
+	}
+	apply(false)
+	if forPreview {
+		apply(true)
 	}
 	return out, nil
 }

@@ -75,9 +75,51 @@ func (p *Pipeline) gitClone(ctx context.Context, client *ssh.Client, req Request
 		commit = ""
 	}
 	p.log("fetch", "Cloning repository")
-	_, _, _ = sshx.RunArgs(client, "rm", "-rf", destDir)
+	preserve := req.App != nil && req.App.IsPreserveRepositoryEnabled
+	hasGit := false
+	if preserve {
+		if _, _, err := sshx.RunArgs(client, "test", "-d", destDir+"/.git"); err == nil {
+			hasGit = true
+		}
+	}
+	if !hasGit {
+		_, _, _ = sshx.RunArgs(client, "rm", "-rf", destDir)
+	} else {
+		p.log("fetch", "Preserving existing repository — fetch + checkout")
+	}
+
+	runCheckoutExisting := func(extraEnv []string) error {
+		args := append([]string{}, extraEnv...)
+		args = append(args, "git", "-C", destDir, "fetch", "origin", branch)
+		_, errOut, err := sshx.RunArgs(client, args...)
+		if err != nil {
+			return fmt.Errorf("git fetch: %s", redact.Join(err.Error(), errOut))
+		}
+		target := branch
+		if commit != "" {
+			target = commit
+			_, errOut, err = sshx.RunArgs(client, append(extraEnv, "git", "-C", destDir, "fetch", "origin", commit)...)
+			if err != nil {
+				return fmt.Errorf("git fetch commit: %s", redact.Join(err.Error(), errOut))
+			}
+		}
+		_, errOut, err = sshx.RunArgs(client, append(extraEnv, "git", "-C", destDir, "checkout", "-f", target)...)
+		if err != nil {
+			return fmt.Errorf("git checkout: %s", redact.Join(err.Error(), errOut))
+		}
+		if req.App.IsGitSubmodulesEnabled {
+			_, errOut, err = sshx.RunArgs(client, append(extraEnv, "git", "-C", destDir, "submodule", "update", "--init", "--recursive")...)
+			if err != nil {
+				return fmt.Errorf("git submodule: %s", redact.Join(err.Error(), errOut))
+			}
+		}
+		return nil
+	}
 
 	runClone := func(extraEnv []string, repo string) error {
+		if hasGit {
+			return runCheckoutExisting(extraEnv)
+		}
 		args := append([]string{}, extraEnv...)
 		args = append(args, "git", "clone", "--branch", branch, "--depth", "1", repo, destDir)
 		_, errOut, err := sshx.RunArgs(client, args...)

@@ -24,6 +24,10 @@ type PrepareOpts struct {
 	// KeepPublishedPorts leaves host port mappings intact. Default false: Dockfin
 	// strips published ports so Traefik owns 80/443 and stacks avoid port conflicts.
 	KeepPublishedPorts bool
+	// ExtraLabels are key=value Traefik/custom labels merged onto the primary web service.
+	ExtraLabels []string
+	// BasicAuthUsers is Traefik basicauth users= value (user:hash); empty disables.
+	BasicAuthUsers string
 }
 
 var reMagicKey = regexp.MustCompile(`SERVICE_(?:PASSWORD|USER|FQDN|URL|BASE64|HEX)_[A-Z0-9_]+`)
@@ -1075,6 +1079,28 @@ func injectProxyLabels(doc map[string]any, opts PrepareOpts) {
 	}
 	if opts.Network != "" {
 		labels["traefik.docker.network"] = opts.Network
+	}
+	if users := strings.TrimSpace(opts.BasicAuthUsers); users != "" {
+		mw := router + "-basicauth"
+		labels[fmt.Sprintf("traefik.http.middlewares.%s.basicauth.users", mw)] = users
+		key := fmt.Sprintf("traefik.http.routers.%s.middlewares", router)
+		if existing := labels[key]; existing != "" {
+			labels[key] = existing + "," + mw
+		} else {
+			labels[key] = mw
+		}
+	}
+	for _, raw := range opts.ExtraLabels {
+		raw = strings.TrimSpace(raw)
+		if raw == "" || !strings.Contains(raw, "=") {
+			continue
+		}
+		i := strings.IndexByte(raw, '=')
+		k := strings.TrimSpace(raw[:i])
+		v := strings.TrimSpace(raw[i+1:])
+		if k != "" {
+			labels[k] = v
+		}
 	}
 	mergeLabels(svc, labels)
 	services[target] = svc

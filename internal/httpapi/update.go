@@ -55,6 +55,12 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		IsGitSubmodulesEnabled  *bool   `json:"is_git_submodules_enabled"`
 		IsPreserveRepositoryEnabled *bool `json:"is_preserve_repository_enabled"`
 		WatchPaths              *string `json:"watch_paths"`
+		PreDeploymentCommand    *string `json:"pre_deployment_command"`
+		PostDeploymentCommand   *string `json:"post_deployment_command"`
+		CustomLabels            *string `json:"custom_labels"`
+		HTTPBasicAuthUsername   *string `json:"http_basic_auth_username"`
+		HTTPBasicAuthPassword   *string `json:"http_basic_auth_password"`
+		ClearHTTPBasicAuth      *bool   `json:"clear_http_basic_auth"`
 		HealthCheckEnabled      *bool   `json:"health_check_enabled"`
 		HealthCheckPath         *string `json:"health_check_path"`
 		HealthCheckPort         *int    `json:"health_check_port"`
@@ -255,6 +261,30 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.LimitsCpus != nil {
 		app.LimitsCpus = *body.LimitsCpus
+	}
+	if body.PreDeploymentCommand != nil {
+		app.PreDeploymentCommand = *body.PreDeploymentCommand
+	}
+	if body.PostDeploymentCommand != nil {
+		app.PostDeploymentCommand = *body.PostDeploymentCommand
+	}
+	if body.CustomLabels != nil {
+		app.CustomLabels = *body.CustomLabels
+	}
+	if body.HTTPBasicAuthUsername != nil {
+		app.HTTPBasicAuthUsername = *body.HTTPBasicAuthUsername
+	}
+	if body.ClearHTTPBasicAuth != nil && *body.ClearHTTPBasicAuth {
+		app.HTTPBasicAuthUsername = ""
+		app.HTTPBasicAuthPasswordEnc = ""
+	}
+	if body.HTTPBasicAuthPassword != nil && strings.TrimSpace(*body.HTTPBasicAuthPassword) != "" {
+		enc, err := a.Store.Box.EncryptString(*body.HTTPBasicAuthPassword)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "encrypt basic auth password")
+			return
+		}
+		app.HTTPBasicAuthPasswordEnc = enc
 	}
 	if body.IsForceHTTPS != nil {
 		app.IsForceHTTPS = *body.IsForceHTTPS

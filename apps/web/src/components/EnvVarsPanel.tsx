@@ -11,6 +11,8 @@ type Props = {
   resourceId: string
   title?: string
   subtitle?: string
+  /** When true, show Production / Preview tabs (applications with preview deploys). */
+  previewTabs?: boolean
 }
 
 type Draft = {
@@ -50,13 +52,17 @@ export function EnvVarsPanel({
   resourceId,
   title = 'Environment Variables',
   subtitle = 'Environment (secrets) variables for this resource.',
+  previewTabs = false,
 }: Props) {
+  const [scope, setScope] = useState<'production' | 'preview'>('production')
+  const isPreview = previewTabs && scope === 'preview'
   const qc = useQueryClient()
-  const queryKey = ['env-vars', resourceType, resourceId]
+  const queryKey = ['env-vars', resourceType, resourceId, isPreview ? 'preview' : 'prod']
   const [addOpen, setAddOpen] = useState(false)
   const vars = useQuery({
     queryKey,
-    queryFn: () => api.envVars(resourceType, resourceId, true),
+    queryFn: () =>
+      api.envVars(resourceType, resourceId, true, previewTabs ? isPreview : undefined),
   })
 
   return (
@@ -73,6 +79,31 @@ export function EnvVarsPanel({
         </Btn>
       </div>
 
+      {previewTabs ? (
+        <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800">
+          {(['production', 'preview'] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setScope(tab)}
+              className={`px-3 py-2 text-sm font-medium capitalize transition ${
+                scope === tab
+                  ? 'border-b-2 border-brand-500 text-gray-900 dark:text-white'
+                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {previewTabs && scope === 'preview' ? (
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          Preview variables override production keys for PR preview deployments.
+        </p>
+      ) : null}
+
       <div className="space-y-3">
         {(vars.data?.environment_variables || []).map((v) => (
           <EnvVarCard
@@ -80,6 +111,7 @@ export function EnvVarsPanel({
             variable={v}
             resourceType={resourceType}
             resourceId={resourceId}
+            isPreview={isPreview}
             onChanged={() => void qc.invalidateQueries({ queryKey })}
           />
         ))}
@@ -94,6 +126,7 @@ export function EnvVarsPanel({
         <AddEnvVarModal
           resourceType={resourceType}
           resourceId={resourceId}
+          isPreview={isPreview}
           onClose={() => setAddOpen(false)}
           onSaved={() => {
             setAddOpen(false)
@@ -109,11 +142,13 @@ function EnvVarCard({
   variable,
   resourceType,
   resourceId,
+  isPreview = false,
   onChanged,
 }: {
   variable: EnvVar
   resourceType: string
   resourceId: string
+  isPreview?: boolean
   onChanged: () => void
 }) {
   const confirm = useConfirm()
@@ -137,6 +172,7 @@ function EnvVarCard({
         is_buildtime: draft.is_buildtime,
         is_multiline: draft.is_multiline,
         is_literal: draft.is_literal || draft.is_multiline,
+        is_preview: isPreview,
         comment: draft.comment,
       }),
     onSuccess: onChanged,
@@ -311,11 +347,13 @@ function EnvVarCard({
 function AddEnvVarModal({
   resourceType,
   resourceId,
+  isPreview = false,
   onClose,
   onSaved,
 }: {
   resourceType: string
   resourceId: string
+  isPreview?: boolean
   onClose: () => void
   onSaved: () => void
 }) {
@@ -332,6 +370,7 @@ function AddEnvVarModal({
         is_buildtime: draft.is_buildtime,
         is_multiline: draft.is_multiline,
         is_literal: draft.is_literal || draft.is_multiline,
+        is_preview: isPreview,
         comment: draft.comment,
       }),
     onSuccess: onSaved,

@@ -121,6 +121,39 @@ func TraefikLabelsHTTPS(appName, fqdn, port string, forceHTTPS bool) []string {
 	return labels
 }
 
+// TraefikBasicAuthLabels adds a basicauth middleware and attaches it to the primary router.
+// users is user:hash (bcrypt); `$` in the hash must already be escaped for Docker labels if needed.
+func TraefikBasicAuthLabels(appName, users string) []string {
+	router := sanitize(appName)
+	if users == "" || router == "" {
+		return nil
+	}
+	mw := router + "-basicauth"
+	return []string{
+		fmt.Sprintf("traefik.http.middlewares.%s.basicauth.users=%s", mw, users),
+		fmt.Sprintf("traefik.http.routers.%s.middlewares=%s", router, mw),
+	}
+}
+
+// ParseCustomLabels splits newline or comma-separated key=value label lines.
+func ParseCustomLabels(raw string) []string {
+	var out []string
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		for _, part := range strings.Split(line, ",") {
+			part = strings.TrimSpace(part)
+			if part == "" || !strings.Contains(part, "=") {
+				continue
+			}
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
 func sanitize(s string) string {
 	s = strings.ToLower(s)
 	var b strings.Builder

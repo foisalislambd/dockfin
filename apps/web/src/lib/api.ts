@@ -295,6 +295,28 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ force_rebuild }),
     }),
+  startApplication: (id: string) =>
+    request<Application>(`/api/v1/applications/${id}/start`, { method: 'POST' }),
+  stopApplication: (id: string) =>
+    request<Application>(`/api/v1/applications/${id}/stop`, { method: 'POST' }),
+  restartApplication: (id: string) =>
+    request<Application>(`/api/v1/applications/${id}/restart`, { method: 'POST' }),
+  applicationContainers: (id: string) =>
+    request<{ containers: string[] }>(`/api/v1/applications/${id}/containers`),
+  listAppVolumes: (id: string) =>
+    request<{ volumes: AppVolume[] }>(`/api/v1/applications/${id}/volumes`),
+  upsertAppVolume: (
+    id: string,
+    body: { name: string; mount_path: string; host_path?: string; is_file?: boolean },
+  ) =>
+    request<AppVolume>(`/api/v1/applications/${id}/volumes`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  deleteAppVolume: (id: string, volumeId: string) =>
+    request<{ status: string }>(`/api/v1/applications/${id}/volumes/${volumeId}`, {
+      method: 'DELETE',
+    }),
   detectCompose: (body: {
     git_repository: string
     git_branch?: string
@@ -359,9 +381,11 @@ export const api = {
   cancelDeployment: (id: string) =>
     request<{ status: string }>(`/api/v1/deployments/${id}/cancel`, { method: 'POST' }),
 
-  envVars: (resourceType: string, resourceId: string, reveal = false) =>
+  envVars: (resourceType: string, resourceId: string, reveal = false, isPreview?: boolean) =>
     request<{ environment_variables: EnvVar[] }>(
-      `/api/v1/env-vars?resource_type=${encodeURIComponent(resourceType)}&resource_id=${resourceId}${reveal ? '&reveal=1' : ''}`,
+      `/api/v1/env-vars?resource_type=${encodeURIComponent(resourceType)}&resource_id=${resourceId}${reveal ? '&reveal=1' : ''}${
+        isPreview === undefined ? '' : `&is_preview=${isPreview ? 'true' : 'false'}`
+      }`,
     ),
   upsertEnvVar: (body: {
     resource_type: string
@@ -373,6 +397,7 @@ export const api = {
     is_literal?: boolean
     is_multiline?: boolean
     is_locked?: boolean
+    is_preview?: boolean
     comment?: string
     keep_value?: boolean
   }) => request<EnvVar>('/api/v1/env-vars', { method: 'POST', body: JSON.stringify(body) }),
@@ -975,6 +1000,11 @@ export type Application = {
   is_git_submodules_enabled?: boolean
   is_preserve_repository_enabled?: boolean
   watch_paths?: string
+  pre_deployment_command?: string
+  post_deployment_command?: string
+  custom_labels?: string
+  http_basic_auth_username?: string
+  has_http_basic_auth?: boolean
   health_check_enabled?: boolean
   health_check_path?: string
   health_check_port?: number | null
@@ -1029,7 +1059,16 @@ export type EnvVar = {
   is_literal: boolean
   is_multiline?: boolean
   is_locked?: boolean
+  is_preview?: boolean
   comment: string
+}
+export type AppVolume = {
+  id: string
+  name: string
+  mount_path: string
+  host_path?: string
+  is_file?: boolean
+  created_at?: string
 }
 export type SharedEnvVar = {
   id: string

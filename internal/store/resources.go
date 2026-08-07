@@ -75,6 +75,12 @@ type Application struct {
 	HealthCheckRetries                int             `json:"health_check_retries"`
 	LimitsMemory                      string          `json:"limits_memory"`
 	LimitsCpus                        string          `json:"limits_cpus"`
+	PreDeploymentCommand              string          `json:"pre_deployment_command,omitempty"`
+	PostDeploymentCommand             string          `json:"post_deployment_command,omitempty"`
+	CustomLabels                      string          `json:"custom_labels,omitempty"`
+	HTTPBasicAuthUsername             string          `json:"http_basic_auth_username,omitempty"`
+	HasHTTPBasicAuth                  bool            `json:"has_http_basic_auth"`
+	HTTPBasicAuthPasswordEnc          string          `json:"-"`
 	IsForceHTTPS                      bool            `json:"is_force_https"`
 	IsPreviewEnabled                  bool            `json:"is_preview_enabled"`
 	GitSourceID                       *uuid.UUID      `json:"git_source_id,omitempty"`
@@ -115,6 +121,8 @@ const applicationSelectCols = `
 	a.health_check_enabled, a.health_check_path, a.health_check_port, a.health_check_method,
 	a.health_check_return_code, a.health_check_interval, a.health_check_timeout, a.health_check_retries,
 	a.limits_memory, a.limits_cpus,
+	COALESCE(a.pre_deployment_command, ''), COALESCE(a.post_deployment_command, ''),
+	COALESCE(a.custom_labels, ''), COALESCE(a.http_basic_auth_username, ''), COALESCE(a.http_basic_auth_password_enc, ''),
 	a.git_source_id, a.private_key_id,
 	COALESCE(s.is_build_server_enabled, FALSE),
 	COALESCE(a.is_force_https, s.is_force_https_enabled, TRUE),
@@ -138,7 +146,9 @@ func scanApplication(scan func(dest ...any) error) (*Application, error) {
 		&a.CustomDockerRunOptions, &a.DockerfileTargetBuild,
 		&a.HealthCheckEnabled, &a.HealthCheckPath, &a.HealthCheckPort, &a.HealthCheckMethod,
 		&a.HealthCheckReturnCode, &a.HealthCheckInterval, &a.HealthCheckTimeout, &a.HealthCheckRetries,
-		&a.LimitsMemory, &a.LimitsCpus, &a.GitSourceID, &a.PrivateKeyID, &a.IsBuildServerEnabled, &a.IsForceHTTPS, &a.IsPreviewEnabled,
+		&a.LimitsMemory, &a.LimitsCpus,
+		&a.PreDeploymentCommand, &a.PostDeploymentCommand, &a.CustomLabels, &a.HTTPBasicAuthUsername, &a.HTTPBasicAuthPasswordEnc,
+		&a.GitSourceID, &a.PrivateKeyID, &a.IsBuildServerEnabled, &a.IsForceHTTPS, &a.IsPreviewEnabled,
 		&a.IsAutoDeployEnabled, &a.IsGitSubmodulesEnabled, &a.IsPreserveRepositoryEnabled, &a.WatchPaths,
 		&a.CreatedAt,
 	)
@@ -148,6 +158,7 @@ func scanApplication(scan func(dest ...any) error) (*Application, error) {
 	if len(a.DockerComposeDomains) == 0 {
 		a.DockerComposeDomains = json.RawMessage(`{}`)
 	}
+	a.HasHTTPBasicAuth = strings.TrimSpace(a.HTTPBasicAuthPasswordEnc) != "" && strings.TrimSpace(a.HTTPBasicAuthUsername) != ""
 	return &a, nil
 }
 
@@ -580,6 +591,9 @@ func (s *Store) DeleteApplication(ctx context.Context, teamID, id uuid.UUID) err
 	if _, err := tx.Exec(ctx, `DELETE FROM environment_variables WHERE team_id=$1 AND resource_type='application' AND resource_id=$2`, teamID, id); err != nil {
 		return err
 	}
+	if _, err := tx.Exec(ctx, `DELETE FROM volumes WHERE team_id=$1 AND resource_type='application' AND resource_id=$2`, teamID, id); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(ctx, `DELETE FROM scheduled_tasks WHERE team_id=$1 AND resource_type='application' AND resource_id=$2`, teamID, id); err != nil {
 		return err
 	}
@@ -632,8 +646,11 @@ func (s *Store) UpdateApplication(ctx context.Context, app *Application) error {
 			custom_docker_run_options=$23, dockerfile_target_build=$24,
 			health_check_enabled=$25, health_check_path=$26, health_check_port=$27, health_check_method=$28,
 			health_check_return_code=$29, health_check_interval=$30, health_check_timeout=$31, health_check_retries=$32,
-			limits_memory=$33, limits_cpus=$34, is_force_https=$35, updated_at=NOW()
-		WHERE id=$1 AND team_id=$36
+			limits_memory=$33, limits_cpus=$34, is_force_https=$35,
+			pre_deployment_command=$36, post_deployment_command=$37, custom_labels=$38,
+			http_basic_auth_username=$39, http_basic_auth_password_enc=$40,
+			updated_at=NOW()
+		WHERE id=$1 AND team_id=$41
 	`, app.ID, app.Name, app.Description, app.FQDN, app.GitRepository, app.GitBranch,
 		app.PortsExposes, app.DockerRegistryImageName, app.DockerRegistryImageTag,
 		app.DockerfileLocation, app.Dockerfile, app.DockerComposeLocation, app.DestinationID, app.GitSourceID, app.PrivateKeyID,
@@ -644,7 +661,10 @@ func (s *Store) UpdateApplication(ctx context.Context, app *Application) error {
 		app.CustomDockerRunOptions, app.DockerfileTargetBuild,
 		app.HealthCheckEnabled, app.HealthCheckPath, app.HealthCheckPort, app.HealthCheckMethod,
 		app.HealthCheckReturnCode, app.HealthCheckInterval, app.HealthCheckTimeout, app.HealthCheckRetries,
-		app.LimitsMemory, app.LimitsCpus, app.IsForceHTTPS, app.TeamID)
+		app.LimitsMemory, app.LimitsCpus, app.IsForceHTTPS,
+		app.PreDeploymentCommand, app.PostDeploymentCommand, app.CustomLabels,
+		app.HTTPBasicAuthUsername, app.HTTPBasicAuthPasswordEnc,
+		app.TeamID)
 	return err
 }
 

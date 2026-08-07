@@ -24,6 +24,16 @@ func (a *API) handleListEnvVars(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
+	if previewQ := r.URL.Query().Get("is_preview"); previewQ == "true" || previewQ == "1" || previewQ == "false" || previewQ == "0" {
+		want := previewQ == "true" || previewQ == "1"
+		filtered := vars[:0]
+		for _, v := range vars {
+			if v.IsPreview == want {
+				filtered = append(filtered, v)
+			}
+		}
+		vars = filtered
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"environment_variables": vars})
 }
 
@@ -38,6 +48,7 @@ func (a *API) handleUpsertEnvVar(w http.ResponseWriter, r *http.Request) {
 		IsLiteral    bool   `json:"is_literal"`
 		IsMultiline  bool   `json:"is_multiline"`
 		IsLocked     bool   `json:"is_locked"`
+		IsPreview    bool   `json:"is_preview"`
 		Comment      string `json:"comment"`
 		KeepValue    bool   `json:"keep_value"`
 	}
@@ -73,6 +84,7 @@ func (a *API) handleUpsertEnvVar(w http.ResponseWriter, r *http.Request) {
 		Literal:   literal,
 		Multiline: body.IsMultiline,
 		Locked:    body.IsLocked,
+		IsPreview: body.IsPreview,
 		Comment:   body.Comment,
 		KeepValue: body.KeepValue,
 	})

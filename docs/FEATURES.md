@@ -29,6 +29,14 @@
 - [x] CRUD + update + rollback
 - [x] Build packs: dockerfile, compose, image, railpack, static
 - [x] Deploy queue + SSE logs + cancel + queue limits
+- [x] Start / Stop / Restart (single-container + compose)
+- [x] Live container logs SSE (Logs tab)
+- [x] Pre / post deployment commands
+- [x] HTTP basic auth + custom Traefik/Caddy labels
+- [x] Editable persistent volumes (non-compose)
+- [x] Custom docker run / compose build+start / preserve repository
+- [x] Preview environment variables (prod/preview tabs + deploy merge)
+- [x] Deploy key selector on Git Source panel
 - [x] Git webhook + HMAC verify
 - [x] GitHub App webhook events (push + PR auto-deploy / preview / close cleanup)
 - [x] Multi-provider webhooks (GitHub, GitLab MR, Gitea, Bitbucket) + `[skip ci]`/`[skip cd]`

@@ -8,12 +8,14 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/proxy"
 	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -220,7 +222,13 @@ func (p *Pipeline) runtimeEnvArgs(ctx context.Context, req Request) []string {
 	if env, err := p.Store.GetEnvironment(ctx, req.TeamID, req.App.EnvironmentID); err == nil {
 		projectID = &env.ProjectID
 	}
-	m, err := p.Store.ResolvedEnvMap(ctx, req.TeamID, "application", req.App.ID, projectID, envID, serverID)
+	var m map[string]string
+	var err error
+	if req.PullRequestID > 0 {
+		m, err = p.Store.ResolvedEnvMapPreview(ctx, req.TeamID, "application", req.App.ID, projectID, envID, serverID)
+	} else {
+		m, err = p.Store.ResolvedEnvMap(ctx, req.TeamID, "application", req.App.ID, projectID, envID, serverID)
+	}
 	if err != nil || len(m) == 0 {
 		return nil
 	}
@@ -253,12 +261,30 @@ func (p *Pipeline) proxyLabelArgs(app *store.Application, proxyType string) []st
 	case "caddy":
 		// Auto SSL for custom domains; never for magic free domains.
 		labels = proxy.CaddyLabels(app.Name, host, port, proxy.WantAutoHTTPS(app.FQDN) || (app.IsForceHTTPS && !proxy.IsMagicDomainHost(host)))
+		if user := strings.TrimSpace(app.HTTPBasicAuthUsername); user != "" && strings.TrimSpace(app.HTTPBasicAuthPasswordEnc) != "" {
+			if p.Store != nil {
+				if plain, err := p.Store.Box.DecryptString(app.HTTPBasicAuthPasswordEnc); err == nil && plain != "" {
+					labels = append(labels, fmt.Sprintf("caddy.basicauth=%s %s", user, plain))
+				}
+			}
+		}
 	case "none":
 		return nil
 	default:
 		// Auto Let's Encrypt for custom domains; magic sslip/nip stay HTTP-only.
 		forceHTTPS := proxy.WantAutoHTTPS(app.FQDN)
 		labels = proxy.TraefikLabelsHTTPS(app.Name, app.FQDN, port, forceHTTPS)
+		if user := strings.TrimSpace(app.HTTPBasicAuthUsername); user != "" && strings.TrimSpace(app.HTTPBasicAuthPasswordEnc) != "" {
+			if p.Store != nil {
+				if plain, err := p.Store.Box.DecryptString(app.HTTPBasicAuthPasswordEnc); err == nil && plain != "" {
+					hash := htpasswdBcrypt(user, plain)
+					labels = append(labels, proxy.TraefikBasicAuthLabels(app.Name, hash)...)
+				}
+			}
+		}
+	}
+	for _, l := range proxy.ParseCustomLabels(app.CustomLabels) {
+		labels = append(labels, l)
 	}
 	var args []string
 	for _, l := range labels {
@@ -426,11 +452,18 @@ func (p *Pipeline) deployImage(ctx context.Context, client *ssh.Client, req Requ
 	}
 	full := image + ":" + tag
 	name := containerNameFor(req)
+	workdir := "/data/dockfin/applications/" + req.App.ID.String()
+	if req.PullRequestID > 0 {
+		workdir = fmt.Sprintf("/data/dockfin/applications/%s-pr-%d", req.App.ID.String(), req.PullRequestID)
+	}
 
 	p.log("fetch", "Pulling image "+full)
 	_, errOut, err := sshx.RunArgs(client, "docker", "pull", full)
 	if err != nil {
 		return fmt.Errorf("docker pull: %v %s", err, errOut)
+	}
+	if err := p.runPreDeployCommand(client, req, workdir); err != nil {
+		return err
 	}
 
 	return p.runWithHealthCutover(ctx, client, req, name, full)
@@ -462,11 +495,17 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 		if err := sshx.WriteFile(buildClient, dockerfilePath, []byte(content+"\n")); err != nil {
 			return fmt.Errorf("write dockerfile: %w", err)
 		}
+		if err := p.runPreDeployCommand(buildClient, req, workdir); err != nil {
+			return err
+		}
 	} else {
 		if req.App.GitRepository == "" {
 			return fmt.Errorf("git repository or dockerfile content is required for dockerfile builds")
 		}
 		if err := p.gitClone(ctx, buildClient, req, workdir+"/src"); err != nil {
+			return err
+		}
+		if err := p.runPreDeployCommand(buildClient, req, workdir); err != nil {
 			return err
 		}
 		dockerfile := req.App.DockerfileLocation
@@ -523,6 +562,8 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 }
 
 // dockerBuildtimeEnv returns sorted build-time env keys and their values.
+// Production builds exclude is_preview vars; PR preview builds merge production
+// then overlay preview overrides (preview wins).
 func (p *Pipeline) dockerBuildtimeEnv(ctx context.Context, req Request) (keys []string, vals map[string]string) {
 	vals = map[string]string{}
 	if p.Store == nil || req.App == nil {
@@ -532,15 +573,23 @@ func (p *Pipeline) dockerBuildtimeEnv(ctx context.Context, req Request) (keys []
 	if err != nil || len(vars) == 0 {
 		return nil, vals
 	}
-	for _, v := range vars {
-		if !v.IsBuildtime || v.IsPreview {
-			continue
+	apply := func(previewOnly bool) {
+		for _, v := range vars {
+			if !v.IsBuildtime || v.IsPreview != previewOnly {
+				continue
+			}
+			if v.Value == "" || strings.ContainsAny(v.Value, "\n\r") {
+				continue
+			}
+			vals[v.Key] = v.Value
 		}
-		if v.Value == "" || strings.ContainsAny(v.Value, "\n\r") {
-			continue
-		}
-		keys = append(keys, v.Key)
-		vals[v.Key] = v.Value
+	}
+	apply(false)
+	if req.PullRequestID > 0 {
+		apply(true)
+	}
+	for k := range vals {
+		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	return keys, vals
@@ -573,7 +622,9 @@ func (p *Pipeline) runWithHealthCutover(ctx context.Context, client *ssh.Client,
 		"--network", req.Destination.Network,
 	}
 	args = append(args, p.limitArgs(req.App)...)
+	args = append(args, p.volumeArgs(ctx, client, req)...)
 	args = append(args, p.runtimeEnvArgs(ctx, req)...)
+	args = append(args, p.customDockerRunArgs(req.App)...)
 	args = append(args, image)
 
 	_, errOut, err := sshx.RunArgs(client, args...)
@@ -600,7 +651,9 @@ func (p *Pipeline) runWithHealthCutover(ctx context.Context, client *ssh.Client,
 		"--network", req.Destination.Network,
 	}
 	finalArgs = append(finalArgs, p.limitArgs(req.App)...)
+	finalArgs = append(finalArgs, p.volumeArgs(ctx, client, req)...)
 	finalArgs = append(finalArgs, p.runtimeEnvArgs(ctx, req)...)
+	finalArgs = append(finalArgs, p.customDockerRunArgs(req.App)...)
 	finalArgs = append(finalArgs, p.proxyLabelArgsReq(req)...)
 	finalArgs = append(finalArgs, image)
 
@@ -616,6 +669,10 @@ func (p *Pipeline) runWithHealthCutover(ctx context.Context, client *ssh.Client,
 	_, errOut, err = sshx.RunArgs(client, "docker", "rename", name+"-cutover", name)
 	if err != nil {
 		return fmt.Errorf("docker rename: %v %s", err, errOut)
+	}
+
+	if err := p.runPostDeployCommand(client, req, name); err != nil {
+		return err
 	}
 
 	p.log("finalize", "Deployment finished")
@@ -647,6 +704,9 @@ func (p *Pipeline) deployStatic(ctx context.Context, buildClient, deployClient *
 	}
 
 	if err := p.gitClone(ctx, buildClient, req, workdir+"/src"); err != nil {
+		return err
+	}
+	if err := p.runPreDeployCommand(buildClient, req, workdir); err != nil {
 		return err
 	}
 
@@ -701,6 +761,9 @@ func (p *Pipeline) deployRailpack(ctx context.Context, buildClient, deployClient
 	}
 
 	if err := p.gitClone(ctx, buildClient, req, workdir+"/src"); err != nil {
+		return err
+	}
+	if err := p.runPreDeployCommand(buildClient, req, workdir); err != nil {
 		return err
 	}
 
@@ -816,6 +879,9 @@ func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Re
 	if err := p.gitClone(ctx, client, req, workdir+"/src"); err != nil {
 		return err
 	}
+	if err := p.runPreDeployCommand(client, req, workdir); err != nil {
+		return err
+	}
 	composePath, loc, err := p.resolveComposePath(client, req, workdir+"/src")
 	if err != nil {
 		return err
@@ -849,15 +915,41 @@ func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Re
 		_, errOut, err = sshx.RunArgs(client, "docker", "stack", "deploy", "-c", deployPath, "--with-registry-auth", project)
 	} else {
 		p.log("run", "docker compose up -d")
-		args := []string{"docker", "compose", "-p", project}
-		if envFile != "" {
-			args = append(args, "--env-file", envFile)
+		buildCmd := strings.TrimSpace(req.App.DockerComposeCustomBuildCommand)
+		startCmd := strings.TrimSpace(req.App.DockerComposeCustomStartCommand)
+		if buildCmd != "" || startCmd != "" {
+			if buildCmd != "" {
+				p.log("run", "custom compose build")
+				_, errOut, err = sshx.Run(client, fmt.Sprintf("cd %s && %s", shellQuotePath(workdir), buildCmd))
+				if err != nil {
+					return fmt.Errorf("custom build: %v %s", err, errOut)
+				}
+			}
+			if startCmd != "" {
+				p.log("run", "custom compose start")
+				_, errOut, err = sshx.Run(client, fmt.Sprintf("cd %s && %s", shellQuotePath(workdir), startCmd))
+			} else {
+				args := []string{"docker", "compose", "-p", project}
+				if envFile != "" {
+					args = append(args, "--env-file", envFile)
+				}
+				args = append(args, "-f", deployPath, "up", "-d", "--remove-orphans")
+				_, errOut, err = sshx.RunArgs(client, args...)
+			}
+		} else {
+			args := []string{"docker", "compose", "-p", project}
+			if envFile != "" {
+				args = append(args, "--env-file", envFile)
+			}
+			args = append(args, "-f", deployPath, "up", "-d", "--build", "--remove-orphans")
+			_, errOut, err = sshx.RunArgs(client, args...)
 		}
-		args = append(args, "-f", deployPath, "up", "-d", "--build", "--remove-orphans")
-		_, errOut, err = sshx.RunArgs(client, args...)
 	}
 	if err != nil {
 		return fmt.Errorf("compose deploy: %v %s", err, errOut)
+	}
+	if err := p.runPostDeployCommand(client, req, ""); err != nil {
+		return err
 	}
 	p.log("finalize", "Compose stack is up")
 	if p.Store != nil && req.PullRequestID == 0 {
@@ -998,6 +1090,12 @@ func (p *Pipeline) adaptComposeForDockfin(ctx context.Context, client *ssh.Clien
 	if p.Store != nil {
 		opts.ExistingEnv = p.composeExistingEnv(ctx, req)
 	}
+	if user := strings.TrimSpace(req.App.HTTPBasicAuthUsername); user != "" && strings.TrimSpace(req.App.HTTPBasicAuthPasswordEnc) != "" && p.Store != nil {
+		if plain, err := p.Store.Box.DecryptString(req.App.HTTPBasicAuthPasswordEnc); err == nil && plain != "" {
+			opts.BasicAuthUsers = htpasswdBcryptCompose(user, plain)
+		}
+	}
+	opts.ExtraLabels = proxy.ParseCustomLabels(req.App.CustomLabels)
 
 	prepared, magicEnv, err := services.PrepareCompose(raw, opts)
 	if err != nil {
@@ -1034,7 +1132,15 @@ func (p *Pipeline) composeExistingEnv(ctx context.Context, req Request) map[stri
 	if env, err := p.Store.GetEnvironment(ctx, req.TeamID, req.App.EnvironmentID); err == nil {
 		projectID = &env.ProjectID
 	}
-	m, err := p.Store.ResolvedEnvMap(ctx, req.TeamID, "application", req.App.ID, projectID, envID, serverID)
+	var (
+		m   map[string]string
+		err error
+	)
+	if req.PullRequestID > 0 {
+		m, err = p.Store.ResolvedEnvMapPreview(ctx, req.TeamID, "application", req.App.ID, projectID, envID, serverID)
+	} else {
+		m, err = p.Store.ResolvedEnvMap(ctx, req.TeamID, "application", req.App.ID, projectID, envID, serverID)
+	}
 	if err != nil {
 		return nil
 	}
@@ -1130,4 +1236,132 @@ func firstPort(ports string) string {
 		return "80"
 	}
 	return strings.TrimSpace(parts[0])
+}
+
+func htpasswdBcrypt(user, pass string) string {
+	h, err := bcrypt.GenerateFromPassword([]byte(pass), bcrypt.DefaultCost)
+	if err != nil {
+		return ""
+	}
+	return user + ":" + string(h)
+}
+
+// htpasswdBcryptCompose doubles `$` so Docker Compose variable substitution
+// leaves a single `$` for Traefik. Docker run -l (shell-quoted) must use htpasswdBcrypt.
+func htpasswdBcryptCompose(user, pass string) string {
+	return strings.ReplaceAll(htpasswdBcrypt(user, pass), "$", "$$")
+}
+
+func (p *Pipeline) volumeArgs(ctx context.Context, client *ssh.Client, req Request) []string {
+	if p.Store == nil || req.App == nil || req.App.BuildPack == "dockercompose" {
+		return nil
+	}
+	vols, err := p.Store.ListVolumes(ctx, req.TeamID, "application", req.App.ID)
+	if err != nil || len(vols) == 0 {
+		return nil
+	}
+	var args []string
+	for _, v := range vols {
+		host := strings.TrimSpace(v.HostPath)
+		if host == "" {
+			host = "/data/dockfin/applications/" + req.App.ID.String() + "/volumes/" + v.Name
+		}
+		if client != nil && !v.IsFile {
+			_, _, _ = sshx.RunArgs(client, "mkdir", "-p", host)
+		} else if client != nil && v.IsFile {
+			parent := filepath.Dir(host)
+			if parent != "" && parent != "." {
+				_, _, _ = sshx.RunArgs(client, "mkdir", "-p", parent)
+			}
+		}
+		mount := v.MountPath
+		if !strings.HasPrefix(mount, "/") {
+			mount = "/" + mount
+		}
+		args = append(args, "-v", host+":"+mount)
+	}
+	return args
+}
+
+func (p *Pipeline) customDockerRunArgs(app *store.Application) []string {
+	if app == nil {
+		return nil
+	}
+	return splitDockerRunOptions(app.CustomDockerRunOptions)
+}
+
+func splitDockerRunOptions(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var out []string
+	var cur strings.Builder
+	inQuote := rune(0)
+	for _, r := range raw {
+		switch {
+		case inQuote != 0:
+			if r == inQuote {
+				inQuote = 0
+			} else {
+				cur.WriteRune(r)
+			}
+		case r == '\'' || r == '"':
+			inQuote = r
+		case unicode.IsSpace(r):
+			if cur.Len() > 0 {
+				out = append(out, cur.String())
+				cur.Reset()
+			}
+		default:
+			cur.WriteRune(r)
+		}
+	}
+	if cur.Len() > 0 {
+		out = append(out, cur.String())
+	}
+	return out
+}
+
+func shellQuotePath(p string) string {
+	return "'" + strings.ReplaceAll(p, "'", `'\''`) + "'"
+}
+
+func (p *Pipeline) runPreDeployCommand(client *ssh.Client, req Request, workdir string) error {
+	cmd := strings.TrimSpace(req.App.PreDeploymentCommand)
+	if cmd == "" {
+		return nil
+	}
+	p.log("prepare", "Running pre-deployment command")
+	if workdir == "" {
+		workdir = "/data/dockfin/applications/" + req.App.ID.String()
+	}
+	_, errOut, err := sshx.Run(client, fmt.Sprintf("mkdir -p %s && cd %s && %s", shellQuotePath(workdir), shellQuotePath(workdir), cmd))
+	if err != nil {
+		p.log("prepare", "pre-deployment command failed: "+errOut)
+		return fmt.Errorf("pre-deployment command: %v %s", err, errOut)
+	}
+	return nil
+}
+
+func (p *Pipeline) runPostDeployCommand(client *ssh.Client, req Request, container string) error {
+	cmd := strings.TrimSpace(req.App.PostDeploymentCommand)
+	if cmd == "" {
+		return nil
+	}
+	p.log("finalize", "Running post-deployment command")
+	if container != "" {
+		_, errOut, err := sshx.RunArgs(client, "docker", "exec", container, "sh", "-lc", cmd)
+		if err == nil {
+			return nil
+		}
+		p.log("finalize", "post-deploy docker exec failed, trying host: "+errOut)
+	}
+	workdir := "/data/dockfin/applications/" + req.App.ID.String()
+	_, errOut, err := sshx.Run(client, fmt.Sprintf("cd %s && %s", shellQuotePath(workdir), cmd))
+	if err != nil {
+		p.log("finalize", "post-deployment command failed: "+errOut)
+		return fmt.Errorf("post-deployment command: %v %s", err, errOut)
+	}
+	return nil
 }

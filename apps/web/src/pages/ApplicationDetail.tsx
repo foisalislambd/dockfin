@@ -22,6 +22,7 @@ import {
   Wrench,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { useConfirm } from '../components/ConfirmDialog'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { DomainsPanel, normalizeDomains } from '../components/DomainsPanel'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
@@ -95,11 +96,13 @@ export function ApplicationDetailPage() {
   const nav = useNavigate()
   const qc = useQueryClient()
   const toast = useToast()
+  const confirm = useConfirm()
   const nested = Boolean(projectId && envId)
 
   const app = useQuery({ queryKey: ['application', appId], queryFn: () => api.application(appId) })
   const dests = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
   const gitSources = useQuery({ queryKey: ['git-sources'], queryFn: api.gitSources })
+  const keys = useQuery({ queryKey: ['keys'], queryFn: api.keys })
   const deps = useQuery({
     queryKey: ['deployments', appId],
     queryFn: () => api.deployments(appId),
@@ -138,6 +141,7 @@ export function ApplicationDetailPage() {
     docker_registry_image_tag: '',
     destination_id: '',
     git_source_id: '',
+    private_key_id: '',
     is_build_server_enabled: false,
     is_force_https: true,
     is_preview_enabled: false,
@@ -145,7 +149,13 @@ export function ApplicationDetailPage() {
     is_git_submodules_enabled: false,
     is_preserve_repository_enabled: false,
     watch_paths: '',
+    pre_deployment_command: '',
+    post_deployment_command: '',
+    custom_labels: '',
+    http_basic_auth_username: '',
   })
+  const [httpBasicAuthPassword, setHttpBasicAuthPassword] = useState('')
+  const [clearHttpBasicAuth, setClearHttpBasicAuth] = useState(false)
   const [serviceDomains, setServiceDomains] = useState<Record<string, string>>({})
   const [showRawCompose, setShowRawCompose] = useState(true)
   const [loadComposeBusy, setLoadComposeBusy] = useState(false)
@@ -166,6 +176,8 @@ export function ApplicationDetailPage() {
     setTopTab('configuration')
     setSide('general')
     setWebhookSecret(null)
+    setHttpBasicAuthPassword('')
+    setClearHttpBasicAuth(false)
     setCfg({
       name: '',
       description: '',
@@ -186,6 +198,7 @@ export function ApplicationDetailPage() {
       docker_registry_image_tag: '',
       destination_id: '',
       git_source_id: '',
+      private_key_id: '',
       is_build_server_enabled: false,
       is_force_https: true,
       is_preview_enabled: false,
@@ -193,6 +206,10 @@ export function ApplicationDetailPage() {
       is_git_submodules_enabled: false,
       is_preserve_repository_enabled: false,
       watch_paths: '',
+      pre_deployment_command: '',
+      post_deployment_command: '',
+      custom_labels: '',
+      http_basic_auth_username: '',
     })
     setServiceDomains({})
     setShowRawCompose(true)
@@ -235,6 +252,7 @@ export function ApplicationDetailPage() {
       docker_registry_image_tag: updated.docker_registry_image_tag || '',
       destination_id: updated.destination_id || '',
       git_source_id: updated.git_source_id || '',
+      private_key_id: updated.private_key_id || '',
       is_build_server_enabled: Boolean(updated.is_build_server_enabled),
       is_force_https: updated.is_force_https !== false,
       is_preview_enabled: Boolean(updated.is_preview_enabled),
@@ -242,7 +260,13 @@ export function ApplicationDetailPage() {
       is_git_submodules_enabled: Boolean(updated.is_git_submodules_enabled),
       is_preserve_repository_enabled: Boolean(updated.is_preserve_repository_enabled),
       watch_paths: updated.watch_paths || '',
+      pre_deployment_command: updated.pre_deployment_command || '',
+      post_deployment_command: updated.post_deployment_command || '',
+      custom_labels: updated.custom_labels || '',
+      http_basic_auth_username: updated.http_basic_auth_username || '',
     })
+    setHttpBasicAuthPassword('')
+    setClearHttpBasicAuth(false)
     const domains: Record<string, string> = {}
     const rawDomains = updated.docker_compose_domains || {}
     for (const [k, v] of Object.entries(rawDomains)) {
@@ -311,6 +335,7 @@ export function ApplicationDetailPage() {
       docker_registry_image_tag: updated.docker_registry_image_tag || '',
       destination_id: updated.destination_id || '',
       git_source_id: updated.git_source_id || '',
+      private_key_id: updated.private_key_id || '',
       is_build_server_enabled: Boolean(updated.is_build_server_enabled),
       is_force_https: updated.is_force_https !== false,
       is_preview_enabled: Boolean(updated.is_preview_enabled),
@@ -318,7 +343,13 @@ export function ApplicationDetailPage() {
       is_git_submodules_enabled: Boolean(updated.is_git_submodules_enabled),
       is_preserve_repository_enabled: Boolean(updated.is_preserve_repository_enabled),
       watch_paths: updated.watch_paths || '',
+      pre_deployment_command: updated.pre_deployment_command || '',
+      post_deployment_command: updated.post_deployment_command || '',
+      custom_labels: updated.custom_labels || '',
+      http_basic_auth_username: updated.http_basic_auth_username || '',
     })
+    setHttpBasicAuthPassword('')
+    setClearHttpBasicAuth(false)
     const domains: Record<string, string> = {}
     const rawDomains = updated.docker_compose_domains || {}
     for (const [k, v] of Object.entries(rawDomains)) {
@@ -354,11 +385,17 @@ export function ApplicationDetailPage() {
       const docker_compose_domains = Object.fromEntries(
         Object.entries(serviceDomains).map(([k, v]) => [k, { domain: v }]),
       )
-      return api.updateApplication(appId, {
+      const body: Record<string, unknown> = {
         ...cfg,
         docker_compose_domains,
         ...patch,
-      })
+      }
+      if (clearHttpBasicAuth) {
+        body.clear_http_basic_auth = true
+      } else if (httpBasicAuthPassword.trim()) {
+        body.http_basic_auth_password = httpBasicAuthPassword
+      }
+      return api.updateApplication(appId, body)
     },
     onSuccess: (updated) => {
       void qc.invalidateQueries({ queryKey: ['application', appId] })
@@ -446,6 +483,31 @@ export function ApplicationDetailPage() {
         })
       }
     },
+  })
+
+  const startApp = useMutation({
+    mutationFn: () => api.startApplication(appId),
+    onSuccess: () => {
+      toast.success('Started')
+      void qc.invalidateQueries({ queryKey: ['application', appId] })
+    },
+    onError: (e: Error) => toast.error(e.message || 'Start failed'),
+  })
+  const stopApp = useMutation({
+    mutationFn: () => api.stopApplication(appId),
+    onSuccess: () => {
+      toast.success('Stopped')
+      void qc.invalidateQueries({ queryKey: ['application', appId] })
+    },
+    onError: (e: Error) => toast.error(e.message || 'Stop failed'),
+  })
+  const restartApp = useMutation({
+    mutationFn: () => api.restartApplication(appId),
+    onSuccess: () => {
+      toast.success('Restarted')
+      void qc.invalidateQueries({ queryKey: ['application', appId] })
+    },
+    onError: (e: Error) => toast.error(e.message || 'Restart failed'),
   })
 
   const remove = useMutation({
@@ -574,6 +636,50 @@ export function ApplicationDetailPage() {
         <div className="flex flex-wrap items-center gap-2">
           <LinksMenu links={a.links || []} />
           {activeDep && <Btn onClick={() => cancel.mutate(activeDep.id)}>Cancel</Btn>}
+          <button
+            type="button"
+            title="Restart"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-amber-500/15 px-2.5 text-xs font-medium text-amber-700 hover:bg-amber-500/25 dark:text-amber-300"
+            disabled={restartApp.isPending || startApp.isPending || stopApp.isPending || deploy.isPending}
+            onClick={() => restartApp.mutate()}
+          >
+            {restartApp.isPending ? 'Restarting…' : 'Restart'}
+          </button>
+          {(a.status || '').toLowerCase().includes('exit') ||
+          (a.status || '').toLowerCase().includes('stop') ? (
+            <button
+              type="button"
+              title="Start"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-emerald-500/15 px-2.5 text-xs font-medium text-emerald-700 hover:bg-emerald-500/25 dark:text-emerald-300"
+              disabled={startApp.isPending || restartApp.isPending || stopApp.isPending || deploy.isPending}
+              onClick={() => startApp.mutate()}
+            >
+              {startApp.isPending ? 'Starting…' : 'Start'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              title="Stop"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-error-500/15 px-2.5 text-xs font-medium text-error-500 hover:bg-error-500/25"
+              disabled={stopApp.isPending || restartApp.isPending || startApp.isPending || deploy.isPending}
+              onClick={() => {
+                void (async () => {
+                  if (
+                    await confirm({
+                      title: 'Stop application',
+                      message: 'Stop this application container / compose stack?',
+                      confirmLabel: 'Stop',
+                      danger: true,
+                    })
+                  ) {
+                    stopApp.mutate()
+                  }
+                })()
+              }}
+            >
+              {stopApp.isPending ? 'Stopping…' : 'Stop'}
+            </button>
+          )}
           <Btn
             onClick={() => {
               setTopTab('configuration')
@@ -1068,6 +1174,99 @@ export function ApplicationDetailPage() {
                     {save.isPending ? 'Saving…' : 'Save'}
                   </Btn>
                 </form>
+
+                <form
+                  className="panel-card space-y-4 p-5"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    save.mutate({})
+                  }}
+                >
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                    Deployment commands
+                  </h3>
+                  <label className="block text-sm">
+                    <span className="mb-1 block text-gray-500 dark:text-gray-400">
+                      Pre-deployment command
+                    </span>
+                    <textarea
+                      rows={3}
+                      value={cfg.pre_deployment_command}
+                      onChange={(e) => setCfg({ ...cfg, pre_deployment_command: e.target.value })}
+                      className="panel-field w-full rounded-lg px-3 py-2 font-mono text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
+                      placeholder="Runs in the app workdir after clone / before build"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="mb-1 block text-gray-500 dark:text-gray-400">
+                      Post-deployment command
+                    </span>
+                    <textarea
+                      rows={3}
+                      value={cfg.post_deployment_command}
+                      onChange={(e) => setCfg({ ...cfg, post_deployment_command: e.target.value })}
+                      className="panel-field w-full rounded-lg px-3 py-2 font-mono text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
+                      placeholder="Runs after successful cutover (docker exec when possible)"
+                    />
+                  </label>
+                  <Btn primary type="submit" disabled={save.isPending}>
+                    {save.isPending ? 'Saving…' : 'Save commands'}
+                  </Btn>
+                </form>
+
+                <form
+                  className="panel-card space-y-4 p-5"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    save.mutate({})
+                  }}
+                >
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                    HTTP Basic Auth &amp; Labels
+                  </h3>
+                  <Input
+                    label="Basic auth username"
+                    value={cfg.http_basic_auth_username}
+                    onChange={(v) => setCfg({ ...cfg, http_basic_auth_username: v })}
+                    required={false}
+                  />
+                  <label className="block text-sm">
+                    <span className="mb-1 block text-gray-500 dark:text-gray-400">
+                      Basic auth password
+                      {a.has_http_basic_auth ? ' (set — leave blank to keep)' : ''}
+                    </span>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      value={httpBasicAuthPassword}
+                      onChange={(e) => setHttpBasicAuthPassword(e.target.value)}
+                      className="panel-field w-full rounded-lg px-3 py-2 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
+                    />
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={clearHttpBasicAuth}
+                      onChange={(e) => setClearHttpBasicAuth(e.target.checked)}
+                    />
+                    <span>Clear HTTP basic auth</span>
+                  </label>
+                  <label className="block text-sm">
+                    <span className="mb-1 block text-gray-500 dark:text-gray-400">
+                      Custom labels (one key=value per line)
+                    </span>
+                    <textarea
+                      rows={4}
+                      value={cfg.custom_labels}
+                      onChange={(e) => setCfg({ ...cfg, custom_labels: e.target.value })}
+                      className="panel-field w-full rounded-lg px-3 py-2 font-mono text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
+                    />
+                  </label>
+                  <Btn primary type="submit" disabled={save.isPending}>
+                    {save.isPending ? 'Saving…' : 'Save auth & labels'}
+                  </Btn>
+                </form>
+
                 {a.build_pack !== 'dockercompose' ? (
                 <form
                   className="panel-card space-y-4 p-5"
@@ -1202,6 +1401,26 @@ export function ApplicationDetailPage() {
                       </select>
                     </label>
                   )}
+                  <label className="block text-sm sm:col-span-2">
+                    <span className="mb-1 block text-gray-500 dark:text-gray-400">
+                      Deploy key (SSH private key)
+                    </span>
+                    <select
+                      value={cfg.private_key_id}
+                      onChange={(e) => setCfg({ ...cfg, private_key_id: e.target.value })}
+                      className="panel-field w-full rounded-lg px-3 py-2"
+                    >
+                      <option value="">None</option>
+                      {(keys.data?.private_keys || []).map((k) => (
+                        <option key={k.id} value={k.id}>
+                          {k.name}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                      Clear when using a GitHub App for private repos.
+                    </span>
+                  </label>
                 </div>
                 {save.error && <p className="text-sm text-error-500">{save.error.message}</p>}
                 <Btn primary type="submit">
@@ -1266,7 +1485,9 @@ export function ApplicationDetailPage() {
                     Persistent Storage
                   </h2>
                   <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                    Volumes come from your compose / Dockerfile bind mounts on the target server.
+                    {a.build_pack === 'dockercompose'
+                      ? 'Volumes come from your compose file. Edit YAML and Load Compose to refresh.'
+                      : 'Persistent volumes mounted into the container on the next deploy.'}
                   </p>
                 </div>
                 {a.build_pack === 'dockercompose' ? (
@@ -1275,16 +1496,8 @@ export function ApplicationDetailPage() {
                     volumes={a.compose_volumes || []}
                   />
                 ) : (
-                  <div className="panel-card p-5 text-sm text-gray-500 dark:text-gray-400">
-                    Persistent volumes for non-compose apps are managed on the destination server
-                    under{' '}
-                    <code className="font-mono text-xs">/data/dockfin/applications/{'{id}'}</code>.
-                    Load paths via Custom Docker Options / Dockerfile volumes on the next deploy.
-                  </div>
+                  <PersistentStoragesPanel applicationId={appId} editable />
                 )}
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Tip: declare volumes in your compose file; Dockfin creates named volumes on deploy.
-                </p>
               </div>
             )}
 
@@ -1357,7 +1570,12 @@ export function ApplicationDetailPage() {
                     Environment Variables
                   </h2>
                 </div>
-                <EnvVarsPanel resourceType="application" resourceId={appId} title="" />
+                <EnvVarsPanel
+                  resourceType="application"
+                  resourceId={appId}
+                  title=""
+                  previewTabs={Boolean(a.is_preview_enabled || cfg.is_preview_enabled)}
+                />
               </div>
             )}
 
@@ -1371,7 +1589,8 @@ export function ApplicationDetailPage() {
                     Pull-request preview deployments for this application.
                     {!cfg.is_preview_enabled && (
                       <> Enable them under Advanced to accept PR webhooks.</>
-                    )}
+                    )}{' '}
+                    Preview-specific env vars live under Environment Variables → Preview.
                   </p>
                 </div>
                 <div className="panel-card overflow-hidden">
@@ -1399,9 +1618,18 @@ export function ApplicationDetailPage() {
                               type="button"
                               className="text-error-500"
                               onClick={() => {
-                                if (confirm(`Delete preview for PR #${p.pull_request_id}?`)) {
-                                  deletePreview.mutate(p.pull_request_id)
-                                }
+                                void (async () => {
+                                  if (
+                                    await confirm({
+                                      title: 'Delete preview',
+                                      message: `Delete preview for PR #${p.pull_request_id}?`,
+                                      confirmLabel: 'Delete',
+                                      danger: true,
+                                    })
+                                  ) {
+                                    deletePreview.mutate(p.pull_request_id)
+                                  }
+                                })()
                               }}
                             >
                               Delete
@@ -1672,34 +1900,42 @@ export function ApplicationDetailPage() {
       )}
 
       {topTab === 'logs' && (
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Open a deployment to stream build / compose logs. Live deploys appear here first.
-            </p>
-            <Btn primary onClick={() => deploy.mutate({})}>
-              Redeploy
-            </Btn>
-          </div>
-          <div className="panel-card divide-y divide-gray-200 dark:divide-gray-800">
-            {(deps.data?.deployments || []).slice(0, 8).map((d) => (
-              <button
-                key={d.id}
-                type="button"
-                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm hover:bg-gray-50 dark:hover:bg-white/5"
-                onClick={() => openDeployment(d.id)}
-              >
-                <span className="font-mono text-xs text-gray-500">{d.id.slice(0, 8)}…</span>
-                <span className="capitalize">{d.status}</span>
-                <span className="text-xs text-gray-500">{d.current_stage || '—'}</span>
-                <span className="text-brand-600 dark:text-brand-400">View logs →</span>
-              </button>
-            ))}
-            {!deps.data?.deployments?.length && (
-              <p className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                No deployment logs yet. Click Redeploy to start one.
-              </p>
-            )}
+        <div className="space-y-6">
+          <LiveContainerLogs appId={appId} isCompose={a.build_pack === 'dockercompose'} />
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Recent deployments
+                </h2>
+                <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                  Build / compose history — open a deployment for full deploy logs.
+                </p>
+              </div>
+              <Btn primary onClick={() => deploy.mutate({})}>
+                Redeploy
+              </Btn>
+            </div>
+            <div className="panel-card divide-y divide-gray-200 dark:divide-gray-800">
+              {(deps.data?.deployments || []).slice(0, 8).map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm hover:bg-gray-50 dark:hover:bg-white/5"
+                  onClick={() => openDeployment(d.id)}
+                >
+                  <span className="font-mono text-xs text-gray-500">{d.id.slice(0, 8)}…</span>
+                  <span className="capitalize">{d.status}</span>
+                  <span className="text-xs text-gray-500">{d.current_stage || '—'}</span>
+                  <span className="text-brand-600 dark:text-brand-400">View logs →</span>
+                </button>
+              ))}
+              {!deps.data?.deployments?.length && (
+                <p className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                  No deployment logs yet. Click Redeploy to start one.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -1823,5 +2059,116 @@ function MiniSpark({ values, color }: { values: number[]; color: string }) {
     <svg viewBox={`0 0 ${w} ${h}`} className="mt-2 h-12 w-full" preserveAspectRatio="none">
       <polyline fill="none" stroke={color} strokeWidth="2" points={pts} />
     </svg>
+  )
+}
+
+function LiveContainerLogs({ appId, isCompose }: { appId: string; isCompose: boolean }) {
+  const [container, setContainer] = useState('')
+  const [lines, setLines] = useState<string[]>([])
+  const [status, setStatus] = useState<'connecting' | 'live' | 'ended' | 'error'>('connecting')
+  const [error, setError] = useState('')
+  const [nonce, setNonce] = useState(0)
+
+  const containers = useQuery({
+    queryKey: ['app-containers', appId],
+    queryFn: () => api.applicationContainers(appId),
+    enabled: isCompose,
+  })
+
+  useEffect(() => {
+    if (!isCompose) {
+      setContainer(`dockfin-${appId}`)
+      return
+    }
+    const list = containers.data?.containers || []
+    if (list.length && (!container || !list.includes(container))) {
+      setContainer(list[0])
+    }
+  }, [isCompose, appId, containers.data, container])
+
+  useEffect(() => {
+    if (!container && isCompose) return
+    const name = container || `dockfin-${appId}`
+    setLines([])
+    setStatus('connecting')
+    setError('')
+    const qs = new URLSearchParams({ tail: '200', container: name })
+    const es = new EventSource(`/api/v1/applications/${appId}/logs/stream?${qs}`, {
+      withCredentials: true,
+    })
+    es.addEventListener('log', (ev) => {
+      try {
+        const data = JSON.parse((ev as MessageEvent).data) as { line?: string }
+        setLines((prev) => [...prev.slice(-2000), data.line ?? (ev as MessageEvent).data])
+        setStatus('live')
+      } catch {
+        setLines((prev) => [...prev.slice(-2000), (ev as MessageEvent).data])
+        setStatus('live')
+      }
+    })
+    es.addEventListener('done', () => {
+      setStatus('ended')
+      es.close()
+    })
+    es.onerror = () => {
+      setStatus((s) => (s === 'live' ? 'ended' : 'error'))
+      setError('Stream disconnected')
+      es.close()
+    }
+    return () => es.close()
+  }, [appId, container, isCompose, nonce])
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Live container logs</h2>
+          <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+            Streaming <code className="font-mono text-xs">docker logs -f</code> from the destination.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {isCompose ? (
+            <label className="text-sm">
+              <span className="sr-only">Container</span>
+              <select
+                value={container}
+                onChange={(e) => setContainer(e.target.value)}
+                className="panel-field rounded-lg px-3 py-1.5 font-mono text-xs"
+              >
+                {(containers.data?.containers || []).map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+                {!containers.data?.containers?.length && (
+                  <option value="">No containers</option>
+                )}
+              </select>
+            </label>
+          ) : null}
+          <span
+            className={`text-xs font-medium ${
+              status === 'live'
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : status === 'error'
+                  ? 'text-error-500'
+                  : 'text-gray-500'
+            }`}
+          >
+            {status === 'connecting' ? 'Connecting…' : status === 'live' ? 'Live' : status === 'ended' ? 'Ended' : 'Error'}
+          </span>
+          <Btn type="button" onClick={() => setNonce((n) => n + 1)}>
+            Reconnect
+          </Btn>
+        </div>
+      </div>
+      {error && status === 'error' ? (
+        <p className="text-sm text-error-500">{error}</p>
+      ) : null}
+      <pre className="panel-card max-h-[28rem] overflow-auto p-4 font-mono text-xs leading-relaxed text-gray-800 dark:text-gray-200">
+        {lines.length ? lines.join('\n') : 'Waiting for log lines…'}
+      </pre>
+    </div>
   )
 }
