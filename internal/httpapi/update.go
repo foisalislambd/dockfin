@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -30,6 +31,8 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		DockerRegistryImageName *string `json:"docker_registry_image_name"`
 		DockerRegistryImageTag  *string `json:"docker_registry_image_tag"`
 		DockerfileLocation      *string `json:"dockerfile_location"`
+		DockerComposeLocation   *string `json:"docker_compose_location"`
+		ComposePrepare          *bool   `json:"compose_prepare"`
 		DestinationID           *string `json:"destination_id"`
 		GitSourceID             *string `json:"git_source_id"`
 		PrivateKeyID            *string `json:"private_key_id"`
@@ -81,6 +84,19 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.DockerfileLocation != nil {
 		app.DockerfileLocation = *body.DockerfileLocation
+	}
+	if body.DockerComposeLocation != nil {
+		loc := strings.TrimSpace(*body.DockerComposeLocation)
+		if loc == "" {
+			loc = "/docker-compose.yaml"
+		}
+		if !strings.HasPrefix(loc, "/") {
+			loc = "/" + loc
+		}
+		app.DockerComposeLocation = loc
+	}
+	if body.ComposePrepare != nil {
+		app.ComposePrepare = *body.ComposePrepare
 	}
 	if body.DestinationID != nil && *body.DestinationID != "" {
 		id, err := uuid.Parse(*body.DestinationID)

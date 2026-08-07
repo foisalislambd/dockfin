@@ -431,3 +431,98 @@ func TestNamedVolumeSkipsBindMounts(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestPrepareComposeStripsPublishedPorts(t *testing.T) {
+	raw := `services:
+  web:
+    image: nginx
+    ports:
+      - "8080:80"
+      - "443:443/tcp"
+      - target: 3000
+        published: 3000
+    expose:
+      - "90"
+  db:
+    image: postgres
+    ports:
+      - "5432:5432"
+`
+	out, _, err := PrepareCompose(raw, PrepareOpts{
+		BaseURL: "http://app.1.2.3.4.sslip.io",
+		FQDN:    "app.1.2.3.4.sslip.io",
+		Network: "dockfin",
+		Port:    "80",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "published:") || strings.Contains(out, "8080:80") || strings.Contains(out, "5432:5432") {
+		t.Fatalf("expected host ports stripped:\n%s", out)
+	}
+	if !strings.Contains(out, "expose:") {
+		t.Fatalf("expected expose kept/merged:\n%s", out)
+	}
+	for _, want := range []string{"80", "443", "3000", "90", "5432"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected container port %s in expose:\n%s", want, out)
+		}
+	}
+	if !strings.Contains(out, "traefik.enable") {
+		t.Fatalf("expected traefik labels:\n%s", out)
+	}
+}
+
+func TestPrepareComposeKeepPublishedPorts(t *testing.T) {
+	raw := `services:
+  web:
+    image: nginx
+    ports:
+      - "8080:80"
+`
+	out, _, err := PrepareCompose(raw, PrepareOpts{
+		BaseURL:            "http://app.example.com",
+		KeepPublishedPorts: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "8080:80") && !strings.Contains(out, "8080") {
+		t.Fatalf("expected ports kept:\n%s", out)
+	}
+}
+
+func TestDetectProxyPortForGitCompose(t *testing.T) {
+	raw := `services:
+  app:
+    image: node
+    ports:
+      - "3000:3000"
+`
+	if got := DetectProxyPortForGitCompose(raw, ""); got != "3000" {
+		t.Fatalf("auto from ports: got %q want 3000", got)
+	}
+	if got := DetectProxyPortForGitCompose(raw, "8080"); got != "8080" {
+		t.Fatalf("explicit override: got %q want 8080", got)
+	}
+	meta := "# port: 5678\nservices:\n  n8n:\n    image: n8nio/n8n\n"
+	if got := DetectProxyPortForGitCompose(meta, ""); got != "5678" {
+		t.Fatalf("metadata: got %q want 5678", got)
+	}
+}
+
+func TestInferContainerPortFromCompose(t *testing.T) {
+	raw := `services:
+  web:
+    image: nginx
+    ports:
+      - "8080:80"
+  db:
+    image: postgres
+    ports:
+      - "5432:5432"
+`
+	if got := InferContainerPortFromCompose(raw); got != "80" {
+		t.Fatalf("got %q want 80 (proxy service container port)", got)
+	}
+}

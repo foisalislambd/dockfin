@@ -65,6 +65,8 @@ export function ApplicationDetailPage() {
     git_repository: '',
     git_branch: '',
     ports_exposes: '',
+    docker_compose_location: '',
+    compose_prepare: true,
     docker_registry_image_name: '',
     docker_registry_image_tag: '',
     destination_id: '',
@@ -96,6 +98,8 @@ export function ApplicationDetailPage() {
       git_repository: '',
       git_branch: '',
       ports_exposes: '',
+      docker_compose_location: '',
+      compose_prepare: true,
       docker_registry_image_name: '',
       docker_registry_image_tag: '',
       destination_id: '',
@@ -125,7 +129,12 @@ export function ApplicationDetailPage() {
       fqdn: app.data.fqdn || '',
       git_repository: app.data.git_repository || '',
       git_branch: app.data.git_branch || 'main',
-      ports_exposes: app.data.ports_exposes || '80',
+      ports_exposes:
+        app.data.build_pack === 'dockercompose'
+          ? app.data.ports_exposes || ''
+          : app.data.ports_exposes || '80',
+      docker_compose_location: app.data.docker_compose_location || '/docker-compose.yaml',
+      compose_prepare: app.data.compose_prepare !== false,
       docker_registry_image_name: app.data.docker_registry_image_name || '',
       docker_registry_image_tag: app.data.docker_registry_image_tag || '',
       destination_id: app.data.destination_id || '',
@@ -168,7 +177,12 @@ export function ApplicationDetailPage() {
       fqdn: updated.fqdn || '',
       git_repository: updated.git_repository || '',
       git_branch: updated.git_branch || 'main',
-      ports_exposes: updated.ports_exposes || '80',
+      ports_exposes:
+        updated.build_pack === 'dockercompose'
+          ? updated.ports_exposes || ''
+          : updated.ports_exposes || '80',
+      docker_compose_location: updated.docker_compose_location || '/docker-compose.yaml',
+      compose_prepare: updated.compose_prepare !== false,
       docker_registry_image_name: updated.docker_registry_image_name || '',
       docker_registry_image_tag: updated.docker_registry_image_tag || '',
       destination_id: updated.destination_id || '',
@@ -430,7 +444,63 @@ export function ApplicationDetailPage() {
                 label="Ports exposes"
                 value={cfg.ports_exposes}
                 onChange={(v) => setCfg({ ...cfg, ports_exposes: v })}
+                required={false}
               />
+              {a.build_pack === 'dockercompose' ? (
+                <p className="-mt-2 text-xs text-gray-500 dark:text-gray-400 sm:col-span-2">
+                  For Compose, leave empty to auto-detect the container port from the compose file.
+                  Set a value only to override Traefik&apos;s target port.
+                </p>
+              ) : null}
+              {a.build_pack === 'dockercompose' ? (
+                <>
+                  <Input
+                    label="Compose file path"
+                    value={cfg.docker_compose_location}
+                    onChange={(v) => setCfg({ ...cfg, docker_compose_location: v })}
+                    required={false}
+                  />
+                  <fieldset className="space-y-3 sm:col-span-2">
+                    <legend className="text-sm text-gray-500 dark:text-gray-400">
+                      Compose adaptation
+                    </legend>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Adapt adds Traefik labels, joins the proxy network, and removes host port
+                      mappings so you do not conflict with ports 80/443.
+                    </p>
+                    <label className="flex items-start gap-3 text-sm">
+                      <input
+                        type="radio"
+                        className="mt-1"
+                        name="compose_prepare"
+                        checked={cfg.compose_prepare}
+                        onChange={() => setCfg({ ...cfg, compose_prepare: true })}
+                      />
+                      <span>
+                        Adapt for Dockfin (recommended)
+                        <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
+                          Auto-fix compose for Dockfin proxy on each deploy.
+                        </span>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-3 text-sm">
+                      <input
+                        type="radio"
+                        className="mt-1"
+                        name="compose_prepare"
+                        checked={!cfg.compose_prepare}
+                        onChange={() => setCfg({ ...cfg, compose_prepare: false })}
+                      />
+                      <span>
+                        Don&apos;t modify
+                        <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
+                          Use the repository compose file as-is.
+                        </span>
+                      </span>
+                    </label>
+                  </fieldset>
+                </>
+              ) : null}
               <Input
                 label="Git repository"
                 value={cfg.git_repository}

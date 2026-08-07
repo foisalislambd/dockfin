@@ -866,6 +866,8 @@ export type Application = {
   git_repository?: string
   git_branch?: string
   ports_exposes?: string
+  docker_compose_location?: string
+  compose_prepare?: boolean
   docker_registry_image_name?: string
   docker_registry_image_tag?: string
   destination_id?: string | null

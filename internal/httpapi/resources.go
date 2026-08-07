@@ -267,6 +267,7 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 		DockerRegistryImageName string `json:"docker_registry_image_name"`
 		DockerRegistryImageTag  string `json:"docker_registry_image_tag"`
 		PortsExposes            string `json:"ports_exposes"`
+		ComposePrepare          *bool  `json:"compose_prepare"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -289,7 +290,7 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 	if body.DockerComposeLocation == "" {
 		body.DockerComposeLocation = "/docker-compose.yaml"
 	}
-	if body.PortsExposes == "" {
+	if body.PortsExposes == "" && body.BuildPack != "dockercompose" {
 		body.PortsExposes = "3000"
 	}
 	if body.FQDN != "" && !isValidHostnameList(body.FQDN) {
@@ -315,6 +316,10 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 		DockerRegistryImageName: body.DockerRegistryImageName,
 		DockerRegistryImageTag:  body.DockerRegistryImageTag,
 		PortsExposes:            body.PortsExposes,
+		ComposePrepare:          true,
+	}
+	if body.ComposePrepare != nil {
+		app.ComposePrepare = *body.ComposePrepare
 	}
 	if body.GitSourceID != "" {
 		id, err := uuid.Parse(body.GitSourceID)

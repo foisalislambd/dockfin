@@ -20,6 +20,9 @@ type PrepareOpts struct {
 	RouterName  string // Traefik router name (defaults to ServiceID or "svc")
 	Port        string // container port for Traefik (default: from SERVICE_URL_*_PORT or "80")
 	ExistingEnv map[string]string // reuse passwords/users when re-preparing
+	// KeepPublishedPorts leaves host port mappings intact. Default false: Dockfin
+	// strips published ports so Traefik owns 80/443 and stacks avoid port conflicts.
+	KeepPublishedPorts bool
 }
 
 var reMagicKey = regexp.MustCompile(`SERVICE_(?:PASSWORD|USER|FQDN|URL|BASE64|HEX)_[A-Z0-9_]+`)
@@ -28,6 +31,8 @@ var reMagicKey = regexp.MustCompile(`SERVICE_(?:PASSWORD|USER|FQDN|URL|BASE64|HE
 // - declares missing named volumes
 // - expands SERVICE_* magic variables into concrete values
 // - optionally attaches services to an external network
+// - strips published host ports (Traefik owns 80/443; container ports stay in expose)
+// - injects Traefik labels on the primary web service
 func PrepareCompose(raw string, opts PrepareOpts) (string, map[string]string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -52,6 +57,9 @@ func PrepareCompose(raw string, opts PrepareOpts) (string, map[string]string, er
 	injectCompatEnv(doc, env)
 	opts.Port = DetectProxyPort(raw, opts.Port)
 	injectProxyLabels(doc, opts)
+	if !opts.KeepPublishedPorts {
+		stripPublishedPorts(doc)
+	}
 
 	out, err := yaml.Marshal(doc)
 	if err != nil {
@@ -198,7 +206,8 @@ func isAllDigits(s string) bool {
 }
 
 // DetectProxyPort returns the container port for Traefik.
-// Order: explicit opts → Coolify `# port:` metadata → SERVICE_URL_*_PORT suffix → "80".
+// Order: explicit opts → Coolify `# port:` metadata → SERVICE_URL_*_PORT suffix →
+// published/expose targets in compose → "80".
 func DetectProxyPort(raw, explicit string) string {
 	if p := strings.TrimSpace(explicit); p != "" {
 		return p
@@ -213,7 +222,60 @@ func DetectProxyPort(raw, explicit string) string {
 			return port
 		}
 	}
+	if p := InferContainerPortFromCompose(raw); p != "" {
+		return p
+	}
 	return "80"
+}
+
+// InferContainerPortFromCompose finds a likely HTTP container port from ports:/expose
+// on the Traefik-facing service (or the first service). Used so GitHub compose apps
+// work without the user setting Ports Exposes by hand.
+func InferContainerPortFromCompose(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal([]byte(raw), &doc); err != nil {
+		return ""
+	}
+	services, _ := doc["services"].(map[string]any)
+	if len(services) == 0 {
+		return ""
+	}
+	name := pickProxyService(services)
+	svc, _ := services[name].(map[string]any)
+	if svc == nil {
+		return ""
+	}
+	// Prefer explicit expose, then ports: container targets.
+	for _, t := range stringListFromAny(svc["expose"]) {
+		if isAllDigits(t) && t != "0" {
+			return t
+		}
+	}
+	targets := portMappingTargets(svc["ports"])
+	for _, t := range targets {
+		if isAllDigits(t) && t != "0" {
+			return t
+		}
+	}
+	return ""
+}
+
+// DetectProxyPortForGitCompose resolves the Traefik container port for Git compose apps.
+// Non-empty portsExposes is an explicit override; otherwise compose metadata / ports: win.
+func DetectProxyPortForGitCompose(raw, portsExposes string) string {
+	if p := strings.TrimSpace(portsExposes); p != "" {
+		parts := strings.FieldsFunc(p, func(r rune) bool {
+			return r == ',' || r == ' ' || r == ';'
+		})
+		if len(parts) > 0 {
+			return strings.TrimSpace(parts[0])
+		}
+	}
+	return DetectProxyPort(raw, "")
 }
 
 // CoolifyEnvForUI returns the Coolify-style env set shown in Environment Variables:
@@ -795,6 +857,141 @@ func removeNetworkName(nets []any, name string) []any {
 		out = append(out, n)
 	}
 	return out
+}
+
+// stripPublishedPorts removes host port publications (HOST:CONTAINER) so Traefik
+// can bind 80/443 without conflicts. Container ports are preserved under expose.
+func stripPublishedPorts(doc map[string]any) {
+	services, _ := doc["services"].(map[string]any)
+	if services == nil {
+		return
+	}
+	for name, svcAny := range services {
+		svc, ok := svcAny.(map[string]any)
+		if !ok {
+			continue
+		}
+		ports := svc["ports"]
+		if ports == nil {
+			continue
+		}
+		targets := portMappingTargets(ports)
+		if len(targets) == 0 {
+			delete(svc, "ports")
+			services[name] = svc
+			continue
+		}
+		expose := stringListFromAny(svc["expose"])
+		for _, t := range targets {
+			expose = appendUniqueString(expose, t)
+		}
+		if len(expose) > 0 {
+			out := make([]any, len(expose))
+			for i, s := range expose {
+				out[i] = s
+			}
+			svc["expose"] = out
+		}
+		delete(svc, "ports")
+		services[name] = svc
+	}
+	doc["services"] = services
+}
+
+func portMappingTargets(ports any) []string {
+	var out []string
+	switch p := ports.(type) {
+	case []any:
+		for _, item := range p {
+			if t := portMappingTarget(item); t != "" {
+				out = appendUniqueString(out, t)
+			}
+		}
+	case map[string]any:
+		if t := portMappingTarget(p); t != "" {
+			out = append(out, t)
+		}
+	case string:
+		if t := portMappingTarget(p); t != "" {
+			out = append(out, t)
+		}
+	case int:
+		if t := portMappingTarget(p); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+func portMappingTarget(item any) string {
+	switch v := item.(type) {
+	case string:
+		s := strings.TrimSpace(v)
+		if s == "" {
+			return ""
+		}
+		// Drop protocol suffix: 80/tcp, 8080:80/udp
+		if i := strings.IndexByte(s, '/'); i >= 0 {
+			s = s[:i]
+		}
+		parts := strings.Split(s, ":")
+		switch len(parts) {
+		case 1:
+			return strings.TrimSpace(parts[0])
+		case 2, 3:
+			return strings.TrimSpace(parts[len(parts)-1])
+		default:
+			return strings.TrimSpace(parts[len(parts)-1])
+		}
+	case int:
+		if v > 0 {
+			return fmt.Sprintf("%d", v)
+		}
+	case int64:
+		if v > 0 {
+			return fmt.Sprintf("%d", v)
+		}
+	case float64:
+		if v > 0 {
+			return fmt.Sprintf("%d", int(v))
+		}
+	case map[string]any:
+		if t, ok := v["target"]; ok {
+			return portMappingTarget(t)
+		}
+	}
+	return ""
+}
+
+func stringListFromAny(v any) []string {
+	switch t := v.(type) {
+	case []any:
+		out := make([]string, 0, len(t))
+		for _, item := range t {
+			s := strings.TrimSpace(fmt.Sprint(item))
+			if s != "" && s != "<nil>" {
+				out = append(out, s)
+			}
+		}
+		return out
+	case []string:
+		return append([]string{}, t...)
+	default:
+		return nil
+	}
+}
+
+func appendUniqueString(list []string, s string) []string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return list
+	}
+	for _, x := range list {
+		if x == s {
+			return list
+		}
+	}
+	return append(list, s)
 }
 
 // injectProxyLabels adds Traefik labels to the primary web service when FQDN is set.

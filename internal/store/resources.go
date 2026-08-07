@@ -49,6 +49,9 @@ type Application struct {
 	DockerRegistryImageName string     `json:"docker_registry_image_name"`
 	DockerRegistryImageTag  string     `json:"docker_registry_image_tag"`
 	PortsExposes            string     `json:"ports_exposes"`
+	// ComposePrepare adapts Git compose for Dockfin (Traefik, network, strip host ports).
+	// False = deploy the repository compose file unchanged.
+	ComposePrepare          bool       `json:"compose_prepare"`
 	HealthCheckEnabled      bool       `json:"health_check_enabled"`
 	HealthCheckPath         string     `json:"health_check_path"`
 	HealthCheckPort         *int       `json:"health_check_port,omitempty"`
@@ -83,6 +86,7 @@ const applicationSelectCols = `
 	a.id, a.team_id, a.environment_id, a.destination_id, a.name, a.description, a.fqdn, a.status, a.build_pack,
 	a.git_repository, a.git_branch, a.git_commit_sha, a.dockerfile_location, a.docker_compose_location,
 	a.docker_registry_image_name, a.docker_registry_image_tag, a.ports_exposes,
+	COALESCE(a.compose_prepare, TRUE),
 	a.health_check_enabled, a.health_check_path, a.health_check_port, a.health_check_method,
 	a.health_check_return_code, a.health_check_interval, a.health_check_timeout, a.health_check_retries,
 	a.limits_memory, a.limits_cpus,
@@ -98,6 +102,7 @@ func scanApplication(scan func(dest ...any) error) (*Application, error) {
 		&a.ID, &a.TeamID, &a.EnvironmentID, &a.DestinationID, &a.Name, &a.Description, &a.FQDN, &a.Status, &a.BuildPack,
 		&a.GitRepository, &a.GitBranch, &a.GitCommitSHA, &a.DockerfileLocation, &a.DockerComposeLocation,
 		&a.DockerRegistryImageName, &a.DockerRegistryImageTag, &a.PortsExposes,
+		&a.ComposePrepare,
 		&a.HealthCheckEnabled, &a.HealthCheckPath, &a.HealthCheckPort, &a.HealthCheckMethod,
 		&a.HealthCheckReturnCode, &a.HealthCheckInterval, &a.HealthCheckTimeout, &a.HealthCheckRetries,
 		&a.LimitsMemory, &a.LimitsCpus, &a.GitSourceID, &a.PrivateKeyID, &a.IsBuildServerEnabled, &a.IsForceHTTPS, &a.IsPreviewEnabled, &a.CreatedAt,
@@ -451,13 +456,13 @@ func (s *Store) CreateApplication(ctx context.Context, app *Application) (*Appli
 			team_id, environment_id, destination_id, name, description, fqdn, build_pack,
 			git_repository, git_branch, dockerfile_location, docker_compose_location,
 			docker_registry_image_name, docker_registry_image_tag, ports_exposes,
-			git_source_id, private_key_id
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+			compose_prepare, git_source_id, private_key_id
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
 		RETURNING id
 	`, app.TeamID, app.EnvironmentID, app.DestinationID, app.Name, app.Description, app.FQDN, app.BuildPack,
 		app.GitRepository, app.GitBranch, app.DockerfileLocation, app.DockerComposeLocation,
 		app.DockerRegistryImageName, app.DockerRegistryImageTag, app.PortsExposes,
-		app.GitSourceID, app.PrivateKeyID,
+		app.ComposePrepare, app.GitSourceID, app.PrivateKeyID,
 	).Scan(&app.ID)
 	if err != nil {
 		return nil, err
@@ -551,14 +556,16 @@ func (s *Store) UpdateApplication(ctx context.Context, app *Application) error {
 		UPDATE applications SET
 			name=$2, description=$3, fqdn=$4, git_repository=$5, git_branch=$6,
 			ports_exposes=$7, docker_registry_image_name=$8, docker_registry_image_tag=$9,
-			dockerfile_location=$10, destination_id=$11, git_source_id=$12, private_key_id=$13,
-			health_check_enabled=$14, health_check_path=$15, health_check_port=$16, health_check_method=$17,
-			health_check_return_code=$18, health_check_interval=$19, health_check_timeout=$20, health_check_retries=$21,
-			limits_memory=$22, limits_cpus=$23, is_force_https=$24, updated_at=NOW()
-		WHERE id=$1 AND team_id=$25
+			dockerfile_location=$10, docker_compose_location=$11, destination_id=$12, git_source_id=$13, private_key_id=$14,
+			compose_prepare=$15,
+			health_check_enabled=$16, health_check_path=$17, health_check_port=$18, health_check_method=$19,
+			health_check_return_code=$20, health_check_interval=$21, health_check_timeout=$22, health_check_retries=$23,
+			limits_memory=$24, limits_cpus=$25, is_force_https=$26, updated_at=NOW()
+		WHERE id=$1 AND team_id=$27
 	`, app.ID, app.Name, app.Description, app.FQDN, app.GitRepository, app.GitBranch,
 		app.PortsExposes, app.DockerRegistryImageName, app.DockerRegistryImageTag,
-		app.DockerfileLocation, app.DestinationID, app.GitSourceID, app.PrivateKeyID,
+		app.DockerfileLocation, app.DockerComposeLocation, app.DestinationID, app.GitSourceID, app.PrivateKeyID,
+		app.ComposePrepare,
 		app.HealthCheckEnabled, app.HealthCheckPath, app.HealthCheckPort, app.HealthCheckMethod,
 		app.HealthCheckReturnCode, app.HealthCheckInterval, app.HealthCheckTimeout, app.HealthCheckRetries,
 		app.LimitsMemory, app.LimitsCpus, app.IsForceHTTPS, app.TeamID)

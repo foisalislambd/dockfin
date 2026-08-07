@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/proxy"
+	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
 	"golang.org/x/crypto/ssh"
@@ -620,12 +621,36 @@ func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Re
 		composeFile = "docker-compose.yaml"
 	}
 	composePath := workdir + "/src/" + composeFile
+	deployPath := composePath
+
+	if req.App.ComposePrepare {
+		adapted, err := p.adaptComposeForDockfin(ctx, client, req, composePath)
+		if err != nil {
+			return err
+		}
+		deployPath = adapted
+	} else {
+		p.log("prepare", "Compose prepare disabled — deploying repository file as-is")
+	}
+
+	// Write Dockfin env as a sidecar file (never overwrite the repo's .env).
+	envFile, envErr := p.writeComposeEnvFile(ctx, client, req, deployPath)
+	if envErr != nil {
+		p.log("prepare", "Warning: could not write env file: "+envErr.Error())
+	}
+
 	if req.Destination.Kind == "swarm" {
 		p.log("run", "docker stack deploy")
-		_, errOut, err = sshx.RunArgs(client, "docker", "stack", "deploy", "-c", composePath, "--with-registry-auth", project)
+		// swarm stack deploy has no --env-file; vars should already be baked via prepare when enabled.
+		_, errOut, err = sshx.RunArgs(client, "docker", "stack", "deploy", "-c", deployPath, "--with-registry-auth", project)
 	} else {
 		p.log("run", "docker compose up -d")
-		_, errOut, err = sshx.RunArgs(client, "docker", "compose", "-p", project, "-f", composePath, "up", "-d", "--build", "--remove-orphans")
+		args := []string{"docker", "compose", "-p", project}
+		if envFile != "" {
+			args = append(args, "--env-file", envFile)
+		}
+		args = append(args, "-f", deployPath, "up", "-d", "--build", "--remove-orphans")
+		_, errOut, err = sshx.RunArgs(client, args...)
 	}
 	if err != nil {
 		return fmt.Errorf("compose deploy: %v %s", err, errOut)
@@ -638,6 +663,148 @@ func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Re
 		_ = p.Store.UpdatePreviewStatus(context.Background(), req.TeamID, req.App.ID, req.PullRequestID, "running")
 	}
 	return nil
+}
+
+// adaptComposeForDockfin reads the cloned compose file, runs PrepareCompose (Traefik
+// labels, shared network, strip host ports, magic env), and writes docker-compose.dockfin.yml
+// beside the original so relative build contexts stay valid.
+func (p *Pipeline) adaptComposeForDockfin(ctx context.Context, client *ssh.Client, req Request, composePath string) (string, error) {
+	p.log("prepare", "Adapting compose for Dockfin (Traefik, network, ports)…")
+	raw, errOut, err := sshx.RunArgs(client, "cat", composePath)
+	if err != nil {
+		return "", fmt.Errorf("read compose %s: %v %s", composePath, err, errOut)
+	}
+	if strings.TrimSpace(raw) == "" {
+		return "", fmt.Errorf("compose file is empty: %s", composePath)
+	}
+
+	fqdn := firstHost(req.App.FQDN)
+	if req.PullRequestID > 0 {
+		fqdn = firstHost(req.PreviewFQDN)
+	}
+	baseURL := proxy.PublicURL(fqdn)
+	if req.App.IsForceHTTPS && fqdn != "" && !proxy.IsMagicDomainHost(fqdn) {
+		baseURL = "https://" + fqdn
+	}
+	routerName := req.App.Name + "-" + req.App.ID.String()[:8]
+	if req.PullRequestID > 0 {
+		routerName = fmt.Sprintf("%s-pr-%d", req.App.Name, req.PullRequestID)
+	}
+	// Non-empty PortsExposes overrides; empty → auto-detect from compose (# port:, ports:).
+	port := services.DetectProxyPortForGitCompose(raw, req.App.PortsExposes)
+	opts := services.PrepareOpts{
+		ServiceID:  req.App.ID.String(),
+		Network:    "",
+		BaseURL:    baseURL,
+		FQDN:       fqdn,
+		RouterName: routerName,
+		Port:       port,
+	}
+	if req.Destination != nil {
+		opts.Network = req.Destination.Network
+	}
+	if p.Store != nil {
+		opts.ExistingEnv = p.composeExistingEnv(ctx, req)
+	}
+
+	prepared, magicEnv, err := services.PrepareCompose(raw, opts)
+	if err != nil {
+		return "", fmt.Errorf("prepare compose: %w", err)
+	}
+
+	// Keep prepared file next to the original so build: . / relative volumes resolve.
+	dir := composePath
+	if i := strings.LastIndex(composePath, "/"); i >= 0 {
+		dir = composePath[:i]
+	}
+	preparedPath := dir + "/docker-compose.dockfin.yml"
+	writeCmd := fmt.Sprintf("cat > %s <<'DOCKFIN_COMPOSE_EOF'\n%s\nDOCKFIN_COMPOSE_EOF", preparedPath, prepared)
+	_, errOut, err = sshx.Run(client, writeCmd)
+	if err != nil {
+		return "", fmt.Errorf("write prepared compose: %v %s", err, errOut)
+	}
+	p.log("prepare", fmt.Sprintf("Wrote adapted compose %s (proxy port %s)", preparedPath, port))
+
+	// Persist magic secrets/URLs into application env so redeploys reuse passwords.
+	if req.PullRequestID == 0 {
+		p.syncApplicationComposeEnv(ctx, req, raw, prepared, magicEnv)
+	}
+	return preparedPath, nil
+}
+
+func (p *Pipeline) composeExistingEnv(ctx context.Context, req Request) map[string]string {
+	if p.Store == nil || req.App == nil {
+		return nil
+	}
+	var projectID, envID, serverID *uuid.UUID
+	envID = &req.App.EnvironmentID
+	if req.Destination != nil {
+		serverID = &req.Destination.ServerID
+	}
+	if env, err := p.Store.GetEnvironment(ctx, req.TeamID, req.App.EnvironmentID); err == nil {
+		projectID = &env.ProjectID
+	}
+	m, err := p.Store.ResolvedEnvMap(ctx, req.TeamID, "application", req.App.ID, projectID, envID, serverID)
+	if err != nil {
+		return nil
+	}
+	return m
+}
+
+// writeComposeEnvFile writes Dockfin-managed vars to .env.dockfin (does not clobber repo .env).
+// Returns the remote path when a file was written, or "" when there was nothing to write.
+func (p *Pipeline) writeComposeEnvFile(ctx context.Context, client *ssh.Client, req Request, composePath string) (string, error) {
+	envMap := p.composeExistingEnv(ctx, req)
+	if len(envMap) == 0 {
+		return "", nil
+	}
+	dir := composePath
+	if i := strings.LastIndex(composePath, "/"); i >= 0 {
+		dir = composePath[:i]
+	}
+	envPath := dir + "/.env.dockfin"
+	body := services.FormatEnvFile(envMap)
+	writeCmd := fmt.Sprintf("cat > %s <<'DOCKFIN_ENV_EOF'\n%sDOCKFIN_ENV_EOF", envPath, body)
+	_, errOut, err := sshx.Run(client, writeCmd)
+	if err != nil {
+		return "", fmt.Errorf("%v %s", err, errOut)
+	}
+	p.log("prepare", "Wrote compose env file "+envPath)
+	return envPath, nil
+}
+
+// syncApplicationComposeEnv stores Coolify-style SERVICE_* values on the application
+// so redeploy reuses passwords and the Environment Variables UI shows URLs.
+func (p *Pipeline) syncApplicationComposeEnv(ctx context.Context, req Request, raw, prepared string, fullEnv map[string]string) {
+	if p.Store == nil || req.App == nil {
+		return
+	}
+	ui := services.CoolifyEnvForUI(raw, fullEnv)
+	if len(ui) == 0 {
+		ui = services.CoolifyEnvForUI(raw, services.ExtractMagicEnv(prepared))
+	}
+	if len(ui) == 0 {
+		return
+	}
+	for key, val := range ui {
+		preserve := strings.HasPrefix(key, "SERVICE_PASSWORD_") ||
+			strings.HasPrefix(key, "SERVICE_BASE64_") ||
+			strings.HasPrefix(key, "SERVICE_HEX_") ||
+			strings.HasPrefix(key, "SERVICE_USER_")
+		bypassLock := strings.HasPrefix(key, "SERVICE_URL_") || strings.HasPrefix(key, "SERVICE_FQDN_")
+		_, err := p.Store.UpsertEnvVar(ctx, req.TeamID, "application", req.App.ID, store.UpsertEnvVarInput{
+			Key:        key,
+			Value:      val,
+			Runtime:    true,
+			Buildtime:  true,
+			Literal:    true,
+			KeepValue:  preserve,
+			BypassLock: bypassLock,
+		})
+		if err != nil {
+			p.log("prepare", "Warning: could not sync env "+key+": "+err.Error())
+		}
+	}
 }
 
 func containerName(app *store.Application) string {

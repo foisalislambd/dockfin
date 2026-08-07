@@ -59,12 +59,14 @@ export function CreateApplicationPage() {
     build_pack: prefillPack || 'dockerimage',
     docker_registry_image_name: 'nginx',
     docker_registry_image_tag: 'alpine',
-    ports_exposes: '80',
+    ports_exposes: prefillPack === 'dockercompose' ? '' : '80',
     fqdn: '',
     git_repository: '',
     git_branch: 'main',
     git_source_id: '',
     private_key_id: '',
+    docker_compose_location: '/docker-compose.yaml',
+    compose_prepare: true,
   })
 
   const [repoOwner, setRepoOwner] = useState('')
@@ -118,6 +120,13 @@ export function CreateApplicationPage() {
       const body: Record<string, unknown> = { ...form }
       if (!body.git_source_id) delete body.git_source_id
       if (!body.private_key_id) delete body.private_key_id
+      if (form.build_pack === 'dockercompose' && !String(form.ports_exposes || '').trim()) {
+        body.ports_exposes = ''
+      }
+      if (form.build_pack !== 'dockercompose') {
+        delete body.docker_compose_location
+        delete body.compose_prepare
+      }
       return api.createApplication(body)
     },
     onSuccess: (app) => {
@@ -222,7 +231,16 @@ export function CreateApplicationPage() {
                   key={bp.id}
                   active={form.build_pack === bp.id}
                   title={bp.title}
-                  onClick={() => setForm({ ...form, build_pack: bp.id })}
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      build_pack: bp.id,
+                      ports_exposes:
+                        bp.id === 'dockercompose'
+                          ? ''
+                          : form.ports_exposes || '80',
+                    })
+                  }
                 />
               ),
             )}
@@ -367,6 +385,11 @@ export function CreateApplicationPage() {
               value={form.ports_exposes}
               onChange={(v) => setForm({ ...form, ports_exposes: v })}
               placeholder="80"
+              hint={
+                form.build_pack === 'dockercompose'
+                  ? 'Optional. Leave empty to auto-detect from the compose file.'
+                  : undefined
+              }
             />
             <div className="space-y-2">
               <FormInput
@@ -395,6 +418,62 @@ export function CreateApplicationPage() {
               </button>
             </div>
           </div>
+
+          {form.build_pack === 'dockercompose' ? (
+            <div className="space-y-4 rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+              <FormInput
+                label="Compose file path"
+                value={form.docker_compose_location}
+                onChange={(v) => setForm({ ...form, docker_compose_location: v })}
+                placeholder="/docker-compose.yaml"
+                hint="Path inside the repository (leading slash optional)."
+              />
+              <fieldset className="space-y-3">
+                <legend className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                  Compose adaptation
+                </legend>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Dockfin can make your compose Traefik-ready: shared network, proxy labels, and no
+                  host port publishing — so you do not need to edit ports by hand.
+                </p>
+                <label className="flex cursor-pointer items-start gap-3 text-sm">
+                  <input
+                    type="radio"
+                    className="mt-1"
+                    name="compose_prepare"
+                    checked={form.compose_prepare}
+                    onChange={() => setForm({ ...form, compose_prepare: true })}
+                  />
+                  <span>
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      Adapt for Dockfin (recommended)
+                    </span>
+                    <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
+                      Auto Traefik labels, join proxy network, strip host ports, magic SERVICE_* env.
+                    </span>
+                  </span>
+                </label>
+                <label className="flex cursor-pointer items-start gap-3 text-sm">
+                  <input
+                    type="radio"
+                    className="mt-1"
+                    name="compose_prepare"
+                    checked={!form.compose_prepare}
+                    onChange={() => setForm({ ...form, compose_prepare: false })}
+                  />
+                  <span>
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      Don&apos;t modify
+                    </span>
+                    <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
+                      Deploy the repository compose file unchanged (you handle ports, networks, and
+                      proxy yourself).
+                    </span>
+                  </span>
+                </label>
+              </fieldset>
+            </div>
+          ) : null}
         </section>
 
         {(formError || create.error) && (
