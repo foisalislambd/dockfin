@@ -36,6 +36,22 @@ function dnsRecordName(host: string): string {
   return parts.slice(0, -2).join('.')
 }
 
+/** Registrable-looking zone for wildcard tip (last two labels). */
+function dnsZone(host: string): string {
+  const parts = host.split('.').filter(Boolean)
+  if (parts.length < 2) return host
+  return parts.slice(-2).join('.')
+}
+
+function pickUsableIP(...candidates: Array<string | undefined | null>): string {
+  for (const c of candidates) {
+    const ip = (c || '').trim()
+    if (!ip || ip === '127.0.0.1' || ip === '0.0.0.0' || ip === 'localhost') continue
+    return ip
+  }
+  return ''
+}
+
 function CopyBtn({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
   return (
@@ -58,6 +74,39 @@ function CopyBtn({ text }: { text: string }) {
 
 type DNSCheckResponse = Awaited<ReturnType<typeof api.checkDomainDNS>>
 
+type DnsRow = { type: string; name: string; value: string; note?: string }
+
+function buildDnsRows(hosts: string[], serverIp: string): DnsRow[] {
+  const rows: DnsRow[] = []
+  const seen = new Set<string>()
+  const zones = new Set<string>()
+
+  for (const host of hosts) {
+    const name = dnsRecordName(host)
+    const key = `A:${name}`
+    if (!seen.has(key)) {
+      seen.add(key)
+      rows.push({ type: 'A', name, value: serverIp })
+    }
+    zones.add(dnsZone(host))
+  }
+
+  // Coolify-style: one wildcard covers all future subdomains on the zone.
+  for (const zone of zones) {
+    const key = `A:*:${zone}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    rows.push({
+      type: 'A',
+      name: '*',
+      value: serverIp,
+      note: `*.${zone}`,
+    })
+  }
+
+  return rows
+}
+
 /** Minimal DNS rows + Check DNS (for tooltip only). */
 function DnsTipBody({
   domains,
@@ -79,6 +128,8 @@ function DnsTipBody({
   )
   const [busy, setBusy] = useState(false)
   const [check, setCheck] = useState<DNSCheckResponse | null>(null)
+  const ip = pickUsableIP(serverIp, check?.expected_ip)
+  const rows = useMemo(() => buildDnsRows(hosts, ip), [hosts, ip])
 
   const runCheck = async () => {
     if (!domains.trim() || hosts.length === 0) return
@@ -89,7 +140,7 @@ function DnsTipBody({
           domains,
           server_id: serverId,
           destination_id: destinationId,
-          expected_ip: serverIp || undefined,
+          expected_ip: ip || undefined,
         }),
       )
     } catch {
@@ -105,8 +156,10 @@ function DnsTipBody({
 
   return (
     <div className="space-y-2">
-      {!serverIp ? (
-        <p className="text-[11px] text-amber-700 dark:text-amber-300">Set public IP first.</p>
+      {!ip ? (
+        <p className="text-[11px] text-amber-700 dark:text-amber-300">
+          Public IP unknown — set Settings → Public IPv4 or server Public IP.
+        </p>
       ) : null}
       <table className="w-full text-left text-[11px]">
         <thead className="text-gray-500 dark:text-gray-400">
@@ -117,25 +170,40 @@ function DnsTipBody({
           </tr>
         </thead>
         <tbody>
-          {hosts.map((host) => (
-            <tr key={host} className="border-t border-gray-100 dark:border-gray-800">
-              <td className="py-1.5 font-mono">A</td>
-              <td className="py-1.5 font-mono">
-                <span className="inline-flex items-center gap-0.5">
-                  {dnsRecordName(host)}
-                  <CopyBtn text={dnsRecordName(host)} />
+          {rows.map((row) => (
+            <tr
+              key={`${row.type}-${row.name}-${row.note || ''}`}
+              className="border-t border-gray-100 dark:border-gray-800"
+            >
+              <td className="py-1.5 align-top font-mono">{row.type}</td>
+              <td className="py-1.5 align-top font-mono">
+                <span className="inline-flex flex-col gap-0.5">
+                  <span className="inline-flex items-center gap-0.5">
+                    {row.name}
+                    <CopyBtn text={row.name} />
+                  </span>
+                  {row.note ? (
+                    <span className="text-[10px] font-sans text-gray-500 dark:text-gray-400">
+                      {row.note}
+                    </span>
+                  ) : null}
                 </span>
               </td>
-              <td className="py-1.5 font-mono">
+              <td className="py-1.5 align-top font-mono">
                 <span className="inline-flex items-center gap-0.5">
-                  {serverIp || '—'}
-                  {serverIp ? <CopyBtn text={serverIp} /> : null}
+                  {row.value || '—'}
+                  {row.value ? <CopyBtn text={row.value} /> : null}
                 </span>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+      <p className="text-[10px] leading-relaxed text-gray-500 dark:text-gray-400">
+        Add <code className="font-mono">*</code> once — then any subdomain (app, api, …) works
+        without more DNS changes. Apex (<code className="font-mono">@</code>) still needs its own
+        record if you use the root domain.
+      </p>
       <div className="flex items-center justify-between gap-2 pt-1">
         <button
           type="button"
@@ -167,7 +235,7 @@ function DnsTipBody({
   )
 }
 
-/** Info-icon tooltip: only shows what DNS records to add. No modal. */
+/** Info-icon tooltip: DNS records to add (exact + wildcard). Resolves IP if missing. */
 export function DnsGuideTooltip({
   domains,
   serverIp,
@@ -175,12 +243,47 @@ export function DnsGuideTooltip({
   destinationId,
 }: {
   domains: string
-  serverIp: string
+  serverIp?: string
   serverId?: string
   destinationId?: string
 }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
+
+  const needResolve = open && !pickUsableIP(serverIp)
+  const settings = useQuery({
+    queryKey: ['instance-settings'],
+    queryFn: api.instanceSettings,
+    enabled: needResolve,
+  })
+  const servers = useQuery({
+    queryKey: ['servers'],
+    queryFn: api.servers,
+    enabled: needResolve && !serverId,
+  })
+  const server = useQuery({
+    queryKey: ['server', serverId],
+    queryFn: () => api.getServer(serverId!),
+    enabled: open && Boolean(serverId),
+  })
+
+  const resolvedIp = useMemo(() => {
+    const fromProp = pickUsableIP(serverIp)
+    if (fromProp) return fromProp
+    const s = server.data
+    if (s) {
+      const fromServer = pickUsableIP(s.public_ip, s.ip)
+      if (fromServer) return fromServer
+    }
+    const fromSettings = pickUsableIP(settings.data?.settings?.public_ipv4)
+    if (fromSettings) return fromSettings
+    const list = servers.data?.servers || []
+    for (const srv of list) {
+      const ip = pickUsableIP(srv.public_ip, srv.ip)
+      if (ip) return ip
+    }
+    return ''
+  }, [serverIp, server.data, settings.data, servers.data])
 
   useEffect(() => {
     if (!open) return
@@ -219,12 +322,12 @@ export function DnsGuideTooltip({
       {open ? (
         <div
           role="tooltip"
-          className="absolute top-full left-0 z-40 mt-1.5 w-64 rounded-lg border border-gray-200 bg-white p-2.5 shadow-lg dark:border-gray-700 dark:bg-gray-950 sm:w-72"
+          className="absolute top-full left-0 z-40 mt-1.5 w-72 rounded-lg border border-gray-200 bg-white p-2.5 shadow-lg dark:border-gray-700 dark:bg-gray-950 sm:w-80"
         >
           <p className="mb-2 text-[11px] font-medium text-gray-900 dark:text-white">Add in DNS</p>
           <DnsTipBody
             domains={domains}
-            serverIp={serverIp}
+            serverIp={resolvedIp}
             serverId={serverId}
             destinationId={destinationId}
           />
@@ -253,6 +356,138 @@ export function normalizeDomainEntry(entry: string): string {
 
 export function normalizeDomains(domains: string): string {
   return splitDomainEntries(domains).map(normalizeDomainEntry).filter(Boolean).join(',')
+}
+
+/**
+ * Inline DNS health under a domain field. Red when A records don't point at
+ * this server — so users know to fix DNS (Settings + project resources).
+ */
+export function DomainDNSAlert({
+  domains,
+  serverIp,
+  serverId,
+  destinationId,
+}: {
+  domains: string
+  serverIp?: string
+  serverId?: string
+  destinationId?: string
+}) {
+  const customHosts = useMemo(
+    () =>
+      splitDomainEntries(domains)
+        .map(hostFromDomainEntry)
+        .filter((h) => h && !isMagicHost(h) && h !== 'localhost' && h !== '127.0.0.1'),
+    [domains],
+  )
+  const [debounced, setDebounced] = useState(domains)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(domains), 600)
+    return () => clearTimeout(t)
+  }, [domains])
+
+  const needResolve = customHosts.length > 0 && !pickUsableIP(serverIp)
+  const settings = useQuery({
+    queryKey: ['instance-settings'],
+    queryFn: api.instanceSettings,
+    enabled: needResolve,
+  })
+  const servers = useQuery({
+    queryKey: ['servers'],
+    queryFn: api.servers,
+    enabled: needResolve && !serverId,
+  })
+  const resolvedIp = useMemo(() => {
+    const fromProp = pickUsableIP(serverIp)
+    if (fromProp) return fromProp
+    const fromSettings = pickUsableIP(settings.data?.settings?.public_ipv4)
+    if (fromSettings) return fromSettings
+    for (const srv of servers.data?.servers || []) {
+      const ip = pickUsableIP(srv.public_ip, srv.ip)
+      if (ip) return ip
+    }
+    return ''
+  }, [serverIp, settings.data, servers.data])
+
+  const check = useQuery({
+    queryKey: ['domain-dns-alert', debounced, resolvedIp, serverId, destinationId],
+    queryFn: () =>
+      api.checkDomainDNS({
+        domains: debounced,
+        server_id: serverId,
+        destination_id: destinationId,
+        expected_ip: resolvedIp || undefined,
+      }),
+    enabled: customHosts.length > 0 && Boolean(debounced.trim()),
+    staleTime: 15_000,
+    retry: false,
+  })
+
+  if (customHosts.length === 0) return null
+
+  if (check.isFetching && !check.data) {
+    return <p className="text-[11px] text-gray-500 dark:text-gray-400">Checking DNS…</p>
+  }
+
+  if (check.isError) {
+    return (
+      <div className="rounded-lg border border-error-500/40 bg-error-500/10 px-3 py-2 text-[11px] text-error-600 dark:text-error-400">
+        Could not verify DNS. Open the info tip and fix A records, then try again.
+      </div>
+    )
+  }
+
+  const data = check.data
+  if (!data) return null
+
+  if (!data.validation_enabled) {
+    return (
+      <p className="text-[11px] text-amber-700 dark:text-amber-300">
+        DNS validation is off (Settings → Advanced).
+      </p>
+    )
+  }
+
+  const bad = (data.results || []).filter((r) => !r.matched && !r.skip_validation)
+  if (bad.length === 0 && data.ok) {
+    return (
+      <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-800 dark:text-emerald-300">
+        DNS OK — points to this server
+        {data.expected_ip ? (
+          <>
+            {' '}
+            (<code className="font-mono">{data.expected_ip}</code>)
+          </>
+        ) : null}
+        .
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-lg border border-error-500/40 bg-error-500/10 px-3 py-2 text-[11px] text-error-700 dark:text-error-400">
+      <p className="font-medium">DNS mismatch — fix required</p>
+      <ul className="mt-1 list-disc space-y-0.5 pl-4">
+        {bad.map((r) => (
+          <li key={r.host}>
+            <code className="font-mono">{r.host}</code>
+            {r.resolved_ips?.length
+              ? ` → ${r.resolved_ips.join(', ')}`
+              : r.error
+                ? ` — ${r.error}`
+                : ' — not resolving'}
+            {r.expected_ip || resolvedIp
+              ? ` (expected ${r.expected_ip || resolvedIp})`
+              : ''}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1.5 opacity-90">
+        Add the A record(s) from the info tip (include <code className="font-mono">*</code> for
+        subdomains), wait for propagation, then Check DNS.
+      </p>
+    </div>
+  )
 }
 
 export function DomainsPanel({
@@ -293,11 +528,7 @@ export function DomainsPanel({
   const serverIp = useMemo(() => {
     const s = server.data
     if (!s) return ''
-    const pub = (s.public_ip || '').trim()
-    if (pub && pub !== '127.0.0.1' && pub !== '0.0.0.0') return pub
-    const ip = (s.ip || '').trim()
-    if (ip && ip !== '127.0.0.1' && ip !== '0.0.0.0' && ip !== 'localhost') return ip
-    return pub || ip || ''
+    return pickUsableIP(s.public_ip, s.ip)
   }, [server.data])
 
   const applyNormalized = (raw: string) => {
@@ -340,6 +571,12 @@ export function DomainsPanel({
         }}
         onBlur={() => applyNormalized(local)}
         className="panel-field w-full rounded-lg px-3 py-2 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
+      />
+      <DomainDNSAlert
+        domains={local}
+        serverIp={serverIp}
+        serverId={serverId}
+        destinationId={destinationId}
       />
       <button
         type="button"

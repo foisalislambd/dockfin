@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Eye, EyeOff, Info } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { DnsGuideTooltip, normalizeDomainEntry } from '../components/DomainsPanel'
+import { DnsGuideTooltip, DomainDNSAlert, normalizeDomainEntry } from '../components/DomainsPanel'
 import { MIT_LICENSE_TEXT } from '../config/app.config'
 import {
   api,
@@ -484,10 +484,7 @@ export function SettingsPage() {
                 <div className="space-y-3">
                   <div className="flex items-center gap-1.5">
                     <h4 className="text-sm font-medium text-gray-900 dark:text-white">Domain</h4>
-                    <DnsGuideTooltip
-                      domains={form.public_url}
-                      serverIp={(form.public_ipv4 || '').trim()}
-                    />
+                    <DnsGuideTooltip domains={form.public_url} serverIp={(form.public_ipv4 || '').trim()} />
                   </div>
                   <input
                     type="text"
@@ -502,6 +499,7 @@ export function SettingsPage() {
                     }}
                     className="panel-field w-full rounded-lg px-3 py-2 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20 disabled:opacity-50"
                   />
+                  <DomainDNSAlert domains={form.public_url} serverIp={(form.public_ipv4 || '').trim()} />
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-2">

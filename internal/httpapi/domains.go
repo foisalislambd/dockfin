@@ -182,6 +182,7 @@ func (a *API) handleCheckDomainDNS(w http.ResponseWriter, r *http.Request) {
 
 func dnsInstructions(hosts []string, serverIP string) []map[string]string {
 	var out []map[string]string
+	seenZone := map[string]bool{}
 	for _, host := range hosts {
 		if proxy.IsMagicDomainHost(host) {
 			continue
@@ -192,6 +193,26 @@ func dnsInstructions(hosts []string, serverIP string) []map[string]string {
 			"value": serverIP,
 			"host":  host,
 		})
+		// Coolify-style wildcard so future subdomains need no extra DNS.
+		parts := strings.Split(host, ".")
+		var labels []string
+		for _, p := range parts {
+			if p != "" {
+				labels = append(labels, p)
+			}
+		}
+		if len(labels) >= 2 {
+			zone := strings.Join(labels[len(labels)-2:], ".")
+			if !seenZone[zone] {
+				seenZone[zone] = true
+				out = append(out, map[string]string{
+					"type":  "A",
+					"name":  "*",
+					"value": serverIP,
+					"host":  "*." + zone,
+				})
+			}
+		}
 	}
 	return out
 }
