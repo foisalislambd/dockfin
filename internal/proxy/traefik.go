@@ -24,7 +24,7 @@ func StartTraefik(client *ssh.Client, image, network, acmeEmail string) error {
 	if err := sshx.EnsureNetwork(client, network); err != nil {
 		return err
 	}
-	_, _, _ = sshx.Run(client, "mkdir -p /data/dockfin/proxy/traefik/letsencrypt && touch /data/dockfin/proxy/traefik/letsencrypt/acme.json && chmod 600 /data/dockfin/proxy/traefik/letsencrypt/acme.json")
+	_, _, _ = sshx.Run(client, "mkdir -p /data/dockfin/proxy/traefik/letsencrypt /data/dockfin/proxy/traefik/dynamic && touch /data/dockfin/proxy/traefik/letsencrypt/acme.json && chmod 600 /data/dockfin/proxy/traefik/letsencrypt/acme.json")
 	// Remove existing if any
 	_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", TraefikContainer)
 
@@ -37,10 +37,13 @@ func StartTraefik(client *ssh.Client, image, network, acmeEmail string) error {
 		"-p", "443:443",
 		"-v", "/var/run/docker.sock:/var/run/docker.sock:ro",
 		"-v", "/data/dockfin/proxy/traefik/letsencrypt:/letsencrypt",
+		"-v", "/data/dockfin/proxy/traefik/dynamic:/dynamic",
 		image,
 		"--providers.docker=true",
 		"--providers.docker.exposedbydefault=false",
 		"--providers.docker.network=" + network,
+		"--providers.file.directory=/dynamic",
+		"--providers.file.watch=true",
 		"--entrypoints.http.address=:80",
 		"--entrypoints.https.address=:443",
 		"--certificatesresolvers.letsencrypt.acme.httpchallenge=true",

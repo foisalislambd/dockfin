@@ -269,7 +269,11 @@ export function SettingsPage() {
       setSmtpPassword('')
       setResendKey('')
       setError('')
-      setMessage('Settings saved')
+      if (data.panel_route_warning) {
+        setMessage(`Settings saved — panel domain route: ${data.panel_route_warning}`)
+      } else {
+        setMessage('Settings saved')
+      }
       void qc.invalidateQueries({ queryKey: ['instance-settings'] })
     },
     onError: (e: Error) => {

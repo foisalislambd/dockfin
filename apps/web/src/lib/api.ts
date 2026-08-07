@@ -526,7 +526,7 @@ export const api = {
 
   instanceSettings: () => request<{ settings: InstanceSettings }>('/api/v1/settings'),
   patchInstanceSettings: (body: Partial<InstanceSettingsPatch>) =>
-    request<{ settings: InstanceSettings }>('/api/v1/settings', {
+    request<{ settings: InstanceSettings; panel_route_warning?: string }>('/api/v1/settings', {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),

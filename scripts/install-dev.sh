@@ -114,9 +114,14 @@ chmod 700 "${SSH_USER_HOME}/.ssh"
 touch "${SSH_USER_HOME}/.ssh/authorized_keys"
 chmod 600 "${SSH_USER_HOME}/.ssh/authorized_keys"
 
+echo "==> Ensuring shared Docker network (Traefik ↔ panel)…"
+docker network create dockfin >/dev/null 2>&1 || true
+mkdir -p /data/dockfin/proxy/traefik/dynamic /data/dockfin/proxy/traefik/letsencrypt
+
 # Same volume names as production so switching install.sh ↔ install-dev.sh keeps DB/data.
 # Mount host root .ssh so AuthorizePublicKey writes the bootstrap key on the VPS
 # (container filesystem alone cannot SSH back to the host → "No Docker").
+# Join external "dockfin" network so Traefik can route Settings Domain → panel :8000.
 cat > "${COMPOSE_FILE}" <<EOF
 services:
   postgres:
@@ -133,6 +138,8 @@ services:
       timeout: 5s
       retries: 30
     restart: unless-stopped
+    networks:
+      - default
 
   dockfin:
     image: ${IMAGE}
@@ -149,6 +156,16 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      default:
+        aliases: [dockfin]
+      dockfin:
+        aliases: [dockfin]
+
+networks:
+  dockfin:
+    external: true
+    name: dockfin
 
 volumes:
   dockfin-pg:

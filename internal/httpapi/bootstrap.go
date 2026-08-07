@@ -244,17 +244,25 @@ func (a *API) validateAndMaybeProxy(ctx context.Context, teamID, serverID uuid.U
 	}
 	if proxyStatus == "running" {
 		_ = a.Store.UpdateServerProxyStatus(ctx, serverID, "running")
-		return validated, true, nil
+		proxyStarted = true
+	} else {
+		network := "dockfin"
+		if dests, err := a.Store.ListDestinations(ctx, teamID, &serverID); err == nil && len(dests) > 0 && dests[0].Network != "" {
+			network = dests[0].Network
+		}
+		if err := proxy.StartProxy(client, srv.ProxyType, a.Cfg.TraefikImage, a.Cfg.CaddyImage, network, a.Cfg.AcmeEmail); err != nil {
+			return validated, false, fmt.Errorf("start proxy: %w", err)
+		}
+		_ = a.Store.UpdateServerProxyStatus(ctx, serverID, "running")
+		proxyStarted = true
 	}
-	network := "dockfin"
-	if dests, err := a.Store.ListDestinations(ctx, teamID, &serverID); err == nil && len(dests) > 0 && dests[0].Network != "" {
-		network = dests[0].Network
+	// Publish Settings → Domain on Traefik when proxy is up (Coolify-style panel FQDN).
+	if st, err := a.Store.GetInstanceSettings(ctx); err == nil && strings.TrimSpace(st.PublicURL) != "" {
+		if syncErr := proxy.SyncPanelRoute(client, st.PublicURL, "http://dockfin:8000"); syncErr != nil {
+			a.warnBootstrap("panel route sync", syncErr, srv.PublicIP)
+		}
 	}
-	if err := proxy.StartProxy(client, srv.ProxyType, a.Cfg.TraefikImage, a.Cfg.CaddyImage, network, a.Cfg.AcmeEmail); err != nil {
-		return validated, false, fmt.Errorf("start proxy: %w", err)
-	}
-	_ = a.Store.UpdateServerProxyStatus(ctx, serverID, "running")
-	return validated, true, nil
+	return validated, proxyStarted, nil
 }
 
 func (a *API) handleBootstrapSelf(w http.ResponseWriter, r *http.Request) {

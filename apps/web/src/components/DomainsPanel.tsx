@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Info } from 'lucide-react'
+import { Check, Copy, Info } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import { Btn } from '../pages/Servers'
@@ -54,10 +54,13 @@ function pickUsableIP(...candidates: Array<string | undefined | null>): string {
 
 function CopyBtn({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
+  if (!text) return null
   return (
     <button
       type="button"
-      className="rounded px-1 py-0.5 text-[10px] font-medium text-brand-600 hover:bg-brand-500/10 dark:text-brand-400"
+      title={copied ? 'Copied' : `Copy ${text}`}
+      aria-label={copied ? 'Copied' : `Copy ${text}`}
+      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-gray-200 bg-white text-gray-600 hover:border-brand-400 hover:text-brand-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-brand-500 dark:hover:text-brand-400"
       onClick={(e) => {
         e.preventDefault()
         e.stopPropagation()
@@ -67,7 +70,7 @@ function CopyBtn({ text }: { text: string }) {
         })
       }}
     >
-      {copied ? '✓' : 'Copy'}
+      {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
     </button>
   )
 }
@@ -91,7 +94,6 @@ function buildDnsRows(hosts: string[], serverIp: string): DnsRow[] {
     zones.add(dnsZone(host))
   }
 
-  // Coolify-style: one wildcard covers all future subdomains on the zone.
   for (const zone of zones) {
     const key = `A:*:${zone}`
     if (seen.has(key)) continue
@@ -100,11 +102,56 @@ function buildDnsRows(hosts: string[], serverIp: string): DnsRow[] {
       type: 'A',
       name: '*',
       value: serverIp,
-      note: `*.${zone}`,
+      note: `all of *.${zone}`,
     })
   }
 
   return rows
+}
+
+/** Shared Type / Name / Value table with clear copy buttons. */
+function DnsRecordsTable({ rows }: { rows: DnsRow[] }) {
+  if (rows.length === 0) return null
+  return (
+    <div className="overflow-hidden rounded-md border border-gray-200 dark:border-gray-700">
+      <table className="w-full text-left text-xs">
+        <thead className="bg-gray-50 text-[10px] uppercase tracking-wide text-gray-500 dark:bg-white/5 dark:text-gray-400">
+          <tr>
+            <th className="px-2 py-1.5 font-medium">Type</th>
+            <th className="px-2 py-1.5 font-medium">Name</th>
+            <th className="px-2 py-1.5 font-medium">Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr
+              key={`${row.type}-${row.name}-${row.note || ''}`}
+              className="border-t border-gray-200 dark:border-gray-800"
+            >
+              <td className="px-2 py-2 font-mono text-[11px]">{row.type}</td>
+              <td className="px-2 py-2">
+                <div className="flex items-center gap-1.5">
+                  <code className="font-mono text-[11px] text-gray-900 dark:text-white">{row.name}</code>
+                  <CopyBtn text={row.name} />
+                </div>
+                {row.note ? (
+                  <div className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">{row.note}</div>
+                ) : null}
+              </td>
+              <td className="px-2 py-2">
+                <div className="flex items-center gap-1.5">
+                  <code className="font-mono text-[11px] text-gray-900 dark:text-white">
+                    {row.value || '—'}
+                  </code>
+                  <CopyBtn text={row.value} />
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
 }
 
 /** Minimal DNS rows + Check DNS (for tooltip only). */
@@ -151,63 +198,23 @@ function DnsTipBody({
   }
 
   if (hosts.length === 0) {
-    return <p className="text-[11px] text-gray-500 dark:text-gray-400">Enter a custom domain first.</p>
+    return <p className="text-xs text-gray-500 dark:text-gray-400">Enter a domain first.</p>
   }
 
   return (
     <div className="space-y-2">
       {!ip ? (
-        <p className="text-[11px] text-amber-700 dark:text-amber-300">
-          Public IP unknown — set Settings → Public IPv4 or server Public IP.
-        </p>
+        <p className="text-xs text-amber-700 dark:text-amber-300">Set Public IPv4 first.</p>
       ) : null}
-      <table className="w-full text-left text-[11px]">
-        <thead className="text-gray-500 dark:text-gray-400">
-          <tr>
-            <th className="pb-1 font-medium">Type</th>
-            <th className="pb-1 font-medium">Name</th>
-            <th className="pb-1 font-medium">Value</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr
-              key={`${row.type}-${row.name}-${row.note || ''}`}
-              className="border-t border-gray-100 dark:border-gray-800"
-            >
-              <td className="py-1.5 align-top font-mono">{row.type}</td>
-              <td className="py-1.5 align-top font-mono">
-                <span className="inline-flex flex-col gap-0.5">
-                  <span className="inline-flex items-center gap-0.5">
-                    {row.name}
-                    <CopyBtn text={row.name} />
-                  </span>
-                  {row.note ? (
-                    <span className="text-[10px] font-sans text-gray-500 dark:text-gray-400">
-                      {row.note}
-                    </span>
-                  ) : null}
-                </span>
-              </td>
-              <td className="py-1.5 align-top font-mono">
-                <span className="inline-flex items-center gap-0.5">
-                  {row.value || '—'}
-                  {row.value ? <CopyBtn text={row.value} /> : null}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="text-[10px] leading-relaxed text-gray-500 dark:text-gray-400">
-        Add <code className="font-mono">*</code> once — then any subdomain (app, api, …) works
-        without more DNS changes. Apex (<code className="font-mono">@</code>) still needs its own
-        record if you use the root domain.
+      <DnsRecordsTable rows={rows} />
+      <p className="text-[10px] text-gray-500 dark:text-gray-400">
+        <code className="font-mono">*</code> = all subdomains. <code className="font-mono">@</code> =
+        root domain.
       </p>
-      <div className="flex items-center justify-between gap-2 pt-1">
+      <div className="flex items-center justify-between gap-2">
         <button
           type="button"
-          className="rounded-md bg-brand-500/10 px-2 py-1 text-[11px] font-medium text-brand-700 hover:bg-brand-500/20 dark:text-brand-300"
+          className="rounded-md bg-brand-500/10 px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-500/20 dark:text-brand-300"
           disabled={busy}
           onClick={() => void runCheck()}
         >
@@ -215,7 +222,7 @@ function DnsTipBody({
         </button>
         {check?.results?.[0] ? (
           <span
-            className={`text-[11px] ${
+            className={`text-xs font-medium ${
               check.results[0].matched || check.results[0].skip_validation
                 ? 'text-emerald-600 dark:text-emerald-400'
                 : 'text-error-500'
@@ -224,9 +231,7 @@ function DnsTipBody({
             {check.results[0].skip_validation
               ? 'Skipped'
               : check.results[0].matched
-                ? check.results[0].cloudflare
-                  ? 'OK (CF)'
-                  : 'OK'
+                ? 'OK'
                 : 'Mismatch'}
           </span>
         ) : null}
@@ -322,9 +327,9 @@ export function DnsGuideTooltip({
       {open ? (
         <div
           role="tooltip"
-          className="absolute top-full left-0 z-40 mt-1.5 w-72 rounded-lg border border-gray-200 bg-white p-2.5 shadow-lg dark:border-gray-700 dark:bg-gray-950 sm:w-80"
+          className="absolute top-full left-0 z-40 mt-1.5 w-80 rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950"
         >
-          <p className="mb-2 text-[11px] font-medium text-gray-900 dark:text-white">Add in DNS</p>
+          <p className="mb-2 text-xs font-semibold text-gray-900 dark:text-white">Add these DNS records</p>
           <DnsTipBody
             domains={domains}
             serverIp={resolvedIp}
@@ -409,6 +414,9 @@ export function DomainDNSAlert({
     return ''
   }, [serverIp, settings.data, servers.data])
 
+  const ip = pickUsableIP(resolvedIp)
+  const rows = useMemo(() => buildDnsRows(customHosts, ip), [customHosts, ip])
+
   const check = useQuery({
     queryKey: ['domain-dns-alert', debounced, resolvedIp, serverId, destinationId],
     queryFn: () =>
@@ -426,13 +434,14 @@ export function DomainDNSAlert({
   if (customHosts.length === 0) return null
 
   if (check.isFetching && !check.data) {
-    return <p className="text-[11px] text-gray-500 dark:text-gray-400">Checking DNS…</p>
+    return <p className="text-xs text-gray-500 dark:text-gray-400">Checking DNS…</p>
   }
 
   if (check.isError) {
     return (
-      <div className="rounded-lg border border-error-500/40 bg-error-500/10 px-3 py-2 text-[11px] text-error-600 dark:text-error-400">
-        Could not verify DNS. Open the info tip and fix A records, then try again.
+      <div className="space-y-2 rounded-lg border border-error-500/40 bg-error-500/10 px-3 py-2.5 text-error-700 dark:text-error-400">
+        <p className="text-xs font-medium">DNS check failed</p>
+        {ip ? <DnsRecordsTable rows={rows} /> : null}
       </div>
     )
   }
@@ -442,50 +451,42 @@ export function DomainDNSAlert({
 
   if (!data.validation_enabled) {
     return (
-      <p className="text-[11px] text-amber-700 dark:text-amber-300">
-        DNS validation is off (Settings → Advanced).
-      </p>
+      <p className="text-xs text-amber-700 dark:text-amber-300">DNS validation is off (Settings → Advanced).</p>
     )
   }
 
   const bad = (data.results || []).filter((r) => !r.matched && !r.skip_validation)
   if (bad.length === 0 && data.ok) {
-    return (
-      <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-800 dark:text-emerald-300">
-        DNS OK — points to this server
-        {data.expected_ip ? (
-          <>
-            {' '}
-            (<code className="font-mono">{data.expected_ip}</code>)
-          </>
-        ) : null}
-        .
-      </div>
-    )
+    // Success is silent — no green banner clutter.
+    return null
   }
 
+  const alertIp = pickUsableIP(data.expected_ip, ip)
+  const alertRows = buildDnsRows(customHosts, alertIp)
+
   return (
-    <div className="rounded-lg border border-error-500/40 bg-error-500/10 px-3 py-2 text-[11px] text-error-700 dark:text-error-400">
-      <p className="font-medium">DNS mismatch — fix required</p>
-      <ul className="mt-1 list-disc space-y-0.5 pl-4">
-        {bad.map((r) => (
-          <li key={r.host}>
-            <code className="font-mono">{r.host}</code>
-            {r.resolved_ips?.length
-              ? ` → ${r.resolved_ips.join(', ')}`
-              : r.error
-                ? ` — ${r.error}`
-                : ' — not resolving'}
-            {r.expected_ip || resolvedIp
-              ? ` (expected ${r.expected_ip || resolvedIp})`
-              : ''}
-          </li>
-        ))}
-      </ul>
-      <p className="mt-1.5 opacity-90">
-        Add the A record(s) from the info tip (include <code className="font-mono">*</code> for
-        subdomains), wait for propagation, then Check DNS.
-      </p>
+    <div className="space-y-2 rounded-lg border border-error-500/40 bg-error-500/10 px-3 py-2.5">
+      <p className="text-xs font-semibold text-error-700 dark:text-error-400">DNS mismatch — add these</p>
+      <DnsRecordsTable rows={alertRows} />
+      <div className="space-y-1 text-[11px] leading-relaxed text-error-700 dark:text-error-400">
+        <p>
+          At your DNS provider, create the A records above (copy Name + Value). Wait 1–5 minutes,
+          then save again.
+        </p>
+        {bad[0]?.resolved_ips?.length ? (
+          <p>
+            Now points to <code className="font-mono">{bad[0].resolved_ips.join(', ')}</code>
+            {alertIp ? (
+              <>
+                ; must be <code className="font-mono">{alertIp}</code>
+              </>
+            ) : null}
+            .
+          </p>
+        ) : (
+          <p>Domain is not resolving to this server yet.</p>
+        )}
+      </div>
     </div>
   )
 }
