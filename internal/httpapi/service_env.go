@@ -118,7 +118,7 @@ func preferURLFromMagicEnv(env map[string]string) (baseURL, fqdn string) {
 // rewriteServiceDomainEnv updates SERVICE_URL_* / SERVICE_FQDN_* pairs to match
 // the resource domains field (Coolify: changing Domains rewrites magic env).
 func (a *API) rewriteServiceDomainEnv(ctx context.Context, teamID, serviceID uuid.UUID, domains string) {
-	baseURL := proxy.PrimaryPublicURL(domains)
+	baseURL := proxy.AutoPublicURL(domains)
 	host := proxy.PrimaryHost(domains)
 	if host == "" {
 		baseURL = ""

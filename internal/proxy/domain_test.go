@@ -77,6 +77,33 @@ func TestPublicURL(t *testing.T) {
 	}
 }
 
+func TestWantAutoHTTPS(t *testing.T) {
+	if WantAutoHTTPS("app.example.com") != true {
+		t.Fatal("custom domain should auto SSL")
+	}
+	if WantAutoHTTPS("https://app.example.com,https://www.example.com") != true {
+		t.Fatal("multi custom should auto SSL")
+	}
+	if WantAutoHTTPS("foo.1.2.3.4.sslip.io") {
+		t.Fatal("magic must not auto SSL")
+	}
+	if WantAutoHTTPS("http://n8n.10.0.0.1.nip.io") {
+		t.Fatal("nip magic must not auto SSL")
+	}
+	if WantAutoHTTPS("localhost") || WantAutoHTTPS("") {
+		t.Fatal("localhost/empty must not auto SSL")
+	}
+	if got := AutoPublicURL("app.example.com"); got != "https://app.example.com" {
+		t.Fatalf("AutoPublicURL custom: %q", got)
+	}
+	if got := AutoPublicURL("http://app.example.com"); got != "https://app.example.com" {
+		t.Fatalf("AutoPublicURL upgrades http custom: %q", got)
+	}
+	if got := AutoPublicURL("foo.1.2.3.4.sslip.io"); got != "http://foo.1.2.3.4.sslip.io" {
+		t.Fatalf("AutoPublicURL magic: %q", got)
+	}
+}
+
 func TestDomainParsing(t *testing.T) {
 	if got := HostFromDomainEntry("https://App.Example.com:8080/path"); got != "app.example.com" {
 		t.Fatalf("host got %q", got)

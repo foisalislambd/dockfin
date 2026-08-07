@@ -40,6 +40,19 @@ func PrepareCompose(raw string, opts PrepareOpts) (string, map[string]string, er
 		return "", nil, fmt.Errorf("empty compose")
 	}
 
+	// Auto SSL for custom domains: force https BaseURL so SERVICE_URL_* and Traefik
+	// Let's Encrypt labels stay aligned (magic domains stay http).
+	domainHint := strings.TrimSpace(opts.FQDN)
+	if domainHint == "" {
+		domainHint = strings.TrimSpace(opts.BaseURL)
+	}
+	if proxy.WantAutoHTTPS(domainHint) {
+		opts.BaseURL = proxy.AutoPublicURL(domainHint)
+		if strings.TrimSpace(opts.FQDN) == "" {
+			opts.FQDN = proxy.PrimaryHost(domainHint)
+		}
+	}
+
 	var doc map[string]any
 	if err := yaml.Unmarshal([]byte(raw), &doc); err != nil {
 		return "", nil, fmt.Errorf("parse compose: %w", err)
@@ -1045,7 +1058,7 @@ func injectProxyLabels(doc map[string]any, opts PrepareOpts) {
 	if rule == "" {
 		return
 	}
-	useHTTPS := strings.HasPrefix(strings.ToLower(strings.TrimSpace(opts.BaseURL)), "https://")
+	useHTTPS := proxy.WantAutoHTTPS(fqdn) || proxy.WantAutoHTTPS(opts.BaseURL)
 	if useHTTPS {
 		labels[fmt.Sprintf("traefik.http.routers.%s.rule", router)] = rule
 		labels[fmt.Sprintf("traefik.http.routers.%s.entrypoints", router)] = "https"

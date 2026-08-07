@@ -264,6 +264,33 @@ func TestPrepareComposeDomainKeysFollowBaseURL(t *testing.T) {
 	}
 }
 
+func TestPrepareComposeAutoSSLCustomDomain(t *testing.T) {
+	raw := `services:
+  app:
+    image: nginx
+    environment:
+      - SERVICE_URL_APP
+`
+	out, env, err := PrepareCompose(raw, PrepareOpts{
+		BaseURL:    "http://blog.example.com", // http sticky — must upgrade
+		FQDN:       "blog.example.com",
+		RouterName: "blog",
+		Network:    "dockfin",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env["SERVICE_URL_APP"] != "https://blog.example.com" {
+		t.Fatalf("expected https SERVICE_URL, got %#v", env["SERVICE_URL_APP"])
+	}
+	if !strings.Contains(out, "certresolver: letsencrypt") {
+		t.Fatalf("expected Let's Encrypt labels:\n%s", out)
+	}
+	if !strings.Contains(out, "entrypoints: https") {
+		t.Fatalf("expected https entrypoint:\n%s", out)
+	}
+}
+
 func TestCoolifyEnvForUIWordPressPair(t *testing.T) {
 	raw := `services:
   wordpress:
@@ -276,7 +303,8 @@ func TestCoolifyEnvForUIWordPressPair(t *testing.T) {
 		t.Fatal(err)
 	}
 	ui := CoolifyEnvForUI(raw, env)
-	if ui["SERVICE_URL_WORDPRESS"] != "http://wp.example.com" {
+	// Custom domains auto-upgrade to https for Let's Encrypt.
+	if ui["SERVICE_URL_WORDPRESS"] != "https://wp.example.com" {
 		t.Fatalf("url: %#v", ui)
 	}
 	if ui["SERVICE_FQDN_WORDPRESS"] != "wp.example.com" {
@@ -342,8 +370,11 @@ configs:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "server_url: http://hs.example.com") {
+	if !strings.Contains(out, "server_url: https://hs.example.com") {
 		t.Fatalf("config magic not substituted:\n%s", out)
+	}
+	if !strings.Contains(out, "certresolver: letsencrypt") {
+		t.Fatalf("expected auto SSL for custom domain:\n%s", out)
 	}
 }
 

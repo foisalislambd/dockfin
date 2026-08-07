@@ -241,12 +241,13 @@ func (p *Pipeline) proxyLabelArgs(app *store.Application, proxyType string) []st
 	var labels []string
 	switch strings.ToLower(proxyType) {
 	case "caddy":
-		labels = proxy.CaddyLabels(app.Name, host, port, app.IsForceHTTPS)
+		// Auto SSL for custom domains; never for magic free domains.
+		labels = proxy.CaddyLabels(app.Name, host, port, proxy.WantAutoHTTPS(app.FQDN) || (app.IsForceHTTPS && !proxy.IsMagicDomainHost(host)))
 	case "none":
 		return nil
 	default:
-		// Coolify: TLS only when URL scheme is https (magic sslip stays http).
-		forceHTTPS := app.IsForceHTTPS || strings.HasPrefix(proxy.PrimaryPublicURL(app.FQDN), "https://")
+		// Auto Let's Encrypt for custom domains; magic sslip/nip stay HTTP-only.
+		forceHTTPS := proxy.WantAutoHTTPS(app.FQDN)
 		labels = proxy.TraefikLabelsHTTPS(app.Name, app.FQDN, port, forceHTTPS)
 	}
 	var args []string
@@ -760,11 +761,8 @@ func (p *Pipeline) adaptComposeForDockfin(ctx context.Context, client *ssh.Clien
 	if req.PullRequestID > 0 {
 		domainList = strings.TrimSpace(req.PreviewFQDN)
 	}
-	fqdn := firstHost(domainList)
-	baseURL := proxy.PrimaryPublicURL(domainList)
-	if req.App.IsForceHTTPS && fqdn != "" && !proxy.IsMagicDomainHost(fqdn) {
-		baseURL = "https://" + fqdn
-	}
+	// Auto HTTPS + Let's Encrypt for custom domains; magic sslip/nip stay http://.
+	baseURL := proxy.AutoPublicURL(domainList)
 	routerName := req.App.Name + "-" + req.App.ID.String()[:8]
 	if req.PullRequestID > 0 {
 		routerName = fmt.Sprintf("%s-pr-%d", req.App.Name, req.PullRequestID)

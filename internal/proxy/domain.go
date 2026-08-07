@@ -213,6 +213,54 @@ func TraefikHostRule(hosts []string) string {
 	return strings.Join(parts, " || ")
 }
 
+// WantAutoHTTPS is true when domains should get Traefik TLS + Let's Encrypt
+// (user custom hosts). Magic free domains (sslip.io / nip.io) and localhost never
+// get auto SSL — Let's Encrypt rate-limits those public suffixes.
+func WantAutoHTTPS(domains string) bool {
+	hosts := HostsFromDomainList(domains)
+	if len(hosts) == 0 {
+		return false
+	}
+	for _, h := range hosts {
+		if h == "" || h == "localhost" || h == "127.0.0.1" {
+			return false
+		}
+		if IsMagicDomainHost(h) {
+			return false
+		}
+	}
+	return true
+}
+
+// AutoPublicURL returns the browser base URL with automatic HTTPS for custom
+// domains (Let's Encrypt via Traefik). Magic domains stay http://.
+func AutoPublicURL(domains string) string {
+	if WantAutoHTTPS(domains) {
+		host := PrimaryHost(domains)
+		if host == "" {
+			return PrimaryPublicURL(domains)
+		}
+		// Preserve path from first entry when present (Coolify path routing).
+		entries := SplitDomainEntries(domains)
+		path := ""
+		if len(entries) > 0 {
+			raw := entries[0]
+			lower := strings.ToLower(raw)
+			switch {
+			case strings.HasPrefix(lower, "https://"):
+				raw = raw[len("https://"):]
+			case strings.HasPrefix(lower, "http://"):
+				raw = raw[len("http://"):]
+			}
+			if i := strings.IndexByte(raw, '/'); i >= 0 {
+				path = raw[i:]
+			}
+		}
+		return "https://" + host + path
+	}
+	return PrimaryPublicURL(domains)
+}
+
 // PublicURL returns a browser URL for an FQDN — Coolify-compatible.
 // Magic domains (sslip.io / nip.io) and localhost stay http:// (Coolify sslip() is always http;
 // https+sslip is discouraged because Let's Encrypt rate-limits those public domains).

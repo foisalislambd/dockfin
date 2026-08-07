@@ -567,7 +567,13 @@ export function ApplicationDetailPage() {
                   checked={cfg.is_force_https}
                   onChange={(e) => setCfg({ ...cfg, is_force_https: e.target.checked })}
                 />
-                <span>Force HTTPS redirects</span>
+                <span>
+                  Force HTTPS redirects
+                  <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
+                    Custom domains already get automatic Let&apos;s Encrypt SSL. Free sslip.io /
+                    nip.io domains always stay on HTTP.
+                  </span>
+                </span>
               </label>
               <label className="flex items-center gap-3 text-sm sm:col-span-2">
                 <input

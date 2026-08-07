@@ -222,7 +222,7 @@ export function DomainsPanel({
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h3>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             {hint ||
-              'Custom domains use https:// by default; free sslip.io / nip.io domains stay http://.'}
+              'Custom domains get automatic HTTPS (Let\'s Encrypt). Free sslip.io / nip.io domains stay http://.'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

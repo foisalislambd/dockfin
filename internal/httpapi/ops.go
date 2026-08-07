@@ -124,7 +124,7 @@ func (a *API) handleCreateService(w http.ResponseWriter, r *http.Request) {
 			svc.FQDN = generateResourceFQDN(svc.Name, svc.ID, srv)
 		}
 		if svc.FQDN != "" {
-			opts.BaseURL = proxy.PrimaryPublicURL(svc.FQDN)
+			opts.BaseURL = proxy.AutoPublicURL(svc.FQDN)
 			opts.FQDN = svc.FQDN
 			// Unique Traefik router/service names — plain svc.Name collides when
 			// two resources share a name (e.g. two Planka installs → 404).
@@ -354,9 +354,13 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 	fqdnHost := proxy.PrimaryHost(svc.FQDN)
 	needPrepare := composeYAML == "" || composeYAML == svc.DockerComposeRaw || looksLikeUnpreparedCompose(svc.DockerComposeRaw, composeYAML)
 	if fqdnHost != "" && composeYAML != "" {
-		wantURL := proxy.PrimaryPublicURL(svc.FQDN)
-		// Re-bake when host missing OR scheme outdated (http→https).
+		wantURL := proxy.AutoPublicURL(svc.FQDN)
+		// Re-bake when host missing OR scheme outdated (http→https for custom domains).
 		if !strings.Contains(composeYAML, fqdnHost) || !strings.Contains(composeYAML, wantURL) {
+			needPrepare = true
+		}
+		// Force re-bake when custom domain compose still lacks Let's Encrypt labels.
+		if proxy.WantAutoHTTPS(svc.FQDN) && !strings.Contains(composeYAML, "certresolver") {
 			needPrepare = true
 		}
 	}
@@ -393,8 +397,19 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 				fqdnHost = host
 				emit("prepare", fmt.Sprintf("Using domain from Environment Variables: %s", host))
 			}
+			// Auto SSL: upgrade sticky http:// custom domains to https:// for Let's Encrypt.
+			domainForSSL := opts.FQDN
+			if strings.TrimSpace(domainForSSL) == "" {
+				domainForSSL = host
+			}
+			if proxy.WantAutoHTTPS(domainForSSL) {
+				opts.BaseURL = proxy.AutoPublicURL(domainForSSL)
+				if proxy.WantAutoHTTPS(svc.FQDN) {
+					opts.FQDN = svc.FQDN
+				}
+			}
 		} else if svc.FQDN != "" {
-			opts.BaseURL = proxy.PrimaryPublicURL(svc.FQDN)
+			opts.BaseURL = proxy.AutoPublicURL(svc.FQDN)
 			opts.FQDN = svc.FQDN
 		}
 		prepared, fullEnv, err := services.PrepareCompose(rawCompose, opts)
@@ -411,6 +426,9 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		a.syncServiceCoolifyEnv(r.Context(), teamID, id, rawCompose, prepared, fullEnv)
 		if svc.FQDN != "" {
 			emit("prepare", fmt.Sprintf("Compose prepared · domain %s", svc.FQDN))
+			if proxy.WantAutoHTTPS(svc.FQDN) {
+				emit("prepare", "Auto SSL enabled (Let's Encrypt) for custom domain")
+			}
 		} else {
 			emit("prepare", "Compose prepared (volumes + magic env)")
 		}
