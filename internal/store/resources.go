@@ -46,6 +46,8 @@ type Application struct {
 	GitBranch               string     `json:"git_branch"`
 	GitCommitSHA            string     `json:"git_commit_sha"`
 	DockerfileLocation      string     `json:"dockerfile_location"`
+	// Dockerfile is inline content for Coolify-style "Dockerfile without Git".
+	Dockerfile              string     `json:"dockerfile,omitempty"`
 	DockerComposeLocation   string     `json:"docker_compose_location"`
 	DockerRegistryImageName string     `json:"docker_registry_image_name"`
 	DockerRegistryImageTag  string     `json:"docker_registry_image_tag"`
@@ -98,7 +100,8 @@ type ApplicationPreview struct {
 
 const applicationSelectCols = `
 	a.id, a.team_id, a.environment_id, a.destination_id, a.name, a.description, a.fqdn, a.status, a.build_pack,
-	a.git_repository, a.git_branch, a.git_commit_sha, a.dockerfile_location, a.docker_compose_location,
+	a.git_repository, a.git_branch, a.git_commit_sha, a.dockerfile_location, COALESCE(a.dockerfile, ''),
+	a.docker_compose_location,
 	a.docker_registry_image_name, a.docker_registry_image_tag, a.ports_exposes,
 	COALESCE(a.compose_prepare, TRUE),
 	COALESCE(a.docker_compose_raw, ''), COALESCE(a.docker_compose, ''),
@@ -125,7 +128,7 @@ func scanApplication(scan func(dest ...any) error) (*Application, error) {
 	var a Application
 	err := scan(
 		&a.ID, &a.TeamID, &a.EnvironmentID, &a.DestinationID, &a.Name, &a.Description, &a.FQDN, &a.Status, &a.BuildPack,
-		&a.GitRepository, &a.GitBranch, &a.GitCommitSHA, &a.DockerfileLocation, &a.DockerComposeLocation,
+		&a.GitRepository, &a.GitBranch, &a.GitCommitSHA, &a.DockerfileLocation, &a.Dockerfile, &a.DockerComposeLocation,
 		&a.DockerRegistryImageName, &a.DockerRegistryImageTag, &a.PortsExposes,
 		&a.ComposePrepare,
 		&a.DockerComposeRaw, &a.DockerCompose, &a.DockerComposeDomains,
@@ -492,13 +495,13 @@ func (s *Store) CreateApplication(ctx context.Context, app *Application) (*Appli
 	err = tx.QueryRow(ctx, `
 		INSERT INTO applications (
 			team_id, environment_id, destination_id, name, description, fqdn, build_pack,
-			git_repository, git_branch, dockerfile_location, docker_compose_location,
+			git_repository, git_branch, dockerfile_location, dockerfile, docker_compose_location,
 			docker_registry_image_name, docker_registry_image_tag, ports_exposes,
 			compose_prepare, git_source_id, private_key_id
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
 		RETURNING id
 	`, app.TeamID, app.EnvironmentID, app.DestinationID, app.Name, app.Description, app.FQDN, app.BuildPack,
-		app.GitRepository, app.GitBranch, app.DockerfileLocation, app.DockerComposeLocation,
+		app.GitRepository, app.GitBranch, app.DockerfileLocation, app.Dockerfile, app.DockerComposeLocation,
 		app.DockerRegistryImageName, app.DockerRegistryImageTag, app.PortsExposes,
 		app.ComposePrepare, app.GitSourceID, app.PrivateKeyID,
 	).Scan(&app.ID)
@@ -616,19 +619,19 @@ func (s *Store) UpdateApplication(ctx context.Context, app *Application) error {
 		UPDATE applications SET
 			name=$2, description=$3, fqdn=$4, git_repository=$5, git_branch=$6,
 			ports_exposes=$7, docker_registry_image_name=$8, docker_registry_image_tag=$9,
-			dockerfile_location=$10, docker_compose_location=$11, destination_id=$12, git_source_id=$13, private_key_id=$14,
-			compose_prepare=$15,
-			docker_compose_raw=$16, docker_compose=$17, docker_compose_domains=$18,
-			base_directory=$19,
-			docker_compose_custom_build_command=$20, docker_compose_custom_start_command=$21,
-			custom_docker_run_options=$22, dockerfile_target_build=$23,
-			health_check_enabled=$24, health_check_path=$25, health_check_port=$26, health_check_method=$27,
-			health_check_return_code=$28, health_check_interval=$29, health_check_timeout=$30, health_check_retries=$31,
-			limits_memory=$32, limits_cpus=$33, is_force_https=$34, updated_at=NOW()
-		WHERE id=$1 AND team_id=$35
+			dockerfile_location=$10, dockerfile=$11, docker_compose_location=$12, destination_id=$13, git_source_id=$14, private_key_id=$15,
+			compose_prepare=$16,
+			docker_compose_raw=$17, docker_compose=$18, docker_compose_domains=$19,
+			base_directory=$20,
+			docker_compose_custom_build_command=$21, docker_compose_custom_start_command=$22,
+			custom_docker_run_options=$23, dockerfile_target_build=$24,
+			health_check_enabled=$25, health_check_path=$26, health_check_port=$27, health_check_method=$28,
+			health_check_return_code=$29, health_check_interval=$30, health_check_timeout=$31, health_check_retries=$32,
+			limits_memory=$33, limits_cpus=$34, is_force_https=$35, updated_at=NOW()
+		WHERE id=$1 AND team_id=$36
 	`, app.ID, app.Name, app.Description, app.FQDN, app.GitRepository, app.GitBranch,
 		app.PortsExposes, app.DockerRegistryImageName, app.DockerRegistryImageTag,
-		app.DockerfileLocation, app.DockerComposeLocation, app.DestinationID, app.GitSourceID, app.PrivateKeyID,
+		app.DockerfileLocation, app.Dockerfile, app.DockerComposeLocation, app.DestinationID, app.GitSourceID, app.PrivateKeyID,
 		app.ComposePrepare,
 		app.DockerComposeRaw, app.DockerCompose, domains,
 		base,

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -263,12 +264,19 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 		GitBranch               string `json:"git_branch"`
 		GitSourceID             string `json:"git_source_id"`
 		PrivateKeyID            string `json:"private_key_id"`
+		Dockerfile              string `json:"dockerfile"`
 		DockerfileLocation      string `json:"dockerfile_location"`
 		DockerComposeLocation   string `json:"docker_compose_location"`
 		DockerRegistryImageName string `json:"docker_registry_image_name"`
 		DockerRegistryImageTag  string `json:"docker_registry_image_tag"`
 		PortsExposes            string `json:"ports_exposes"`
 		ComposePrepare          *bool  `json:"compose_prepare"`
+		EnvironmentVariables    []struct {
+			Key        string `json:"key"`
+			Value      string `json:"value"`
+			IsRuntime  *bool  `json:"is_runtime"`
+			IsBuildtime *bool `json:"is_buildtime"`
+		} `json:"environment_variables"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -287,6 +295,16 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.DockerfileLocation == "" {
 		body.DockerfileLocation = "/Dockerfile"
+	}
+	body.Dockerfile = strings.TrimSpace(body.Dockerfile)
+	// Coolify SimpleDockerfile: inline content, no Git required.
+	if body.BuildPack == "dockerfile" && body.Dockerfile != "" {
+		body.GitRepository = ""
+		if body.PortsExposes == "" {
+			if p := services.PortFromDockerfile(body.Dockerfile); p > 0 {
+				body.PortsExposes = strconv.Itoa(p)
+			}
+		}
 	}
 	if body.DockerComposeLocation == "" {
 		// Empty = auto-detect on deploy / via detect-compose API.
@@ -316,6 +334,7 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 		BuildPack:               body.BuildPack,
 		GitRepository:           body.GitRepository,
 		GitBranch:               body.GitBranch,
+		Dockerfile:              body.Dockerfile,
 		DockerfileLocation:      body.DockerfileLocation,
 		DockerComposeLocation:   body.DockerComposeLocation,
 		DockerRegistryImageName: body.DockerRegistryImageName,
@@ -366,6 +385,35 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		mapStoreErr(w, err)
 		return
+	}
+	// Seed env vars: explicit payload wins over ENV parsed from Dockerfile.
+	envSeed := map[string]store.UpsertEnvVarInput{}
+	if created.Dockerfile != "" {
+		for k, v := range services.EnvFromDockerfile(created.Dockerfile) {
+			envSeed[k] = store.UpsertEnvVarInput{Key: k, Value: v, Runtime: true, Buildtime: true}
+		}
+	}
+	for _, ev := range body.EnvironmentVariables {
+		key := strings.TrimSpace(ev.Key)
+		if key == "" {
+			continue
+		}
+		runtime, buildtime := true, true
+		if ev.IsRuntime != nil {
+			runtime = *ev.IsRuntime
+		}
+		if ev.IsBuildtime != nil {
+			buildtime = *ev.IsBuildtime
+		}
+		envSeed[key] = store.UpsertEnvVarInput{
+			Key: key, Value: ev.Value, Runtime: runtime, Buildtime: buildtime,
+		}
+	}
+	for _, in := range envSeed {
+		if _, err := a.Store.UpsertEnvVar(r.Context(), teamID, "application", created.ID, in); err != nil {
+			// Non-fatal: app exists; user can fix env in UI.
+			continue
+		}
 	}
 	// Always mint a webhook secret so production webhooks are never open by default.
 	webhookSecret := ""

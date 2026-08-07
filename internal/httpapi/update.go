@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -35,6 +36,7 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		DockerRegistryImageName *string `json:"docker_registry_image_name"`
 		DockerRegistryImageTag  *string `json:"docker_registry_image_tag"`
 		DockerfileLocation      *string `json:"dockerfile_location"`
+		Dockerfile              *string `json:"dockerfile"`
 		DockerComposeLocation   *string `json:"docker_compose_location"`
 		ComposePrepare          *bool   `json:"compose_prepare"`
 		BaseDirectory           *string `json:"base_directory"`
@@ -109,6 +111,14 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		app.DockerfileLocation = cleaned
+	}
+	if body.Dockerfile != nil {
+		app.Dockerfile = strings.TrimSpace(*body.Dockerfile)
+		if app.Dockerfile != "" && app.PortsExposes == "" {
+			if p := services.PortFromDockerfile(app.Dockerfile); p > 0 {
+				app.PortsExposes = strconv.Itoa(p)
+			}
+		}
 	}
 	if body.DockerComposeLocation != nil {
 		raw := strings.TrimSpace(*body.DockerComposeLocation)

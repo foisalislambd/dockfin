@@ -111,6 +111,7 @@ export function ApplicationDetailPage() {
     docker_compose_custom_start_command: '',
     custom_docker_run_options: '',
     dockerfile_location: '/Dockerfile',
+    dockerfile: '',
     dockerfile_target_build: '',
     docker_registry_image_name: '',
     docker_registry_image_tag: '',
@@ -158,6 +159,7 @@ export function ApplicationDetailPage() {
       docker_compose_custom_start_command: '',
       custom_docker_run_options: '',
       dockerfile_location: '/Dockerfile',
+      dockerfile: '',
       dockerfile_target_build: '',
       docker_registry_image_name: '',
       docker_registry_image_tag: '',
@@ -206,6 +208,7 @@ export function ApplicationDetailPage() {
       docker_compose_custom_start_command: updated.docker_compose_custom_start_command || '',
       custom_docker_run_options: updated.custom_docker_run_options || '',
       dockerfile_location: (updated as { dockerfile_location?: string }).dockerfile_location || '/Dockerfile',
+      dockerfile: updated.dockerfile || '',
       dockerfile_target_build: updated.dockerfile_target_build || '',
       docker_registry_image_name: updated.docker_registry_image_name || '',
       docker_registry_image_tag: updated.docker_registry_image_tag || '',
@@ -255,6 +258,14 @@ export function ApplicationDetailPage() {
     return (dests.data?.destinations || []).find((d) => d.id === destID)?.server_id || ''
   }, [cfg.destination_id, app.data?.destination_id, dests.data])
 
+  const sideItems = useMemo(() => {
+    const inlineDockerfile = Boolean(app.data?.dockerfile || cfg.dockerfile)
+    if (!inlineDockerfile) return SIDE_ITEMS
+    return SIDE_ITEMS.filter(
+      (item) => !['git', 'webhooks', 'previews', 'rollback'].includes(item.id),
+    )
+  }, [app.data?.dockerfile, cfg.dockerfile])
+
   const applyAppToForm = (updated: NonNullable<typeof app.data>) => {
     setCfg({
       name: updated.name || '',
@@ -273,6 +284,7 @@ export function ApplicationDetailPage() {
       docker_compose_custom_start_command: updated.docker_compose_custom_start_command || '',
       custom_docker_run_options: updated.custom_docker_run_options || '',
       dockerfile_location: (updated as { dockerfile_location?: string }).dockerfile_location || '/Dockerfile',
+      dockerfile: updated.dockerfile || '',
       dockerfile_target_build: updated.dockerfile_target_build || '',
       docker_registry_image_name: updated.docker_registry_image_name || '',
       docker_registry_image_tag: updated.docker_registry_image_tag || '',
@@ -583,7 +595,7 @@ export function ApplicationDetailPage() {
         <div className="flex flex-col gap-6 md:flex-row">
           <aside className="w-full shrink-0 md:w-56">
             <nav className="space-y-0.5">
-              {SIDE_ITEMS.map((item) => (
+              {sideItems.map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -791,7 +803,7 @@ export function ApplicationDetailPage() {
                         onChange={(v) => setCfg({ ...cfg, base_directory: v })}
                         required={false}
                       />
-                      {a.build_pack === 'dockerfile' ? (
+                      {a.build_pack === 'dockerfile' && !cfg.dockerfile ? (
                         <>
                           <Input
                             label="Dockerfile Location"
@@ -806,6 +818,14 @@ export function ApplicationDetailPage() {
                             required={false}
                           />
                         </>
+                      ) : null}
+                      {a.build_pack === 'dockerfile' && cfg.dockerfile ? (
+                        <Input
+                          label="Docker Build Stage Target"
+                          value={cfg.dockerfile_target_build}
+                          onChange={(v) => setCfg({ ...cfg, dockerfile_target_build: v })}
+                          required={false}
+                        />
                       ) : null}
                       <Input
                         label="Ports exposes"
@@ -831,7 +851,7 @@ export function ApplicationDetailPage() {
                       </label>
                     </>
                   )}
-                  {a.build_pack === 'dockerimage' || a.build_pack === 'dockerfile' ? (
+                  {a.build_pack === 'dockerimage' || (a.build_pack === 'dockerfile' && !cfg.dockerfile) ? (
                     <>
                       <Input
                         label="Registry image"
@@ -848,6 +868,23 @@ export function ApplicationDetailPage() {
                     </>
                   ) : null}
                 </div>
+
+                {a.build_pack === 'dockerfile' && cfg.dockerfile ? (
+                  <div className="panel-card space-y-3 p-5">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Dockerfile</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Inline Dockerfile (no Git). ENV lines can be managed under Environment Variables.
+                    </p>
+                    <CodeEditor
+                      language="dockerfile"
+                      readOnly={false}
+                      height="22rem"
+                      value={cfg.dockerfile}
+                      onChange={(v) => setCfg({ ...cfg, dockerfile: v })}
+                      ariaLabel="Dockerfile content"
+                    />
+                  </div>
+                ) : null}
 
                 {a.build_pack === 'dockercompose' ? (
                   <div className="panel-card space-y-3 p-5">

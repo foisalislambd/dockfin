@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
+import { Plus, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { CodeEditor } from '../components/CodeEditor'
 import {
   ChoiceCard,
   CreatePageShell,
@@ -20,7 +22,55 @@ const BUILD_PACKS = [
   { id: 'static', title: 'Static', description: 'Static site / SPA build output.' },
 ]
 
+const DEFAULT_DOCKERFILE = `FROM nginx
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+`
+
 type SourceType = 'public' | 'private-gh-app' | 'private-deploy-key' | ''
+
+type DraftEnv = { key: string; value: string }
+
+/** Parse ENV KEY=value (and ENV KEY value) from Dockerfile content. */
+function envFromDockerfile(dockerfile: string): DraftEnv[] {
+  const out: DraftEnv[] = []
+  const seen = new Set<string>()
+  for (const raw of dockerfile.split('\n')) {
+    const line = raw.trim()
+    if (!line || line.startsWith('#')) continue
+    const m = line.match(/^ENV\s+(.+)$/i)
+    if (!m) continue
+    const rest = m[1].trim()
+    if (rest.includes('=')) {
+      for (const part of rest.split(/\s+/)) {
+        const eq = part.indexOf('=')
+        if (eq <= 0) continue
+        const key = part.slice(0, eq)
+        const value = part.slice(eq + 1).replace(/^["']|["']$/g, '')
+        if (!key || seen.has(key)) continue
+        seen.add(key)
+        out.push({ key, value })
+      }
+    } else {
+      const fields = rest.split(/\s+/)
+      if (fields.length < 2) continue
+      const key = fields[0]
+      const value = fields.slice(1).join(' ')
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      out.push({ key, value })
+    }
+  }
+  return out
+}
+
+function portFromDockerfile(dockerfile: string): string {
+  for (const raw of dockerfile.split('\n')) {
+    const m = raw.trim().match(/^EXPOSE\s+(\d+)/i)
+    if (m) return m[1]
+  }
+  return ''
+}
 
 /** Parse owner/repo from clone URL, SSH URL, or owner/repo. */
 function parseOwnerRepo(raw: string): { owner: string; name: string; short: string } {
@@ -51,6 +101,8 @@ export function CreateApplicationPage() {
   const prefillEnv = params.envId || search.environment_id || ''
   const prefillPack = search.build_pack || ''
   const sourceType = (search.source_type || '') as SourceType
+  // Coolify SimpleDockerfile: Docker Based → Dockerfile (no source_type).
+  const simpleDockerfile = prefillPack === 'dockerfile' && !sourceType
 
   const dests = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
   const envs = useQuery({ queryKey: ['all-environments'], queryFn: fetchAllEnvironments })
@@ -72,13 +124,13 @@ export function CreateApplicationPage() {
 
   const envTouched = useRef(false)
   const [form, setForm] = useState({
-    name: '',
+    name: simpleDockerfile ? `dockerfile-${Date.now().toString(36).slice(-6)}` : '',
     environment_id: prefillEnv,
     destination_id: '',
-    build_pack: prefillPack || 'dockerimage',
+    build_pack: prefillPack || (simpleDockerfile ? 'dockerfile' : 'dockerimage'),
     docker_registry_image_name: 'nginx',
     docker_registry_image_tag: 'alpine',
-    ports_exposes: prefillPack === 'dockercompose' ? '' : '80',
+    ports_exposes: prefillPack === 'dockercompose' ? '' : simpleDockerfile ? '80' : '80',
     fqdn: '',
     git_repository: '',
     git_branch: 'main',
@@ -86,7 +138,11 @@ export function CreateApplicationPage() {
     private_key_id: '',
     docker_compose_location: '',
     compose_prepare: true,
+    dockerfile: simpleDockerfile ? DEFAULT_DOCKERFILE : '',
   })
+  const [draftEnvs, setDraftEnvs] = useState<DraftEnv[]>(() =>
+    simpleDockerfile ? envFromDockerfile(DEFAULT_DOCKERFILE) : [],
+  )
   const [composeCandidates, setComposeCandidates] = useState<string[]>([])
   const [detectError, setDetectError] = useState('')
   const [detecting, setDetecting] = useState(false)
@@ -185,7 +241,7 @@ export function CreateApplicationPage() {
       : '/projects'
   const backLabel = nested ? 'Back to New Resource' : 'Back to projects'
 
-  const needsGit = form.build_pack !== 'dockerimage'
+  const needsGit = form.build_pack !== 'dockerimage' && !simpleDockerfile
 
   const create = useMutation({
     mutationFn: () => {
@@ -199,6 +255,22 @@ export function CreateApplicationPage() {
       if (form.build_pack !== 'dockercompose') {
         delete body.docker_compose_location
         delete body.compose_prepare
+      }
+      if (simpleDockerfile) {
+        body.build_pack = 'dockerfile'
+        body.dockerfile = form.dockerfile
+        delete body.git_repository
+        delete body.git_branch
+        delete body.git_source_id
+        delete body.private_key_id
+        delete body.docker_registry_image_name
+        delete body.docker_registry_image_tag
+        const envVars = draftEnvs
+          .map((e) => ({ key: e.key.trim(), value: e.value }))
+          .filter((e) => e.key)
+        if (envVars.length) body.environment_variables = envVars
+      } else {
+        delete body.dockerfile
       }
       return api.createApplication(body)
     },
@@ -224,6 +296,14 @@ export function CreateApplicationPage() {
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
     setFormError('')
+    if (simpleDockerfile) {
+      if (!form.dockerfile.trim()) {
+        setFormError('Dockerfile content is required.')
+        return
+      }
+      create.mutate()
+      return
+    }
     if (sourceType === 'private-gh-app' && (!form.git_source_id || !form.git_repository)) {
       setFormError('Select a GitHub App and repository.')
       return
@@ -239,8 +319,9 @@ export function CreateApplicationPage() {
     create.mutate()
   }
 
-  const title =
-    sourceType === 'private-gh-app'
+  const title = simpleDockerfile
+    ? 'Dockerfile'
+    : sourceType === 'private-gh-app'
       ? 'Private Repository (GitHub App)'
       : sourceType === 'private-deploy-key'
         ? 'Private Repository (Deploy Key)'
@@ -248,9 +329,26 @@ export function CreateApplicationPage() {
           ? 'Public Repository'
           : 'New application'
 
+  const applyDockerfile = (v: string) => {
+    const port = portFromDockerfile(v)
+    const parsed = envFromDockerfile(v)
+    setForm((f) => ({
+      ...f,
+      dockerfile: v,
+      ports_exposes: port || f.ports_exposes || '80',
+    }))
+    setDraftEnvs(parsed)
+  }
+
   return (
     <CreatePageShell title={title} backTo={backTo} backLabel={backLabel}>
       <form className="space-y-6" onSubmit={onSubmit}>
+        {simpleDockerfile ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            You can deploy a simple Dockerfile, without Git. ENV lines become Environment Variables.
+          </p>
+        ) : null}
+
         <section className="space-y-4">
           <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
             Basics
@@ -293,35 +391,139 @@ export function CreateApplicationPage() {
           </div>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
-            Build pack
-          </h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            {BUILD_PACKS.filter((bp) => (needsGit || sourceType ? bp.id !== 'dockerimage' || !sourceType : true)).map(
-              (bp) => (
-                <ChoiceCard
-                  key={bp.id}
-                  active={form.build_pack === bp.id}
-                  title={bp.title}
-                  onClick={() =>
-                    setForm({
-                      ...form,
-                      build_pack: bp.id,
-                      ports_exposes:
-                        bp.id === 'dockercompose'
-                          ? ''
-                          : form.ports_exposes || '80',
-                      docker_compose_location:
-                        bp.id === 'dockercompose' ? form.docker_compose_location : '',
-                    })
-                  }
-                />
-              ),
-            )}
-          </div>
-        </section>
+        {!simpleDockerfile ? (
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
+              Build pack
+            </h2>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+              {BUILD_PACKS.filter((bp) => (needsGit || sourceType ? bp.id !== 'dockerimage' || !sourceType : true)).map(
+                (bp) => (
+                  <ChoiceCard
+                    key={bp.id}
+                    active={form.build_pack === bp.id}
+                    title={bp.title}
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        build_pack: bp.id,
+                        ports_exposes:
+                          bp.id === 'dockercompose'
+                            ? ''
+                            : form.ports_exposes || '80',
+                        docker_compose_location:
+                          bp.id === 'dockercompose' ? form.docker_compose_location : '',
+                      })
+                    }
+                  />
+                ),
+              )}
+            </div>
+          </section>
+        ) : null}
 
+        {simpleDockerfile ? (
+          <>
+            <section className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
+                  Dockerfile
+                </h2>
+              </div>
+              <CodeEditor
+                language="dockerfile"
+                readOnly={false}
+                height="18rem"
+                value={form.dockerfile}
+                onChange={applyDockerfile}
+                ariaLabel="Dockerfile content"
+              />
+            </section>
+
+            <section className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
+                    Environment Variables
+                  </h2>
+                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    Auto-filled from ENV in the Dockerfile. Edit or add more before create.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:underline dark:text-brand-400"
+                  onClick={() => setDraftEnvs((rows) => [...rows, { key: '', value: '' }])}
+                >
+                  <Plus className="h-4 w-4" /> Add
+                </button>
+              </div>
+              <div className="space-y-2">
+                {draftEnvs.map((row, i) => (
+                  <div key={i} className="flex gap-2">
+                    <input
+                      className="panel-field h-9 min-w-0 flex-1 rounded-md px-3 font-mono text-sm"
+                      placeholder="KEY"
+                      value={row.key}
+                      onChange={(e) =>
+                        setDraftEnvs((rows) =>
+                          rows.map((r, j) => (j === i ? { ...r, key: e.target.value } : r)),
+                        )
+                      }
+                    />
+                    <input
+                      className="panel-field h-9 min-w-0 flex-[1.4] rounded-md px-3 font-mono text-sm"
+                      placeholder="value"
+                      value={row.value}
+                      onChange={(e) =>
+                        setDraftEnvs((rows) =>
+                          rows.map((r, j) => (j === i ? { ...r, value: e.target.value } : r)),
+                        )
+                      }
+                    />
+                    <button
+                      type="button"
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-error-500 dark:hover:bg-white/5"
+                      aria-label="Remove variable"
+                      onClick={() => setDraftEnvs((rows) => rows.filter((_, j) => j !== i))}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+                {!draftEnvs.length ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    No environment variables yet. Add ENV lines in the Dockerfile or click Add.
+                  </p>
+                ) : null}
+              </div>
+            </section>
+
+            <section className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormInput
+                  label="Port"
+                  value={form.ports_exposes || '80'}
+                  onChange={(v) => setForm({ ...form, ports_exposes: v })}
+                  placeholder="80"
+                  hint="From EXPOSE, or set manually."
+                />
+                <div className="space-y-2 sm:col-span-2">
+                  <DomainsPanel
+                    value={form.fqdn}
+                    onChange={(v) => setForm({ ...form, fqdn: v })}
+                    serverId={
+                      (dests.data?.destinations || []).find((d) => d.id === form.destination_id)
+                        ?.server_id || undefined
+                    }
+                    destinationId={form.destination_id || undefined}
+                    resourceName={form.name || 'app'}
+                  />
+                </div>
+              </div>
+            </section>
+          </>
+        ) : (
         <section className="space-y-4">
           <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
             Source
@@ -611,6 +813,7 @@ export function CreateApplicationPage() {
             </div>
           ) : null}
         </section>
+        )}
 
         {(formError || create.error) && (
           <p className="text-sm text-error-500" role="alert">

@@ -954,6 +954,7 @@ export type Application = {
   docker_compose_location?: string
   compose_prepare?: boolean
   dockerfile_location?: string
+  dockerfile?: string
   docker_compose_raw?: string
   docker_compose?: string
   docker_compose_domains?: Record<string, { domain: string }>

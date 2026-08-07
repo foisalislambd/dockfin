@@ -437,9 +437,6 @@ func (p *Pipeline) deployImage(ctx context.Context, client *ssh.Client, req Requ
 }
 
 func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClient *ssh.Client, req Request) error {
-	if req.App.GitRepository == "" {
-		return fmt.Errorf("git repository is required for %s builds", req.App.BuildPack)
-	}
 	name := containerNameFor(req)
 	workdir := "/data/dockfin/applications/" + req.App.ID.String()
 	imageTag := "dockfin/" + req.App.ID.String() + ":latest"
@@ -449,35 +446,53 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 	}
 
 	p.log("prepare", "Preparing remote workdir "+workdir)
-	_, errOut, err := sshx.RunArgs(buildClient, "mkdir", "-p", workdir)
+	_, errOut, err := sshx.RunArgs(buildClient, "mkdir", "-p", workdir+"/src")
 	if err != nil {
 		return fmt.Errorf("mkdir: %v %s", err, errOut)
 	}
 
-	if err := p.gitClone(ctx, buildClient, req, workdir+"/src"); err != nil {
-		return err
+	dockerfilePath := ""
+	inline := strings.TrimSpace(req.App.Dockerfile)
+	if inline != "" {
+		// Coolify SimpleDockerfile: write pasted content (no Git).
+		dockerfilePath = workdir + "/src/Dockerfile"
+		p.log("prepare", "Writing inline Dockerfile")
+		if err := sshx.WriteFile(buildClient, dockerfilePath, []byte(inline+"\n")); err != nil {
+			return fmt.Errorf("write dockerfile: %w", err)
+		}
+	} else {
+		if req.App.GitRepository == "" {
+			return fmt.Errorf("git repository or dockerfile content is required for dockerfile builds")
+		}
+		if err := p.gitClone(ctx, buildClient, req, workdir+"/src"); err != nil {
+			return err
+		}
+		dockerfile := req.App.DockerfileLocation
+		if dockerfile == "" {
+			dockerfile = "/Dockerfile"
+		}
+		dockerfile = filepath.ToSlash(strings.TrimSpace(dockerfile))
+		dockerfile = strings.TrimPrefix(dockerfile, "/")
+		if dockerfile == "" || strings.Contains(dockerfile, "..") {
+			return fmt.Errorf("invalid dockerfile path")
+		}
+		cleaned := filepath.ToSlash(filepath.Clean("/" + dockerfile))
+		if cleaned == "/" || strings.Contains(cleaned, "..") {
+			return fmt.Errorf("invalid dockerfile path")
+		}
+		dockerfile = strings.TrimPrefix(cleaned, "/")
+		dockerfilePath = workdir + "/src/" + dockerfile
 	}
-
-	dockerfile := req.App.DockerfileLocation
-	if dockerfile == "" {
-		dockerfile = "/Dockerfile"
-	}
-	dockerfile = filepath.ToSlash(strings.TrimSpace(dockerfile))
-	dockerfile = strings.TrimPrefix(dockerfile, "/")
-	if dockerfile == "" || strings.Contains(dockerfile, "..") {
-		return fmt.Errorf("invalid dockerfile path")
-	}
-	cleaned := filepath.ToSlash(filepath.Clean("/" + dockerfile))
-	if cleaned == "/" || strings.Contains(cleaned, "..") {
-		return fmt.Errorf("invalid dockerfile path")
-	}
-	dockerfile = strings.TrimPrefix(cleaned, "/")
 
 	p.log("build", "Building image "+imageTag)
-	buildArgs := []string{"docker", "build", "-t", imageTag, "-f", workdir + "/src/" + dockerfile}
+	buildArgs := []string{"docker", "build", "-t", imageTag, "-f", dockerfilePath}
+	if target := strings.TrimSpace(req.App.DockerfileTargetBuild); target != "" {
+		buildArgs = append(buildArgs, "--target", target)
+	}
 	if req.ForceRebuild {
 		buildArgs = append(buildArgs, "--no-cache")
 	}
+	buildArgs = append(buildArgs, p.dockerBuildArgFlags(ctx, req)...)
 	buildArgs = append(buildArgs, workdir+"/src")
 	_, errOut, err = sshx.RunArgs(buildClient, buildArgs...)
 	if err != nil {
@@ -488,6 +503,35 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 		return err
 	}
 	return p.runBuiltImage(ctx, deployClient, req, name, imageTag)
+}
+
+// dockerBuildArgFlags returns --build-arg KEY=VALUE for build-time env vars.
+func (p *Pipeline) dockerBuildArgFlags(ctx context.Context, req Request) []string {
+	if p.Store == nil || req.App == nil {
+		return nil
+	}
+	vars, err := p.Store.ListEnvVars(ctx, req.TeamID, "application", req.App.ID, true)
+	if err != nil || len(vars) == 0 {
+		return nil
+	}
+	keys := make([]string, 0)
+	vals := map[string]string{}
+	for _, v := range vars {
+		if !v.IsBuildtime || v.IsPreview {
+			continue
+		}
+		if v.Value == "" || strings.ContainsAny(v.Value, "\n\r") {
+			continue
+		}
+		keys = append(keys, v.Key)
+		vals[v.Key] = v.Value
+	}
+	sort.Strings(keys)
+	var out []string
+	for _, k := range keys {
+		out = append(out, "--build-arg", k+"="+vals[k])
+	}
+	return out
 }
 
 func (p *Pipeline) runBuiltImage(ctx context.Context, client *ssh.Client, req Request, name, imageTag string) error {

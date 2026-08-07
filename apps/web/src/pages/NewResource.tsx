@@ -61,7 +61,6 @@ const DOCKER_BASED: AppOption[] = [
     description: 'You can deploy a simple Dockerfile, without Git.',
     logo: '/svgs/docker.svg',
     buildPack: 'dockerfile',
-    sourceType: 'public',
   },
   {
     id: 'docker-compose-empty',
