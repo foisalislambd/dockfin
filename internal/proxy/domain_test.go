@@ -93,6 +93,10 @@ func TestWantAutoHTTPS(t *testing.T) {
 	if WantAutoHTTPS("localhost") || WantAutoHTTPS("") {
 		t.Fatal("localhost/empty must not auto SSL")
 	}
+	// Mixed custom + magic must not enable LE on the shared Traefik router.
+	if WantAutoHTTPS("https://app.example.com,http://x.1.2.3.4.sslip.io") {
+		t.Fatal("mixed custom+magic must not auto SSL")
+	}
 	if got := AutoPublicURL("app.example.com"); got != "https://app.example.com" {
 		t.Fatalf("AutoPublicURL custom: %q", got)
 	}

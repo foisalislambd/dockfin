@@ -44,6 +44,8 @@ func IsUnusableMagicIP(ip string) bool {
 
 // PreferMagicIP picks a publicly reachable IP for free domains.
 // Prefer explicit publicIP; fall back to SSH IP when it is not loopback.
+// IPv6 is returned in sslip/nip dashed form (e.g. 2001-db8--1) — do not use
+// this value for DNS A-record comparison; use PreferPublicIPv4 instead.
 func PreferMagicIP(sshIP, publicIP string) string {
 	for _, candidate := range []string{publicIP, sshIP} {
 		// Check usability on the raw IP — normalizeIPForMagic turns IPv6 into
@@ -56,6 +58,44 @@ func PreferMagicIP(sshIP, publicIP string) string {
 		}
 	}
 	return ""
+}
+
+// PreferPublicIPv4 returns a dotted IPv4 suitable for DNS A-record checks.
+// Prefers publicIP, then sshIP. Skips loopback/unspecified and any IPv6
+// (A lookups cannot match IPv6 or sslip dashed forms).
+func PreferPublicIPv4(sshIP, publicIP string) string {
+	for _, candidate := range []string{publicIP, sshIP} {
+		candidate = strings.TrimSpace(candidate)
+		if IsUnusableMagicIP(candidate) {
+			continue
+		}
+		parsed := net.ParseIP(strings.Trim(candidate, "[]"))
+		if parsed == nil {
+			continue
+		}
+		if v4 := parsed.To4(); v4 != nil {
+			return v4.String()
+		}
+	}
+	return ""
+}
+
+// DNSRecordName is the provider "Name" field for an A record (Coolify-style).
+// Apex → "@"; subdomain labels before the registrable pair → e.g. "app", "a.b".
+// Multi-part public suffixes (co.uk, com.au) are not special-cased.
+func DNSRecordName(host string) string {
+	host = HostFromDomainEntry(host)
+	parts := strings.Split(host, ".")
+	var labels []string
+	for _, p := range parts {
+		if p != "" {
+			labels = append(labels, p)
+		}
+	}
+	if len(labels) <= 2 {
+		return "@"
+	}
+	return strings.Join(labels[:len(labels)-2], ".")
 }
 
 // FQDNUsesUnusableMagicIP is true when fqdn embeds loopback (e.g. *.127.0.0.1.sslip.io).
@@ -255,6 +295,10 @@ func NormalizeDomains(domains string) string {
 // WantAutoHTTPS is true when domains should get Traefik TLS + Let's Encrypt
 // (user custom hosts). Magic free domains (sslip.io / nip.io) and localhost never
 // get auto SSL — Let's Encrypt rate-limits those public suffixes.
+//
+// All listed hosts must be custom: a mixed list (custom + sslip/nip) returns
+// false so Traefik does not request LE certs for magic public suffixes on the
+// same router. Replace the magic domain with your custom host instead of mixing.
 func WantAutoHTTPS(domains string) bool {
 	hosts := HostsFromDomainList(domains)
 	if len(hosts) == 0 {

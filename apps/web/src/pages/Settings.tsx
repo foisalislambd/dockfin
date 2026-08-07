@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Eye, EyeOff, Info } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { normalizeDomainEntry } from '../components/DomainsPanel'
 import { MIT_LICENSE_TEXT } from '../config/app.config'
 import {
   api,
@@ -336,8 +337,12 @@ export function SettingsPage() {
 
   const saveGeneral = () => {
     if (!canEdit) return
+    const public_url = form.public_url.trim()
+      ? normalizeDomainEntry(form.public_url.trim())
+      : ''
+    if (public_url !== form.public_url) set('public_url', public_url)
     save.mutate({
-      public_url: form.public_url,
+      public_url,
       instance_name: form.instance_name,
       instance_timezone: form.instance_timezone,
       public_ipv4: form.public_ipv4,
@@ -478,10 +483,10 @@ export function SettingsPage() {
                 <div className="grid gap-3 md:grid-cols-3">
                   <TextField
                     label="URL"
-                    helper="Full URL of the instance (include https:// for TLS)."
+                    helper="Instance public URL. Type dash.example.com — https:// is added automatically."
                     value={form.public_url}
                     onChange={(v) => set('public_url', v)}
-                    placeholder="https://dockfin.yourdomain.com"
+                    placeholder="dash.example.com"
                     required={false}
                   />
                   <TextField

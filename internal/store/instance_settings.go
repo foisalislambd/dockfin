@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/dockfin/dockfin/internal/proxy"
 )
 
 // InstanceSettings is the singleton instance-wide configuration (Coolify parity).
@@ -247,11 +248,13 @@ func applyInstanceSettingsPatch(cur *InstanceSettings, patch *InstanceSettingsPa
 	if patch.PublicURL != nil {
 		v := strings.TrimSpace(*patch.PublicURL)
 		if v != "" {
+			// Bare dash.example.com → https://dash.example.com (same as Domains panel).
+			v = proxy.NormalizeDomainEntry(v)
 			u, err := url.Parse(v)
 			if err != nil || u.Scheme == "" || u.Host == "" {
 				return fmt.Errorf("%w: public_url must be a valid URL (e.g. https://dash.example.com)", ErrConflict)
 			}
-			cur.PublicURL = u.Scheme + "://" + u.Host
+			cur.PublicURL = strings.TrimRight(u.Scheme+"://"+u.Host, "/")
 		} else {
 			cur.PublicURL = ""
 		}

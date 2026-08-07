@@ -41,12 +41,24 @@ func TestApplyInstanceSettingsPatch_General(t *testing.T) {
 	if cur.SMTPFromAddress != "bad-not-an-email" {
 		t.Fatal("smtp address should be untouched")
 	}
+
+	// Bare hostname → https://…
+	cur2 := &InstanceSettings{InstanceName: "Dockfin", InstanceTimezone: "UTC"}
+	if err := applyInstanceSettingsPatch(cur2, &InstanceSettingsPatch{PublicURL: ptr("dash.example.com")}); err != nil {
+		t.Fatalf("bare domain: %v", err)
+	}
+	if cur2.PublicURL != "https://dash.example.com" {
+		t.Fatalf("bare domain normalize: got %q", cur2.PublicURL)
+	}
 }
 
 func TestApplyInstanceSettingsPatch_RejectsBadURLAndIPs(t *testing.T) {
 	cur := &InstanceSettings{InstanceName: "Dockfin", InstanceTimezone: "UTC"}
-	if err := applyInstanceSettingsPatch(cur, &InstanceSettingsPatch{PublicURL: ptr("not-a-url")}); !errors.Is(err, ErrConflict) {
+	if err := applyInstanceSettingsPatch(cur, &InstanceSettingsPatch{PublicURL: ptr("://")}); !errors.Is(err, ErrConflict) {
 		t.Fatalf("want conflict for bad url, got %v", err)
+	}
+	if err := applyInstanceSettingsPatch(cur, &InstanceSettingsPatch{PublicURL: ptr("http://")}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("want conflict for empty host, got %v", err)
 	}
 	if err := applyInstanceSettingsPatch(cur, &InstanceSettingsPatch{PublicIPv4: ptr("2001:db8::1")}); !errors.Is(err, ErrConflict) {
 		t.Fatalf("want conflict for ipv6 in ipv4 field, got %v", err)

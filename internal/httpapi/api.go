@@ -171,6 +171,7 @@ func (a *API) Router() http.Handler {
 
 			r.Get("/destinations", a.handleListDestinations)
 			r.Post("/domains/generate", a.handleGenerateDomain)
+			r.Post("/domains/check", a.handleCheckDomainDNS)
 
 			r.Route("/projects", func(r chi.Router) {
 				r.Get("/", a.handleListProjects)

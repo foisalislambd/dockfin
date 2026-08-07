@@ -681,6 +681,32 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  checkDomainDNS: (body: {
+    domains: string
+    destination_id?: string
+    server_id?: string
+    expected_ip?: string
+  }) =>
+    request<{
+      ok: boolean
+      validation_enabled: boolean
+      expected_ip: string
+      resolvers: string[]
+      results: Array<{
+        host: string
+        expected_ip: string
+        resolved_ips: string[]
+        matched: boolean
+        cloudflare: boolean
+        resolvers: string[]
+        error?: string
+        skip_validation?: boolean
+      }>
+      instructions: Array<{ type: string; name: string; value: string; host: string }>
+    }>('/api/v1/domains/check', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   createDestination: (
     serverId: string,
     body: { name: string; kind?: string; network?: string },
