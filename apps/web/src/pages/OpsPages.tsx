@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { useState, type FormEvent } from 'react'
 import { EnvSecretCell, SecretInput } from '../components/SecretValue'
 import { CreatePageShell, FormActions, FormInput } from '../components/ui/forms'
+import { PageSkeleton } from '../components/ui/Skeleton'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { isSecretEnvKey } from '../lib/secrets'
@@ -11,6 +12,8 @@ import { Btn, Header, Input } from './Servers'
 export function StoragesPage() {
   const qc = useQueryClient()
   const storages = useQuery({ queryKey: ['s3-storages'], queryFn: api.s3Storages })
+
+  if (storages.isLoading) return <PageSkeleton cards={3} />
 
   return (
     <div className="space-y-6">
@@ -179,6 +182,8 @@ export function TeamPage() {
   })
 
   const canManage = team?.role === 'owner' || team?.role === 'admin'
+
+  if (members.isLoading || invitations.isLoading) return <PageSkeleton cards={2} />
 
   return (
     <div className="space-y-6">
@@ -457,6 +462,10 @@ export function SharedVariablesPage({
       void qc.invalidateQueries({ queryKey: ['shared-env', effectiveScopeType, effectiveScopeId || ''] })
     },
   })
+
+  const waitingOnServerPick =
+    !usingProps && effectiveScopeType === 'server' && !effectiveScopeId && servers.isLoading
+  if (vars.isLoading || waitingOnServerPick) return <PageSkeleton cards={2} />
 
   return (
     <div className="space-y-6">

@@ -8,6 +8,7 @@ import {
   FormInput,
   FormSelect,
 } from '../components/ui/forms'
+import { FormPageSkeleton } from '../components/ui/Skeleton'
 import { api, fetchAllEnvironments, LAST_ENV_KEY } from '../lib/api'
 
 const ENGINES = [
@@ -109,6 +110,8 @@ export function CreateDatabasePage() {
       </CreatePageShell>
     )
   }
+
+  if (envs.isLoading || dests.isLoading) return <FormPageSkeleton />
 
   return (
     <CreatePageShell title="New database" backTo={backTo} backLabel={backLabel}>

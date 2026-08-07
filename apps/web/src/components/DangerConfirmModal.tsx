@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api'
 import { Btn } from './ui/Button'
 import { Modal } from './ui/Modal'
+import { PanelSkeleton } from './ui/Skeleton'
 
 export type DeletePayload = {
   confirmation_name: string
@@ -137,6 +138,10 @@ export function DangerConfirmModal({
   return (
     <Modal title={title} onClose={onClose}>
       <div className="max-h-[80vh] space-y-4 overflow-y-auto">
+        {!settingsReady ? (
+          <PanelSkeleton rows={3} showHeader={false} />
+        ) : (
+          <>
         {statusLine && (
           <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
             {statusLine}
@@ -168,7 +173,7 @@ export function DangerConfirmModal({
               <Btn
                 primary
                 type="button"
-                disabled={!settingsReady || !!busy}
+                disabled={!!busy}
                 onClick={() => {
                   if (skipTwoStep) submit()
                   else setStep('confirm')
@@ -177,12 +182,8 @@ export function DangerConfirmModal({
                 {skipTwoStep
                   ? busy
                     ? 'Deleting…'
-                    : !settingsReady
-                      ? 'Loading…'
-                      : confirmButtonLabel
-                  : !settingsReady
-                    ? 'Loading…'
-                    : 'Continue'}
+                    : confirmButtonLabel
+                  : 'Continue'}
               </Btn>
               <Btn type="button" onClick={onClose}>
                 Cancel
@@ -247,12 +248,14 @@ export function DangerConfirmModal({
                 </Btn>
               )}
               <Btn type="button" disabled={confirmDisabled} onClick={submit}>
-                {busy ? 'Deleting…' : !settingsReady ? 'Loading…' : confirmButtonLabel}
+                {busy ? 'Deleting…' : confirmButtonLabel}
               </Btn>
               <Btn type="button" onClick={onClose}>
                 Cancel
               </Btn>
             </div>
+          </>
+        )}
           </>
         )}
       </div>

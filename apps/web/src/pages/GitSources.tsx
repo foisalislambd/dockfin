@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { Boxes, FolderGit2, Settings2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { PageSkeleton } from '../components/ui/Skeleton'
+import { DetailPageSkeleton, PageSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { ResourceTabs, TabPanel } from '../components/ui/tabs'
 import { api } from '../lib/api'
 import { Btn, Input, Modal } from './Servers'
@@ -342,7 +342,7 @@ export function GitSourceDetailPage() {
     }))
   }
 
-  if (source.isLoading) return <PageSkeleton cards={2} />
+  if (source.isLoading) return <DetailPageSkeleton withSideNav={false} />
   if (source.error || !source.data) {
     return <p className="text-error-500">{source.error?.message || 'Not found'}</p>
   }
@@ -618,6 +618,12 @@ export function GitSourceDetailPage() {
                     </div>
                   </div>
                   <ul className="divide-y divide-gray-200 dark:divide-gray-800">
+                    {repos.isLoading ? (
+                      <li className="p-0">
+                        <TableSkeleton rows={4} cols={2} />
+                      </li>
+                    ) : (
+                      <>
                     {filteredRepos.map((r, i) => {
                       const full = String(r.full_name || r.name || i)
                       const url = String(r.clone_url || r.html_url || '')
@@ -630,12 +636,14 @@ export function GitSourceDetailPage() {
                         </li>
                       )
                     })}
-                    {!filteredRepos.length && !repos.isLoading && (
+                    {!filteredRepos.length && (
                       <li className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                         {repoFilter.trim()
                           ? 'No repositories match your search.'
                           : 'No repositories visible. Update installation permissions on GitHub.'}
                       </li>
+                    )}
+                      </>
                     )}
                   </ul>
                 </div>
@@ -643,7 +651,9 @@ export function GitSourceDetailPage() {
 
               {gs.installed && tab === 'resources' && (
                 <div className="panel-card overflow-x-auto p-4">
-                  {(apps.data?.applications || []).length === 0 ? (
+                  {apps.isLoading ? (
+                    <TableSkeleton rows={3} cols={3} />
+                  ) : (apps.data?.applications || []).length === 0 ? (
                     <p className="py-4 text-sm text-gray-500 dark:text-gray-400">
                       No resources are currently using this GitHub App.
                     </p>

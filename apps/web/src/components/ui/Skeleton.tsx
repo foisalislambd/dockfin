@@ -1,4 +1,5 @@
 import type { CSSProperties, HTMLAttributes } from 'react'
+import { SIDEBAR_WIDTH_EXPANDED } from '../../context/sidebar-context'
 
 function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(' ')
@@ -17,6 +18,57 @@ export function Skeleton({
       style={style}
       {...rest}
     />
+  )
+}
+
+/** Compact inline skeleton for a panel / section that is still fetching */
+export function PanelSkeleton({
+  rows = 4,
+  showHeader = true,
+}: {
+  rows?: number
+  showHeader?: boolean
+}) {
+  return (
+    <div className="space-y-4" role="status" aria-label="Loading">
+      {showHeader && (
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-3 w-48 max-w-full" />
+        </div>
+      )}
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="space-y-1.5">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-9 w-full rounded-md" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Table / list row skeleton — use inside panel-card or table body */
+export function TableSkeleton({
+  rows = 5,
+  cols = 3,
+}: {
+  rows?: number
+  cols?: number
+}) {
+  return (
+    <div className="divide-y divide-gray-100 dark:divide-white/5" role="status" aria-label="Loading">
+      {Array.from({ length: rows }).map((_, r) => (
+        <div key={r} className="flex items-center gap-3 px-4 py-3">
+          <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-3.5 w-40 max-w-[70%]" />
+            {cols > 1 && <Skeleton className="h-3 w-56 max-w-full" />}
+          </div>
+          {cols > 2 && <Skeleton className="hidden h-6 w-16 rounded-md sm:block" />}
+          {cols > 3 && <Skeleton className="hidden h-6 w-20 rounded-md md:block" />}
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -63,12 +115,11 @@ export function AuthSkeleton() {
         <div className="relative z-10 flex w-full max-w-md flex-col items-center space-y-4">
           <Skeleton className="h-14 w-14 rounded-2xl bg-white/15 sm:h-16 sm:w-16" />
           <Skeleton className="h-7 w-40 bg-white/15" />
-          <Skeleton className="h-4 w-72 max-w-full bg-white/10" />
           <Skeleton className="h-4 w-64 max-w-full bg-white/10" />
-          <div className="mt-4 w-full space-y-3">
-            <Skeleton className="h-5 w-full bg-white/10" />
-            <Skeleton className="h-5 w-5/6 bg-white/10" />
-            <Skeleton className="h-5 w-4/5 bg-white/10" />
+          <div className="mt-4 w-full space-y-2.5">
+            <Skeleton className="h-4 w-full bg-white/10" />
+            <Skeleton className="h-4 w-5/6 bg-white/10" />
+            <Skeleton className="h-4 w-4/5 bg-white/10" />
           </div>
         </div>
       </div>
@@ -76,25 +127,38 @@ export function AuthSkeleton() {
   )
 }
 
-/** App chrome bootstrap while auth resolves on protected routes (not login-shaped) */
+/** App chrome while auth resolves — mirrors AppShell (sidebar + header + content) */
 export function AppShellSkeleton() {
   return (
     <div className="panel-shell panel-main flex h-dvh w-full overflow-hidden" role="status" aria-label="Loading">
-      <div className="hidden w-[232px] shrink-0 border-r border-gray-200 dark:border-white/10 lg:block">
-        <div className="space-y-3 p-4">
-          <Skeleton className="h-8 w-28" />
-          <Skeleton className="mt-6 h-4 w-20" />
-          <Skeleton className="h-8 w-full rounded-md" />
-          <Skeleton className="h-8 w-full rounded-md" />
-          <Skeleton className="h-8 w-full rounded-md" />
-          <Skeleton className="h-8 w-full rounded-md" />
-          <Skeleton className="h-8 w-full rounded-md" />
+      <div
+        className="hidden shrink-0 border-r border-gray-200 dark:border-gray-800 lg:flex lg:flex-col"
+        style={{ width: SIDEBAR_WIDTH_EXPANDED }}
+      >
+        <div className="panel-topbar flex items-center gap-3 px-4">
+          <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <Skeleton className="h-3.5 w-20" />
+            <Skeleton className="h-2.5 w-24" />
+          </div>
+        </div>
+        <div className="flex flex-1 flex-col gap-0.5 overflow-hidden px-2.5 py-3">
+          {Array.from({ length: 13 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2">
+              <Skeleton className="h-[18px] w-[18px] shrink-0 rounded" />
+              <Skeleton className="h-3.5 flex-1" />
+            </div>
+          ))}
         </div>
       </div>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 px-4 dark:border-white/10">
-          <Skeleton className="h-6 w-32" />
-          <Skeleton className="h-8 w-8 rounded-full" />
+        <div className="panel-topbar flex items-center gap-3 px-4 sm:gap-4 sm:px-6">
+          <Skeleton className="h-8 w-8 rounded-md lg:hidden" />
+          <Skeleton className="hidden h-8 max-w-md flex-1 rounded-md lg:block" />
+          <div className="ml-auto flex items-center gap-2 sm:gap-3">
+            <Skeleton className="h-8 w-8 rounded-md" />
+            <Skeleton className="h-8 w-8 rounded-full" />
+          </div>
         </div>
         <div className="min-h-0 flex-1 overflow-hidden px-3 py-4 sm:px-5 sm:py-5 lg:px-6">
           <PageSkeleton cards={2} />
@@ -105,51 +169,118 @@ export function AppShellSkeleton() {
 }
 
 /**
- * Full page skeleton for the main content area (inside AppShell).
- * Use as early return while the page’s primary data is loading.
+ * List / dashboard page skeleton (header + cards).
+ * Renders inside AppShell main — do not include shell chrome.
  */
-export function PageSkeleton({ cards = 3 }: { cards?: number }) {
+export function PageSkeleton({ cards = 2 }: { cards?: number }) {
+  const n = Math.max(1, Math.min(cards, 6))
+
   return (
     <div className="space-y-6" role="status" aria-label="Loading page">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="space-y-3">
-          <Skeleton className="h-3 w-28" />
-          <Skeleton className="h-8 w-52" />
+        <div className="space-y-2">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-8 w-52 max-w-full" />
           <Skeleton className="h-4 w-72 max-w-full" />
         </div>
-        <Skeleton className="h-8 w-24 rounded-md" />
-      </div>
-
-      <div className="flex flex-wrap gap-2">
         <Skeleton className="h-8 w-28 rounded-md" />
-        <Skeleton className="h-8 w-24 rounded-md" />
-        <Skeleton className="h-8 w-32 rounded-md" />
-        <Skeleton className="h-8 w-20 rounded-md" />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: Math.min(cards, 3) }).map((_, i) => (
-          <div key={`stat-${i}`} className="panel-card space-y-3 p-4">
-            <Skeleton className="h-3 w-16" />
-            <Skeleton className="h-7 w-12" />
+        {Array.from({ length: n }).map((_, i) => (
+          <div key={i} className="panel-card space-y-3 p-5">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-10 w-10 shrink-0 rounded-lg" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className="h-4 w-36 max-w-full" />
+                <Skeleton className="h-3 w-48 max-w-full" />
+              </div>
+            </div>
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-4/5 max-w-lg" />
           </div>
         ))}
       </div>
+    </div>
+  )
+}
 
-      {Array.from({ length: cards }).map((_, i) => (
-        <div key={`card-${i}`} className="panel-card space-y-4 p-5">
-          <div className="flex items-center gap-3">
-            <Skeleton className="h-10 w-10 shrink-0 rounded-lg" />
-            <div className="min-w-0 flex-1 space-y-2">
-              <Skeleton className="h-4 w-40 max-w-full" />
-              <Skeleton className="h-3 w-56 max-w-full" />
+/**
+ * Detail page with top tabs + optional configuration side nav
+ * (Application / Service detail layout).
+ */
+export function DetailPageSkeleton({ withSideNav = true }: { withSideNav?: boolean }) {
+  return (
+    <div className="space-y-6" role="status" aria-label="Loading page">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="space-y-2">
+          <Skeleton className="h-3.5 w-40" />
+          <Skeleton className="h-8 w-56 max-w-full" />
+          <Skeleton className="h-4 w-44" />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Skeleton className="h-8 w-20 rounded-md" />
+          <Skeleton className="h-8 w-20 rounded-md" />
+          <Skeleton className="h-8 w-24 rounded-md" />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-1 border-b border-gray-200 pb-px dark:border-gray-800">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="mb-2 h-8 w-24 rounded-md" />
+        ))}
+      </div>
+
+      {withSideNav ? (
+        <div className="flex flex-col gap-6 md:flex-row">
+          <aside className="w-full shrink-0 md:w-56">
+            <nav className="space-y-0.5">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-2 rounded-md px-2 py-1.5">
+                  <Skeleton className="h-3.5 w-3.5 shrink-0 rounded" />
+                  <Skeleton className="h-3.5 flex-1" />
+                </div>
+              ))}
+            </nav>
+          </aside>
+          <div className="min-w-0 flex-1">
+            <div className="panel-card space-y-5 p-5">
+              <PanelSkeleton rows={5} />
             </div>
           </div>
-          <Skeleton className="h-3 w-full" />
-          <Skeleton className="h-3 w-4/5 max-w-lg" />
-          <Skeleton className="h-28 w-full rounded-lg" />
         </div>
-      ))}
+      ) : (
+        <div className="panel-card space-y-5 p-5">
+          <div className="grid gap-4 sm:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-5 w-28" />
+              </div>
+            ))}
+          </div>
+          <PanelSkeleton rows={3} showHeader={false} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Edit / settings form page skeleton */
+export function FormPageSkeleton() {
+  return (
+    <div className="space-y-6" role="status" aria-label="Loading page">
+      <div className="space-y-2">
+        <Skeleton className="h-3.5 w-28" />
+        <Skeleton className="h-8 w-48 max-w-full" />
+      </div>
+      <div className="panel-card space-y-5 p-5">
+        <PanelSkeleton rows={4} />
+        <div className="flex gap-2 pt-2">
+          <Skeleton className="h-8 w-20 rounded-md" />
+          <Skeleton className="h-8 w-20 rounded-md" />
+        </div>
+      </div>
     </div>
   )
 }

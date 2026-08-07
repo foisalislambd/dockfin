@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api, type Tag } from '../lib/api'
 import { useToast } from './Toast'
+import { PanelSkeleton, Skeleton } from './ui/Skeleton'
 import { Btn, Input } from '../pages/Servers'
 
 export function ResourceTagsPanel({
@@ -55,17 +56,29 @@ export function ResourceTagsPanel({
     <div className="space-y-4">
       <div className="panel-card space-y-3 p-5">
         <h3 className="text-sm font-medium text-gray-900 dark:text-white">Attached tags</h3>
-        <div className="flex flex-wrap gap-2">
-          {(attached.data?.tags || []).map((t) => (
-            <TagChip key={t.id} tag={t} onRemove={() => detach.mutate(t.id)} />
-          ))}
-          {!attached.data?.tags?.length && (
-            <p className="text-sm text-gray-500 dark:text-gray-400">No tags yet.</p>
-          )}
-        </div>
+        {attached.isLoading ? (
+          <div className="flex flex-wrap gap-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-7 w-20 rounded-full" />
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {(attached.data?.tags || []).map((t) => (
+              <TagChip key={t.id} tag={t} onRemove={() => detach.mutate(t.id)} />
+            ))}
+            {!attached.data?.tags?.length && (
+              <p className="text-sm text-gray-500 dark:text-gray-400">No tags yet.</p>
+            )}
+          </div>
+        )}
       </div>
 
-      {available.length > 0 && (
+      {attached.isLoading || allTags.isLoading ? (
+        <div className="panel-card p-5">
+          <PanelSkeleton rows={2} showHeader={false} />
+        </div>
+      ) : available.length > 0 ? (
         <div className="panel-card space-y-3 p-5">
           <h3 className="text-sm font-medium text-gray-900 dark:text-white">Add existing tag</h3>
           <div className="flex flex-wrap gap-2">
@@ -85,7 +98,7 @@ export function ResourceTagsPanel({
             ))}
           </div>
         </div>
-      )}
+      ) : null}
 
       <form
         className="panel-card space-y-3 p-5"

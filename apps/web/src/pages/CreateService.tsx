@@ -5,7 +5,7 @@ import { DomainsPanel, normalizeDomains } from '../components/DomainsPanel'
 import { CodeEditor } from '../components/CodeEditor'
 import { ServiceLogo } from '../components/ServiceLogo'
 import { CreatePageShell, FormActions, FormInput, FormSelect } from '../components/ui/forms'
-import { PageSkeleton } from '../components/ui/Skeleton'
+import { FormPageSkeleton } from '../components/ui/Skeleton'
 import { api, fetchAllEnvironments, LAST_ENV_KEY } from '../lib/api'
 
 const EMPTY_COMPOSE = `services:
@@ -113,7 +113,9 @@ export function CreateServicePage() {
     },
   })
 
-  if ((!emptyCompose && templates.isLoading) || envs.isLoading) return <PageSkeleton cards={2} />
+  if ((!emptyCompose && templates.isLoading) || envs.isLoading || dests.isLoading) {
+    return <FormPageSkeleton />
+  }
 
   return (
     <CreatePageShell

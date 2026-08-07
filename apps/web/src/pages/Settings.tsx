@@ -16,6 +16,7 @@ import {
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DnsGuideTooltip, DomainDNSAlert, normalizeDomainEntry } from '../components/DomainsPanel'
 import { InfoHint } from '../components/ui/forms'
+import { PanelSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { MIT_LICENSE_TEXT } from '../config/app.config'
 import {
   api,
@@ -509,9 +510,13 @@ export function SettingsPage() {
           </aside>
 
           <div className="min-w-0 flex-1">
-            {settings.isLoading && <p className="text-sm text-gray-500">Loading settings…</p>}
+            {settings.isLoading ? (
+              <div className="panel-card p-5">
+                <PanelSkeleton rows={5} />
+              </div>
+            ) : null}
 
-            {sub === 'general' && (
+            {!settings.isLoading && sub === 'general' && (
               <form
                 className="space-y-4"
                 onSubmit={(e) => {
@@ -611,7 +616,7 @@ export function SettingsPage() {
               </form>
             )}
 
-            {sub === 'advanced' && (
+            {!settings.isLoading && sub === 'advanced' && (
               <form
                 className="space-y-2"
                 onSubmit={(e) => {
@@ -727,7 +732,7 @@ export function SettingsPage() {
               </form>
             )}
 
-            {sub === 'updates' && (
+            {!settings.isLoading && sub === 'updates' && (
               <form
                 className="space-y-3"
                 onSubmit={(e) => {
@@ -818,12 +823,17 @@ export function SettingsPage() {
               </form>
             )}
 
-            {sub === 'registries' && <DockerRegistriesPanel canEdit={canEdit} />}
+            {!settings.isLoading && sub === 'registries' && <DockerRegistriesPanel canEdit={canEdit} />}
           </div>
         </div>
       )}
 
       {topTab === 'email' && (
+        settings.isLoading ? (
+          <div className="panel-card max-w-3xl p-5">
+            <PanelSkeleton rows={5} />
+          </div>
+        ) : (
         <form
           className="max-w-3xl space-y-4"
           onSubmit={(e) => {
@@ -932,6 +942,7 @@ export function SettingsPage() {
             />
           </div>
         </form>
+        )
       )}
 
       {topTab === 'oauth' && (
@@ -939,7 +950,11 @@ export function SettingsPage() {
           <SectionHead
             title="OAuth"
           />
-          {oauth.isLoading && <p className="text-sm text-gray-500">Loading…</p>}
+          {oauth.isLoading ? (
+            <div className="panel-card p-5">
+              <PanelSkeleton rows={3} />
+            </div>
+          ) : (
           <div className="grid gap-4 lg:grid-cols-2">
             {(oauth.data?.oauth_settings || []).map((row) => (
               <OauthCard
@@ -951,6 +966,7 @@ export function SettingsPage() {
               />
             ))}
           </div>
+          )}
         </div>
       )}
 
@@ -986,7 +1002,11 @@ export function SettingsPage() {
             }
           />
 
-          {backups.isLoading && <p className="text-sm text-gray-500">Loading backup settings…</p>}
+          {backups.isLoading ? (
+            <div className="panel-card p-5">
+              <PanelSkeleton rows={4} />
+            </div>
+          ) : null}
 
           {backups.data && !backups.data.backup.configured && (
             <div className="panel-card space-y-3 p-5">
@@ -1136,6 +1156,9 @@ export function SettingsPage() {
             title="Scheduled Jobs"
           />
           <div className="panel-card overflow-hidden">
+            {tasks.isLoading ? (
+              <TableSkeleton rows={4} cols={3} />
+            ) : (
             <table className="w-full text-left text-sm">
               <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
                 <tr>
@@ -1163,10 +1186,14 @@ export function SettingsPage() {
                 )}
               </tbody>
             </table>
+            )}
           </div>
 
           <SectionHead title="Recent issues" />
           <div className="panel-card overflow-hidden">
+            {failedTaskExecs.isLoading ? (
+              <TableSkeleton rows={3} cols={2} />
+            ) : (
             <table className="w-full text-left text-sm">
               <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
                 <tr>
@@ -1196,6 +1223,7 @@ export function SettingsPage() {
                 )}
               </tbody>
             </table>
+            )}
           </div>
 
           <SectionHead title="Docker cleanup issues" />
@@ -1484,6 +1512,14 @@ function DockerRegistriesPanel({ canEdit }: { canEdit: boolean }) {
     mutationFn: (id: string) => api.deleteDockerRegistry(id),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['docker-registries'] }),
   })
+
+  if (registries.isLoading) {
+    return (
+      <div className="panel-card p-5">
+        <PanelSkeleton rows={3} />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">

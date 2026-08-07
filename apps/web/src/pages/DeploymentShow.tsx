@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { DeployLogPanel } from '../components/DeployLogPanel'
-import { PageSkeleton } from '../components/ui/Skeleton'
+import { DetailPageSkeleton } from '../components/ui/Skeleton'
 import { Meta } from '../components/ui/tabs'
 import { api } from '../lib/api'
 import { Btn } from './Servers'
@@ -95,7 +95,7 @@ export function DeploymentShowPage() {
       </Link>
     )
 
-  if (dep.isLoading) return <PageSkeleton cards={2} />
+  if (dep.isLoading) return <DetailPageSkeleton withSideNav={false} />
   if (dep.error || !dep.data) {
     return (
       <div className="space-y-4">

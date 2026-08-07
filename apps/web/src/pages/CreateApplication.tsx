@@ -13,6 +13,7 @@ import {
   InfoHint,
 } from '../components/ui/forms'
 import { DomainsPanel, normalizeDomains } from '../components/DomainsPanel'
+import { FormPageSkeleton } from '../components/ui/Skeleton'
 import { api, fetchAllEnvironments, LAST_ENV_KEY } from '../lib/api'
 
 const BUILD_PACKS = [
@@ -361,6 +362,8 @@ export function CreateApplicationPage() {
     }))
     setDraftEnvs(parsed)
   }
+
+  if (envs.isLoading || dests.isLoading) return <FormPageSkeleton />
 
   return (
     <CreatePageShell title={title} backTo={backTo} backLabel={backLabel}>

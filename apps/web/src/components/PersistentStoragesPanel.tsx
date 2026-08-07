@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api, type AppVolume } from '../lib/api'
 import { useToast } from './Toast'
+import { TableSkeleton } from './ui/Skeleton'
 import { Btn, Input } from '../pages/Servers'
 
 type ComposeVolume = {
@@ -200,6 +201,9 @@ function EditableVolumesPanel({ applicationId }: { applicationId: string }) {
       </form>
 
       <div className="panel-card overflow-hidden">
+        {vols.isLoading ? (
+          <TableSkeleton rows={3} cols={3} />
+        ) : (
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
             <tr>
@@ -238,6 +242,7 @@ function EditableVolumesPanel({ applicationId }: { applicationId: string }) {
             )}
           </tbody>
         </table>
+        )}
       </div>
     </div>
   )

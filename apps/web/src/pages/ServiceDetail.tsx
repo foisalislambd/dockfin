@@ -26,7 +26,7 @@ import { ServiceLogo } from '../components/ServiceLogo'
 import { ServiceWebhooksPanel } from '../components/ServiceWebhooksPanel'
 import { ServerTerminal } from '../components/Terminal'
 import { CodeEditor } from '../components/CodeEditor'
-import { PageSkeleton } from '../components/ui/Skeleton'
+import { DetailPageSkeleton } from '../components/ui/Skeleton'
 import { useConfirm } from '../components/ConfirmDialog'
 import { useToast } from '../components/Toast'
 import { api, type Service, type ServiceUnit } from '../lib/api'
@@ -255,7 +255,7 @@ export function ServiceDetailPage() {
       </Link>
     )
 
-  if (svc.isLoading) return <PageSkeleton cards={2} />
+  if (svc.isLoading) return <DetailPageSkeleton withSideNav />
   if (svc.error || !svc.data) {
     return (
       <div className="space-y-4">

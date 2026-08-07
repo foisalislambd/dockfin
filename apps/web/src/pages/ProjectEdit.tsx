@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
-import { PageSkeleton } from '../components/ui/Skeleton'
+import { FormPageSkeleton } from '../components/ui/Skeleton'
 import { api } from '../lib/api'
 import { Btn, Header, Input } from './Servers'
 
@@ -43,7 +43,7 @@ export function ProjectEditPage() {
     },
   })
 
-  if (project.isLoading) return <PageSkeleton cards={1} />
+  if (project.isLoading) return <FormPageSkeleton />
   if (project.error || !project.data) {
     return (
       <div className="space-y-4">
@@ -186,7 +186,7 @@ export function EnvironmentEditPage() {
     },
   })
 
-  if (env.isLoading) return <PageSkeleton cards={1} />
+  if (env.isLoading) return <FormPageSkeleton />
   if (env.error || !env.data) {
     return (
       <div className="space-y-4">

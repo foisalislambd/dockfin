@@ -22,7 +22,7 @@ import { useConfirm } from '../components/ConfirmDialog'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { ResourceTagsPanel } from '../components/ResourceTagsPanel'
 import { ServerTerminal } from '../components/Terminal'
-import { PageSkeleton } from '../components/ui/Skeleton'
+import { DetailPageSkeleton, PanelSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
 import { api } from '../lib/api'
 import { Btn, Input } from './Servers'
@@ -141,6 +141,14 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
     if (n < 1024) return `${n} B`
     if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
     return `${(n / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  if (executions.isLoading || backups.isLoading) {
+    return (
+      <div className="panel-card p-5">
+        <PanelSkeleton rows={4} />
+      </div>
+    )
   }
 
   return (
@@ -399,8 +407,14 @@ function DatabaseContainerMetrics({ dbId, active }: { dbId: string; active: bool
             ))}
             {!containers.length && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                  {stats.isLoading ? 'Loading…' : 'No container stats yet — start the database.'}
+                <td colSpan={6} className="p-0">
+                  {stats.isLoading ? (
+                    <TableSkeleton rows={3} cols={3} />
+                  ) : (
+                    <p className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                      No container stats yet — start the database.
+                    </p>
+                  )}
                 </td>
               </tr>
             )}
@@ -549,7 +563,7 @@ export function DatabaseDetailPage() {
       </Link>
     )
 
-  if (db.isLoading) return <PageSkeleton cards={2} />
+  if (db.isLoading) return <DetailPageSkeleton withSideNav={false} />
   if (db.error || !db.data) {
     return (
       <div className="space-y-4">
@@ -801,7 +815,13 @@ function ServerMetricsView({
   metrics: import('../lib/api').ServerMetric[]
   loading: boolean
 }) {
-  if (loading) return null
+  if (loading) {
+    return (
+      <div className="panel-card p-5">
+        <PanelSkeleton rows={3} />
+      </div>
+    )
+  }
   const latest = metrics[metrics.length - 1]
   const cpu = metrics.map((m) => m.cpu_percent)
   const memPct = metrics.map((m) =>
@@ -1250,7 +1270,7 @@ export function ServerDetailPage() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['proxy-dynamic', serverId] }),
   })
 
-  if (server.isLoading) return <PageSkeleton cards={3} />
+  if (server.isLoading) return <DetailPageSkeleton withSideNav={false} />
   if (server.error || !server.data) {
     return (
       <div className="space-y-4">

@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { ServerTerminal } from '../components/Terminal'
-import { PageSkeleton } from '../components/ui/Skeleton'
+import { PageSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { api, type Server, type Tag } from '../lib/api'
 import { Header } from './Servers'
 
@@ -231,6 +231,14 @@ export function TagsPage() {
                   </tr>
                 </thead>
                 <tbody>
+                  {resources.isLoading ? (
+                    <tr>
+                      <td colSpan={3} className="p-0">
+                        <TableSkeleton rows={3} cols={2} />
+                      </td>
+                    </tr>
+                  ) : (
+                    <>
                   {(resources.data?.resources || []).map((r) => (
                     <tr key={`${r.resource_type}:${r.resource_id}`}>
                       <td className="font-medium text-gray-900 dark:text-white">{r.name}</td>
@@ -240,12 +248,14 @@ export function TagsPage() {
                       </td>
                     </tr>
                   ))}
-                  {!resources.isLoading && !resources.data?.resources?.length && (
+                  {!resources.data?.resources?.length && (
                     <tr>
                       <td colSpan={3} className="panel-table-empty">
                         No resources tagged with “{activeTag.name}” yet.
                       </td>
                     </tr>
+                  )}
+                    </>
                   )}
                 </tbody>
               </table>

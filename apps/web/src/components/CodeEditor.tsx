@@ -111,8 +111,11 @@ export function CodeEditor({
         onMount={handleMount}
         onChange={(v) => onChange?.(v ?? '')}
         loading={
-          <div className="flex h-full items-center justify-center bg-gray-50 text-sm text-gray-500 dark:bg-gray-950 dark:text-gray-400">
-            Loading editor…
+          <div className="flex h-full flex-col justify-center gap-3 bg-gray-50 p-4 dark:bg-gray-950">
+            <div className="dockfin-skeleton h-3 w-1/3 rounded-md" />
+            <div className="dockfin-skeleton h-3 w-2/3 rounded-md" />
+            <div className="dockfin-skeleton h-3 w-1/2 rounded-md" />
+            <div className="dockfin-skeleton h-3 w-3/4 rounded-md" />
           </div>
         }
       />

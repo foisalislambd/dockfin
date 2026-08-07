@@ -34,7 +34,7 @@ import { ResourceTagsPanel } from '../components/ResourceTagsPanel'
 import { ScheduledTasksPanel } from '../components/ScheduledTasksPanel'
 import { ServerTerminal } from '../components/Terminal'
 import { CodeEditor } from '../components/CodeEditor'
-import { PageSkeleton } from '../components/ui/Skeleton'
+import { DetailPageSkeleton, PanelSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { useToast } from '../components/Toast'
 import { api, fetchAllEnvironments } from '../lib/api'
 import { Btn, Input } from './Servers'
@@ -926,7 +926,7 @@ export function ApplicationDetailPage() {
   })
 
   if (app.isLoading) {
-    return <PageSkeleton cards={3} />
+    return <DetailPageSkeleton withSideNav />
   }
 
   const crumbs =
@@ -2951,6 +2951,9 @@ export function ApplicationDetailPage() {
             </Btn>
           </div>
           <div className="panel-card overflow-hidden">
+            {deps.isLoading ? (
+              <TableSkeleton rows={5} cols={4} />
+            ) : (
             <table className="w-full text-left text-sm">
               <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
                 <tr>
@@ -2999,6 +3002,7 @@ export function ApplicationDetailPage() {
                 )}
               </tbody>
             </table>
+            )}
           </div>
         </div>
       )}
@@ -3148,6 +3152,14 @@ function ApplicationBackupsPanel({ appId }: { appId: string }) {
     if (n < 1024) return `${n} B`
     if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
     return `${(n / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  if (executions.isLoading || backups.isLoading) {
+    return (
+      <div className="panel-card p-5">
+        <PanelSkeleton rows={4} />
+      </div>
+    )
   }
 
   return (
@@ -3410,7 +3422,13 @@ function AppMetricsSection({ appId, serverId }: { appId: string; serverId: strin
             {!containers.length && (
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                  {appMetrics.isLoading ? 'Loading…' : 'No container stats yet.'}
+                  {appMetrics.isLoading ? (
+                    <div className="mx-auto max-w-md">
+                      <TableSkeleton rows={3} cols={3} />
+                    </div>
+                  ) : (
+                    'No container stats yet.'
+                  )}
                 </td>
               </tr>
             )}

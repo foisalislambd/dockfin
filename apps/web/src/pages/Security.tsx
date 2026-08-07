@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Cloud, FileCode2, KeyRound, KeySquare } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { PageSkeleton } from '../components/ui/Skeleton'
+import { PageSkeleton, PanelSkeleton } from '../components/ui/Skeleton'
 import { ResourceTabs, TabPanel } from '../components/ui/tabs'
 import {
   api,
@@ -642,7 +642,7 @@ function CloudInitPanel() {
       {selected && (
         <Modal title={selected.name} onClose={() => setSelected(null)}>
           {detail.isLoading ? (
-            <p className="text-sm text-gray-500">Loading…</p>
+            <PanelSkeleton rows={3} />
           ) : (
             <form
               className="space-y-3"

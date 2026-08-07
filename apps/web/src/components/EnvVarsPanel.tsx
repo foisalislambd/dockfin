@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { api, type EnvVar } from '../lib/api'
 import { useConfirm } from './ConfirmDialog'
 import { InfoHint } from './ui/forms'
+import { TableSkeleton } from './ui/Skeleton'
 import { Btn, Modal } from '../pages/Servers'
 
 type Props = {
@@ -117,20 +118,28 @@ export function EnvVarsPanel({
       ) : null}
 
       <div className="space-y-3">
-        {sortedVars.map((v) => (
-          <EnvVarCard
-            key={v.id}
-            variable={v}
-            resourceType={resourceType}
-            resourceId={resourceId}
-            isPreview={isPreview}
-            onChanged={() => void qc.invalidateQueries({ queryKey })}
-          />
-        ))}
-        {!vars.data?.environment_variables?.length && (
-          <div className="panel-card px-5 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
-            No environment variables yet. Click Add Environment Variable to create one.
+        {vars.isLoading ? (
+          <div className="panel-card overflow-hidden">
+            <TableSkeleton rows={4} cols={2} />
           </div>
+        ) : (
+          <>
+            {sortedVars.map((v) => (
+              <EnvVarCard
+                key={v.id}
+                variable={v}
+                resourceType={resourceType}
+                resourceId={resourceId}
+                isPreview={isPreview}
+                onChanged={() => void qc.invalidateQueries({ queryKey })}
+              />
+            ))}
+            {!sortedVars.length && (
+              <div className="panel-card px-5 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                No environment variables yet. Click Add Environment Variable to create one.
+              </div>
+            )}
+          </>
         )}
       </div>
 

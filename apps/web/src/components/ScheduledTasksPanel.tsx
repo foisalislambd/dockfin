@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { api, type ScheduledTask } from '../lib/api'
 import { Btn } from '../pages/Servers'
+import { PanelSkeleton, TableSkeleton } from './ui/Skeleton'
 
 const CRON_PRESETS = [
   { label: 'Every minute', value: '* * * * *' },
@@ -159,6 +160,9 @@ export function ScheduledTasksPanel({ resourceType, resourceId, containerOptions
       )}
 
       <div className="panel-card overflow-hidden">
+        {tasks.isLoading ? (
+          <TableSkeleton rows={4} cols={3} />
+        ) : (
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
             <tr>
@@ -200,6 +204,7 @@ export function ScheduledTasksPanel({ resourceType, resourceId, containerOptions
             )}
           </tbody>
         </table>
+        )}
       </div>
       {run.isSuccess && (
         <p className="text-sm text-emerald-600 dark:text-emerald-400">
@@ -294,12 +299,11 @@ function TaskRow({
       {expanded && (
         <tr className="border-t border-gray-100 bg-gray-50/80 dark:border-gray-800 dark:bg-white/[0.03]">
           <td colSpan={showContainer ? 6 : 5} className="px-3 py-3">
-            {execs.isLoading && (
-              <p className="text-xs text-gray-500">Loading executions…</p>
-            )}
-            {(execs.data?.executions || []).length === 0 && !execs.isLoading && (
+            {execs.isLoading ? (
+              <PanelSkeleton rows={2} showHeader={false} />
+            ) : (execs.data?.executions || []).length === 0 ? (
               <p className="text-xs text-gray-500">No executions yet.</p>
-            )}
+            ) : (
             <ul className="space-y-2">
               {(execs.data?.executions || []).slice(0, 5).map((e) => (
                 <li key={e.id} className="rounded-lg border border-gray-200 p-2 dark:border-gray-800">
@@ -325,6 +329,7 @@ function TaskRow({
                 </li>
               ))}
             </ul>
+            )}
           </td>
         </tr>
       )}

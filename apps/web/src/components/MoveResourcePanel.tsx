@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../lib/api'
 import { Btn } from '../pages/Servers'
+import { PanelSkeleton } from './ui/Skeleton'
 
 type Props = {
   resourceType: 'application' | 'database' | 'service'
@@ -60,6 +61,8 @@ export function MoveResourcePanel({
     },
   })
 
+  const loading = (!projectId && envMeta.isLoading) || (Boolean(resolvedProjectId) && envs.isLoading)
+
   return (
     <div className="panel-card space-y-3 p-5">
       <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Move resource</h2>
@@ -67,7 +70,9 @@ export function MoveResourcePanel({
         Move this resource to another environment in the same project. Containers and destination stay
         the same — only the environment association changes.
       </p>
-      {!siblings.length ? (
+      {loading ? (
+        <PanelSkeleton rows={2} showHeader={false} />
+      ) : !siblings.length ? (
         <p className="text-sm text-gray-500 dark:text-gray-400">
           No other environments in this project. Clone or create one first.
         </p>

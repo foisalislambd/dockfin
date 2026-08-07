@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ComponentType } from 'react'
+import { lazy, type ComponentType } from 'react'
 import {
   Navigate,
   Outlet,
@@ -96,11 +96,8 @@ function RequireAuth() {
   if (!user) {
     return <Navigate to="/login" />
   }
-  return (
-    <Suspense fallback={<AppShellSkeleton />}>
-      <AppShell />
-    </Suspense>
-  )
+  // AppShell stays mounted; page Suspense lives inside main (Outlet)
+  return <AppShell />
 }
 
 const rootRoute = createRootRoute({ component: RootComponent })

@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { Outlet } from '@tanstack/react-router'
 import {
   SIDEBAR_WIDTH_COLLAPSED,
@@ -8,6 +9,7 @@ import {
 import { PanelBackdrop } from './layout/PanelBackdrop'
 import { PanelHeader } from './layout/PanelHeader'
 import { PanelSidebar } from './layout/PanelSidebar'
+import { PageSkeleton } from './ui/Skeleton'
 
 function PanelShellInner() {
   const { isExpanded, isDesktop } = useSidebar()
@@ -30,7 +32,10 @@ function PanelShellInner() {
         <PanelHeader />
         <main className="panel-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
           <div className="w-full px-3 py-4 sm:px-5 sm:py-5 lg:px-6">
-            <Outlet />
+            {/* Keep shell chrome mounted; only the page body suspends */}
+            <Suspense fallback={<PageSkeleton cards={2} />}>
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </div>
