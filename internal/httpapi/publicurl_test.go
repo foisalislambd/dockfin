@@ -46,3 +46,20 @@ func TestPublicBaseURLPriority(t *testing.T) {
 		}
 	})
 }
+
+func TestCookieSecureForRequest(t *testing.T) {
+	cfg := &config.Config{CookieSecure: false}
+	httpsReq := &http.Request{Header: http.Header{"X-Forwarded-Proto": []string{"https"}}}
+	if !cookieSecureForRequest(httpsReq, cfg) {
+		t.Fatal("expected secure on https forwarded proto")
+	}
+	httpReq := &http.Request{Header: http.Header{"X-Forwarded-Proto": []string{"http"}}}
+	if cookieSecureForRequest(httpReq, cfg) {
+		t.Fatal("expected insecure on http forwarded proto")
+	}
+	cfg.CookieSecure = true
+	plain := &http.Request{Header: http.Header{}}
+	if !cookieSecureForRequest(plain, cfg) {
+		t.Fatal("expected cfg CookieSecure fallback")
+	}
+}
