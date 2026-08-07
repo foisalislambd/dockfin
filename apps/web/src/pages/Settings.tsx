@@ -1,6 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Eye, EyeOff } from 'lucide-react'
+import {
+  Archive,
+  CalendarClock,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Mail,
+  RefreshCw,
+  Settings2,
+  SlidersHorizontal,
+  User,
+} from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DnsGuideTooltip, DomainDNSAlert, normalizeDomainEntry } from '../components/DomainsPanel'
 import { InfoHint } from '../components/ui/forms'
@@ -394,19 +405,19 @@ export function SettingsPage() {
     save.mutate(body)
   }
 
-  const topTabs: { id: TopTab; label: string }[] = [
-    { id: 'configuration', label: 'Configuration' },
-    { id: 'backup', label: 'Backup' },
-    { id: 'email', label: 'Transactional Email' },
-    { id: 'oauth', label: 'OAuth' },
-    { id: 'scheduled', label: 'Scheduled Jobs' },
-    { id: 'profile', label: 'Profile & License' },
+  const topTabs = [
+    { id: 'configuration' as const, label: 'Configuration', icon: Settings2 },
+    { id: 'backup' as const, label: 'Backup', icon: Archive },
+    { id: 'email' as const, label: 'Transactional Email', icon: Mail },
+    { id: 'oauth' as const, label: 'OAuth', icon: KeyRound },
+    { id: 'scheduled' as const, label: 'Scheduled Jobs', icon: CalendarClock },
+    { id: 'profile' as const, label: 'Profile & License', icon: User },
   ]
 
-  const sideItems: { id: ConfigSub; label: string }[] = [
-    { id: 'general', label: 'General' },
-    { id: 'advanced', label: 'Advanced' },
-    { id: 'updates', label: 'Updates' },
+  const sideItems = [
+    { id: 'general' as const, label: 'General', icon: Settings2 },
+    { id: 'advanced' as const, label: 'Advanced', icon: SlidersHorizontal },
+    { id: 'updates' as const, label: 'Updates', icon: RefreshCw },
   ]
 
   return (
@@ -414,20 +425,28 @@ export function SettingsPage() {
       <Header title="Settings" />
 
       <nav className="flex flex-wrap gap-5 border-b border-gray-200 dark:border-gray-800">
-        {topTabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTopTab(t.id)}
-            className={`-mb-px border-b-2 pb-2 text-sm transition ${
-              topTab === t.id
-                ? 'border-gray-900 text-gray-900 dark:border-white dark:text-white'
-                : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+        {topTabs.map((t) => {
+          const Icon = t.icon
+          const active = topTab === t.id
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTopTab(t.id)}
+              className={`-mb-px inline-flex items-center gap-1.5 border-b-2 pb-2 text-sm transition ${
+                active
+                  ? 'border-gray-900 text-gray-900 dark:border-white dark:text-white'
+                  : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+              }`}
+            >
+              <Icon
+                className={`h-3.5 w-3.5 shrink-0 ${active ? 'opacity-100' : 'opacity-70'}`}
+                aria-hidden
+              />
+              {t.label}
+            </button>
+          )
+        })}
       </nav>
 
       {error && <p className="text-sm text-error-500">{error}</p>}
@@ -442,20 +461,28 @@ export function SettingsPage() {
         <div className="flex flex-col gap-8 sm:flex-row">
           <aside className="w-full shrink-0 sm:w-44">
             <nav className="flex flex-row gap-2 sm:flex-col">
-              {sideItems.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setSub(item.id)}
-                  className={`rounded-md px-3 py-2 text-left text-sm transition ${
-                    sub === item.id
-                      ? 'bg-brand-500 text-white'
-                      : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
+              {sideItems.map((item) => {
+                const Icon = item.icon
+                const active = sub === item.id
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setSub(item.id)}
+                    className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition ${
+                      active
+                        ? 'bg-brand-500 text-white'
+                        : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5'
+                    }`}
+                  >
+                    <Icon
+                      className={`h-3.5 w-3.5 shrink-0 ${active ? 'text-white' : 'opacity-70'}`}
+                      aria-hidden
+                    />
+                    {item.label}
+                  </button>
+                )
+              })}
             </nav>
           </aside>
 

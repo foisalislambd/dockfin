@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
+import { Cloud, FileCode2, KeyRound, KeySquare } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { ResourceTabs, TabPanel } from '../components/ui/tabs'
@@ -12,10 +13,10 @@ import {
 import { Btn, Header, Input, Modal } from './Servers'
 
 const TABS = [
-  { id: 'private-keys', label: 'Private Keys' },
-  { id: 'cloud-tokens', label: 'Cloud Tokens' },
-  { id: 'cloud-init', label: 'Cloud-Init Scripts' },
-  { id: 'api-tokens', label: 'API Tokens' },
+  { id: 'private-keys', label: 'Private Keys', icon: KeyRound },
+  { id: 'cloud-tokens', label: 'Cloud Tokens', icon: Cloud },
+  { id: 'cloud-init', label: 'Cloud-Init Scripts', icon: FileCode2 },
+  { id: 'api-tokens', label: 'API Tokens', icon: KeySquare },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']

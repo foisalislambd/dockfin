@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
+import { Boxes, FolderGit2, Settings2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { ResourceTabs, TabPanel } from '../components/ui/tabs'
@@ -322,10 +323,12 @@ export function GitSourceDetailPage() {
   })
 
   const tabs = useMemo(() => {
-    const t: { id: string; label: string }[] = [{ id: 'general', label: 'General' }]
+    const t: { id: string; label: string; icon: typeof Settings2 }[] = [
+      { id: 'general', label: 'General', icon: Settings2 },
+    ]
     if (source.data?.installed) {
-      t.push({ id: 'repositories', label: 'Repositories' })
-      t.push({ id: 'resources', label: 'Resources' })
+      t.push({ id: 'repositories', label: 'Repositories', icon: FolderGit2 })
+      t.push({ id: 'resources', label: 'Resources', icon: Boxes })
     }
     return t
   }, [source.data?.installed])

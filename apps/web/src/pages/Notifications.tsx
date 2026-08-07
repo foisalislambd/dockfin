@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Bell, Hash, Mail, MessageCircle, Send, Webhook } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { ResourceTabs, TabPanel } from '../components/ui/tabs'
@@ -6,12 +7,12 @@ import { api, type NotificationSetting } from '../lib/api'
 import { Btn, Header, Input, Modal } from './Servers'
 
 const CHANNELS = [
-  { id: 'email', label: 'Email' },
-  { id: 'discord', label: 'Discord' },
-  { id: 'telegram', label: 'Telegram' },
-  { id: 'slack', label: 'Slack' },
-  { id: 'pushover', label: 'Pushover' },
-  { id: 'webhook', label: 'Webhook' },
+  { id: 'email', label: 'Email', icon: Mail },
+  { id: 'discord', label: 'Discord', icon: Hash },
+  { id: 'telegram', label: 'Telegram', icon: Send },
+  { id: 'slack', label: 'Slack', icon: MessageCircle },
+  { id: 'pushover', label: 'Pushover', icon: Bell },
+  { id: 'webhook', label: 'Webhook', icon: Webhook },
 ] as const
 
 type ChannelId = (typeof CHANNELS)[number]['id']
@@ -197,7 +198,7 @@ export function NotificationsPage() {
       <Header title="Notifications" />
 
       <ResourceTabs
-        tabs={CHANNELS.map((c) => ({ id: c.id, label: c.label }))}
+        tabs={CHANNELS.map((c) => ({ id: c.id, label: c.label, icon: c.icon }))}
         active={tab}
         onChange={(id) => setTab(id as ChannelId)}
       />

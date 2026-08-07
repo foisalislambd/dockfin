@@ -1,5 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import {
+  Activity,
+  AlertTriangle,
+  CalendarClock,
+  Gauge,
+  GitBranch,
+  GitPullRequest,
+  HardDrive,
+  History,
+  Link2,
+  RotateCcw,
+  ScrollText,
+  Server,
+  Settings2,
+  SlidersHorizontal,
+  Tags,
+  Terminal,
+  Variable,
+  Webhook,
+  Wrench,
+} from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { DomainsPanel, normalizeDomains } from '../components/DomainsPanel'
@@ -18,30 +39,30 @@ import { Btn, Input } from './Servers'
 
 /** Coolify-style top IA — Configuration first, Links last. */
 const TOP_TABS = [
-  { id: 'configuration', label: 'Configuration' },
-  { id: 'deployments', label: 'Deployments' },
-  { id: 'logs', label: 'Logs' },
-  { id: 'terminal', label: 'Terminal' },
-  { id: 'links', label: 'Links' },
+  { id: 'configuration', label: 'Configuration', icon: Settings2 },
+  { id: 'deployments', label: 'Deployments', icon: History },
+  { id: 'logs', label: 'Logs', icon: ScrollText },
+  { id: 'terminal', label: 'Terminal', icon: Terminal },
+  { id: 'links', label: 'Links', icon: Link2 },
 ] as const
 
 /** Coolify-style configuration sidebar (Dockfin design tokens). */
 const SIDE_ITEMS = [
-  { id: 'general', label: 'General' },
-  { id: 'advanced', label: 'Advanced' },
-  { id: 'environment', label: 'Environment Variables' },
-  { id: 'storages', label: 'Persistent Storage' },
-  { id: 'git', label: 'Git Source' },
-  { id: 'servers', label: 'Servers' },
-  { id: 'tasks', label: 'Scheduled Tasks' },
-  { id: 'webhooks', label: 'Webhooks' },
-  { id: 'previews', label: 'Preview Deployments' },
-  { id: 'rollback', label: 'Rollback' },
-  { id: 'limits', label: 'Resource Limits' },
-  { id: 'operations', label: 'Resource Operations' },
-  { id: 'metrics', label: 'Metrics' },
-  { id: 'tags', label: 'Tags' },
-  { id: 'danger', label: 'Danger Zone' },
+  { id: 'general', label: 'General', icon: Settings2 },
+  { id: 'advanced', label: 'Advanced', icon: SlidersHorizontal },
+  { id: 'environment', label: 'Environment Variables', icon: Variable },
+  { id: 'storages', label: 'Persistent Storage', icon: HardDrive },
+  { id: 'git', label: 'Git Source', icon: GitBranch },
+  { id: 'servers', label: 'Servers', icon: Server },
+  { id: 'tasks', label: 'Scheduled Tasks', icon: CalendarClock },
+  { id: 'webhooks', label: 'Webhooks', icon: Webhook },
+  { id: 'previews', label: 'Preview Deployments', icon: GitPullRequest },
+  { id: 'rollback', label: 'Rollback', icon: RotateCcw },
+  { id: 'limits', label: 'Resource Limits', icon: Gauge },
+  { id: 'operations', label: 'Resource Operations', icon: Wrench },
+  { id: 'metrics', label: 'Metrics', icon: Activity },
+  { id: 'tags', label: 'Tags', icon: Tags },
+  { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
 ] as const
 
 function statusTone(status: string) {
@@ -569,25 +590,33 @@ export function ApplicationDetailPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 dark:border-gray-800">
         <nav className="flex flex-wrap gap-1" role="tablist">
-          {TOP_TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={topTab === t.id}
-              onClick={() => setTopTab(t.id)}
-              className={`relative px-3 py-2.5 text-sm font-medium transition ${
-                topTab === t.id
-                  ? 'text-gray-900 dark:text-white'
-                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-              }`}
-            >
-              {t.label}
-              {topTab === t.id && (
-                <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-brand-500" />
-              )}
-            </button>
-          ))}
+          {TOP_TABS.map((t) => {
+            const Icon = t.icon
+            const active = topTab === t.id
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setTopTab(t.id)}
+                className={`relative inline-flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition ${
+                  active
+                    ? 'text-gray-900 dark:text-white'
+                    : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+                }`}
+              >
+                <Icon
+                  className={`h-3.5 w-3.5 shrink-0 ${active ? 'opacity-100' : 'opacity-70'}`}
+                  aria-hidden
+                />
+                {t.label}
+                {active && (
+                  <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-brand-500" />
+                )}
+              </button>
+            )
+          })}
         </nav>
       </div>
 
@@ -595,20 +624,32 @@ export function ApplicationDetailPage() {
         <div className="flex flex-col gap-6 md:flex-row">
           <aside className="w-full shrink-0 md:w-56">
             <nav className="space-y-0.5">
-              {sideItems.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setSide(item.id)}
-                  className={`block w-full rounded-md px-2 py-1.5 text-left text-sm ${
-                    side === item.id
-                      ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-300'
-                      : 'text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/5'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
+              {sideItems.map((item) => {
+                const Icon = item.icon
+                const active = side === item.id
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setSide(item.id)}
+                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm ${
+                      active
+                        ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-300'
+                        : 'text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/5'
+                    }`}
+                  >
+                    <Icon
+                      className={`h-3.5 w-3.5 shrink-0 ${
+                        active
+                          ? 'text-brand-600 dark:text-brand-400'
+                          : 'text-gray-400 dark:text-gray-500'
+                      }`}
+                      aria-hidden
+                    />
+                    <span className="truncate">{item.label}</span>
+                  </button>
+                )
+              })}
             </nav>
           </aside>
           <div className="min-w-0 flex-1 space-y-6">

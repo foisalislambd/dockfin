@@ -1,5 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
+import {
+  AlertTriangle,
+  CalendarClock,
+  Globe,
+  HardDrive,
+  Link2,
+  ScrollText,
+  Settings2,
+  Terminal,
+  Variable,
+  Webhook,
+  Wrench,
+} from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { DeployLogPanel } from '../components/DeployLogPanel'
@@ -20,21 +33,21 @@ import { api, type Service, type ServiceUnit } from '../lib/api'
 import { Btn, Input } from './Servers'
 
 const TOP_TABS = [
-  { id: 'configuration', label: 'Configuration' },
-  { id: 'logs', label: 'Logs' },
-  { id: 'terminal', label: 'Terminal' },
-  { id: 'links', label: 'Links' },
+  { id: 'configuration', label: 'Configuration', icon: Settings2 },
+  { id: 'logs', label: 'Logs', icon: ScrollText },
+  { id: 'terminal', label: 'Terminal', icon: Terminal },
+  { id: 'links', label: 'Links', icon: Link2 },
 ] as const
 
 const SIDE_ITEMS = [
-  { id: 'general', label: 'General' },
-  { id: 'domains', label: 'Domains' },
-  { id: 'environment', label: 'Environment Variables' },
-  { id: 'storages', label: 'Persistent Storages' },
-  { id: 'tasks', label: 'Scheduled Tasks' },
-  { id: 'webhooks', label: 'Webhooks' },
-  { id: 'operations', label: 'Resource Operations' },
-  { id: 'danger', label: 'Danger Zone' },
+  { id: 'general', label: 'General', icon: Settings2 },
+  { id: 'domains', label: 'Domains', icon: Globe },
+  { id: 'environment', label: 'Environment Variables', icon: Variable },
+  { id: 'storages', label: 'Persistent Storages', icon: HardDrive },
+  { id: 'tasks', label: 'Scheduled Tasks', icon: CalendarClock },
+  { id: 'webhooks', label: 'Webhooks', icon: Webhook },
+  { id: 'operations', label: 'Resource Operations', icon: Wrench },
+  { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
 ] as const
 
 function titleCase(s: string) {
@@ -305,23 +318,31 @@ export function ServiceDetailPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 dark:border-gray-800">
         <nav className="flex flex-wrap gap-1">
-          {TOP_TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTopTab(t.id)}
-              className={`relative px-3 py-2.5 text-sm font-medium transition ${
-                topTab === t.id
-                  ? 'text-gray-900 dark:text-white'
-                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-              }`}
-            >
-              {t.label}
-              {topTab === t.id && (
-                <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-brand-500" />
-              )}
-            </button>
-          ))}
+          {TOP_TABS.map((t) => {
+            const Icon = t.icon
+            const active = topTab === t.id
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTopTab(t.id)}
+                className={`relative inline-flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition ${
+                  active
+                    ? 'text-gray-900 dark:text-white'
+                    : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+                }`}
+              >
+                <Icon
+                  className={`h-3.5 w-3.5 shrink-0 ${active ? 'opacity-100' : 'opacity-70'}`}
+                  aria-hidden
+                />
+                {t.label}
+                {active && (
+                  <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-brand-500" />
+                )}
+              </button>
+            )
+          })}
         </nav>
       </div>
 
@@ -384,20 +405,32 @@ export function ServiceDetailPage() {
               </span>
             </a>
             <nav className="space-y-0.5">
-              {SIDE_ITEMS.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setSide(item.id)}
-                  className={`block w-full rounded-md px-2 py-1.5 text-left text-sm ${
-                    side === item.id
-                      ? 'bg-gray-100 font-medium text-gray-900 dark:bg-white/10 dark:text-white'
-                      : 'text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/5'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
+              {SIDE_ITEMS.map((item) => {
+                const Icon = item.icon
+                const active = side === item.id
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setSide(item.id)}
+                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm ${
+                      active
+                        ? 'bg-gray-100 font-medium text-gray-900 dark:bg-white/10 dark:text-white'
+                        : 'text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/5'
+                    }`}
+                  >
+                    <Icon
+                      className={`h-3.5 w-3.5 shrink-0 ${
+                        active
+                          ? 'text-gray-700 dark:text-gray-200'
+                          : 'text-gray-400 dark:text-gray-500'
+                      }`}
+                      aria-hidden
+                    />
+                    <span className="truncate">{item.label}</span>
+                  </button>
+                )
+              })}
             </nav>
           </aside>
 

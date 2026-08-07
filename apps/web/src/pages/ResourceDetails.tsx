@@ -1,5 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import {
+  Activity,
+  AlertTriangle,
+  Archive,
+  LayoutDashboard,
+  Network,
+  Route,
+  Settings2,
+  Terminal,
+  Variable,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { useConfirm } from '../components/ConfirmDialog'
@@ -11,20 +22,20 @@ import { api } from '../lib/api'
 import { Btn, Input } from './Servers'
 
 const DB_TABS = [
-  { id: 'configuration', label: 'Configuration' },
-  { id: 'environment', label: 'Environment Variables' },
-  { id: 'backups', label: 'Backups' },
-  { id: 'danger', label: 'Danger Zone' },
+  { id: 'configuration', label: 'Configuration', icon: Settings2 },
+  { id: 'environment', label: 'Environment Variables', icon: Variable },
+  { id: 'backups', label: 'Backups', icon: Archive },
+  { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
 ]
 
 const SERVER_TABS = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'metrics', label: 'Metrics' },
-  { id: 'proxy', label: 'Proxy' },
-  { id: 'destinations', label: 'Destinations' },
-  { id: 'settings', label: 'Settings' },
-  { id: 'terminal', label: 'Terminal' },
-  { id: 'danger', label: 'Danger' },
+  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'metrics', label: 'Metrics', icon: Activity },
+  { id: 'proxy', label: 'Proxy', icon: Route },
+  { id: 'destinations', label: 'Destinations', icon: Network },
+  { id: 'settings', label: 'Settings', icon: Settings2 },
+  { id: 'terminal', label: 'Terminal', icon: Terminal },
+  { id: 'danger', label: 'Danger', icon: AlertTriangle },
 ]
 
 function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
