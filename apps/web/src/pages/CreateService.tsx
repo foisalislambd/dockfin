@@ -187,7 +187,6 @@ export function CreateServicePage() {
             }
             destinationId={form.destination_id || undefined}
             resourceName={form.name || selected?.name || 'service'}
-            hint="Optional. Leave empty to auto-assign a free sslip.io / nip.io domain on create."
           />
         </section>
 

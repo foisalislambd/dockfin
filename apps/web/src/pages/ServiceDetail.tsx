@@ -420,10 +420,6 @@ export function ServiceDetailPage() {
                   resourceId={svcId}
                   resourceName={s.name}
                 />
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  After saving a custom domain, click <strong>Deploy</strong> so Traefik and{' '}
-                  <code className="font-mono">SERVICE_URL_*</code> env vars update.
-                </p>
               </div>
             )}
             {side === 'environment' && (

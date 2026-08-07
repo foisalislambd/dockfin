@@ -2,11 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Eye, EyeOff, Info } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import {
-  DnsGuideTooltip,
-  hostFromDomainEntry,
-  normalizeDomainEntry,
-} from '../components/DomainsPanel'
+import { DnsGuideTooltip, normalizeDomainEntry } from '../components/DomainsPanel'
 import { MIT_LICENSE_TEXT } from '../config/app.config'
 import {
   api,
@@ -484,65 +480,41 @@ export function SettingsPage() {
                     </Btn>
                   }
                 />
-                <div className="grid gap-3 md:grid-cols-3">
-                  <label className="block w-full text-sm">
-                    <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                      <span className="text-sm text-gray-500 dark:text-gray-400">URL</span>
-                      <Helper text="Instance public URL. Type dash.example.com — https:// is added automatically." />
-                      <DnsGuideTooltip
-                        domains={form.public_url}
-                        serverIp={(form.public_ipv4 || '').trim()}
-                        autoCheck
-                        label="DNS tip"
-                      />
-                    </div>
-                    <input
-                      type="text"
-                      value={form.public_url}
-                      placeholder="dash.example.com"
-                      onChange={(e) => set('public_url', e.target.value)}
-                      onBlur={() => {
-                        const next = form.public_url.trim()
-                          ? normalizeDomainEntry(form.public_url.trim())
-                          : ''
-                        if (next !== form.public_url) set('public_url', next)
-                      }}
-                      className="panel-field w-full rounded-lg px-3 py-2 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20 disabled:opacity-50"
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-white">Domain</h4>
+                    <DnsGuideTooltip
+                      domains={form.public_url}
+                      serverIp={(form.public_ipv4 || '').trim()}
                     />
-                    {(() => {
-                      const host = hostFromDomainEntry(form.public_url)
-                      const ip = (form.public_ipv4 || '').trim()
-                      if (!host || host === 'localhost' || host === '127.0.0.1') return null
-                      if (host.endsWith('.sslip.io') || host.endsWith('.nip.io')) return null
-                      return (
-                        <p className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
-                          DNS: A record <code className="font-mono">{host}</code>
-                          {ip ? (
-                            <>
-                              {' '}
-                              → <code className="font-mono">{ip}</code>
-                            </>
-                          ) : (
-                            ' (set Public IPv4 below, then open DNS tip)'
-                          )}
-                          . Open <strong>DNS tip</strong> to Check DNS.
-                        </p>
-                      )
-                    })()}
-                  </label>
+                  </div>
+                  <input
+                    type="text"
+                    value={form.public_url}
+                    placeholder="dash.example.com"
+                    onChange={(e) => set('public_url', e.target.value)}
+                    onBlur={() => {
+                      const next = form.public_url.trim()
+                        ? normalizeDomainEntry(form.public_url.trim())
+                        : ''
+                      if (next !== form.public_url) set('public_url', next)
+                    }}
+                    className="panel-field w-full rounded-lg px-3 py-2 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20 disabled:opacity-50"
+                  />
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
                   <TextField
                     label="Name"
-                    helper="Custom name shown for this instance."
+                    helper="Instance display name."
                     value={form.instance_name}
                     onChange={(v) => set('instance_name', v)}
                     placeholder="Dockfin"
                     required={false}
                   />
                   <div className="relative w-full text-sm">
-                    <FieldLabel
-                      label="Instance Timezone"
-                      helper="Used for update checks and automatic update scheduling."
-                    />
+                    <FieldLabel label="Timezone" helper="Used for schedules and update checks." />
                     <input
                       value={tzSearch}
                       onFocus={() => setTzOpen(true)}
@@ -577,15 +549,15 @@ export function SettingsPage() {
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <SecretField
-                    label="Instance's Public IPv4"
-                    helper="Override detected public IPv4 when the instance has multiple addresses."
+                    label="Public IPv4"
+                    helper="Used for DNS checks and magic domains."
                     value={form.public_ipv4}
                     onChange={(v) => set('public_ipv4', v)}
                     placeholder="1.2.3.4"
                   />
                   <SecretField
-                    label="Instance's Public IPv6"
-                    helper="Override detected public IPv6 when the instance has multiple addresses."
+                    label="Public IPv6"
+                    helper="Optional IPv6 override."
                     value={form.public_ipv6}
                     onChange={(v) => set('public_ipv6', v)}
                     placeholder="2001:db8::1"

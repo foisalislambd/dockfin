@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Info } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../lib/api'
-import { Btn, Input } from '../pages/Servers'
+import { Btn } from '../pages/Servers'
 
 /** Extract bare hostname from a domain entry (scheme/path/port stripped). */
 export function hostFromDomainEntry(entry: string): string {
@@ -41,38 +41,34 @@ function CopyBtn({ text }: { text: string }) {
   return (
     <button
       type="button"
-      className="rounded px-1.5 py-0.5 text-[11px] font-medium text-brand-600 hover:bg-brand-500/10 dark:text-brand-400"
+      className="rounded px-1 py-0.5 text-[10px] font-medium text-brand-600 hover:bg-brand-500/10 dark:text-brand-400"
       onClick={(e) => {
         e.preventDefault()
         e.stopPropagation()
         void navigator.clipboard.writeText(text).then(() => {
           setCopied(true)
-          setTimeout(() => setCopied(false), 1500)
+          setTimeout(() => setCopied(false), 1200)
         })
       }}
     >
-      {copied ? 'Copied' : 'Copy'}
+      {copied ? '✓' : 'Copy'}
     </button>
   )
 }
 
 type DNSCheckResponse = Awaited<ReturnType<typeof api.checkDomainDNS>>
 
-/** Interactive DNS guide body (table + Check DNS) — used inside tooltip panel. */
-export function DnsGuideContent({
+/** Minimal DNS rows + Check DNS (for tooltip only). */
+function DnsTipBody({
   domains,
   serverIp,
   serverId,
   destinationId,
-  autoCheck,
-  compact,
 }: {
   domains: string
   serverIp: string
   serverId?: string
   destinationId?: string
-  autoCheck?: boolean
-  compact?: boolean
 }) {
   const hosts = useMemo(
     () =>
@@ -83,194 +79,108 @@ export function DnsGuideContent({
   )
   const [busy, setBusy] = useState(false)
   const [check, setCheck] = useState<DNSCheckResponse | null>(null)
-  const [checkError, setCheckError] = useState('')
-  const ranFor = useRef('')
 
   const runCheck = async () => {
     if (!domains.trim() || hosts.length === 0) return
     setBusy(true)
-    setCheckError('')
     try {
-      const res = await api.checkDomainDNS({
-        domains,
-        server_id: serverId,
-        destination_id: destinationId,
-        expected_ip: serverIp || undefined,
-      })
-      setCheck(res)
-      ranFor.current = domains
-    } catch (e) {
+      setCheck(
+        await api.checkDomainDNS({
+          domains,
+          server_id: serverId,
+          destination_id: destinationId,
+          expected_ip: serverIp || undefined,
+        }),
+      )
+    } catch {
       setCheck(null)
-      setCheckError(e instanceof Error ? e.message : 'DNS check failed')
     } finally {
       setBusy(false)
     }
   }
 
-  useEffect(() => {
-    if (!autoCheck || hosts.length === 0) return
-    if (ranFor.current === domains) return
-    void runCheck()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoCheck, domains])
+  if (hosts.length === 0) {
+    return <p className="text-[11px] text-gray-500 dark:text-gray-400">Enter a custom domain first.</p>
+  }
 
   return (
-    <div className={`space-y-3 text-sm text-gray-700 dark:text-gray-300 ${compact ? 'text-xs' : ''}`}>
-      <p className={compact ? 'text-[11px] leading-relaxed' : ''}>
-        Add these DNS records at your provider so traffic and Let&apos;s Encrypt reach this server.
-      </p>
-
+    <div className="space-y-2">
       {!serverIp ? (
-        <p className="rounded-md border border-amber-300/60 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-          Public IP unknown. Set Instance Public IPv4 (Settings) or the server&apos;s Public IP first.
-        </p>
-      ) : (
-        <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 dark:border-gray-800 dark:bg-black/30">
-          <span className="text-[11px] text-gray-500 dark:text-gray-400">A record →</span>
-          <code className="font-mono text-xs text-gray-900 dark:text-white">{serverIp}</code>
-          <CopyBtn text={serverIp} />
-        </div>
-      )}
-
-      {hosts.length === 0 ? (
-        <p className="text-[11px] text-gray-500 dark:text-gray-400">
-          Enter a custom domain (not sslip.io / nip.io). Free magic domains need no DNS changes.
-        </p>
-      ) : (
-        <div className="overflow-x-auto rounded-md border border-gray-200 dark:border-gray-800">
-          <table className="min-w-full text-left text-[11px]">
-            <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
-              <tr>
-                <th className="px-2 py-1.5 font-medium">Type</th>
-                <th className="px-2 py-1.5 font-medium">Name</th>
-                <th className="px-2 py-1.5 font-medium">Value</th>
-                <th className="px-2 py-1.5 font-medium">Host</th>
-              </tr>
-            </thead>
-            <tbody>
-              {hosts.map((host) => (
-                <tr key={host} className="border-t border-gray-200 dark:border-gray-800">
-                  <td className="px-2 py-1.5 font-mono">A</td>
-                  <td className="px-2 py-1.5 font-mono">
-                    <span className="inline-flex items-center gap-0.5">
-                      {dnsRecordName(host)}
-                      <CopyBtn text={dnsRecordName(host)} />
-                    </span>
-                  </td>
-                  <td className="px-2 py-1.5 font-mono">
-                    <span className="inline-flex items-center gap-0.5">
-                      {serverIp || '—'}
-                      {serverIp ? <CopyBtn text={serverIp} /> : null}
-                    </span>
-                  </td>
-                  <td className="px-2 py-1.5 font-mono text-gray-500 dark:text-gray-400">{host}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <ul className="list-disc space-y-0.5 pl-4 text-[11px] text-gray-500 dark:text-gray-400">
-        <li>
-          Apex (<code className="font-mono">example.com</code>): Name ={' '}
-          <code className="font-mono">@</code>, Value = server IP.
-        </li>
-        <li>
-          Subdomain (<code className="font-mono">app.example.com</code>): Name ={' '}
-          <code className="font-mono">app</code>.
-        </li>
-        <li>Cloudflare: grey cloud (DNS only) until SSL works.</li>
-      </ul>
-
-      {hosts.length > 0 ? (
-        <div className="space-y-2 rounded-md border border-gray-200 p-2.5 dark:border-gray-800">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[11px] font-medium text-gray-900 dark:text-white">DNS check</span>
-            <Btn type="button" onClick={() => void runCheck()} disabled={busy}>
-              {busy ? 'Checking…' : 'Check DNS'}
-            </Btn>
-          </div>
-          {checkError ? <p className="text-[11px] text-error-500">{checkError}</p> : null}
-          {check ? (
-            <div className="space-y-1.5">
-              {!check.validation_enabled ? (
-                <p className="text-[11px] text-amber-700 dark:text-amber-300">
-                  DNS validation is disabled in Settings → Advanced.
-                </p>
-              ) : null}
-              {check.results.map((r) => (
-                <div
-                  key={r.host}
-                  className={`rounded px-2 py-1.5 text-[11px] ${
-                    r.matched || r.skip_validation
-                      ? 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300'
-                      : 'bg-error-500/10 text-error-600 dark:text-error-400'
-                  }`}
-                >
-                  <div className="font-medium">
-                    {r.host}:{' '}
-                    {r.skip_validation
-                      ? 'skipped'
-                      : r.matched
-                        ? r.cloudflare
-                          ? 'OK (Cloudflare proxy)'
-                          : 'OK — points to server'
-                        : 'Not pointing to this server yet'}
-                  </div>
-                  {r.resolved_ips?.length ? (
-                    <div className="mt-0.5 font-mono opacity-80">
-                      Resolved: {r.resolved_ips.join(', ')}
-                      {r.expected_ip ? ` · expected ${r.expected_ip}` : ''}
-                    </div>
-                  ) : null}
-                  {r.error && !r.matched ? <div className="mt-0.5 opacity-90">{r.error}</div> : null}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-[11px] text-gray-500 dark:text-gray-400">
-              After creating the A record, click Check DNS.
-            </p>
-          )}
-        </div>
+        <p className="text-[11px] text-amber-700 dark:text-amber-300">Set public IP first.</p>
       ) : null}
+      <table className="w-full text-left text-[11px]">
+        <thead className="text-gray-500 dark:text-gray-400">
+          <tr>
+            <th className="pb-1 font-medium">Type</th>
+            <th className="pb-1 font-medium">Name</th>
+            <th className="pb-1 font-medium">Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {hosts.map((host) => (
+            <tr key={host} className="border-t border-gray-100 dark:border-gray-800">
+              <td className="py-1.5 font-mono">A</td>
+              <td className="py-1.5 font-mono">
+                <span className="inline-flex items-center gap-0.5">
+                  {dnsRecordName(host)}
+                  <CopyBtn text={dnsRecordName(host)} />
+                </span>
+              </td>
+              <td className="py-1.5 font-mono">
+                <span className="inline-flex items-center gap-0.5">
+                  {serverIp || '—'}
+                  {serverIp ? <CopyBtn text={serverIp} /> : null}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="flex items-center justify-between gap-2 pt-1">
+        <button
+          type="button"
+          className="rounded-md bg-brand-500/10 px-2 py-1 text-[11px] font-medium text-brand-700 hover:bg-brand-500/20 dark:text-brand-300"
+          disabled={busy}
+          onClick={() => void runCheck()}
+        >
+          {busy ? 'Checking…' : 'Check DNS'}
+        </button>
+        {check?.results?.[0] ? (
+          <span
+            className={`text-[11px] ${
+              check.results[0].matched || check.results[0].skip_validation
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-error-500'
+            }`}
+          >
+            {check.results[0].skip_validation
+              ? 'Skipped'
+              : check.results[0].matched
+                ? check.results[0].cloudflare
+                  ? 'OK (CF)'
+                  : 'OK'
+                : 'Mismatch'}
+          </span>
+        ) : null}
+      </div>
     </div>
   )
 }
 
-/**
- * Clickable tooltip (not a modal): Info icon opens a floating panel with DNS
- * instructions + Check DNS. Click outside or Escape to close.
- */
+/** Info-icon tooltip: only shows what DNS records to add. No modal. */
 export function DnsGuideTooltip({
   domains,
   serverIp,
   serverId,
   destinationId,
-  autoOpen,
-  autoCheck,
-  label = 'DNS',
 }: {
   domains: string
   serverIp: string
   serverId?: string
   destinationId?: string
-  /** Open once when this becomes true (e.g. first custom domain). */
-  autoOpen?: boolean
-  autoCheck?: boolean
-  label?: string
 }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
-  const didAuto = useRef(false)
-
-  useEffect(() => {
-    if (autoOpen && !didAuto.current) {
-      didAuto.current = true
-      setOpen(true)
-    }
-  }, [autoOpen])
 
   useEffect(() => {
     if (!open) return
@@ -292,44 +202,31 @@ export function DnsGuideTooltip({
     <div className="relative inline-flex" ref={rootRef}>
       <button
         type="button"
-        className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium transition ${
+        className={`rounded p-0.5 transition ${
           open
-            ? 'bg-brand-500/15 text-brand-700 dark:text-brand-300'
-            : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-200'
+            ? 'text-brand-600 dark:text-brand-400'
+            : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
         }`}
+        aria-label="DNS records"
         aria-expanded={open}
-        aria-label="DNS setup tip"
         onClick={(e) => {
           e.preventDefault()
           setOpen((v) => !v)
         }}
       >
         <Info className="h-3.5 w-3.5" />
-        {label}
       </button>
       {open ? (
         <div
-          role="dialog"
-          aria-label="DNS setup"
-          className="absolute top-full left-0 z-40 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-gray-700 dark:bg-gray-950 sm:w-[26rem]"
+          role="tooltip"
+          className="absolute top-full left-0 z-40 mt-1.5 w-64 rounded-lg border border-gray-200 bg-white p-2.5 shadow-lg dark:border-gray-700 dark:bg-gray-950 sm:w-72"
         >
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-gray-900 dark:text-white">DNS setup</span>
-            <button
-              type="button"
-              className="text-[11px] text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
-              onClick={() => setOpen(false)}
-            >
-              Close
-            </button>
-          </div>
-          <DnsGuideContent
+          <p className="mb-2 text-[11px] font-medium text-gray-900 dark:text-white">Add in DNS</p>
+          <DnsTipBody
             domains={domains}
             serverIp={serverIp}
             serverId={serverId}
             destinationId={destinationId}
-            autoCheck={autoCheck || open}
-            compact
           />
         </div>
       ) : null}
@@ -368,7 +265,6 @@ export function DomainsPanel({
   resourceId,
   resourceName,
   title = 'Domains',
-  hint,
 }: {
   value: string
   onChange: (v: string) => void
@@ -379,11 +275,10 @@ export function DomainsPanel({
   resourceId?: string
   resourceName?: string
   title?: string
+  /** @deprecated unused — kept for call-site compatibility */
   hint?: string
 }) {
-  const [autoTip, setAutoTip] = useState(false)
   const [local, setLocal] = useState(value)
-  const prevCustom = useRef(false)
 
   useEffect(() => {
     setLocal(value)
@@ -405,59 +300,30 @@ export function DomainsPanel({
     return pub || ip || ''
   }, [server.data])
 
-  const customHosts = splitDomainEntries(local)
-    .map(hostFromDomainEntry)
-    .filter((h) => h && !isMagicHost(h))
-
   const applyNormalized = (raw: string) => {
     const next = normalizeDomains(raw)
     setLocal(next)
     onChange(next)
-    const hosts = splitDomainEntries(next)
-      .map(hostFromDomainEntry)
-      .filter((h) => h && !isMagicHost(h))
-    if (hosts.length > 0 && !prevCustom.current) {
-      setAutoTip(true)
-    }
-    prevCustom.current = hosts.length > 0
     return next
   }
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h3>
-            <DnsGuideTooltip
-              domains={local}
-              serverIp={serverIp}
-              serverId={serverId}
-              destinationId={destinationId}
-              autoOpen={autoTip}
-              autoCheck={autoTip}
-              label="DNS tip"
-            />
-          </div>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {hint ||
-              'Type domain.com — https:// is added automatically. Open DNS tip for records + Check DNS.'}
-          </p>
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h3>
+          <DnsGuideTooltip
+            domains={local}
+            serverIp={serverIp}
+            serverId={serverId}
+            destinationId={destinationId}
+          />
         </div>
         {onSave ? (
           <Btn
             primary
             type="button"
-            onClick={() => {
-              const next = applyNormalized(local)
-              if (
-                customHosts.length > 0 ||
-                splitDomainEntries(next).some((e) => !isMagicHost(hostFromDomainEntry(e)))
-              ) {
-                setAutoTip(true)
-              }
-              onSave(next)
-            }}
+            onClick={() => onSave(applyNormalized(local))}
             disabled={saveBusy}
           >
             {saveBusy ? 'Saving…' : 'Save'}
@@ -465,53 +331,35 @@ export function DomainsPanel({
         ) : null}
       </div>
 
-      <div className="space-y-2">
-        <Input
-          label="Domains"
-          value={local}
-          onChange={(v) => {
-            setLocal(v)
-            onChange(v)
-          }}
-          onBlur={() => applyNormalized(local)}
-          required={false}
-        />
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
-            onClick={() => {
-              void api
-                .generateDomain({
-                  name: resourceName || 'app',
-                  destination_id: destinationId || undefined,
-                  server_id: serverId || undefined,
-                  resource_id: resourceId || undefined,
-                })
-                .then((d) => {
-                  applyNormalized(d.fqdn || d.url || '')
-                })
-                .catch(() => undefined)
-            }}
-          >
-            Generate free domain (sslip.io / nip.io)
-          </button>
-        </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Examples:{' '}
-          <code className="font-mono">app.example.com</code>,{' '}
-          <code className="font-mono">example.com,www.example.com</code>. After DNS is set, Redeploy
-          for Traefik + SSL.
-        </p>
-        {customHosts.length > 0 && serverIp ? (
-          <p className="rounded-lg border border-brand-500/20 bg-brand-500/5 px-3 py-2 text-xs text-gray-700 dark:text-gray-300">
-            Add an <strong>A</strong> record: <code className="font-mono">{customHosts[0]}</code> →{' '}
-            <code className="font-mono">{serverIp}</code>
-            {customHosts.length > 1 ? ` (+${customHosts.length - 1} more)` : ''}. Use the{' '}
-            <strong>DNS tip</strong> icon to verify.
-          </p>
-        ) : null}
-      </div>
+      <input
+        value={local}
+        placeholder="app.example.com"
+        onChange={(e) => {
+          setLocal(e.target.value)
+          onChange(e.target.value)
+        }}
+        onBlur={() => applyNormalized(local)}
+        className="panel-field w-full rounded-lg px-3 py-2 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
+      />
+      <button
+        type="button"
+        className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+        onClick={() => {
+          void api
+            .generateDomain({
+              name: resourceName || 'app',
+              destination_id: destinationId || undefined,
+              server_id: serverId || undefined,
+              resource_id: resourceId || undefined,
+            })
+            .then((d) => {
+              applyNormalized(d.fqdn || d.url || '')
+            })
+            .catch(() => undefined)
+        }}
+      >
+        Generate free domain
+      </button>
     </section>
   )
 }
