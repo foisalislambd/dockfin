@@ -165,6 +165,27 @@ export function DnsGuideModal({
   )
 }
 
+/** Normalize a bare domain to http(s)://… — custom → https, magic → http. */
+export function normalizeDomainEntry(entry: string): string {
+  const raw = entry.trim()
+  if (!raw) return ''
+  const lower = raw.toLowerCase()
+  if (lower.startsWith('https://') || lower.startsWith('http://')) {
+    return raw.replace(/\/$/, '')
+  }
+  const host = hostFromDomainEntry(raw)
+  if (!host) return raw
+  const rest = raw.replace(/\/$/, '')
+  if (host === 'localhost' || host === '127.0.0.1' || isMagicHost(host)) {
+    return `http://${rest}`
+  }
+  return `https://${rest}`
+}
+
+export function normalizeDomains(domains: string): string {
+  return splitDomainEntries(domains).map(normalizeDomainEntry).filter(Boolean).join(',')
+}
+
 export function DomainsPanel({
   value,
   onChange,
@@ -179,7 +200,7 @@ export function DomainsPanel({
 }: {
   value: string
   onChange: (v: string) => void
-  onSave?: () => void
+  onSave?: (normalized: string) => void
   saveBusy?: boolean
   serverId?: string
   destinationId?: string
@@ -215,6 +236,13 @@ export function DomainsPanel({
     .map(hostFromDomainEntry)
     .filter((h) => h && !isMagicHost(h))
 
+  const applyNormalized = (raw: string) => {
+    const next = normalizeDomains(raw)
+    setLocal(next)
+    onChange(next)
+    return next
+  }
+
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -222,7 +250,7 @@ export function DomainsPanel({
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h3>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             {hint ||
-              'Custom domains get automatic HTTPS (Let\'s Encrypt). Free sslip.io / nip.io domains stay http://.'}
+              'Type domain.com — https:// is added automatically (http:// for free sslip.io / nip.io). Custom domains get Let\'s Encrypt SSL.'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -230,7 +258,12 @@ export function DomainsPanel({
             DNS instructions
           </Btn>
           {onSave ? (
-            <Btn primary type="button" onClick={onSave} disabled={saveBusy}>
+            <Btn
+              primary
+              type="button"
+              onClick={() => onSave(applyNormalized(local))}
+              disabled={saveBusy}
+            >
               {saveBusy ? 'Saving…' : 'Save'}
             </Btn>
           ) : null}
@@ -245,6 +278,7 @@ export function DomainsPanel({
             setLocal(v)
             onChange(v)
           }}
+          onBlur={() => applyNormalized(local)}
           required={false}
         />
         <div className="flex flex-wrap items-center gap-3">
@@ -260,8 +294,7 @@ export function DomainsPanel({
                   resource_id: resourceId || undefined,
                 })
                 .then((d) => {
-                  setLocal(d.fqdn)
-                  onChange(d.fqdn)
+                  applyNormalized(d.fqdn || d.url || '')
                 })
                 .catch(() => undefined)
             }}

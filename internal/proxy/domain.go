@@ -213,6 +213,45 @@ func TraefikHostRule(hosts []string) string {
 	return strings.Join(parts, " || ")
 }
 
+// NormalizeDomainEntry ensures a single domain entry has an explicit scheme.
+// Bare custom hosts become https://…; magic/localhost become http://….
+// Entries that already include http:// or https:// are left intact (path/port kept).
+// Bare host:port and host/path are preserved (e.g. example.com:8080 → https://example.com:8080).
+func NormalizeDomainEntry(entry string) string {
+	entry = strings.TrimSpace(entry)
+	if entry == "" {
+		return ""
+	}
+	lower := strings.ToLower(entry)
+	if strings.HasPrefix(lower, "https://") || strings.HasPrefix(lower, "http://") {
+		return strings.TrimRight(entry, "/")
+	}
+	host := HostFromDomainEntry(entry)
+	if host == "" {
+		return entry
+	}
+	rest := strings.TrimRight(entry, "/")
+	if host == "localhost" || host == "127.0.0.1" || IsMagicDomainHost(host) {
+		return "http://" + rest
+	}
+	return "https://" + rest
+}
+
+// NormalizeDomains applies NormalizeDomainEntry to a comma-separated domains field.
+func NormalizeDomains(domains string) string {
+	entries := SplitDomainEntries(domains)
+	if len(entries) == 0 {
+		return ""
+	}
+	out := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if n := NormalizeDomainEntry(e); n != "" {
+			out = append(out, n)
+		}
+	}
+	return strings.Join(out, ",")
+}
+
 // WantAutoHTTPS is true when domains should get Traefik TLS + Let's Encrypt
 // (user custom hosts). Magic free domains (sslip.io / nip.io) and localhost never
 // get auto SSL — Let's Encrypt rate-limits those public suffixes.
@@ -234,31 +273,26 @@ func WantAutoHTTPS(domains string) bool {
 
 // AutoPublicURL returns the browser base URL with automatic HTTPS for custom
 // domains (Let's Encrypt via Traefik). Magic domains stay http://.
+// Port and path from the first entry are preserved (example.com:8080/app).
 func AutoPublicURL(domains string) string {
-	if WantAutoHTTPS(domains) {
-		host := PrimaryHost(domains)
-		if host == "" {
-			return PrimaryPublicURL(domains)
-		}
-		// Preserve path from first entry when present (Coolify path routing).
-		entries := SplitDomainEntries(domains)
-		path := ""
-		if len(entries) > 0 {
-			raw := entries[0]
-			lower := strings.ToLower(raw)
-			switch {
-			case strings.HasPrefix(lower, "https://"):
-				raw = raw[len("https://"):]
-			case strings.HasPrefix(lower, "http://"):
-				raw = raw[len("http://"):]
-			}
-			if i := strings.IndexByte(raw, '/'); i >= 0 {
-				path = raw[i:]
-			}
-		}
-		return "https://" + host + path
+	entries := SplitDomainEntries(domains)
+	if len(entries) == 0 {
+		return PublicURL("")
 	}
-	return PrimaryPublicURL(domains)
+	first := entries[0]
+	if !WantAutoHTTPS(domains) {
+		return PublicURL(first)
+	}
+	raw := first
+	lower := strings.ToLower(raw)
+	rest := raw
+	switch {
+	case strings.HasPrefix(lower, "https://"):
+		rest = raw[len("https://"):]
+	case strings.HasPrefix(lower, "http://"):
+		rest = raw[len("http://"):]
+	}
+	return "https://" + strings.TrimRight(rest, "/")
 }
 
 // PublicURL returns a browser URL for an FQDN — Coolify-compatible.

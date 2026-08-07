@@ -136,7 +136,7 @@ export function ServiceDetailPage() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['service', svcId] }),
   })
   const saveDomains = useMutation({
-    mutationFn: () => api.updateService(svcId, { fqdn }),
+    mutationFn: (nextFqdn: string) => api.updateService(svcId, { fqdn: nextFqdn }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['service', svcId] }),
   })
   const stop = useMutation({
@@ -410,7 +410,10 @@ export function ServiceDetailPage() {
                 <DomainsPanel
                   value={fqdn}
                   onChange={setFqdn}
-                  onSave={() => saveDomains.mutate()}
+                  onSave={(next) => {
+                    setFqdn(next)
+                    saveDomains.mutate(next)
+                  }}
                   saveBusy={saveDomains.isPending}
                   serverId={serverId || undefined}
                   destinationId={s.destination_id || undefined}

@@ -72,10 +72,18 @@ func (p *Pipeline) repairAppFQDN(ctx context.Context, req *Request) {
 	}
 	needs := req.App.FQDN == "" || proxy.FQDNUsesUnusableMagicIP(req.App.FQDN)
 	if !needs {
+		// Bare domain.com → https://domain.com (or http:// for magic).
+		if n := proxy.NormalizeDomains(req.App.FQDN); n != "" && n != req.App.FQDN {
+			req.App.FQDN = n
+			if p.Store != nil {
+				_ = p.Store.UpdateApplication(ctx, req.App)
+			}
+		}
 		return
 	}
 	magicIP := proxy.PreferMagicIP(req.Server.IP, req.Server.PublicIP)
 	fqdn := proxy.GenerateFQDN(req.App.Name, req.App.ID, magicIP, req.Server.WildcardDomain, req.Server.MagicDomain)
+	fqdn = proxy.NormalizeDomains(fqdn)
 	if fqdn == "" || fqdn == req.App.FQDN {
 		if proxy.FQDNUsesUnusableMagicIP(req.App.FQDN) {
 			p.log("prepare", "Warning: server has no public IP — app domain still points at localhost")

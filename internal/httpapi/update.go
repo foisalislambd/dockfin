@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/dockfin/dockfin/internal/proxy"
 	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/worker"
 )
@@ -65,7 +66,7 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid fqdn")
 			return
 		}
-		app.FQDN = *body.FQDN
+		app.FQDN = proxy.NormalizeDomains(*body.FQDN)
 	}
 	if body.GitRepository != nil {
 		app.GitRepository = *body.GitRepository

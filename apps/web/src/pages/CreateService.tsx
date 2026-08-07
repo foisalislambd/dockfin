@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { DomainsPanel } from '../components/DomainsPanel'
+import { DomainsPanel, normalizeDomains } from '../components/DomainsPanel'
 import { ServiceLogo } from '../components/ServiceLogo'
 import { CreatePageShell, FormActions, FormInput, FormSelect } from '../components/ui/forms'
 import { PageSkeleton } from '../components/ui/Skeleton'
@@ -79,8 +79,9 @@ export function CreateServicePage() {
   const backLabel = nested ? 'Back to New Resource' : 'Back to projects'
 
   const create = useMutation({
-    mutationFn: () =>
-      api.createService(
+    mutationFn: () => {
+      const fqdn = form.fqdn ? normalizeDomains(form.fqdn) : undefined
+      return api.createService(
         emptyCompose
           ? {
               name: form.name,
@@ -88,10 +89,11 @@ export function CreateServicePage() {
               destination_id: form.destination_id || undefined,
               docker_compose_raw: composeRaw,
               service_type: 'custom',
-              fqdn: form.fqdn || undefined,
+              fqdn,
             }
-          : form,
-      ),
+          : { ...form, fqdn },
+      )
+    },
     onSuccess: (svc) => {
       if (form.environment_id) localStorage.setItem(LAST_ENV_KEY, form.environment_id)
       void qc.invalidateQueries({ queryKey: ['services'] })

@@ -99,8 +99,35 @@ func TestWantAutoHTTPS(t *testing.T) {
 	if got := AutoPublicURL("http://app.example.com"); got != "https://app.example.com" {
 		t.Fatalf("AutoPublicURL upgrades http custom: %q", got)
 	}
+	if got := AutoPublicURL("app.example.com:8080"); got != "https://app.example.com:8080" {
+		t.Fatalf("AutoPublicURL port: %q", got)
+	}
 	if got := AutoPublicURL("foo.1.2.3.4.sslip.io"); got != "http://foo.1.2.3.4.sslip.io" {
 		t.Fatalf("AutoPublicURL magic: %q", got)
+	}
+}
+
+func TestNormalizeDomains(t *testing.T) {
+	if got := NormalizeDomainEntry("domain.com"); got != "https://domain.com" {
+		t.Fatalf("bare custom: %q", got)
+	}
+	if got := NormalizeDomainEntry("www.domain.com/app"); got != "https://www.domain.com/app" {
+		t.Fatalf("bare path: %q", got)
+	}
+	if got := NormalizeDomainEntry("domain.com:8080"); got != "https://domain.com:8080" {
+		t.Fatalf("bare port: %q", got)
+	}
+	if got := NormalizeDomainEntry("foo.1.2.3.4.sslip.io"); got != "http://foo.1.2.3.4.sslip.io" {
+		t.Fatalf("bare magic: %q", got)
+	}
+	if got := NormalizeDomainEntry("http://domain.com"); got != "http://domain.com" {
+		t.Fatalf("explicit http kept: %q", got)
+	}
+	if got := NormalizeDomainEntry("https://domain.com/"); got != "https://domain.com" {
+		t.Fatalf("trim slash: %q", got)
+	}
+	if got := NormalizeDomains("domain.com, www.domain.com"); got != "https://domain.com,https://www.domain.com" {
+		t.Fatalf("multi: %q", got)
 	}
 }
 

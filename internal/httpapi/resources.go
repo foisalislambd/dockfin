@@ -301,6 +301,7 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid fqdn")
 		return
 	}
+	body.FQDN = proxy.NormalizeDomains(body.FQDN)
 	teamID := currentTeamID(r)
 	if _, err := a.Store.GetEnvironment(r.Context(), teamID, envID); err != nil {
 		mapStoreErr(w, err)
@@ -377,7 +378,7 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 	if created.FQDN == "" && created.DestinationID != nil {
 		if srv, err := a.resolveServerForDomain(r.Context(), created.TeamID, nil, created.DestinationID); err == nil {
 			if fqdn := generateResourceFQDN(created.Name, created.ID, srv); fqdn != "" {
-				created.FQDN = fqdn
+				created.FQDN = proxy.NormalizeDomains(fqdn)
 				if err := a.Store.UpdateApplication(r.Context(), created); err != nil {
 					mapStoreErr(w, err)
 					return

@@ -110,6 +110,7 @@ func (a *API) handleCreateService(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid fqdn — use hostnames like example.com or https://example.com (comma-separated OK)")
 		return
 	}
+	svc.FQDN = proxy.NormalizeDomains(svc.FQDN)
 
 	opts := services.PrepareOpts{BaseURL: "http://127.0.0.1"}
 	if svc.DestinationID != nil {
@@ -122,6 +123,7 @@ func (a *API) handleCreateService(w http.ResponseWriter, r *http.Request) {
 		svc.ID = uuid.New()
 		if svc.FQDN == "" {
 			svc.FQDN = generateResourceFQDN(svc.Name, svc.ID, srv)
+			svc.FQDN = proxy.NormalizeDomains(svc.FQDN)
 		}
 		if svc.FQDN != "" {
 			opts.BaseURL = proxy.AutoPublicURL(svc.FQDN)
@@ -131,6 +133,10 @@ func (a *API) handleCreateService(w http.ResponseWriter, r *http.Request) {
 			opts.RouterName = svc.Name + "-" + svc.ID.String()[:8]
 			opts.ServiceID = svc.ID.String()
 		}
+	} else if svc.FQDN != "" {
+		// Domain set without resolvable server — still bake Traefik labels / URL env.
+		opts.BaseURL = proxy.AutoPublicURL(svc.FQDN)
+		opts.FQDN = svc.FQDN
 	}
 	prepared, fullEnv, err := services.PrepareCompose(compose, opts)
 	if err != nil {
@@ -338,6 +344,7 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		needsFQDN := svc.FQDN == "" || proxy.FQDNUsesUnusableMagicIP(svc.FQDN)
 		if needsFQDN {
 			if fqdn := generateResourceFQDN(svc.Name, svc.ID, srv); fqdn != "" {
+				fqdn = proxy.NormalizeDomains(fqdn)
 				if fqdn != svc.FQDN {
 					emit("prepare", fmt.Sprintf("Updating domain %s → %s", svc.FQDN, fqdn))
 				} else {
@@ -348,6 +355,11 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 			} else if proxy.FQDNUsesUnusableMagicIP(svc.FQDN) {
 				emit("prepare", "Warning: server has no public IP — domain still points at localhost. Set Public IP on the server or run Validate.")
 			}
+		} else if n := proxy.NormalizeDomains(svc.FQDN); n != "" && n != svc.FQDN {
+			// Bare domain.com → https://domain.com (persist scheme for UI + env sync).
+			svc.FQDN = n
+			_ = a.Store.UpdateServiceFQDN(r.Context(), id, n)
+			emit("prepare", fmt.Sprintf("Normalized domain → %s", n))
 		}
 	}
 
@@ -391,20 +403,25 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 				opts.FQDN = host
 			}
 			if host != "" && host != fqdnHost {
-				// Environment Variables domain differs — sync resource FQDN (Coolify pair).
-				svc.FQDN = host
-				_ = a.Store.UpdateServiceFQDN(r.Context(), id, host)
-				fqdnHost = host
-				emit("prepare", fmt.Sprintf("Using domain from Environment Variables: %s", host))
+				// Environment Variables domain differs — sync resource FQDN with scheme.
+				svc.FQDN = proxy.NormalizeDomains(host)
+				_ = a.Store.UpdateServiceFQDN(r.Context(), id, svc.FQDN)
+				fqdnHost = proxy.PrimaryHost(svc.FQDN)
+				emit("prepare", fmt.Sprintf("Using domain from Environment Variables: %s", svc.FQDN))
 			}
 			// Auto SSL: upgrade sticky http:// custom domains to https:// for Let's Encrypt.
 			domainForSSL := opts.FQDN
 			if strings.TrimSpace(domainForSSL) == "" {
 				domainForSSL = host
 			}
+			if strings.TrimSpace(svc.FQDN) != "" {
+				domainForSSL = svc.FQDN
+			}
 			if proxy.WantAutoHTTPS(domainForSSL) {
 				opts.BaseURL = proxy.AutoPublicURL(domainForSSL)
-				if proxy.WantAutoHTTPS(svc.FQDN) {
+				opts.FQDN = proxy.NormalizeDomains(domainForSSL)
+				if proxy.WantAutoHTTPS(svc.FQDN) && strings.Contains(svc.FQDN, ",") {
+					// Keep multi-host list from Domains field.
 					opts.FQDN = svc.FQDN
 				}
 			}
@@ -591,7 +608,7 @@ func (a *API) handlePatchService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if body.FQDN != nil {
-		fqdn := strings.TrimSpace(*body.FQDN)
+		fqdn := proxy.NormalizeDomains(strings.TrimSpace(*body.FQDN))
 		if fqdn != "" && !isValidHostnameList(fqdn) {
 			writeError(w, http.StatusBadRequest, "invalid fqdn — use hostnames like example.com or https://example.com (comma-separated OK)")
 			return

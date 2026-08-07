@@ -8,7 +8,7 @@ import {
   FormInput,
   FormSelect,
 } from '../components/ui/forms'
-import { DomainsPanel } from '../components/DomainsPanel'
+import { DomainsPanel, normalizeDomains } from '../components/DomainsPanel'
 import { api, fetchAllEnvironments, LAST_ENV_KEY } from '../lib/api'
 
 const BUILD_PACKS = [
@@ -122,6 +122,7 @@ export function CreateApplicationPage() {
   const create = useMutation({
     mutationFn: () => {
       const body: Record<string, unknown> = { ...form }
+      if (form.fqdn) body.fqdn = normalizeDomains(form.fqdn)
       if (!body.git_source_id) delete body.git_source_id
       if (!body.private_key_id) delete body.private_key_id
       if (form.build_pack === 'dockercompose' && !String(form.ports_exposes || '').trim()) {

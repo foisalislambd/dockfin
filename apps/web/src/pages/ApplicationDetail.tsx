@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
-import { DomainsPanel } from '../components/DomainsPanel'
+import { DomainsPanel, normalizeDomains } from '../components/DomainsPanel'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { LinksMenu, LinksPanel } from '../components/LinksMenu'
 import { MoveResourcePanel } from '../components/MoveResourcePanel'
@@ -209,7 +209,7 @@ export function ApplicationDetailPage() {
   }
 
   const save = useMutation({
-    mutationFn: () => api.updateApplication(appId, cfg),
+    mutationFn: (patch?: Partial<typeof cfg>) => api.updateApplication(appId, { ...cfg, ...patch }),
     onSuccess: (updated) => {
       void qc.invalidateQueries({ queryKey: ['application', appId] })
       syncFromApp(updated)
@@ -400,7 +400,9 @@ export function ApplicationDetailPage() {
             className="space-y-4"
             onSubmit={(e) => {
               e.preventDefault()
-              save.mutate()
+              const fqdn = normalizeDomains(cfg.fqdn)
+              setCfg((c) => ({ ...c, fqdn }))
+              save.mutate({ fqdn })
             }}
           >
             <div className="grid gap-4 sm:grid-cols-2">
