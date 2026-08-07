@@ -271,11 +271,13 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 		DockerRegistryImageTag  string `json:"docker_registry_image_tag"`
 		PortsExposes            string `json:"ports_exposes"`
 		ComposePrepare          *bool  `json:"compose_prepare"`
-		EnvironmentVariables    []struct {
-			Key        string `json:"key"`
-			Value      string `json:"value"`
-			IsRuntime  *bool  `json:"is_runtime"`
-			IsBuildtime *bool `json:"is_buildtime"`
+		// When non-nil (including empty), only these env vars are seeded — Dockerfile
+		// ENV auto-parse is skipped so the UI can clear vars intentionally.
+		EnvironmentVariables *[]struct {
+			Key         string `json:"key"`
+			Value       string `json:"value"`
+			IsRuntime   *bool  `json:"is_runtime"`
+			IsBuildtime *bool  `json:"is_buildtime"`
 		} `json:"environment_variables"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
@@ -386,27 +388,29 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	// Seed env vars: explicit payload wins over ENV parsed from Dockerfile.
+	// Seed env vars. If the client sent environment_variables (even []), honor that
+	// list only. Otherwise auto-parse ENV from inline Dockerfile content.
 	envSeed := map[string]store.UpsertEnvVarInput{}
-	if created.Dockerfile != "" {
+	if body.EnvironmentVariables != nil {
+		for _, ev := range *body.EnvironmentVariables {
+			key := strings.TrimSpace(ev.Key)
+			if key == "" {
+				continue
+			}
+			runtime, buildtime := true, true
+			if ev.IsRuntime != nil {
+				runtime = *ev.IsRuntime
+			}
+			if ev.IsBuildtime != nil {
+				buildtime = *ev.IsBuildtime
+			}
+			envSeed[key] = store.UpsertEnvVarInput{
+				Key: key, Value: ev.Value, Runtime: runtime, Buildtime: buildtime,
+			}
+		}
+	} else if created.Dockerfile != "" {
 		for k, v := range services.EnvFromDockerfile(created.Dockerfile) {
 			envSeed[k] = store.UpsertEnvVarInput{Key: k, Value: v, Runtime: true, Buildtime: true}
-		}
-	}
-	for _, ev := range body.EnvironmentVariables {
-		key := strings.TrimSpace(ev.Key)
-		if key == "" {
-			continue
-		}
-		runtime, buildtime := true, true
-		if ev.IsRuntime != nil {
-			runtime = *ev.IsRuntime
-		}
-		if ev.IsBuildtime != nil {
-			buildtime = *ev.IsBuildtime
-		}
-		envSeed[key] = store.UpsertEnvVarInput{
-			Key: key, Value: ev.Value, Runtime: runtime, Buildtime: buildtime,
 		}
 	}
 	for _, in := range envSeed {

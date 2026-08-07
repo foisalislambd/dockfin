@@ -10,6 +10,7 @@ import {
   FormInput,
   FormSearchSelect,
   FormSelect,
+  InfoHint,
 } from '../components/ui/forms'
 import { DomainsPanel, normalizeDomains } from '../components/DomainsPanel'
 import { api, fetchAllEnvironments, LAST_ENV_KEY } from '../lib/api'
@@ -265,10 +266,10 @@ export function CreateApplicationPage() {
         delete body.private_key_id
         delete body.docker_registry_image_name
         delete body.docker_registry_image_tag
-        const envVars = draftEnvs
+        // Always send the array (even []) so the API does not re-parse ENV from Dockerfile.
+        body.environment_variables = draftEnvs
           .map((e) => ({ key: e.key.trim(), value: e.value }))
           .filter((e) => e.key)
-        if (envVars.length) body.environment_variables = envVars
       } else {
         delete body.dockerfile
       }
@@ -442,13 +443,11 @@ export function CreateApplicationPage() {
 
             <section className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
+                <div className="flex flex-wrap items-center gap-1.5">
                   <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
                     Environment Variables
                   </h2>
-                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    Auto-filled from ENV in the Dockerfile. Edit or add more before create.
-                  </p>
+                  <InfoHint text="Auto-filled from ENV in the Dockerfile. Edit or add more before create." />
                 </div>
                 <button
                   type="button"

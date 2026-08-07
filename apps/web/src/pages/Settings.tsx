@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Eye, EyeOff, Info } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DnsGuideTooltip, DomainDNSAlert, normalizeDomainEntry } from '../components/DomainsPanel'
+import { InfoHint } from '../components/ui/forms'
 import { MIT_LICENSE_TEXT } from '../config/app.config'
 import {
   api,
@@ -22,14 +23,7 @@ const TIMEZONES =
     : ['UTC', 'America/New_York', 'Europe/London', 'Asia/Dhaka', 'Asia/Tokyo']
 
 function Helper({ text }: { text: string }) {
-  return (
-    <span className="group relative inline-flex">
-      <Info className="h-3.5 w-3.5 text-gray-400" />
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-64 -translate-x-1/2 rounded-md border border-gray-200 bg-white p-2 text-xs leading-relaxed text-gray-600 shadow-lg group-hover:block dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-        {text}
-      </span>
-    </span>
-  )
+  return <InfoHint text={text} />
 }
 
 function FieldLabel({ label, helper }: { label: string; helper?: string }) {

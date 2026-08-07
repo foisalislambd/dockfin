@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Eye, EyeOff, Info } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api, type EnvVar } from '../lib/api'
 import { useConfirm } from './ConfirmDialog'
+import { InfoHint } from './ui/forms'
 import { Btn, Modal } from '../pages/Servers'
 
 type Props = {
@@ -211,7 +212,7 @@ function EnvVarCard({
       <label className="block text-sm">
         <span className="mb-1 flex items-center gap-1 text-gray-500 dark:text-gray-400">
           Comment
-          <Info className="h-3.5 w-3.5 opacity-60" />
+          <InfoHint text="Optional note for teammates. Not passed into the container." />
         </span>
         <input
           value={draft.comment}
@@ -224,18 +225,21 @@ function EnvVarCard({
       <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-700 dark:text-gray-300">
         <Check
           label="Available at Buildtime"
+          hint="Injected as a build argument / build secret during image build."
           checked={draft.is_buildtime}
           disabled={disabled}
           onChange={(v) => setDraft({ ...draft, is_buildtime: v })}
         />
         <Check
           label="Available at Runtime"
+          hint="Passed into the running container as an environment variable."
           checked={draft.is_runtime}
           disabled={disabled}
           onChange={(v) => setDraft({ ...draft, is_runtime: v })}
         />
         <Check
           label="Is Multiline?"
+          hint="Use a textarea for values that span multiple lines."
           checked={draft.is_multiline}
           disabled={disabled}
           onChange={(v) =>
@@ -249,6 +253,7 @@ function EnvVarCard({
         {!draft.is_multiline && (
           <Check
             label="Is Literal?"
+            hint="Do not expand shared/variable references in this value."
             checked={draft.is_literal}
             disabled={disabled}
             onChange={(v) => setDraft({ ...draft, is_literal: v })}
@@ -394,16 +399,19 @@ function AddEnvVarModal({
         <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-700 dark:text-gray-300">
           <Check
             label="Available at Buildtime"
+            hint="Injected as a build argument / build secret during image build."
             checked={draft.is_buildtime}
             onChange={(v) => setDraft({ ...draft, is_buildtime: v })}
           />
           <Check
             label="Available at Runtime"
+            hint="Passed into the running container as an environment variable."
             checked={draft.is_runtime}
             onChange={(v) => setDraft({ ...draft, is_runtime: v })}
           />
           <Check
             label="Is Multiline?"
+            hint="Use a textarea for values that span multiple lines."
             checked={draft.is_multiline}
             onChange={(v) =>
               setDraft({
@@ -416,6 +424,7 @@ function AddEnvVarModal({
           {!draft.is_multiline && (
             <Check
               label="Is Literal?"
+              hint="Do not expand shared/variable references in this value."
               checked={draft.is_literal}
               onChange={(v) => setDraft({ ...draft, is_literal: v })}
             />
@@ -437,11 +446,13 @@ function AddEnvVarModal({
 
 function Check({
   label,
+  hint,
   checked,
   disabled,
   onChange,
 }: {
   label: string
+  hint?: string
   checked: boolean
   disabled?: boolean
   onChange: (v: boolean) => void
@@ -457,7 +468,7 @@ function Check({
       />
       <span className="inline-flex items-center gap-1">
         {label}
-        <Info className="h-3.5 w-3.5 text-gray-400" />
+        {hint ? <InfoHint text={hint} /> : null}
       </span>
     </label>
   )

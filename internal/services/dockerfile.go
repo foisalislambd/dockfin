@@ -102,3 +102,59 @@ func unquoteDockerfileValue(v string) string {
 	}
 	return v
 }
+
+// InjectDockerfileBuildArgs inserts missing `ARG KEY` lines after the first FROM
+// so `docker build --build-arg KEY=…` can consume Dockfin build-time env vars
+// (Coolify-style). Existing ARG declarations are left untouched.
+func InjectDockerfileBuildArgs(dockerfile string, keys []string) string {
+	if strings.TrimSpace(dockerfile) == "" || len(keys) == 0 {
+		return dockerfile
+	}
+	existing := map[string]struct{}{}
+	for _, raw := range strings.Split(dockerfile, "\n") {
+		line := strings.TrimSpace(raw)
+		if len(line) < 4 || !strings.EqualFold(line[:4], "ARG ") {
+			continue
+		}
+		rest := strings.TrimSpace(line[4:])
+		k, _, _ := strings.Cut(rest, "=")
+		k = strings.TrimSpace(k)
+		if k != "" {
+			existing[k] = struct{}{}
+		}
+	}
+	var toAdd []string
+	seen := map[string]struct{}{}
+	for _, k := range keys {
+		k = strings.TrimSpace(k)
+		if k == "" {
+			continue
+		}
+		if _, ok := existing[k]; ok {
+			continue
+		}
+		if _, ok := seen[k]; ok {
+			continue
+		}
+		seen[k] = struct{}{}
+		toAdd = append(toAdd, "ARG "+k)
+	}
+	if len(toAdd) == 0 {
+		return dockerfile
+	}
+	lines := strings.Split(dockerfile, "\n")
+	out := make([]string, 0, len(lines)+len(toAdd))
+	inserted := false
+	for _, line := range lines {
+		out = append(out, line)
+		trim := strings.TrimSpace(line)
+		if !inserted && len(trim) >= 5 && strings.EqualFold(trim[:5], "FROM ") {
+			out = append(out, toAdd...)
+			inserted = true
+		}
+	}
+	if !inserted {
+		out = append(toAdd, out...)
+	}
+	return strings.Join(out, "\n")
+}

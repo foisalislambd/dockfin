@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Info } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 export const fieldClass =
@@ -36,11 +36,76 @@ export function CreatePageShell({
   )
 }
 
-export function FieldLabel({ children, hint }: { children: ReactNode; hint?: string }) {
+/** Compact info icon; click shows helper text (keeps field labels clean). */
+export function InfoHint({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLSpanElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
   return (
-    <div className="mb-1.5 flex items-end justify-between gap-2">
+    <span className="relative inline-flex" ref={rootRef}>
+      <button
+        type="button"
+        className={`rounded p-0.5 transition ${
+          open
+            ? 'text-brand-600 dark:text-brand-400'
+            : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+        }`}
+        aria-label="More info"
+        aria-expanded={open}
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setOpen((v) => !v)
+        }}
+      >
+        <Info className="h-3.5 w-3.5" aria-hidden />
+      </button>
+      {open ? (
+        <span
+          role="tooltip"
+          className="absolute top-full left-0 z-40 mt-1.5 w-64 rounded-lg border border-gray-200 bg-white p-2.5 text-xs leading-relaxed text-gray-600 shadow-lg dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300"
+        >
+          {text}
+        </span>
+      ) : null}
+    </span>
+  )
+}
+
+export function FieldLabel({
+  children,
+  hint,
+  status,
+}: {
+  children: ReactNode
+  /** Help text shown via info icon tooltip (not inline). */
+  hint?: string
+  /** Short status on the right (e.g. loading count) — not help copy. */
+  status?: string
+}) {
+  return (
+    <div className="mb-1.5 flex items-center gap-1.5">
       <span className="block text-xs font-medium text-gray-700 dark:text-gray-300">{children}</span>
-      {hint && <span className="text-xs text-gray-400 dark:text-gray-500">{hint}</span>}
+      {hint ? <InfoHint text={hint} /> : null}
+      {status ? (
+        <span className="ml-auto text-xs text-gray-400 dark:text-gray-500">{status}</span>
+      ) : null}
     </div>
   )
 }
@@ -147,7 +212,10 @@ export function FormSearchSelect(props: {
 
   return (
     <div className="block" ref={rootRef}>
-      <FieldLabel hint={hint || (loading ? 'Loading…' : options.length ? `${options.length} total` : undefined)}>
+      <FieldLabel
+        hint={hint}
+        status={loading ? 'Loading…' : options.length ? `${options.length}` : undefined}
+      >
         {label}
       </FieldLabel>
       <div className="relative">

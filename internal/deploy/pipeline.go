@@ -451,13 +451,15 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 		return fmt.Errorf("mkdir: %v %s", err, errOut)
 	}
 
+	buildKeys, buildVals := p.dockerBuildtimeEnv(ctx, req)
 	dockerfilePath := ""
 	inline := strings.TrimSpace(req.App.Dockerfile)
 	if inline != "" {
 		// Coolify SimpleDockerfile: write pasted content (no Git).
+		content := services.InjectDockerfileBuildArgs(inline, buildKeys)
 		dockerfilePath = workdir + "/src/Dockerfile"
 		p.log("prepare", "Writing inline Dockerfile")
-		if err := sshx.WriteFile(buildClient, dockerfilePath, []byte(inline+"\n")); err != nil {
+		if err := sshx.WriteFile(buildClient, dockerfilePath, []byte(content+"\n")); err != nil {
 			return fmt.Errorf("write dockerfile: %w", err)
 		}
 	} else {
@@ -481,7 +483,20 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 			return fmt.Errorf("invalid dockerfile path")
 		}
 		dockerfile = strings.TrimPrefix(cleaned, "/")
-		dockerfilePath = workdir + "/src/" + dockerfile
+		srcPath := workdir + "/src/" + dockerfile
+		dockerfilePath = srcPath
+		if len(buildKeys) > 0 {
+			raw, errOut, err := sshx.RunArgs(buildClient, "cat", srcPath)
+			if err != nil {
+				return fmt.Errorf("read dockerfile: %v %s", err, errOut)
+			}
+			injected := services.InjectDockerfileBuildArgs(raw, buildKeys)
+			dockerfilePath = workdir + "/src/Dockerfile.dockfin-args"
+			if err := sshx.WriteFile(buildClient, dockerfilePath, []byte(injected)); err != nil {
+				return fmt.Errorf("write injected dockerfile: %w", err)
+			}
+			p.log("build", "Injected ARG declarations for build-time env vars")
+		}
 	}
 
 	p.log("build", "Building image "+imageTag)
@@ -492,7 +507,9 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 	if req.ForceRebuild {
 		buildArgs = append(buildArgs, "--no-cache")
 	}
-	buildArgs = append(buildArgs, p.dockerBuildArgFlags(ctx, req)...)
+	for _, k := range buildKeys {
+		buildArgs = append(buildArgs, "--build-arg", k+"="+buildVals[k])
+	}
 	buildArgs = append(buildArgs, workdir+"/src")
 	_, errOut, err = sshx.RunArgs(buildClient, buildArgs...)
 	if err != nil {
@@ -505,17 +522,16 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 	return p.runBuiltImage(ctx, deployClient, req, name, imageTag)
 }
 
-// dockerBuildArgFlags returns --build-arg KEY=VALUE for build-time env vars.
-func (p *Pipeline) dockerBuildArgFlags(ctx context.Context, req Request) []string {
+// dockerBuildtimeEnv returns sorted build-time env keys and their values.
+func (p *Pipeline) dockerBuildtimeEnv(ctx context.Context, req Request) (keys []string, vals map[string]string) {
+	vals = map[string]string{}
 	if p.Store == nil || req.App == nil {
-		return nil
+		return nil, vals
 	}
 	vars, err := p.Store.ListEnvVars(ctx, req.TeamID, "application", req.App.ID, true)
 	if err != nil || len(vars) == 0 {
-		return nil
+		return nil, vals
 	}
-	keys := make([]string, 0)
-	vals := map[string]string{}
 	for _, v := range vars {
 		if !v.IsBuildtime || v.IsPreview {
 			continue
@@ -527,11 +543,7 @@ func (p *Pipeline) dockerBuildArgFlags(ctx context.Context, req Request) []strin
 		vals[v.Key] = v.Value
 	}
 	sort.Strings(keys)
-	var out []string
-	for _, k := range keys {
-		out = append(out, "--build-arg", k+"="+vals[k])
-	}
-	return out
+	return keys, vals
 }
 
 func (p *Pipeline) runBuiltImage(ctx context.Context, client *ssh.Client, req Request, name, imageTag string) error {
