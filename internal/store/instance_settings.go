@@ -390,6 +390,14 @@ func (s *Store) RegistrationEnabled(ctx context.Context) (bool, error) {
 	return enabled, err
 }
 
+// SetRegistrationEnabled toggles open self-registration for the instance.
+func (s *Store) SetRegistrationEnabled(ctx context.Context, enabled bool) error {
+	_, err := s.Pool.Exec(ctx, `
+		UPDATE instance_settings SET is_registration_enabled = $1, updated_at = NOW() WHERE id = 1
+	`, enabled)
+	return err
+}
+
 func (s *Store) ListOauthSettings(ctx context.Context) ([]OauthSetting, error) {
 	rows, err := s.Pool.Query(ctx, `
 		SELECT id, provider, enabled, client_id, client_secret_enc, redirect_uri, tenant, base_url, updated_at

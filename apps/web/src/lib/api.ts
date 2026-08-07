@@ -69,6 +69,8 @@ export const api = {
   health: () => request<{ status: string }>('/health'),
   version: () => request<{ version: string; name: string; license?: string }>('/api/v1/version'),
   me: () => request<{ user: User; team: Team; teams: Team[] }>('/api/v1/auth/me'),
+  registrationStatus: () =>
+    request<{ registration_enabled: boolean }>('/api/v1/auth/registration'),
   login: (email: string, password: string) =>
     request<{ user: User; team: Team; token: string }>('/api/v1/auth/login', {
       method: 'POST',
@@ -79,6 +81,7 @@ export const api = {
       user: User
       team: Team
       token: string
+      registration_disabled?: boolean
       server?: Server
       bootstrap?: {
         server: Server

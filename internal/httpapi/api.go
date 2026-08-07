@@ -72,6 +72,7 @@ func (a *API) Router() http.Handler {
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Post("/auth/register", a.handleRegister)
+		r.Get("/auth/registration", a.handleRegistrationStatus)
 		r.Post("/auth/login", a.handleLogin)
 		r.With(a.requireAuth).Post("/auth/logout", a.handleLogout)
 		r.With(a.requireAuth).Get("/auth/me", a.handleMe)

@@ -566,7 +566,7 @@ export function SettingsPage() {
                 />
                 <Toggle
                   label="Registration Allowed"
-                  helper="Allow users to self-register. If disabled, only administrators can create accounts."
+                  helper="Allow users to self-register. Turned off automatically after the first admin account; re-enable here to invite more people."
                   checked={form.is_registration_enabled}
                   onChange={(v) => set('is_registration_enabled', v)}
                   disabled={!canEdit}

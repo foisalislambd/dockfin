@@ -32,8 +32,13 @@ func (a *API) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "email, name, and password (min 8) required")
 		return
 	}
-	// First account on this instance gets the install VPS auto-registered.
-	usersBefore, _ := a.Store.CountUsers(r.Context())
+	// First account on this instance gets the install VPS auto-registered
+	// and open registration is locked until an admin re-enables it.
+	usersBefore, countErr := a.Store.CountUsers(r.Context())
+	if countErr != nil {
+		mapStoreErr(w, countErr)
+		return
+	}
 	hash, err := crypto.HashPassword(body.Password)
 	if err != nil {
 		mapStoreErr(w, err)
@@ -57,16 +62,34 @@ func (a *API) handleRegister(w http.ResponseWriter, r *http.Request) {
 	setSessionCookie(w, a.Cfg, token, expires)
 
 	resp := map[string]any{"user": user, "team": team, "token": token}
-	if a.Cfg.BootstrapSelf && usersBefore == 0 {
-		if boot, err := a.bootstrapSelfServer(r.Context(), team.ID, true); err == nil {
-			resp["server"] = boot.Server
-			resp["bootstrap"] = boot
-		} else if a.Logger != nil {
-			a.Logger.Warn("auto-bootstrap self server failed", "error", err.Error())
-			resp["bootstrap_error"] = err.Error()
+	if usersBefore == 0 {
+		if err := a.Store.SetRegistrationEnabled(r.Context(), false); err != nil {
+			if a.Logger != nil {
+				a.Logger.Warn("failed to disable registration after first user", "error", err.Error())
+			}
+		} else {
+			resp["registration_disabled"] = true
+		}
+		if a.Cfg.BootstrapSelf {
+			if boot, err := a.bootstrapSelfServer(r.Context(), team.ID, true); err == nil {
+				resp["server"] = boot.Server
+				resp["bootstrap"] = boot
+			} else if a.Logger != nil {
+				a.Logger.Warn("auto-bootstrap self server failed", "error", err.Error())
+				resp["bootstrap_error"] = err.Error()
+			}
 		}
 	}
 	writeJSON(w, http.StatusCreated, resp)
+}
+
+func (a *API) handleRegistrationStatus(w http.ResponseWriter, r *http.Request) {
+	enabled, err := a.Store.RegistrationEnabled(r.Context())
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"registration_enabled": enabled})
 }
 
 func (a *API) handleLogin(w http.ResponseWriter, r *http.Request) {

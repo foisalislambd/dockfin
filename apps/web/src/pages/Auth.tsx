@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate } from '@tanstack/react-router'
 import { Eye, EyeOff, Lock, Mail, User } from 'lucide-react'
 import { api } from '../lib/api'
@@ -62,9 +62,32 @@ function AuthShell({ children }: { children: ReactNode }) {
   )
 }
 
+function useRegistrationEnabled() {
+  const [enabled, setEnabled] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void api
+      .registrationStatus()
+      .then((res) => {
+        if (!cancelled) setEnabled(res.registration_enabled)
+      })
+      .catch(() => {
+        // Fail open so a status blip never hides first-time signup; POST /register is the real gate.
+        if (!cancelled) setEnabled(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  return enabled
+}
+
 export function LoginPage() {
   const nav = useNavigate()
   const { refresh, user, loading } = useAuth()
+  const registrationEnabled = useRegistrationEnabled()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -152,12 +175,18 @@ export function LoginPage() {
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
-      <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
-        No account?{' '}
-        <Link to="/register" className="font-medium text-brand-600 hover:text-brand-500 dark:text-brand-400 dark:hover:text-brand-300">
-          Create one
-        </Link>
-      </p>
+      {registrationEnabled ? (
+        <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
+          No account?{' '}
+          <Link to="/register" className="font-medium text-brand-600 hover:text-brand-500 dark:text-brand-400 dark:hover:text-brand-300">
+            Create one
+          </Link>
+        </p>
+      ) : registrationEnabled === false ? (
+        <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
+          Registration is closed. Ask an admin to invite you.
+        </p>
+      ) : null}
     </AuthShell>
   )
 }
@@ -165,6 +194,7 @@ export function LoginPage() {
 export function RegisterPage() {
   const nav = useNavigate()
   const { refresh, user, loading } = useAuth()
+  const registrationEnabled = useRegistrationEnabled()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -187,7 +217,7 @@ export function RegisterPage() {
   }
 
   // Wait for session check so logged-in users never flash the register form
-  if (loading) {
+  if (loading || registrationEnabled === null) {
     return (
       <AuthShell>
         <AuthFormSkeleton />
@@ -195,6 +225,7 @@ export function RegisterPage() {
     )
   }
   if (user) return <Navigate to="/dashboard" />
+  if (!registrationEnabled) return <Navigate to="/login" />
 
   return (
     <AuthShell>
@@ -202,6 +233,9 @@ export function RegisterPage() {
       <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
         Create account
       </h1>
+      <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+        First account becomes the admin. Registration closes automatically after signup.
+      </p>
       <form onSubmit={onSubmit} className="mt-6 space-y-4">
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Name</label>
@@ -235,6 +269,7 @@ export function RegisterPage() {
             <input
               type="password"
               required
+              minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className={inputClass}
