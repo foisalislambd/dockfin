@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
+import { Info } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../lib/api'
-import { Btn, Input, Modal } from '../pages/Servers'
+import { Btn, Input } from '../pages/Servers'
 
 /** Extract bare hostname from a domain entry (scheme/path/port stripped). */
 export function hostFromDomainEntry(entry: string): string {
@@ -41,7 +42,9 @@ function CopyBtn({ text }: { text: string }) {
     <button
       type="button"
       className="rounded px-1.5 py-0.5 text-[11px] font-medium text-brand-600 hover:bg-brand-500/10 dark:text-brand-400"
-      onClick={() => {
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
         void navigator.clipboard.writeText(text).then(() => {
           setCopied(true)
           setTimeout(() => setCopied(false), 1500)
@@ -55,22 +58,21 @@ function CopyBtn({ text }: { text: string }) {
 
 type DNSCheckResponse = Awaited<ReturnType<typeof api.checkDomainDNS>>
 
-export function DnsGuideModal({
-  open,
-  onClose,
+/** Interactive DNS guide body (table + Check DNS) — used inside tooltip panel. */
+export function DnsGuideContent({
   domains,
   serverIp,
   serverId,
   destinationId,
   autoCheck,
+  compact,
 }: {
-  open: boolean
-  onClose: () => void
   domains: string
   serverIp: string
   serverId?: string
   destinationId?: string
   autoCheck?: boolean
+  compact?: boolean
 }) {
   const hosts = useMemo(
     () =>
@@ -82,6 +84,7 @@ export function DnsGuideModal({
   const [busy, setBusy] = useState(false)
   const [check, setCheck] = useState<DNSCheckResponse | null>(null)
   const [checkError, setCheckError] = useState('')
+  const ranFor = useRef('')
 
   const runCheck = async () => {
     if (!domains.trim() || hosts.length === 0) return
@@ -92,10 +95,10 @@ export function DnsGuideModal({
         domains,
         server_id: serverId,
         destination_id: destinationId,
-        // Prefer server lookup on API when UI IP unknown (destination-only flows).
         expected_ip: serverIp || undefined,
       })
       setCheck(res)
+      ranFor.current = domains
     } catch (e) {
       setCheck(null)
       setCheckError(e instanceof Error ? e.message : 'DNS check failed')
@@ -105,161 +108,232 @@ export function DnsGuideModal({
   }
 
   useEffect(() => {
-    if (!open) return
-    setCheck(null)
-    setCheckError('')
-    if (autoCheck && hosts.length > 0) {
-      void runCheck()
-    }
+    if (!autoCheck || hosts.length === 0) return
+    if (ranFor.current === domains) return
+    void runCheck()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, domains])
-
-  if (!open) return null
+  }, [autoCheck, domains])
 
   return (
-    <Modal title="DNS setup" onClose={onClose} wide>
-      <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
-        <p>
-          Add these DNS records at your provider (Cloudflare, Namecheap, Route53, GoDaddy, etc.) so
-          traffic and Let&apos;s Encrypt reach this server.
+    <div className={`space-y-3 text-sm text-gray-700 dark:text-gray-300 ${compact ? 'text-xs' : ''}`}>
+      <p className={compact ? 'text-[11px] leading-relaxed' : ''}>
+        Add these DNS records at your provider so traffic and Let&apos;s Encrypt reach this server.
+      </p>
+
+      {!serverIp ? (
+        <p className="rounded-md border border-amber-300/60 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+          Public IP unknown. Set Instance Public IPv4 (Settings) or the server&apos;s Public IP first.
         </p>
-
-        {!serverIp ? (
-          <p className="rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-            Server public IP is unknown. Open the server → set <strong>Public IP</strong> (or run
-            Validate), then come back.
-          </p>
-        ) : (
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-black/30">
-            <span className="text-xs text-gray-500 dark:text-gray-400">Point A records to</span>
-            <code className="font-mono text-sm text-gray-900 dark:text-white">{serverIp}</code>
-            <CopyBtn text={serverIp} />
-          </div>
-        )}
-
-        {hosts.length === 0 ? (
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Enter a custom domain (not sslip.io / nip.io) to see exact DNS rows. Free magic domains
-            need no DNS changes.
-          </p>
-        ) : (
-          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-800">
-            <table className="min-w-full text-left text-xs">
-              <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Type</th>
-                  <th className="px-3 py-2 font-medium">Name</th>
-                  <th className="px-3 py-2 font-medium">Value</th>
-                  <th className="px-3 py-2 font-medium">Host</th>
-                </tr>
-              </thead>
-              <tbody>
-                {hosts.map((host) => (
-                  <tr key={host} className="border-t border-gray-200 dark:border-gray-800">
-                    <td className="px-3 py-2 font-mono">A</td>
-                    <td className="px-3 py-2 font-mono">
-                      <span className="inline-flex items-center gap-1">
-                        {dnsRecordName(host)}
-                        <CopyBtn text={dnsRecordName(host)} />
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 font-mono">
-                      <span className="inline-flex items-center gap-1">
-                        {serverIp || '—'}
-                        {serverIp ? <CopyBtn text={serverIp} /> : null}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 font-mono text-gray-500 dark:text-gray-400">{host}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <ul className="list-disc space-y-1 pl-5 text-xs text-gray-500 dark:text-gray-400">
-          <li>
-            Apex (<code className="font-mono">example.com</code>): Name ={' '}
-            <code className="font-mono">@</code> (or blank), Value = server IP.
-          </li>
-          <li>
-            Subdomain (<code className="font-mono">app.example.com</code>): Name ={' '}
-            <code className="font-mono">app</code>, Value = server IP.
-          </li>
-          <li>
-            Cloudflare: use <strong>DNS only</strong> (grey cloud) until SSL works; orange proxy can
-            block Let&apos;s Encrypt HTTP-01.
-          </li>
-          <li>Wait for DNS to propagate, then click Check DNS and Redeploy.</li>
-        </ul>
-
-        {hosts.length > 0 ? (
-          <div className="space-y-2 rounded-lg border border-gray-200 p-3 dark:border-gray-800">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-medium text-gray-900 dark:text-white">DNS validation</span>
-              <Btn type="button" onClick={() => void runCheck()} disabled={busy}>
-                {busy ? 'Checking…' : 'Check DNS'}
-              </Btn>
-            </div>
-            {checkError ? <p className="text-xs text-error-500">{checkError}</p> : null}
-            {check ? (
-              <div className="space-y-2">
-                {!check.validation_enabled ? (
-                  <p className="text-xs text-amber-700 dark:text-amber-300">
-                    DNS validation is disabled in Settings → Advanced. Records are not verified.
-                  </p>
-                ) : null}
-                {check.results.map((r) => (
-                  <div
-                    key={r.host}
-                    className={`rounded-md px-2.5 py-2 text-xs ${
-                      r.matched || r.skip_validation
-                        ? 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300'
-                        : 'bg-error-500/10 text-error-600 dark:text-error-400'
-                    }`}
-                  >
-                    <div className="font-medium">
-                      {r.host}:{' '}
-                      {r.skip_validation
-                        ? 'skipped'
-                        : r.matched
-                          ? r.cloudflare
-                            ? 'OK (Cloudflare proxy)'
-                            : 'OK — points to server'
-                          : 'Not pointing to this server yet'}
-                    </div>
-                    {r.resolved_ips?.length ? (
-                      <div className="mt-0.5 font-mono opacity-80">
-                        Resolved: {r.resolved_ips.join(', ')}
-                        {r.expected_ip ? ` · expected ${r.expected_ip}` : ''}
-                      </div>
-                    ) : null}
-                    {r.error && !r.matched ? <div className="mt-0.5 opacity-90">{r.error}</div> : null}
-                  </div>
-                ))}
-                {!check.ok && check.validation_enabled ? (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Add the A record(s) above, wait a minute, then Check DNS again. You can still
-                    save the domain and redeploy after DNS is correct.
-                  </p>
-                ) : null}
-              </div>
-            ) : (
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                After you create the A record(s), click Check DNS to verify they resolve to{' '}
-                <code className="font-mono">{serverIp || 'your server IP'}</code>.
-              </p>
-            )}
-          </div>
-        ) : null}
-
-        <div className="flex justify-end gap-2">
-          <Btn type="button" onClick={onClose}>
-            Got it
-          </Btn>
+      ) : (
+        <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 dark:border-gray-800 dark:bg-black/30">
+          <span className="text-[11px] text-gray-500 dark:text-gray-400">A record →</span>
+          <code className="font-mono text-xs text-gray-900 dark:text-white">{serverIp}</code>
+          <CopyBtn text={serverIp} />
         </div>
-      </div>
-    </Modal>
+      )}
+
+      {hosts.length === 0 ? (
+        <p className="text-[11px] text-gray-500 dark:text-gray-400">
+          Enter a custom domain (not sslip.io / nip.io). Free magic domains need no DNS changes.
+        </p>
+      ) : (
+        <div className="overflow-x-auto rounded-md border border-gray-200 dark:border-gray-800">
+          <table className="min-w-full text-left text-[11px]">
+            <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+              <tr>
+                <th className="px-2 py-1.5 font-medium">Type</th>
+                <th className="px-2 py-1.5 font-medium">Name</th>
+                <th className="px-2 py-1.5 font-medium">Value</th>
+                <th className="px-2 py-1.5 font-medium">Host</th>
+              </tr>
+            </thead>
+            <tbody>
+              {hosts.map((host) => (
+                <tr key={host} className="border-t border-gray-200 dark:border-gray-800">
+                  <td className="px-2 py-1.5 font-mono">A</td>
+                  <td className="px-2 py-1.5 font-mono">
+                    <span className="inline-flex items-center gap-0.5">
+                      {dnsRecordName(host)}
+                      <CopyBtn text={dnsRecordName(host)} />
+                    </span>
+                  </td>
+                  <td className="px-2 py-1.5 font-mono">
+                    <span className="inline-flex items-center gap-0.5">
+                      {serverIp || '—'}
+                      {serverIp ? <CopyBtn text={serverIp} /> : null}
+                    </span>
+                  </td>
+                  <td className="px-2 py-1.5 font-mono text-gray-500 dark:text-gray-400">{host}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <ul className="list-disc space-y-0.5 pl-4 text-[11px] text-gray-500 dark:text-gray-400">
+        <li>
+          Apex (<code className="font-mono">example.com</code>): Name ={' '}
+          <code className="font-mono">@</code>, Value = server IP.
+        </li>
+        <li>
+          Subdomain (<code className="font-mono">app.example.com</code>): Name ={' '}
+          <code className="font-mono">app</code>.
+        </li>
+        <li>Cloudflare: grey cloud (DNS only) until SSL works.</li>
+      </ul>
+
+      {hosts.length > 0 ? (
+        <div className="space-y-2 rounded-md border border-gray-200 p-2.5 dark:border-gray-800">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[11px] font-medium text-gray-900 dark:text-white">DNS check</span>
+            <Btn type="button" onClick={() => void runCheck()} disabled={busy}>
+              {busy ? 'Checking…' : 'Check DNS'}
+            </Btn>
+          </div>
+          {checkError ? <p className="text-[11px] text-error-500">{checkError}</p> : null}
+          {check ? (
+            <div className="space-y-1.5">
+              {!check.validation_enabled ? (
+                <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                  DNS validation is disabled in Settings → Advanced.
+                </p>
+              ) : null}
+              {check.results.map((r) => (
+                <div
+                  key={r.host}
+                  className={`rounded px-2 py-1.5 text-[11px] ${
+                    r.matched || r.skip_validation
+                      ? 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300'
+                      : 'bg-error-500/10 text-error-600 dark:text-error-400'
+                  }`}
+                >
+                  <div className="font-medium">
+                    {r.host}:{' '}
+                    {r.skip_validation
+                      ? 'skipped'
+                      : r.matched
+                        ? r.cloudflare
+                          ? 'OK (Cloudflare proxy)'
+                          : 'OK — points to server'
+                        : 'Not pointing to this server yet'}
+                  </div>
+                  {r.resolved_ips?.length ? (
+                    <div className="mt-0.5 font-mono opacity-80">
+                      Resolved: {r.resolved_ips.join(', ')}
+                      {r.expected_ip ? ` · expected ${r.expected_ip}` : ''}
+                    </div>
+                  ) : null}
+                  {r.error && !r.matched ? <div className="mt-0.5 opacity-90">{r.error}</div> : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+              After creating the A record, click Check DNS.
+            </p>
+          )}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+/**
+ * Clickable tooltip (not a modal): Info icon opens a floating panel with DNS
+ * instructions + Check DNS. Click outside or Escape to close.
+ */
+export function DnsGuideTooltip({
+  domains,
+  serverIp,
+  serverId,
+  destinationId,
+  autoOpen,
+  autoCheck,
+  label = 'DNS',
+}: {
+  domains: string
+  serverIp: string
+  serverId?: string
+  destinationId?: string
+  /** Open once when this becomes true (e.g. first custom domain). */
+  autoOpen?: boolean
+  autoCheck?: boolean
+  label?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const didAuto = useRef(false)
+
+  useEffect(() => {
+    if (autoOpen && !didAuto.current) {
+      didAuto.current = true
+      setOpen(true)
+    }
+  }, [autoOpen])
+
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  return (
+    <div className="relative inline-flex" ref={rootRef}>
+      <button
+        type="button"
+        className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium transition ${
+          open
+            ? 'bg-brand-500/15 text-brand-700 dark:text-brand-300'
+            : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-200'
+        }`}
+        aria-expanded={open}
+        aria-label="DNS setup tip"
+        onClick={(e) => {
+          e.preventDefault()
+          setOpen((v) => !v)
+        }}
+      >
+        <Info className="h-3.5 w-3.5" />
+        {label}
+      </button>
+      {open ? (
+        <div
+          role="dialog"
+          aria-label="DNS setup"
+          className="absolute top-full left-0 z-40 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-gray-700 dark:bg-gray-950 sm:w-[26rem]"
+        >
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-gray-900 dark:text-white">DNS setup</span>
+            <button
+              type="button"
+              className="text-[11px] text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+              onClick={() => setOpen(false)}
+            >
+              Close
+            </button>
+          </div>
+          <DnsGuideContent
+            domains={domains}
+            serverIp={serverIp}
+            serverId={serverId}
+            destinationId={destinationId}
+            autoCheck={autoCheck || open}
+            compact
+          />
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -307,8 +381,7 @@ export function DomainsPanel({
   title?: string
   hint?: string
 }) {
-  const [dnsOpen, setDnsOpen] = useState(false)
-  const [autoCheck, setAutoCheck] = useState(false)
+  const [autoTip, setAutoTip] = useState(false)
   const [local, setLocal] = useState(value)
   const prevCustom = useRef(false)
 
@@ -343,10 +416,8 @@ export function DomainsPanel({
     const hosts = splitDomainEntries(next)
       .map(hostFromDomainEntry)
       .filter((h) => h && !isMagicHost(h))
-    // Coolify-style: when user finishes typing a custom domain, open DNS topic popup.
     if (hosts.length > 0 && !prevCustom.current) {
-      setAutoCheck(true)
-      setDnsOpen(true)
+      setAutoTip(true)
     }
     prevCustom.current = hosts.length > 0
     return next
@@ -356,40 +427,42 @@ export function DomainsPanel({
     <section className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h3>
+            <DnsGuideTooltip
+              domains={local}
+              serverIp={serverIp}
+              serverId={serverId}
+              destinationId={destinationId}
+              autoOpen={autoTip}
+              autoCheck={autoTip}
+              label="DNS tip"
+            />
+          </div>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             {hint ||
-              'Type domain.com — https:// is added automatically. We show what to add in DNS and can check it.'}
+              'Type domain.com — https:// is added automatically. Open DNS tip for records + Check DNS.'}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        {onSave ? (
           <Btn
+            primary
             type="button"
             onClick={() => {
-              setAutoCheck(true)
-              setDnsOpen(true)
+              const next = applyNormalized(local)
+              if (
+                customHosts.length > 0 ||
+                splitDomainEntries(next).some((e) => !isMagicHost(hostFromDomainEntry(e)))
+              ) {
+                setAutoTip(true)
+              }
+              onSave(next)
             }}
+            disabled={saveBusy}
           >
-            DNS instructions
+            {saveBusy ? 'Saving…' : 'Save'}
           </Btn>
-          {onSave ? (
-            <Btn
-              primary
-              type="button"
-              onClick={() => {
-                const next = applyNormalized(local)
-                if (customHosts.length > 0 || splitDomainEntries(next).some((e) => !isMagicHost(hostFromDomainEntry(e)))) {
-                  setAutoCheck(true)
-                  setDnsOpen(true)
-                }
-                onSave(next)
-              }}
-              disabled={saveBusy}
-            >
-              {saveBusy ? 'Saving…' : 'Save'}
-            </Btn>
-          ) : null}
-        </div>
+        ) : null}
       </div>
 
       <div className="space-y-2">
@@ -423,18 +496,6 @@ export function DomainsPanel({
           >
             Generate free domain (sslip.io / nip.io)
           </button>
-          {customHosts.length > 0 ? (
-            <button
-              type="button"
-              className="text-xs font-medium text-gray-600 hover:underline dark:text-gray-400"
-              onClick={() => {
-                setAutoCheck(true)
-                setDnsOpen(true)
-              }}
-            >
-              What to add in DNS →
-            </button>
-          ) : null}
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400">
           Examples:{' '}
@@ -446,30 +507,11 @@ export function DomainsPanel({
           <p className="rounded-lg border border-brand-500/20 bg-brand-500/5 px-3 py-2 text-xs text-gray-700 dark:text-gray-300">
             Add an <strong>A</strong> record: <code className="font-mono">{customHosts[0]}</code> →{' '}
             <code className="font-mono">{serverIp}</code>
-            {customHosts.length > 1 ? ` (+${customHosts.length - 1} more)` : ''}.{' '}
-            <button
-              type="button"
-              className="font-medium text-brand-600 hover:underline dark:text-brand-400"
-              onClick={() => {
-                setAutoCheck(true)
-                setDnsOpen(true)
-              }}
-            >
-              Open DNS guide &amp; check
-            </button>
+            {customHosts.length > 1 ? ` (+${customHosts.length - 1} more)` : ''}. Use the{' '}
+            <strong>DNS tip</strong> icon to verify.
           </p>
         ) : null}
       </div>
-
-      <DnsGuideModal
-        open={dnsOpen}
-        onClose={() => setDnsOpen(false)}
-        domains={local}
-        serverIp={serverIp}
-        serverId={serverId}
-        destinationId={destinationId}
-        autoCheck={autoCheck}
-      />
     </section>
   )
 }

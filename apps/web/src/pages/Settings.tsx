@@ -2,7 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Eye, EyeOff, Info } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { normalizeDomainEntry } from '../components/DomainsPanel'
+import {
+  DnsGuideTooltip,
+  hostFromDomainEntry,
+  normalizeDomainEntry,
+} from '../components/DomainsPanel'
 import { MIT_LICENSE_TEXT } from '../config/app.config'
 import {
   api,
@@ -481,14 +485,51 @@ export function SettingsPage() {
                   }
                 />
                 <div className="grid gap-3 md:grid-cols-3">
-                  <TextField
-                    label="URL"
-                    helper="Instance public URL. Type dash.example.com — https:// is added automatically."
-                    value={form.public_url}
-                    onChange={(v) => set('public_url', v)}
-                    placeholder="dash.example.com"
-                    required={false}
-                  />
+                  <label className="block w-full text-sm">
+                    <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">URL</span>
+                      <Helper text="Instance public URL. Type dash.example.com — https:// is added automatically." />
+                      <DnsGuideTooltip
+                        domains={form.public_url}
+                        serverIp={(form.public_ipv4 || '').trim()}
+                        autoCheck
+                        label="DNS tip"
+                      />
+                    </div>
+                    <input
+                      type="text"
+                      value={form.public_url}
+                      placeholder="dash.example.com"
+                      onChange={(e) => set('public_url', e.target.value)}
+                      onBlur={() => {
+                        const next = form.public_url.trim()
+                          ? normalizeDomainEntry(form.public_url.trim())
+                          : ''
+                        if (next !== form.public_url) set('public_url', next)
+                      }}
+                      className="panel-field w-full rounded-lg px-3 py-2 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20 disabled:opacity-50"
+                    />
+                    {(() => {
+                      const host = hostFromDomainEntry(form.public_url)
+                      const ip = (form.public_ipv4 || '').trim()
+                      if (!host || host === 'localhost' || host === '127.0.0.1') return null
+                      if (host.endsWith('.sslip.io') || host.endsWith('.nip.io')) return null
+                      return (
+                        <p className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                          DNS: A record <code className="font-mono">{host}</code>
+                          {ip ? (
+                            <>
+                              {' '}
+                              → <code className="font-mono">{ip}</code>
+                            </>
+                          ) : (
+                            ' (set Public IPv4 below, then open DNS tip)'
+                          )}
+                          . Open <strong>DNS tip</strong> to Check DNS.
+                        </p>
+                      )
+                    })()}
+                  </label>
                   <TextField
                     label="Name"
                     helper="Custom name shown for this instance."

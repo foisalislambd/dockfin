@@ -138,6 +138,9 @@ func (a *API) handleCheckDomainDNS(w http.ResponseWriter, r *http.Request) {
 	if st, err := a.Store.GetInstanceSettings(r.Context()); err == nil {
 		validationOn = st.IsDNSValidationEnabled
 		resolvers = proxy.ParseDNSResolvers(st.CustomDNSServers)
+		if expectIP == "" {
+			expectIP = proxy.PreferPublicIPv4("", st.PublicIPv4)
+		}
 	}
 
 	hosts := proxy.HostsFromDomainList(domains)
