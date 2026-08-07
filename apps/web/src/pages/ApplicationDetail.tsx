@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import {
   Activity,
   AlertTriangle,
@@ -246,6 +246,29 @@ const SIDE_ITEMS = [
   { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
 ] as const
 
+type TopTabId = (typeof TOP_TABS)[number]['id']
+type SideId = (typeof SIDE_ITEMS)[number]['id']
+
+function isTopTabId(v: string | undefined): v is TopTabId {
+  return !!v && TOP_TABS.some((t) => t.id === v)
+}
+
+function isSideId(v: string | undefined): v is SideId {
+  return !!v && SIDE_ITEMS.some((t) => t.id === v)
+}
+
+/** Persisted in ?tab=&side= so refresh keeps the active panels. */
+export type ApplicationDetailSearch = {
+  tab?: TopTabId
+  side?: SideId
+}
+
+export function parseApplicationDetailSearch(s: Record<string, unknown>): ApplicationDetailSearch {
+  const tab = typeof s.tab === 'string' && isTopTabId(s.tab) ? s.tab : undefined
+  const side = typeof s.side === 'string' && isSideId(s.side) ? s.side : undefined
+  return { tab, side }
+}
+
 function statusTone(status: string) {
   const s = (status || '').toLowerCase()
   if (s.includes('run') || s.includes('healthy')) return 'ok'
@@ -274,10 +297,34 @@ export function ApplicationDetailPage() {
     envId?: string
   }
   const nav = useNavigate()
+  const search = useSearch({ strict: false }) as ApplicationDetailSearch
+  const topTab: TopTabId = isTopTabId(search.tab) ? search.tab : 'configuration'
+  const sideRaw: SideId = isSideId(search.side) ? search.side : 'general'
   const qc = useQueryClient()
   const toast = useToast()
   const confirm = useConfirm()
   const nested = Boolean(projectId && envId)
+
+  const setAppNav = (next: { tab?: TopTabId; side?: SideId }) => {
+    const tab = next.tab ?? topTab
+    const nextSide = next.side ?? sideRaw
+    void nav({
+      // Omit cleared keys (TanStack drops missing keys / undefined).
+      search: ((prev: Record<string, unknown>) => {
+        const { tab: _t, side: _s, ...rest } = prev
+        const out: Record<string, unknown> = { ...rest }
+        if (tab !== 'configuration') {
+          out.tab = tab
+        }
+        // Keep side in the URL even on other top tabs so Configuration restores it.
+        if (nextSide !== 'general') {
+          out.side = nextSide
+        }
+        return out
+      }) as never,
+      replace: true,
+    })
+  }
 
   const app = useQuery({ queryKey: ['application', appId], queryFn: () => api.application(appId) })
   const allEnvs = useQuery({
@@ -322,8 +369,6 @@ export function ApplicationDetailPage() {
     enabled: Boolean(appId),
   })
 
-  const [topTab, setTopTab] = useState<(typeof TOP_TABS)[number]['id']>('configuration')
-  const [side, setSide] = useState<(typeof SIDE_ITEMS)[number]['id']>('general')
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [cfg, setCfg] = useState<AppCfg>(emptyAppCfg)
   const [extraDestIds, setExtraDestIds] = useState<string[]>([])
@@ -358,8 +403,6 @@ export function ApplicationDetailPage() {
   })
 
   useEffect(() => {
-    setTopTab('configuration')
-    setSide('general')
     setWebhookSecret(null)
     setHttpBasicAuthPassword('')
     setClearHttpBasicAuth(false)
@@ -435,6 +478,9 @@ export function ApplicationDetailPage() {
       (item) => !['git', 'webhooks', 'previews', 'rollback'].includes(item.id),
     )
   }, [app.data?.dockerfile, cfg.dockerfile])
+
+  // If URL points at a hidden side item (e.g. Git on inline Dockerfile), fall back.
+  const side: SideId = sideItems.some((i) => i.id === sideRaw) ? sideRaw : 'general'
 
   const applyAppToForm = (updated: NonNullable<typeof app.data>) => {
     setCfg(appCfgFromData(updated))
@@ -812,7 +858,7 @@ export function ApplicationDetailPage() {
                 type="button"
                 role="tab"
                 aria-selected={active}
-                onClick={() => setTopTab(t.id)}
+                onClick={() => setAppNav({ tab: t.id })}
                 className={`relative inline-flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition ${
                   active
                     ? 'text-gray-900 dark:text-white'
@@ -844,7 +890,7 @@ export function ApplicationDetailPage() {
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => setSide(item.id)}
+                    onClick={() => setAppNav({ tab: 'configuration', side: item.id })}
                     className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm ${
                       active
                         ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-300'
