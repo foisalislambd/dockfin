@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="apps/web/public/brand/dockfin-logo.png" alt="Dockfin" width="180" />
+</p>
+
 # Dockfin
 
 **Deploy apps on your own server** — like Heroku / Vercel, but self-hosted.
