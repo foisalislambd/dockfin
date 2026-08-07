@@ -10,6 +10,7 @@ import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
 import { ResourceTagsPanel } from '../components/ResourceTagsPanel'
 import { ScheduledTasksPanel } from '../components/ScheduledTasksPanel'
 import { ServerTerminal } from '../components/Terminal'
+import { CodeEditor } from '../components/CodeEditor'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { useToast } from '../components/Toast'
 import { api } from '../lib/api'
@@ -872,15 +873,16 @@ export function ApplicationDetailPage() {
                             ? 'Raw compose from the repository (edit in git).'
                             : 'Deployable compose after Dockfin adaptation (Traefik, network, ports).'}
                         </p>
-                        <textarea
+                        <CodeEditor
+                          language="yaml"
                           readOnly
-                          rows={16}
+                          height="26rem"
+                          ariaLabel="Docker Compose YAML"
                           value={
                             showRawCompose || !cfg.compose_prepare
                               ? a.docker_compose_raw || ''
                               : a.docker_compose || a.docker_compose_raw || ''
                           }
-                          className="panel-field w-full rounded-lg px-3 py-2 font-mono text-xs leading-relaxed"
                         />
                       </>
                     )}

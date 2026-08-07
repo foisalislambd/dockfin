@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { DomainsPanel, normalizeDomains } from '../components/DomainsPanel'
+import { CodeEditor } from '../components/CodeEditor'
 import { ServiceLogo } from '../components/ServiceLogo'
 import { CreatePageShell, FormActions, FormInput, FormSelect } from '../components/ui/forms'
 import { PageSkeleton } from '../components/ui/Skeleton'
@@ -199,12 +200,13 @@ export function CreateServicePage() {
               Paste a full compose file. Dockfin will prepare Traefik labels and magic domains on
               deploy.
             </p>
-            <textarea
+            <CodeEditor
+              language="yaml"
+              readOnly={false}
+              height="28rem"
+              ariaLabel="Docker Compose YAML"
               value={composeRaw}
-              onChange={(e) => setComposeRaw(e.target.value)}
-              rows={18}
-              spellCheck={false}
-              className="panel-field w-full rounded-lg px-3 py-2 font-mono text-xs leading-relaxed"
+              onChange={setComposeRaw}
             />
           </section>
         ) : (

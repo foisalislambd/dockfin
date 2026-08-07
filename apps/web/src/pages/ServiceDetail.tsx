@@ -12,6 +12,7 @@ import { ScheduledTasksPanel } from '../components/ScheduledTasksPanel'
 import { ServiceLogo } from '../components/ServiceLogo'
 import { ServiceWebhooksPanel } from '../components/ServiceWebhooksPanel'
 import { ServerTerminal } from '../components/Terminal'
+import { CodeEditor } from '../components/CodeEditor'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { useConfirm } from '../components/ConfirmDialog'
 import { useToast } from '../components/Toast'
@@ -641,9 +642,13 @@ function GeneralPanel({
       {showCompose && (
         <section className="space-y-2">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Compose file</h3>
-          <pre className="max-h-[28rem] overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-4 font-mono text-xs text-gray-800 dark:border-gray-800 dark:bg-black/40 dark:text-gray-200">
-            {composeText || '—'}
-          </pre>
+          <CodeEditor
+            language="yaml"
+            readOnly
+            height="28rem"
+            ariaLabel="Docker Compose YAML"
+            value={composeText || ''}
+          />
           <p className="text-xs text-gray-500 dark:text-gray-400">
             Compose editing from the UI is view-only for now. Redeploy uses the prepared compose
             stored with this service.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -647,27 +648,126 @@ func (p *Pipeline) deployNixpacks(ctx context.Context, buildClient, deployClient
 		return err
 	}
 
-	p.log("build", "Building with nixpacks (best-effort via railwayapp/nixpacks image)")
-	nixArgs := []string{
-		"docker", "run", "--rm",
-		"-v", workdir + "/src:/app",
-		"-v", "/var/run/docker.sock:/var/run/docker.sock",
-		"-w", "/app",
-		"ghcr.io/railwayapp/nixpacks:latest",
-		"build", ".", "--name", imageTag,
+	srcDir := workdir + "/src"
+	base := strings.TrimSpace(req.App.BaseDirectory)
+	if base != "" && base != "/" && base != "." {
+		joined := services.JoinBaseAndComposePath(base, "/")
+		rel := strings.Trim(strings.TrimPrefix(joined, "/"), "/")
+		if rel != "" {
+			srcDir = srcDir + "/" + rel
+		}
 	}
-	if req.ForceRebuild {
-		nixArgs = append(nixArgs, "--no-cache")
-	}
-	_, errOut, err = sshx.RunArgs(buildClient, nixArgs...)
-	if err != nil {
-		return fmt.Errorf("nixpacks build failed (ensure Docker can pull ghcr.io/railwayapp/nixpacks:latest): %v %s", err, errOut)
+
+	pack := req.App.BuildPack
+	if pack == "railpack" {
+		if err := p.ensureRemoteCLI(buildClient, "railpack", "https://railpack.com/install.sh"); err != nil {
+			return err
+		}
+		p.log("build", "Building with railpack CLI")
+		noCache := ""
+		if req.ForceRebuild {
+			noCache = " --no-cache"
+		}
+		buildCmd := fmt.Sprintf(
+			`set -euo pipefail
+export PATH="/usr/local/bin:/usr/bin:$HOME/.local/bin:$PATH"
+# Railpack needs a BuildKit backend (same approach as local railpack docs).
+if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -qx dockfin-buildkit; then
+  docker rm -f dockfin-buildkit >/dev/null 2>&1 || true
+  docker run -d --privileged --name dockfin-buildkit moby/buildkit:latest >/dev/null
+fi
+export BUILDKIT_HOST='docker-container://dockfin-buildkit'
+cd %s
+railpack build . --name %s%s
+`,
+			shellSingleQuote(srcDir), shellSingleQuote(imageTag), noCache,
+		)
+		_, errOut, err = sshx.Run(buildClient, buildCmd)
+		if err != nil {
+			return fmt.Errorf("railpack build failed: %v %s", err, errOut)
+		}
+	} else {
+		// nixpacks: ghcr.io/railwayapp/nixpacks:latest is a Debian *base* image, NOT the CLI.
+		// Coolify installs the nixpacks binary on the build host and runs it against the Docker daemon.
+		if err := p.ensureRemoteCLI(buildClient, "nixpacks", "https://nixpacks.com/install.sh"); err != nil {
+			return err
+		}
+		p.log("build", "Building with nixpacks CLI")
+		envFlags := p.nixpacksEnvFlags(ctx, req)
+		noCache := ""
+		if req.ForceRebuild {
+			noCache = " --no-cache"
+		}
+		buildCmd := fmt.Sprintf(
+			`set -euo pipefail
+export PATH="/usr/local/bin:/usr/bin:$HOME/.local/bin:$PATH"
+cd %s
+nixpacks build . -n %s --no-error-without-start%s%s
+`,
+			shellSingleQuote(srcDir),
+			shellSingleQuote(imageTag),
+			noCache,
+			envFlags,
+		)
+		_, errOut, err = sshx.Run(buildClient, buildCmd)
+		if err != nil {
+			return fmt.Errorf("nixpacks build failed: %v %s", err, errOut)
+		}
 	}
 
 	if err := p.transferIfNeeded(buildClient, deployClient, req, imageTag); err != nil {
 		return err
 	}
 	return p.runBuiltImage(ctx, deployClient, req, name, imageTag)
+}
+
+// ensureRemoteCLI installs a build CLI on the remote host if missing (Coolify-style).
+func (p *Pipeline) ensureRemoteCLI(client *ssh.Client, bin, installURL string) error {
+	check := fmt.Sprintf(
+		`export PATH="/usr/local/bin:/usr/bin:$HOME/.local/bin:$PATH"; command -v %s`,
+		shellSingleQuote(bin),
+	)
+	if _, _, err := sshx.Run(client, check); err == nil {
+		return nil
+	}
+	p.log("prepare", fmt.Sprintf("Installing %s CLI on build server…", bin))
+	install := fmt.Sprintf(
+		`set -euo pipefail
+export PATH="/usr/local/bin:/usr/bin:$HOME/.local/bin:$PATH"
+curl -fsSL %s | bash -s -- -y
+export PATH="/usr/local/bin:/usr/bin:$HOME/.local/bin:$PATH"
+command -v %s >/dev/null
+`,
+		shellSingleQuote(installURL), shellSingleQuote(bin),
+	)
+	_, errOut, err := sshx.Run(client, install)
+	if err != nil {
+		return fmt.Errorf("install %s: %v %s", bin, err, errOut)
+	}
+	return nil
+}
+
+func (p *Pipeline) nixpacksEnvFlags(ctx context.Context, req Request) string {
+	envMap := p.composeExistingEnv(ctx, req)
+	if len(envMap) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(envMap))
+	for k := range envMap {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	for _, k := range keys {
+		v := envMap[k]
+		// Skip empty / multiline secrets that would break the remote shell.
+		if v == "" || strings.ContainsAny(v, "\n\r") {
+			continue
+		}
+		b.WriteString(" --env ")
+		b.WriteString(shellSingleQuote(k + "=" + v))
+	}
+	return b.String()
 }
 
 func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Request) error {
