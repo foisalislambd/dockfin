@@ -211,21 +211,6 @@ func (a *API) handleGitSourceApps(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"applications": list})
 }
 
-func (a *API) publicBaseURL(r *http.Request) string {
-	if a.Cfg != nil && a.Cfg.PublicURL != "" {
-		return strings.TrimRight(a.Cfg.PublicURL, "/")
-	}
-	scheme := "http"
-	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-		scheme = "https"
-	}
-	host := r.Host
-	if h := r.Header.Get("X-Forwarded-Host"); h != "" {
-		host = h
-	}
-	return scheme + "://" + host
-}
-
 func (a *API) handleGitSourceManifest(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "sourceID"))
 	if err != nil {

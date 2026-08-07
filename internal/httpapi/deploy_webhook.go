@@ -245,28 +245,11 @@ func (a *API) handleGetServiceWebhookInfo(w http.ResponseWriter, r *http.Request
 		mapStoreErr(w, err)
 		return
 	}
-	base := strings.TrimRight(publicBaseURL(r, a), "/")
+	base := strings.TrimRight(a.publicBaseURL(r), "/")
 	writeJSON(w, http.StatusOK, map[string]any{
 		"uuid":               id,
 		"has_secret":         has,
 		"deploy_url":         fmt.Sprintf("%s/api/v1/deploy?uuid=%s&force=false", base, id),
 		"deploy_webhook_url": fmt.Sprintf("%s/api/v1/webhooks/deploy/services/%s", base, id),
 	})
-}
-
-func publicBaseURL(r *http.Request, a *API) string {
-	if a.Cfg != nil {
-		if u := strings.TrimSpace(a.Cfg.PublicURL); u != "" {
-			return strings.TrimRight(u, "/")
-		}
-	}
-	scheme := "http"
-	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-		scheme = "https"
-	}
-	host := r.Header.Get("X-Forwarded-Host")
-	if host == "" {
-		host = r.Host
-	}
-	return scheme + "://" + host
 }
