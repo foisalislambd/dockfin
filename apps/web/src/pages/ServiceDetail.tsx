@@ -98,6 +98,7 @@ export function ServiceDetailPage() {
   const [description, setDescription] = useState('')
   const [fqdn, setFqdn] = useState('')
   const [showCompose, setShowCompose] = useState(false)
+  const [composeDraft, setComposeDraft] = useState('')
   const [showDetails, setShowDetails] = useState(false)
   const [deployLines, setDeployLines] = useState<string[]>([])
   const [deployBusy, setDeployBusy] = useState(false)
@@ -130,6 +131,7 @@ export function ServiceDetailPage() {
     setName(svc.data.name || '')
     setDescription(svc.data.description || '')
     setFqdn(svc.data.fqdn || '')
+    setComposeDraft(svc.data.docker_compose_raw || svc.data.docker_compose || '')
   }, [svc.data])
 
   const serverId = useMemo(() => {
@@ -152,6 +154,14 @@ export function ServiceDetailPage() {
   const save = useMutation({
     mutationFn: () => api.updateService(svcId, { name, description }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['service', svcId] }),
+  })
+  const saveCompose = useMutation({
+    mutationFn: (raw: string) => api.updateService(svcId, { docker_compose_raw: raw }),
+    onSuccess: () => {
+      toast.success('Compose saved — redeploy to apply')
+      void qc.invalidateQueries({ queryKey: ['service', svcId] })
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed to save compose'),
   })
   const saveDomains = useMutation({
     mutationFn: (nextFqdn: string) => api.updateService(svcId, { fqdn: nextFqdn }),
@@ -355,21 +365,26 @@ export function ServiceDetailPage() {
       {topTab === 'links' && <LinksPanel links={s.links || []} />}
 
       {topTab === 'logs' && (
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Deploy / compose output from the target server.
-            </p>
-            <Btn primary onClick={() => void runDeploy()} disabled={deployBusy}>
-              {deployBusy ? 'Deploying…' : 'Redeploy'}
-            </Btn>
-          </div>
-          <DeployLogPanel
-            lines={deployLines}
-            busy={deployBusy}
-            emptyHint="Click Redeploy to stream compose output here…"
-          />
-          {deployError && <p className="text-sm text-error-500">{deployError}</p>}
+        <div className="space-y-6">
+          <ServiceLiveLogs svcId={svcId} fallbackContainers={containerOptions} />
+          {(deployBusy || deployLines.length > 0 || deployError) && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Deploy output
+                </h2>
+                <Btn primary onClick={() => void runDeploy()} disabled={deployBusy}>
+                  {deployBusy ? 'Deploying…' : 'Redeploy'}
+                </Btn>
+              </div>
+              <DeployLogPanel
+                lines={deployLines}
+                busy={deployBusy}
+                emptyHint="Click Redeploy to stream compose output here…"
+              />
+              {deployError && <p className="text-sm text-error-500">{deployError}</p>}
+            </div>
+          )}
         </div>
       )}
 
@@ -445,6 +460,10 @@ export function ServiceDetailPage() {
                 units={units}
                 showCompose={showCompose}
                 setShowCompose={setShowCompose}
+                composeDraft={composeDraft}
+                setComposeDraft={setComposeDraft}
+                onSaveCompose={() => saveCompose.mutate(composeDraft)}
+                composeBusy={saveCompose.isPending}
                 showDetails={showDetails}
                 setShowDetails={setShowDetails}
                 saveBusy={save.isPending}
@@ -588,6 +607,10 @@ function GeneralPanel({
   units,
   showCompose,
   setShowCompose,
+  composeDraft,
+  setComposeDraft,
+  onSaveCompose,
+  composeBusy,
   showDetails,
   setShowDetails,
   saveBusy,
@@ -603,6 +626,10 @@ function GeneralPanel({
   units: ServiceUnit[]
   showCompose: boolean
   setShowCompose: (v: boolean) => void
+  composeDraft: string
+  setComposeDraft: (v: string) => void
+  onSaveCompose: () => void
+  composeBusy: boolean
   showDetails: boolean
   setShowDetails: (v: boolean) => void
   saveBusy: boolean
@@ -610,7 +637,8 @@ function GeneralPanel({
   onRestartUnit: () => void
   restartBusy: boolean
 }) {
-  const composeText = s.docker_compose || s.docker_compose_raw || ''
+  const storedCompose = s.docker_compose_raw || s.docker_compose || ''
+  const composeDirty = composeDraft !== storedCompose
 
   return (
     <form className="space-y-8" onSubmit={onSave}>
@@ -674,17 +702,32 @@ function GeneralPanel({
 
       {showCompose && (
         <section className="space-y-2">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Compose file</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="mr-2 text-sm font-semibold text-gray-900 dark:text-white">
+              Compose file
+            </h3>
+            <Btn primary type="button" onClick={onSaveCompose} disabled={composeBusy || !composeDirty}>
+              {composeBusy ? 'Saving…' : 'Save compose'}
+            </Btn>
+            <Btn
+              type="button"
+              onClick={() => setComposeDraft(storedCompose)}
+              disabled={composeBusy || !composeDirty}
+            >
+              Reset
+            </Btn>
+          </div>
           <CodeEditor
             language="yaml"
-            readOnly
+            readOnly={false}
             height="28rem"
             ariaLabel="Docker Compose YAML"
-            value={composeText || ''}
+            value={composeDraft}
+            onChange={setComposeDraft}
           />
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Compose editing from the UI is view-only for now. Redeploy uses the prepared compose
-            stored with this service.
+            Saving stores your YAML and discards the prepared copy — the next deploy re-applies
+            networks, magic environment variables, and Traefik labels.
           </p>
         </section>
       )}
@@ -759,6 +802,152 @@ function UnitCard({
           </Btn>
         </div>
       </div>
+    </div>
+  )
+}
+
+function ServiceLiveLogs({
+  svcId,
+  fallbackContainers,
+}: {
+  svcId: string
+  fallbackContainers: string[]
+}) {
+  const [container, setContainer] = useState('')
+  const [tail, setTail] = useState(200)
+  const [lines, setLines] = useState<string[]>([])
+  const [status, setStatus] = useState<'connecting' | 'live' | 'ended' | 'error'>('connecting')
+  const [error, setError] = useState('')
+  const [nonce, setNonce] = useState(0)
+
+  const containers = useQuery({
+    queryKey: ['service-containers', svcId],
+    queryFn: () => api.serviceContainers(svcId),
+  })
+
+  const options = useMemo(() => {
+    const list = containers.data?.containers || []
+    return list.length ? list : fallbackContainers
+  }, [containers.data, fallbackContainers])
+
+  useEffect(() => {
+    if (options.length && (!container || !options.includes(container))) {
+      setContainer(options[0])
+    }
+  }, [options, container])
+
+  useEffect(() => {
+    if (!container) return
+    setLines([])
+    setStatus('connecting')
+    setError('')
+    const qs = new URLSearchParams({ tail: String(tail), container })
+    const es = new EventSource(`/api/v1/services/${svcId}/logs/stream?${qs}`, {
+      withCredentials: true,
+    })
+    es.addEventListener('log', (ev) => {
+      const raw = (ev as MessageEvent).data as string
+      let line = raw
+      try {
+        line = (JSON.parse(raw) as { line?: string }).line ?? raw
+      } catch {
+        /* plain line */
+      }
+      setLines((prev) => [...prev.slice(-2000), line])
+      setStatus('live')
+    })
+    es.addEventListener('done', () => {
+      setStatus('ended')
+      es.close()
+    })
+    es.onerror = () => {
+      setStatus((s) => (s === 'live' ? 'ended' : 'error'))
+      setError('Stream disconnected')
+      es.close()
+    }
+    return () => es.close()
+  }, [svcId, container, tail, nonce])
+
+  const downloadLogs = () => {
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${container || svcId}-logs.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+            Live container logs
+          </h2>
+          <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+            Streaming <code className="font-mono text-xs">docker logs -f</code> from the target
+            server.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="text-sm">
+            <span className="sr-only">Container</span>
+            <select
+              value={container}
+              onChange={(e) => setContainer(e.target.value)}
+              className="panel-field rounded-lg px-3 py-1.5 font-mono text-xs"
+            >
+              {options.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+              {!options.length && <option value="">No containers</option>}
+            </select>
+          </label>
+          <label className="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+            <span className="sr-only">Line limit</span>
+            <input
+              type="number"
+              min={50}
+              max={5000}
+              value={tail}
+              onChange={(e) => setTail(Number(e.target.value) || 200)}
+              className="panel-field w-20 rounded-lg px-2 py-1.5 text-xs"
+              title="Initial tail lines"
+            />
+            <span className="text-xs">lines</span>
+          </label>
+          <Btn type="button" onClick={downloadLogs} disabled={!lines.length}>
+            Download
+          </Btn>
+          <span
+            className={`text-xs font-medium ${
+              status === 'live'
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : status === 'error'
+                  ? 'text-error-500'
+                  : 'text-gray-500'
+            }`}
+          >
+            {status === 'connecting'
+              ? 'Connecting…'
+              : status === 'live'
+                ? 'Live'
+                : status === 'ended'
+                  ? 'Ended'
+                  : 'Error'}
+          </span>
+          <Btn type="button" onClick={() => setNonce((n) => n + 1)}>
+            Reconnect
+          </Btn>
+        </div>
+      </div>
+      {error && status === 'error' ? <p className="text-sm text-error-500">{error}</p> : null}
+      <pre className="panel-card max-h-[28rem] overflow-auto p-4 font-mono text-xs leading-relaxed text-gray-800 dark:text-gray-200">
+        {lines.length ? lines.join('\n') : 'Waiting for log lines…'}
+      </pre>
     </div>
   )
 }

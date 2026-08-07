@@ -126,9 +126,23 @@ export function TeamPage() {
   const [inviteRole, setInviteRole] = useState('member')
   const [acceptToken, setAcceptToken] = useState('')
   const [createdInvite, setCreatedInvite] = useState<string | null>(null)
+  const [newTeamName, setNewTeamName] = useState('')
+  const [newTeamDesc, setNewTeamDesc] = useState('')
 
   const members = useQuery({ queryKey: ['team-members'], queryFn: api.teamMembers })
   const invitations = useQuery({ queryKey: ['team-invitations'], queryFn: api.teamInvitations })
+
+  const createTeam = useMutation({
+    mutationFn: () => api.createTeam(newTeamName.trim(), newTeamDesc.trim()),
+    onSuccess: async (res) => {
+      setNewTeamName('')
+      setNewTeamDesc('')
+      await api.switchTeam(res.team.id)
+      await refresh()
+      void qc.invalidateQueries({ queryKey: ['team-members'] })
+      void qc.invalidateQueries({ queryKey: ['team-invitations'] })
+    },
+  })
 
   const switchTo = async (teamId: string) => {
     setError('')
@@ -207,6 +221,43 @@ export function TeamPage() {
           ))}
         </div>
       </div>
+
+      <form
+        className="panel-card space-y-3 p-5"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (!newTeamName.trim()) return
+          createTeam.mutate()
+        }}
+      >
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Create team</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Create a shared organization team. You become the owner.
+        </p>
+        <label className="block text-sm">
+          <span className="mb-1 block text-gray-500 dark:text-gray-400">Name</span>
+          <input
+            value={newTeamName}
+            onChange={(e) => setNewTeamName(e.target.value)}
+            className="w-full panel-field rounded-lg px-3 py-2"
+            required
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block text-gray-500 dark:text-gray-400">Description</span>
+          <input
+            value={newTeamDesc}
+            onChange={(e) => setNewTeamDesc(e.target.value)}
+            className="w-full panel-field rounded-lg px-3 py-2"
+          />
+        </label>
+        {createTeam.error && (
+          <p className="text-sm text-error-500">{createTeam.error.message}</p>
+        )}
+        <Btn primary type="submit">
+          {createTeam.isPending ? 'Creating…' : 'Create team'}
+        </Btn>
+      </form>
 
       <div className="space-y-3">
         <h2 className="text-lg font-medium text-gray-900 dark:text-white">Members</h2>

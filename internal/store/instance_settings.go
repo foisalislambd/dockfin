@@ -50,6 +50,9 @@ type InstanceSettings struct {
 	SMTPTimeout                *int      `json:"smtp_timeout"`
 	ResendEnabled              bool      `json:"resend_enabled"`
 	ResendAPIKeySet            bool      `json:"resend_api_key_set"`
+	AutoUpdateLastAt           *time.Time `json:"auto_update_last_at"`
+	AutoUpdateLastStatus       string     `json:"auto_update_last_status"`
+	AutoUpdateLastMessage      string     `json:"auto_update_last_message"`
 	UpdatedAt                  time.Time `json:"updated_at"`
 }
 
@@ -118,7 +121,7 @@ const instanceSettingsCols = `
 	update_channel, is_auto_update_enabled, auto_update_frequency, update_check_frequency,
 	docker_registry_url, smtp_enabled, smtp_from_name, smtp_from_address, smtp_host, smtp_port,
 	smtp_encryption, smtp_username_enc, smtp_password_enc, smtp_timeout, resend_enabled,
-	resend_api_key_enc, updated_at`
+	resend_api_key_enc, auto_update_last_at, auto_update_last_status, auto_update_last_message, updated_at`
 
 func (s *Store) GetInstanceSettings(ctx context.Context) (*InstanceSettings, error) {
 	var (
@@ -138,7 +141,7 @@ func (s *Store) GetInstanceSettings(ctx context.Context) (*InstanceSettings, err
 		&st.UpdateChannel, &st.IsAutoUpdateEnabled, &st.AutoUpdateFrequency, &st.UpdateCheckFrequency,
 		&st.DockerRegistryURL, &st.SMTPEnabled, &st.SMTPFromName, &st.SMTPFromAddress, &st.SMTPHost, &st.SMTPPort,
 		&st.SMTPEncryption, &smtpUserEnc, &smtpPassEnc, &st.SMTPTimeout, &st.ResendEnabled,
-		&resendKeyEnc, &st.UpdatedAt,
+		&resendKeyEnc, &st.AutoUpdateLastAt, &st.AutoUpdateLastStatus, &st.AutoUpdateLastMessage, &st.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -385,6 +388,32 @@ func applyInstanceSettingsPatch(cur *InstanceSettings, patch *InstanceSettingsPa
 		}
 	}
 	return nil
+}
+
+// SetAutoUpdateStatus records the outcome of the most recent auto-update attempt.
+func (s *Store) SetAutoUpdateStatus(ctx context.Context, status, message string) error {
+	if len(message) > 4000 {
+		message = message[:4000] + "…"
+	}
+	_, err := s.Pool.Exec(ctx, `
+		UPDATE instance_settings
+		SET auto_update_last_at = NOW(), auto_update_last_status = $1, auto_update_last_message = $2
+		WHERE id = 1
+	`, status, message)
+	return err
+}
+
+// AutoUpdateRanThisMinute reports whether an auto-update already started in the given minute.
+func (s *Store) AutoUpdateRanThisMinute(ctx context.Context, minute time.Time) (bool, error) {
+	var last *time.Time
+	err := s.Pool.QueryRow(ctx, `SELECT auto_update_last_at FROM instance_settings WHERE id = 1`).Scan(&last)
+	if err != nil {
+		return false, err
+	}
+	if last == nil {
+		return false, nil
+	}
+	return last.UTC().Truncate(time.Minute).Equal(minute.UTC().Truncate(time.Minute)), nil
 }
 
 func (s *Store) RegistrationEnabled(ctx context.Context) (bool, error) {

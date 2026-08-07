@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -39,6 +40,43 @@ type TeamInvitation struct {
 	InvitedBy uuid.UUID `json:"invited_by"`
 	ExpiresAt time.Time `json:"expires_at"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// CreateTeam creates a new non-personal team owned by ownerUserID.
+func (s *Store) CreateTeam(ctx context.Context, ownerUserID uuid.UUID, name, description string) (*Team, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("%w: name required", ErrConflict)
+	}
+	description = strings.TrimSpace(description)
+
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	var t Team
+	err = tx.QueryRow(ctx, `
+		INSERT INTO teams (name, description, personal) VALUES ($1, $2, FALSE)
+		RETURNING id, name, description, personal, created_at
+	`, name, description).Scan(&t.ID, &t.Name, &t.Description, &t.Personal, &t.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO team_members (team_id, user_id, role) VALUES ($1, $2, 'owner')
+	`, t.ID, ownerUserID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	t.Role = "owner"
+	return &t, nil
 }
 
 func (s *Store) ListApiTokens(ctx context.Context, userID, teamID uuid.UUID) ([]ApiToken, error) {

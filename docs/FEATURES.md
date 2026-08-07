@@ -3,10 +3,14 @@
 ## Auth & teams
 - [x] Register / login / logout / session cookies
 - [x] Personal team on signup
+- [x] Create shared (org) team — `POST /teams` + Team page UI
 - [x] Team switcher API
 - [x] Bearer token returned on login
 - [x] Team invitations UI
 - [x] API tokens with abilities UI
+- [x] OAuth login runtime for enabled providers (`/auth/oauth/{provider}/start|callback`)
+- [x] TOTP 2FA (setup/enable/disable + login challenge + recovery codes)
+- [x] Forgot / reset password (SMTP/Resend when configured)
 
 ## Servers
 - [x] SSH private keys (encrypted)
@@ -148,6 +152,25 @@ The server detail **Edge** tab covers the rest:
 
 Remote writes are best-effort: if SSH is unavailable the settings still save and the response
 carries a `warnings` array.
+
+## MCP & auto-update (wave 3)
+- [x] HTTP JSON-RPC MCP endpoint (`POST /api/v1/mcp`, `GET` probe) gated on `is_mcp_server_enabled`
+- [x] Bearer API-token auth (same path as the REST API — abilities and IP allowlist still apply)
+- [x] Tools: `list_servers`, `list_projects`, `get_application`, `deploy_application`, `list_databases` (team-scoped, bounded to 100 rows)
+- [x] Scheduler auto-update tick (`is_auto_update_enabled` + `auto_update_frequency` cron)
+- [x] Channel → tag mapping (stable→`latest`, next→`next`, nightly→`nightly`) on `ghcr.io/foisalislambd/dockfin`, honouring `docker_registry_url`
+- [x] Rewrites the install compose image tag, then runs `docker compose pull` + `up -d` in `DOCKFIN_DIR`
+- [x] Requires a mounted `/var/run/docker.sock` (or `DOCKFIN_AUTO_UPDATE=1`); install scripts now mount the socket and the install dir at `/host/dockfin`
+- [x] Last run status persisted (`auto_update_last_at/status/message`, returned by `GET /settings`)
+
+## Service logs, compose editor & DB metrics (wave 4)
+- [x] `GET /services/{id}/logs/stream` (SSE, `tail` + `container` query params, accepts a bare compose unit name)
+- [x] `GET /services/{id}/containers` (live containers, falls back to `dockfin-svc-{id8}-{unit}-1`)
+- [x] Service detail Logs tab: live container logs with unit picker, tail control, download, reconnect
+- [x] `PATCH /services/{id}` accepts `docker_compose_raw` — validated, stored, and prepared copy cleared so the next deploy re-prepares
+- [x] Service detail General → editable compose editor with Save / Reset
+- [x] `GET /databases/{id}/metrics` (docker stats for `dockfin-db-{uuid}`)
+- [x] Database Metrics tab shows container stats above host metrics
 
 ## Polish
 - [x] Command palette (⌘K)

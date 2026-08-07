@@ -21,7 +21,8 @@ RUN CGO_ENABLED=0 go build \
 
 FROM alpine:3.21
 # git + openssh: compose auto-detect / local git operations inside the API container
-RUN apk add --no-cache ca-certificates tzdata git openssh-client
+# docker-cli + compose: control-plane self-update via mounted docker.sock
+RUN apk add --no-cache ca-certificates tzdata git openssh-client docker-cli docker-cli-compose
 WORKDIR /app
 COPY --from=build /out/dockfin /usr/local/bin/dockfin
 COPY --from=web /web/dist /app/web

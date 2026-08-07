@@ -101,9 +101,53 @@ export const api = {
   registrationStatus: () =>
     request<{ registration_enabled: boolean }>('/api/v1/auth/registration'),
   login: (email: string, password: string) =>
-    request<{ user: User; team: Team; token: string }>('/api/v1/auth/login', {
+    request<{
+      user?: User
+      team?: Team
+      teams?: Team[]
+      token?: string
+      status?: string
+      challenge_id?: string
+    }>('/api/v1/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
+    }),
+  login2FA: (body: { challenge_id: string; code?: string; recovery_code?: string }) =>
+    request<{ user: User; team: Team; teams: Team[]; token: string }>('/api/v1/auth/login/2fa', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  forgotPassword: (email: string) =>
+    request<{ status: string }>('/api/v1/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  resetPassword: (token: string, password: string) =>
+    request<{ status: string }>('/api/v1/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    }),
+  oauthProviders: () =>
+    request<{ providers: Array<{ provider: string; name?: string }> }>(
+      '/api/v1/auth/oauth/providers',
+    ),
+  totpStatus: () => request<{ enabled: boolean }>('/api/v1/auth/2fa/status'),
+  totpSetup: () =>
+    request<{ secret: string; otpauth_url: string }>('/api/v1/auth/2fa/setup', { method: 'POST' }),
+  totpEnable: (code: string) =>
+    request<{ status: string; recovery_codes: string[] }>('/api/v1/auth/2fa/enable', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    }),
+  totpDisable: (body: { password?: string; code?: string }) =>
+    request<{ status: string }>('/api/v1/auth/2fa/disable', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  createTeam: (name: string, description = '') =>
+    request<{ team: Team }>('/api/v1/teams', {
+      method: 'POST',
+      body: JSON.stringify({ name, description }),
     }),
   register: (name: string, email: string, password: string) =>
     request<{
@@ -405,6 +449,8 @@ export const api = {
     }),
   applicationMetrics: (id: string) =>
     request<{ containers: AppContainerMetric[] }>(`/api/v1/applications/${id}/metrics`),
+  databaseMetrics: (id: string) =>
+    request<{ containers: AppContainerMetric[] }>(`/api/v1/databases/${id}/metrics`),
   listAppVolumes: (id: string) =>
     request<{ volumes: AppVolume[] }>(`/api/v1/applications/${id}/volumes`),
   upsertAppVolume: (
@@ -605,8 +651,17 @@ export const api = {
       `/api/v1/services${environment_id ? `?environment_id=${environment_id}` : ''}`,
     ),
   getService: (id: string) => request<Service>(`/api/v1/services/${id}`),
-  updateService: (id: string, body: { name?: string; description?: string; fqdn?: string }) =>
-    request<Service>(`/api/v1/services/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  updateService: (
+    id: string,
+    body: {
+      name?: string
+      description?: string
+      fqdn?: string
+      docker_compose_raw?: string
+    },
+  ) => request<Service>(`/api/v1/services/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  serviceContainers: (id: string) =>
+    request<{ containers: string[] }>(`/api/v1/services/${id}/containers`),
   stopService: (id: string) =>
     request<Service>(`/api/v1/services/${id}/stop`, { method: 'POST' }),
   restartService: (id: string) =>
@@ -1520,6 +1575,9 @@ export type InstanceSettings = {
   smtp_timeout?: number | null
   resend_enabled: boolean
   resend_api_key_set: boolean
+  auto_update_last_at?: string | null
+  auto_update_last_status?: string
+  auto_update_last_message?: string
   updated_at: string
 }
 export type InstanceSettingsPatch = {

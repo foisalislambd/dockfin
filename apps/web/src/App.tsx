@@ -15,7 +15,7 @@ import { ToastProvider } from './components/Toast'
 import { ConfirmProvider } from './components/ConfirmDialog'
 import { AppShell } from './components/AppShell'
 import { AppShellSkeleton } from './components/ui/Skeleton'
-import { LoginPage, RegisterPage } from './pages/Auth'
+import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage } from './pages/Auth'
 import { api, ApiError } from './lib/api'
 import './index.css'
 
@@ -115,6 +115,18 @@ const registerRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/register',
   component: RegisterPage,
+})
+
+const forgotPasswordRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/forgot-password',
+  component: ForgotPasswordPage,
+})
+
+const resetPasswordRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/reset-password',
+  component: ResetPasswordPage,
 })
 
 const appRoute = createRoute({
@@ -443,6 +455,8 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   registerRoute,
+  forgotPasswordRoute,
+  resetPasswordRoute,
   appRoute.addChildren([
     dashboardRoute,
     serversRoute,

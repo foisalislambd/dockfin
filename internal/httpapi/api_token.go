@@ -90,6 +90,11 @@ func apiTokenAllows(abilities []string, method, path string) bool {
 		return true
 	}
 	method = strings.ToUpper(method)
+	// MCP speaks JSON-RPC over POST for both read and write tools; gate deploy
+	// separately inside the MCP deploy handler.
+	if isMCPAPIPath(path) {
+		return set["read"] || set["read:sensitive"] || set["deploy"]
+	}
 	readLike := method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions
 	if readLike {
 		if isSensitiveAPIPath(path) {
@@ -101,6 +106,11 @@ func apiTokenAllows(abilities []string, method, path string) bool {
 		return true
 	}
 	return false
+}
+
+func isMCPAPIPath(path string) bool {
+	p := strings.ToLower(path)
+	return p == "/api/v1/mcp" || strings.HasPrefix(p, "/api/v1/mcp/")
 }
 
 func abilitySet(abilities []string) map[string]bool {

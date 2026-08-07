@@ -1594,6 +1594,22 @@ func (s *Store) UpdateServiceCompose(ctx context.Context, id uuid.UUID, prepared
 	return err
 }
 
+// UpdateServiceComposeRaw stores the user-authored compose YAML and clears the
+// prepared copy so the next deploy re-runs PrepareCompose.
+func (s *Store) UpdateServiceComposeRaw(ctx context.Context, teamID, id uuid.UUID, raw string) error {
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE services SET docker_compose_raw=$3, docker_compose='', updated_at=NOW()
+		WHERE id=$1 AND team_id=$2 AND deleted_at IS NULL
+	`, id, teamID, raw)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (s *Store) UpdateServiceMeta(ctx context.Context, teamID, id uuid.UUID, name, description string) (*Service, error) {
 	tag, err := s.Pool.Exec(ctx, `
 		UPDATE services SET name=$3, description=$4, updated_at=NOW()

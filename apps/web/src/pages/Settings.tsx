@@ -765,6 +765,23 @@ export function SettingsPage() {
                   placeholder="0 0 * * *"
                   disabled={!form.is_auto_update_enabled}
                 />
+                {(form.auto_update_last_status || form.auto_update_last_at) && (
+                  <div className="rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-800">
+                    <div className="font-medium text-gray-900 dark:text-white">
+                      Last run: {form.auto_update_last_status || '—'}
+                    </div>
+                    {form.auto_update_last_at && (
+                      <div className="mt-1 text-xs text-gray-500">
+                        {new Date(form.auto_update_last_at).toLocaleString()}
+                      </div>
+                    )}
+                    {form.auto_update_last_message && (
+                      <p className="mt-1 font-mono text-xs text-gray-500">
+                        {form.auto_update_last_message}
+                      </p>
+                    )}
+                  </div>
+                )}
                 <h3 className="pt-2 text-sm font-semibold text-gray-900 dark:text-white">Docker Registry</h3>
                 <label className="block max-w-md text-sm">
                   <FieldLabel
@@ -1236,6 +1253,7 @@ export function SettingsPage() {
               </div>
             </dl>
           </div>
+          <TotpSecurityCard />
           <div className="panel-card space-y-4 p-6">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">License</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -1245,6 +1263,117 @@ export function SettingsPage() {
               {MIT_LICENSE_TEXT}
             </pre>
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TotpSecurityCard() {
+  const status = useQuery({ queryKey: ['totp-status'], queryFn: api.totpStatus })
+  const [setup, setSetup] = useState<{ secret: string; otpauth_url: string } | null>(null)
+  const [code, setCode] = useState('')
+  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null)
+  const [disablePassword, setDisablePassword] = useState('')
+  const [error, setError] = useState('')
+  const qc = useQueryClient()
+
+  const startSetup = useMutation({
+    mutationFn: () => api.totpSetup(),
+    onSuccess: (res) => {
+      setSetup(res)
+      setRecoveryCodes(null)
+      setError('')
+    },
+    onError: (e: Error) => setError(e.message),
+  })
+  const enable = useMutation({
+    mutationFn: () => api.totpEnable(code),
+    onSuccess: (res) => {
+      setRecoveryCodes(res.recovery_codes || [])
+      setSetup(null)
+      setCode('')
+      void qc.invalidateQueries({ queryKey: ['totp-status'] })
+    },
+    onError: (e: Error) => setError(e.message),
+  })
+
+  return (
+    <div className="panel-card space-y-4 p-6">
+      <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Two-factor authentication</h3>
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        Status: {status.data?.enabled ? 'Enabled' : 'Disabled'}
+      </p>
+      {error && <p className="text-sm text-error-500">{error}</p>}
+      {!status.data?.enabled && !setup && (
+        <Btn primary onClick={() => startSetup.mutate()}>
+          {startSetup.isPending ? 'Preparing…' : 'Set up authenticator'}
+        </Btn>
+      )}
+      {setup && (
+        <div className="space-y-2 text-sm">
+          <p className="text-gray-500 dark:text-gray-400">
+            Add this secret in your authenticator app, then enter a code to enable.
+          </p>
+          <code className="block break-all rounded bg-gray-100 p-2 text-xs dark:bg-gray-950">
+            {setup.secret}
+          </code>
+          <input
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="123456"
+            className="panel-field w-full max-w-xs rounded-lg px-3 py-2"
+          />
+          <Btn primary onClick={() => enable.mutate()}>
+            {enable.isPending ? 'Enabling…' : 'Enable 2FA'}
+          </Btn>
+        </div>
+      )}
+      {recoveryCodes && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-gray-900 dark:text-white">
+            Save these recovery codes now — they are shown once.
+          </p>
+          <ul className="font-mono text-xs text-gray-600 dark:text-gray-300">
+            {recoveryCodes.map((c) => (
+              <li key={c}>{c}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {status.data?.enabled && (
+        <div className="space-y-2">
+          <input
+            type="password"
+            value={disablePassword}
+            onChange={(e) => setDisablePassword(e.target.value)}
+            placeholder="Account password (or leave blank)"
+            className="panel-field w-full max-w-xs rounded-lg px-3 py-2"
+          />
+          <input
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="Or authenticator code"
+            className="panel-field w-full max-w-xs rounded-lg px-3 py-2"
+          />
+          <Btn
+            onClick={() =>
+              api
+                .totpDisable({
+                  password: disablePassword || undefined,
+                  code: code || undefined,
+                })
+                .then(() => {
+                  setDisablePassword('')
+                  setCode('')
+                  setRecoveryCodes(null)
+                  void qc.invalidateQueries({ queryKey: ['totp-status'] })
+                })
+                .catch((e: Error) => setError(e.message))
+            }
+          >
+            Disable 2FA
+          </Btn>
         </div>
       )}
     </div>

@@ -32,6 +32,7 @@ services:
       DOCKFIN_DATABASE_URL: postgres://dockfin:dockfin@postgres:5432/dockfin?sslmode=disable
       DOCKFIN_HTTP_ADDR: ":8000"
       DOCKFIN_WEB_DIR: /app/web
+      DOCKFIN_DIR: /host/dockfin
     ports:
       - "8000:8000"
     depends_on:
@@ -39,6 +40,9 @@ services:
         condition: service_healthy
     volumes:
       - dockfin-data:/data
+      # Auto-update drives docker compose on the host.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /data/dockfin:/host/dockfin
 
 volumes:
   dockfin-pg:

@@ -188,21 +188,34 @@ func (a *API) handleApplicationMetrics(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"containers": []any{}})
 		return
 	}
+	containers, err := dockerStats(client, names)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"containers": containers})
+}
+
+type containerStatRow struct {
+	Name     string `json:"name"`
+	CPUPerc  string `json:"cpu_percent"`
+	MemUsage string `json:"mem_usage"`
+	MemPerc  string `json:"mem_percent"`
+	NetIO    string `json:"net_io"`
+	BlockIO  string `json:"block_io"`
+}
+
+// dockerStats runs a one-shot `docker stats` for the given container names.
+func dockerStats(client *ssh.Client, names []string) ([]containerStatRow, error) {
+	rows := []containerStatRow{}
+	if client == nil || len(names) == 0 {
+		return rows, nil
+	}
 	args := append([]string{"docker", "stats", "--no-stream", "--format", "{{json .}}"}, names...)
 	out, errOut, err := sshx.RunArgs(client, args...)
 	if err != nil {
-		writeError(w, http.StatusBadGateway, fmt.Sprintf("docker stats failed: %v %s", err, strings.TrimSpace(errOut)))
-		return
+		return nil, fmt.Errorf("docker stats failed: %v %s", err, strings.TrimSpace(errOut))
 	}
-	type row struct {
-		Name     string `json:"name"`
-		CPUPerc  string `json:"cpu_percent"`
-		MemUsage string `json:"mem_usage"`
-		MemPerc  string `json:"mem_percent"`
-		NetIO    string `json:"net_io"`
-		BlockIO  string `json:"block_io"`
-	}
-	var containers []row
 	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -212,7 +225,7 @@ func (a *API) handleApplicationMetrics(w http.ResponseWriter, r *http.Request) {
 		if json.Unmarshal([]byte(line), &raw) != nil {
 			continue
 		}
-		containers = append(containers, row{
+		rows = append(rows, containerStatRow{
 			Name:     raw["Name"],
 			CPUPerc:  strings.TrimSuffix(raw["CPUPerc"], "%"),
 			MemUsage: raw["MemUsage"],
@@ -221,8 +234,39 @@ func (a *API) handleApplicationMetrics(w http.ResponseWriter, r *http.Request) {
 			BlockIO:  raw["BlockIO"],
 		})
 	}
-	if containers == nil {
-		containers = []row{}
+	return rows, nil
+}
+
+// handleDatabaseMetrics returns docker stats for the database container.
+func (a *API) handleDatabaseMetrics(w http.ResponseWriter, r *http.Request) {
+	dbID, err := uuid.Parse(chi.URLParam(r, "dbID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	teamID := currentTeamID(r)
+	db, err := a.Store.GetDatabase(r.Context(), teamID, dbID)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if db.DestinationID == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"containers": []any{}})
+		return
+	}
+	client, err := a.dialDestination(r, *db.DestinationID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	cname := "dockfin-db-" + db.ID.String()
+	if out, _, err := sshx.RunArgs(client, "docker", "inspect", "-f", "{{.Name}}", cname); err == nil {
+		cname = strings.TrimPrefix(strings.TrimSpace(out), "/")
+	}
+	containers, err := dockerStats(client, []string{cname})
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"containers": containers})
 }

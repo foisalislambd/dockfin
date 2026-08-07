@@ -399,9 +399,10 @@ func (a *API) handlePatchService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Name        *string `json:"name"`
-		Description *string `json:"description"`
-		FQDN        *string `json:"fqdn"`
+		Name             *string `json:"name"`
+		Description      *string `json:"description"`
+		FQDN             *string `json:"fqdn"`
+		DockerComposeRaw *string `json:"docker_compose_raw"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -428,6 +429,29 @@ func (a *API) handlePatchService(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		mapStoreErr(w, err)
 		return
+	}
+	if body.DockerComposeRaw != nil {
+		raw := *body.DockerComposeRaw
+		if strings.TrimSpace(raw) == "" {
+			writeError(w, http.StatusBadRequest, "docker_compose_raw cannot be empty")
+			return
+		}
+		if _, _, err := services.PrepareCompose(raw, services.PrepareOpts{BaseURL: "http://127.0.0.1"}); err != nil {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid compose: %v", err))
+			return
+		}
+		// Clearing the prepared copy forces the next deploy to re-bake networks,
+		// magic env, and Traefik labels from this YAML.
+		if err := a.Store.UpdateServiceComposeRaw(r.Context(), teamID, id, raw); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+		a.syncResourceComposeEnvRefs(r.Context(), teamID, "service", id, raw)
+		updated, err = a.Store.GetService(r.Context(), teamID, id)
+		if err != nil {
+			mapStoreErr(w, err)
+			return
+		}
 	}
 	if body.FQDN != nil {
 		fqdn := proxy.NormalizeDomains(strings.TrimSpace(*body.FQDN))

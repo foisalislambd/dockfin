@@ -78,9 +78,21 @@ func (a *API) Router() http.Handler {
 		r.Post("/auth/register", a.handleRegister)
 		r.Get("/auth/registration", a.handleRegistrationStatus)
 		r.Post("/auth/login", a.handleLogin)
+		r.Post("/auth/login/2fa", a.handleLogin2FA)
+		r.Post("/auth/forgot-password", a.handleForgotPassword)
+		r.Post("/auth/reset-password", a.handleResetPassword)
 		r.With(a.requireAuth).Post("/auth/logout", a.handleLogout)
 		r.With(a.requireAuth).Get("/auth/me", a.handleMe)
 		r.With(a.requireAuth).Post("/auth/switch-team", a.handleSwitchTeam)
+		r.With(a.requireAuth).Post("/auth/2fa/setup", a.handleTOTPSetup)
+		r.With(a.requireAuth).Post("/auth/2fa/enable", a.handleTOTPEnable)
+		r.With(a.requireAuth).Post("/auth/2fa/disable", a.handleTOTPDisable)
+		r.With(a.requireAuth).Get("/auth/2fa/status", a.handleTOTPStatus)
+
+		// Public OAuth login endpoints (no session cookie yet).
+		r.Get("/auth/oauth/providers", a.handleOauthProviders)
+		r.Get("/auth/oauth/{provider}/start", a.handleOauthStart)
+		r.Get("/auth/oauth/{provider}/callback", a.handleOauthCallback)
 
 		// Public ingress endpoints (no session cookie)
 		r.Post("/webhooks/git/{appID}", a.handleGitWebhook)
@@ -102,6 +114,7 @@ func (a *API) Router() http.Handler {
 			r.Use(timeoutExceptSSE(120 * time.Second))
 
 			r.Get("/teams", a.handleListTeams)
+			r.Post("/teams", a.handleCreateTeam)
 
 			r.Get("/team/members", a.handleListTeamMembers)
 			r.Delete("/team/members/{userID}", a.handleRemoveTeamMember)
@@ -270,6 +283,7 @@ func (a *API) Router() http.Handler {
 				r.Post("/{dbID}/start", a.handleStartDatabase)
 				r.Post("/{dbID}/stop", a.handleStopDatabase)
 				r.Get("/{dbID}/logs/stream", a.handleDatabaseLogsStream)
+				r.Get("/{dbID}/metrics", a.handleDatabaseMetrics)
 				r.Get("/{dbID}/backups", a.handleListDatabaseBackups)
 				r.Post("/{dbID}/backups", a.handleRunDatabaseBackup)
 				r.Post("/{dbID}/backups/restore", a.handleRestoreDatabaseBackup)
@@ -288,7 +302,12 @@ func (a *API) Router() http.Handler {
 				r.Post("/{serviceID}/restart", a.handleRestartService)
 				r.Get("/{serviceID}/webhook", a.handleGetServiceWebhookInfo)
 				r.Post("/{serviceID}/webhook-secret", a.handleSetServiceWebhookSecret)
+				r.Get("/{serviceID}/containers", a.handleListServiceContainers)
+				r.Get("/{serviceID}/logs/stream", a.handleServiceLogsStream)
 			})
+
+			r.Get("/mcp", a.handleMCPProbe)
+			r.Post("/mcp", a.handleMCP)
 
 			r.Route("/s3-storages", func(r chi.Router) {
 				r.Get("/", a.handleListS3Storages)

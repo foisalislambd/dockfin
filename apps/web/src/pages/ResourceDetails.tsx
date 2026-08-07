@@ -362,6 +362,60 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
 }
 
 
+function DatabaseContainerMetrics({ dbId, active }: { dbId: string; active: boolean }) {
+  const stats = useQuery({
+    queryKey: ['database-metrics', dbId],
+    queryFn: () => api.databaseMetrics(dbId),
+    enabled: active,
+    refetchInterval: active ? 15000 : false,
+  })
+  const containers = stats.data?.containers || []
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-medium text-gray-900 dark:text-white">Container</h3>
+      <div className="panel-card overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+            <tr>
+              <th className="px-3 py-2">Name</th>
+              <th className="px-3 py-2">CPU %</th>
+              <th className="px-3 py-2">Memory</th>
+              <th className="px-3 py-2">Mem %</th>
+              <th className="px-3 py-2">Net I/O</th>
+              <th className="px-3 py-2">Block I/O</th>
+            </tr>
+          </thead>
+          <tbody>
+            {containers.map((c) => (
+              <tr key={c.name} className="border-t border-gray-200 dark:border-gray-800">
+                <td className="px-3 py-2 font-mono text-xs">{c.name}</td>
+                <td className="px-3 py-2 tabular-nums">{c.cpu_percent || '—'}</td>
+                <td className="px-3 py-2 font-mono text-xs">{c.mem_usage || '—'}</td>
+                <td className="px-3 py-2 tabular-nums">{c.mem_percent || '—'}</td>
+                <td className="px-3 py-2 font-mono text-xs">{c.net_io || '—'}</td>
+                <td className="px-3 py-2 font-mono text-xs">{c.block_io || '—'}</td>
+              </tr>
+            ))}
+            {!containers.length && (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  {stats.isLoading ? 'Loading…' : 'No container stats yet — start the database.'}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        {stats.error && (
+          <p className="border-t border-gray-200 px-3 py-2 text-sm text-error-500 dark:border-gray-800">
+            {stats.error.message}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function DatabaseLiveLogs({ dbId }: { dbId: string }) {
   const [lines, setLines] = useState<string[]>([])
   const [status, setStatus] = useState<'connecting' | 'live' | 'ended' | 'error'>('connecting')
@@ -614,26 +668,32 @@ export function DatabaseDetailPage() {
 
       {tab === 'metrics' && (
         <TabPanel>
-          {serverId ? (
-            <div className="space-y-3">
+          <div className="space-y-6">
+            <DatabaseContainerMetrics dbId={dbId} active={tab === 'metrics'} />
+            {serverId ? (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Host-level metrics for the server running this database.{' '}
+                  <Link
+                    to="/servers/$serverId"
+                    params={{ serverId }}
+                    className="text-brand-600 dark:text-brand-400"
+                  >
+                    Open server →
+                  </Link>
+                </p>
+                <ServerMetricsView
+                  metrics={metrics.data?.metrics || []}
+                  loading={metrics.isLoading}
+                />
+                {metrics.error && <p className="text-sm text-error-500">{metrics.error.message}</p>}
+              </div>
+            ) : (
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Host-level metrics for the server running this database.{' '}
-                <Link
-                  to="/servers/$serverId"
-                  params={{ serverId }}
-                  className="text-brand-600 dark:text-brand-400"
-                >
-                  Open server →
-                </Link>
+                Assign a destination to view server metrics for this database.
               </p>
-              <ServerMetricsView metrics={metrics.data?.metrics || []} loading={metrics.isLoading} />
-              {metrics.error && <p className="text-sm text-error-500">{metrics.error.message}</p>}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Assign a destination to view server metrics for this database.
-            </p>
-          )}
+            )}
+          </div>
         </TabPanel>
       )}
 

@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -8,6 +9,29 @@ import (
 	"github.com/dockfin/dockfin/internal/crypto"
 	"github.com/dockfin/dockfin/internal/store"
 )
+
+// issueSession creates a new session for user, sets the session cookie, and
+// returns the session token plus the user's teams (first entry is the active team).
+// Shared by password login, 2FA login, and OAuth login.
+func (a *API) issueSession(w http.ResponseWriter, r *http.Request, user *store.User) (string, []store.Team, error) {
+	teams, err := a.Store.ListTeamsForUser(r.Context(), user.ID)
+	if err != nil {
+		return "", nil, err
+	}
+	if len(teams) == 0 {
+		return "", nil, fmt.Errorf("no team")
+	}
+	token, err := crypto.RandomToken(32)
+	if err != nil {
+		return "", nil, err
+	}
+	expires := time.Now().Add(a.Cfg.SessionTTL)
+	if err := a.Store.CreateSession(r.Context(), user.ID, teams[0].ID, token, expires); err != nil {
+		return "", nil, err
+	}
+	setSessionCookie(w, r, a.Cfg, token, expires)
+	return token, teams, nil
+}
 
 func (a *API) handleRegister(w http.ResponseWriter, r *http.Request) {
 	enabled, err := a.Store.RegistrationEnabled(r.Context())
@@ -107,8 +131,9 @@ func (a *API) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, hash, err := a.Store.GetUserByEmail(r.Context(), body.Email)
-	if err != nil {
+	if err != nil || hash == "" {
 		// Burn similar CPU as a real verify to reduce user-enumeration timing signal.
+		// An empty hash means an OAuth-only account — password login must be rejected.
 		_, _ = crypto.HashPassword("dockfin-login-timing-pad")
 		globalLoginLimiter.fail(ip)
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
@@ -119,23 +144,28 @@ func (a *API) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
-	teams, err := a.Store.ListTeamsForUser(r.Context(), user.ID)
-	if err != nil || len(teams) == 0 {
-		writeError(w, http.StatusInternalServerError, "no team")
-		return
-	}
-	token, err := crypto.RandomToken(32)
+	globalLoginLimiter.success(ip)
+
+	hasTOTP, err := a.Store.UserHasTOTP(r.Context(), user.ID)
 	if err != nil {
 		mapStoreErr(w, err)
 		return
 	}
-	expires := time.Now().Add(a.Cfg.SessionTTL)
-	if err := a.Store.CreateSession(r.Context(), user.ID, teams[0].ID, token, expires); err != nil {
+	if hasTOTP {
+		challenge, err := a.Store.CreateAuthChallenge(r.Context(), user.ID, "totp", 5*time.Minute)
+		if err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"status": "2fa_required", "challenge_id": challenge.ID})
+		return
+	}
+
+	token, teams, err := a.issueSession(w, r, user)
+	if err != nil {
 		mapStoreErr(w, err)
 		return
 	}
-	globalLoginLimiter.success(ip)
-	setSessionCookie(w, r, a.Cfg, token, expires)
 	writeJSON(w, http.StatusOK, map[string]any{"user": user, "team": teams[0], "teams": teams, "token": token})
 }
 

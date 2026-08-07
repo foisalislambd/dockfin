@@ -147,11 +147,15 @@ services:
     env_file: .env
     environment:
       DOCKFIN_HTTP_ADDR: ":8000"
+      # Auto-update runs "docker compose pull/up -d" against the install dir.
+      DOCKFIN_DIR: /host/dockfin
     ports:
       - "${HOST_PORT}:8000"
     volumes:
       - dockfin-data:/data
       - ${SSH_USER_HOME}/.ssh:/root/.ssh
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DOCKFIN_DIR}:/host/dockfin
     depends_on:
       postgres:
         condition: service_healthy

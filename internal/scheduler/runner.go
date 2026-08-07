@@ -71,6 +71,7 @@ func (r *Runner) tick(ctx context.Context) {
 	r.runBackups(ctx, minute)
 	r.runInstanceBackup(ctx, minute)
 	r.runDockerCleanups(ctx, minute)
+	r.runAutoUpdate(ctx, minute)
 }
 
 func (r *Runner) runTasks(ctx context.Context, minute time.Time) {

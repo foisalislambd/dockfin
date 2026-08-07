@@ -25,6 +25,15 @@ func TestAPITokenAllows(t *testing.T) {
 	if !apiTokenAllows([]string{"write"}, http.MethodDelete, "/api/v1/services/x") {
 		t.Fatal("write should allow delete")
 	}
+	if !apiTokenAllows([]string{"read"}, http.MethodPost, "/api/v1/mcp") {
+		t.Fatal("read should allow MCP POST (JSON-RPC read tools)")
+	}
+	if !apiTokenAllows([]string{"deploy"}, http.MethodPost, "/api/v1/mcp") {
+		t.Fatal("deploy should allow MCP POST")
+	}
+	if apiTokenAllows([]string{}, http.MethodPost, "/api/v1/mcp") {
+		t.Fatal("empty abilities should deny MCP")
+	}
 }
 
 func TestClientIPAllowed(t *testing.T) {
