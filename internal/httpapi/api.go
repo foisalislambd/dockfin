@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
-	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -453,12 +452,21 @@ func currentTeamID(r *http.Request) uuid.UUID {
 }
 
 func sessionToken(r *http.Request) string {
+	// Prefer Authorization Bearer over the session cookie so API clients
+	// (and deploy webhooks) are not shadowed by a stale browser cookie.
+	if t := bearerAuthToken(r); t != "" {
+		return t
+	}
 	if c, err := r.Cookie("dockfin_session"); err == nil && c.Value != "" {
 		return c.Value
 	}
+	return ""
+}
+
+func bearerAuthToken(r *http.Request) string {
 	auth := r.Header.Get("Authorization")
-	if len(auth) > 7 && (auth[:7] == "Bearer " || auth[:7] == "bearer ") {
-		return auth[7:]
+	if len(auth) > 7 && strings.EqualFold(auth[:7], "Bearer ") {
+		return strings.TrimSpace(auth[7:])
 	}
 	return ""
 }
@@ -487,35 +495,14 @@ func clearSessionCookie(w http.ResponseWriter, r *http.Request, cfg *config.Conf
 	})
 }
 
-// cookieSecureForRequest prefers HTTPS (custom domain via Traefik) over the
-// install-time DOCKFIN_PUBLIC_URL scheme (often http://IP:8000).
-// X-Forwarded-Proto is only honored when the immediate peer is a private/loopback
-// address (typical reverse-proxy hop), to avoid client-spoofed Secure cookies.
+// cookieSecureForRequest uses TLS termination on this process or explicit config.
+// X-Forwarded-Proto is intentionally ignored: with chi RealIP, clients can spoof
+// X-Forwarded-For to a private IP and force Secure cookies (breaking HTTP logins).
 func cookieSecureForRequest(r *http.Request, cfg *config.Config) bool {
-	if r != nil {
-		if r.TLS != nil {
-			return true
-		}
-		if forwardedProtoTrusted(r) {
-			proto := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")))
-			if proto == "https" {
-				return true
-			}
-			if proto == "http" {
-				return false
-			}
-		}
+	if r != nil && r.TLS != nil {
+		return true
 	}
 	return cfg != nil && cfg.CookieSecure
-}
-
-func forwardedProtoTrusted(r *http.Request) bool {
-	ipStr := requestClientIP(r)
-	ip := net.ParseIP(ipStr)
-	if ip == nil {
-		return false
-	}
-	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
 }
 
 func mapStoreErr(w http.ResponseWriter, err error) {

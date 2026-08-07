@@ -55,3 +55,12 @@ func TestCookieSessionWithoutBearer(t *testing.T) {
 		t.Fatal("bearer should disable cookie-only flag")
 	}
 }
+
+func TestSessionTokenPrefersBearer(t *testing.T) {
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r.AddCookie(&http.Cookie{Name: "dockfin_session", Value: "cookie-token"})
+	r.Header.Set("Authorization", "Bearer api-token")
+	if got := sessionToken(r); got != "api-token" {
+		t.Fatalf("expected bearer to win, got %q", got)
+	}
+}

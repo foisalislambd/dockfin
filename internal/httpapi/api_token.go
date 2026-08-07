@@ -24,15 +24,17 @@ func (a *API) enforceAPITokenPolicy(next http.Handler) http.Handler {
 		}
 		abilities, _ := r.Context().Value(ctxAPIAbilities).([]string)
 		st, err := a.Store.GetInstanceSettings(r.Context())
-		if err == nil {
-			if !st.IsAPIEnabled {
-				writeError(w, http.StatusForbidden, "API access is disabled")
-				return
-			}
-			if !clientIPAllowed(r, st.AllowedIPs) {
-				writeError(w, http.StatusForbidden, "client IP not allowed")
-				return
-			}
+		if err != nil {
+			writeError(w, http.StatusServiceUnavailable, "unable to verify API policy")
+			return
+		}
+		if !st.IsAPIEnabled {
+			writeError(w, http.StatusForbidden, "API access is disabled")
+			return
+		}
+		if !clientIPAllowed(r, st.AllowedIPs) {
+			writeError(w, http.StatusForbidden, "client IP not allowed")
+			return
 		}
 		if !apiTokenAllows(abilities, r.Method, r.URL.Path) {
 			writeError(w, http.StatusForbidden, "insufficient API token abilities")

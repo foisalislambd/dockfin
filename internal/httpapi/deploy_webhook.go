@@ -53,15 +53,11 @@ func (a *API) handleDeployByUUID(w http.ResponseWriter, r *http.Request) {
 }
 
 func cookieSessionWithoutBearer(r *http.Request) bool {
+	if bearerAuthToken(r) != "" {
+		return false
+	}
 	c, err := r.Cookie("dockfin_session")
-	if err != nil || c.Value == "" {
-		return false
-	}
-	auth := r.Header.Get("Authorization")
-	if len(auth) > 7 && strings.EqualFold(auth[:7], "Bearer ") {
-		return false
-	}
-	return true
+	return err == nil && c.Value != ""
 }
 
 // handleServiceDeployWebhook triggers redeploy using the service's webhook secret.
@@ -72,7 +68,7 @@ func (a *API) handleServiceDeployWebhook(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	token := bearerOrQueryToken(r)
+	token := bearerAuthToken(r)
 	if token == "" {
 		writeError(w, http.StatusUnauthorized, "missing bearer token")
 		return
@@ -121,6 +117,13 @@ func (a *API) authorizeDeployWebhook(r *http.Request, resourceID uuid.UUID) (uui
 		if !apiTokenCanDeploy(apiTok.Abilities) {
 			return uuid.Nil, false
 		}
+		st, err := a.Store.GetInstanceSettings(r.Context())
+		if err != nil || !st.IsAPIEnabled {
+			return uuid.Nil, false
+		}
+		if !clientIPAllowed(r, st.AllowedIPs) {
+			return uuid.Nil, false
+		}
 		return apiTok.TeamID, true
 	}
 
@@ -164,11 +167,6 @@ func apiTokenCanDeploy(abilities []string) bool {
 		}
 	}
 	return false
-}
-
-func bearerOrQueryToken(r *http.Request) string {
-	// Prefer Authorization header only — query tokens leak into access logs and Referer.
-	return sessionToken(r)
 }
 
 func (a *API) triggerServiceDeploy(w http.ResponseWriter, r *http.Request, svc *store.Service) {

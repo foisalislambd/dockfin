@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"crypto/tls"
 	"net/http"
 	"testing"
 
@@ -51,25 +52,18 @@ func TestPublicBaseURLPriority(t *testing.T) {
 func TestCookieSecureForRequest(t *testing.T) {
 	cfg := &config.Config{CookieSecure: false}
 	httpsReq := &http.Request{
+		TLS:    &tls.ConnectionState{},
+		Header: http.Header{"X-Forwarded-Proto": []string{"http"}},
+	}
+	if !cookieSecureForRequest(httpsReq, cfg) {
+		t.Fatal("expected secure when request TLS is set")
+	}
+	spoofed := &http.Request{
 		RemoteAddr: "127.0.0.1:1234",
 		Header:     http.Header{"X-Forwarded-Proto": []string{"https"}},
 	}
-	if !cookieSecureForRequest(httpsReq, cfg) {
-		t.Fatal("expected secure on https forwarded proto from loopback")
-	}
-	spoofed := &http.Request{
-		RemoteAddr: "8.8.8.8:1234",
-		Header:     http.Header{"X-Forwarded-Proto": []string{"https"}},
-	}
 	if cookieSecureForRequest(spoofed, cfg) {
-		t.Fatal("expected insecure when X-Forwarded-Proto is spoofed from public IP")
-	}
-	httpReq := &http.Request{
-		RemoteAddr: "10.0.0.2:1234",
-		Header:     http.Header{"X-Forwarded-Proto": []string{"http"}},
-	}
-	if cookieSecureForRequest(httpReq, cfg) {
-		t.Fatal("expected insecure on http forwarded proto")
+		t.Fatal("must not trust spoofable X-Forwarded-Proto for Secure cookies")
 	}
 	cfg.CookieSecure = true
 	plain := &http.Request{Header: http.Header{}}

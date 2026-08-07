@@ -372,6 +372,10 @@ func httpHealthStatus(client *ssh.Client, container, method, port, path string, 
 	if !regexp.MustCompile(`^[0-9]{1,5}$`).MatchString(port) {
 		return 0, fmt.Errorf("invalid health check port")
 	}
+	var portNum int
+	if _, err := fmt.Sscanf(port, "%d", &portNum); err != nil || portNum < 1 || portNum > 65535 {
+		return 0, fmt.Errorf("invalid health check port")
+	}
 	if path == "" || path[0] != '/' || strings.ContainsAny(path, " \t\n\r\"'`$;&|<>(){}") {
 		return 0, fmt.Errorf("invalid health check path")
 	}
