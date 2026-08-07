@@ -138,6 +138,7 @@ export function CreateApplicationPage() {
     git_source_id: '',
     private_key_id: '',
     docker_compose_location: '',
+    base_directory: '/',
     compose_prepare: true,
     dockerfile: simpleDockerfile ? DEFAULT_DOCKERFILE : '',
   })
@@ -257,6 +258,11 @@ export function CreateApplicationPage() {
         delete body.docker_compose_location
         delete body.compose_prepare
       }
+      const base = String(form.base_directory || '').trim() || '/'
+      if (base.includes('..')) {
+        throw new Error('Base Directory cannot contain ..')
+      }
+      body.base_directory = base
       if (simpleDockerfile) {
         body.build_pack = 'dockerfile'
         body.dockerfile = form.dockerfile
@@ -658,6 +664,16 @@ export function CreateApplicationPage() {
           )}
 
           <div className="grid gap-4 sm:grid-cols-2">
+            {needsGit ? (
+              <FormInput
+                label="Base Directory"
+                value={form.base_directory}
+                onChange={(v) => setForm({ ...form, base_directory: v })}
+                placeholder="/"
+                required={false}
+                hint="Directory to use as root. Useful for monorepos."
+              />
+            ) : null}
             {form.build_pack !== 'dockercompose' ? (
               <FormInput
                 label="Port"
@@ -702,7 +718,7 @@ export function CreateApplicationPage() {
                   }}
                   required={false}
                   placeholder="Auto-detect (recommended)"
-                  hint="Pick a repo above and Dockfin finds docker-compose.yml automatically."
+                  hint="Relative to Base Directory. Leave empty to auto-detect."
                 />
                 <div className="flex flex-wrap items-center gap-3">
                   <button

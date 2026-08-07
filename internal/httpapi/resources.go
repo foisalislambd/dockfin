@@ -267,6 +267,7 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 		Dockerfile              string `json:"dockerfile"`
 		DockerfileLocation      string `json:"dockerfile_location"`
 		DockerComposeLocation   string `json:"docker_compose_location"`
+		BaseDirectory           string `json:"base_directory"`
 		DockerRegistryImageName string `json:"docker_registry_image_name"`
 		DockerRegistryImageTag  string `json:"docker_registry_image_tag"`
 		PortsExposes            string `json:"ports_exposes"`
@@ -312,6 +313,14 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	body.BaseDirectory = strings.TrimSpace(body.BaseDirectory)
+	if body.BaseDirectory == "" {
+		body.BaseDirectory = "/"
+	}
+	if strings.Contains(body.BaseDirectory, "..") {
+		writeError(w, http.StatusBadRequest, "invalid base_directory")
+		return
+	}
 	if body.DockerComposeLocation == "" {
 		// Empty = auto-detect on deploy / via detect-compose API.
 		body.DockerComposeLocation = ""
@@ -346,6 +355,7 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 		DockerRegistryImageName: body.DockerRegistryImageName,
 		DockerRegistryImageTag:  body.DockerRegistryImageTag,
 		PortsExposes:            body.PortsExposes,
+		BaseDirectory:           body.BaseDirectory,
 		ComposePrepare:          true,
 	}
 	if body.ComposePrepare != nil {

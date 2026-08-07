@@ -492,18 +492,22 @@ func (s *Store) CreateApplication(ctx context.Context, app *Application) (*Appli
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
+	base := strings.TrimSpace(app.BaseDirectory)
+	if base == "" {
+		base = "/"
+	}
 	err = tx.QueryRow(ctx, `
 		INSERT INTO applications (
 			team_id, environment_id, destination_id, name, description, fqdn, build_pack,
 			git_repository, git_branch, dockerfile_location, dockerfile, docker_compose_location,
 			docker_registry_image_name, docker_registry_image_tag, ports_exposes,
-			compose_prepare, git_source_id, private_key_id
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+			compose_prepare, git_source_id, private_key_id, base_directory
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
 		RETURNING id
 	`, app.TeamID, app.EnvironmentID, app.DestinationID, app.Name, app.Description, app.FQDN, app.BuildPack,
 		app.GitRepository, app.GitBranch, app.DockerfileLocation, app.Dockerfile, app.DockerComposeLocation,
 		app.DockerRegistryImageName, app.DockerRegistryImageTag, app.PortsExposes,
-		app.ComposePrepare, app.GitSourceID, app.PrivateKeyID,
+		app.ComposePrepare, app.GitSourceID, app.PrivateKeyID, base,
 	).Scan(&app.ID)
 	if err != nil {
 		return nil, err
