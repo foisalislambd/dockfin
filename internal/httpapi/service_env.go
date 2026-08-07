@@ -10,9 +10,9 @@ import (
 	"github.com/dockfin/dockfin/internal/store"
 )
 
-// syncServiceCoolifyEnv mirrors Coolify: after prepare, push generated SERVICE_*
+// syncResourceCoolifyEnv mirrors Coolify: after prepare/load, push generated SERVICE_*
 // values into the resource Environment Variables UI (URL+FQDN pair + secrets).
-func (a *API) syncServiceCoolifyEnv(ctx context.Context, teamID, serviceID uuid.UUID, raw, prepared string, fullEnv map[string]string) {
+func (a *API) syncResourceCoolifyEnv(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID, raw, prepared string, fullEnv map[string]string) {
 	ui := services.CoolifyEnvForUI(raw, fullEnv)
 	if len(ui) == 0 {
 		// Prepared compose may already hold KEY=value after persist.
@@ -29,7 +29,7 @@ func (a *API) syncServiceCoolifyEnv(ctx context.Context, teamID, serviceID uuid.
 			strings.HasPrefix(key, "SERVICE_HEX_") ||
 			strings.HasPrefix(key, "SERVICE_USER_")
 		bypassLock := strings.HasPrefix(key, "SERVICE_URL_") || strings.HasPrefix(key, "SERVICE_FQDN_")
-		_, _ = a.Store.UpsertEnvVar(ctx, teamID, "service", serviceID, store.UpsertEnvVarInput{
+		_, _ = a.Store.UpsertEnvVar(ctx, teamID, resourceType, resourceID, store.UpsertEnvVarInput{
 			Key:        key,
 			Value:      val,
 			Runtime:    true,
@@ -41,7 +41,7 @@ func (a *API) syncServiceCoolifyEnv(ctx context.Context, teamID, serviceID uuid.
 		})
 	}
 	// Remove leftover companion domain keys from earlier mistaken syncs.
-	vars, err := a.Store.ListEnvVars(ctx, teamID, "service", serviceID, false)
+	vars, err := a.Store.ListEnvVars(ctx, teamID, resourceType, resourceID, false)
 	if err != nil {
 		return
 	}
@@ -54,6 +54,11 @@ func (a *API) syncServiceCoolifyEnv(ctx context.Context, teamID, serviceID uuid.
 		}
 		_ = a.Store.DeleteEnvVar(ctx, teamID, v.ID)
 	}
+}
+
+// syncServiceCoolifyEnv is the service-scoped alias used by one-click create.
+func (a *API) syncServiceCoolifyEnv(ctx context.Context, teamID, serviceID uuid.UUID, raw, prepared string, fullEnv map[string]string) {
+	a.syncResourceCoolifyEnv(ctx, teamID, "service", serviceID, raw, prepared, fullEnv)
 }
 
 func (a *API) loadServiceMagicEnv(ctx context.Context, teamID, serviceID uuid.UUID) map[string]string {
@@ -77,15 +82,15 @@ func preferURLFromMagicEnv(env map[string]string) (baseURL, fqdn string) {
 	return services.PreferURLFromMagicEnv(env)
 }
 
-// rewriteServiceDomainEnv updates SERVICE_URL_* / SERVICE_FQDN_* pairs to match
+// rewriteResourceDomainEnv updates SERVICE_URL_* / SERVICE_FQDN_* pairs to match
 // the resource domains field (Coolify: changing Domains rewrites magic env).
-func (a *API) rewriteServiceDomainEnv(ctx context.Context, teamID, serviceID uuid.UUID, domains string) {
+func (a *API) rewriteResourceDomainEnv(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID, domains string) {
 	baseURL := proxy.AutoPublicURL(domains)
 	host := proxy.PrimaryHost(domains)
 	if host == "" {
 		baseURL = ""
 	}
-	vars, err := a.Store.ListEnvVars(ctx, teamID, "service", serviceID, true)
+	vars, err := a.Store.ListEnvVars(ctx, teamID, resourceType, resourceID, true)
 	if err != nil {
 		return
 	}
@@ -95,7 +100,7 @@ func (a *API) rewriteServiceDomainEnv(ctx context.Context, teamID, serviceID uui
 			if baseURL == "" {
 				continue
 			}
-			_, _ = a.Store.UpsertEnvVar(ctx, teamID, "service", serviceID, store.UpsertEnvVarInput{
+			_, _ = a.Store.UpsertEnvVar(ctx, teamID, resourceType, resourceID, store.UpsertEnvVarInput{
 				Key:        v.Key,
 				Value:      baseURL,
 				Runtime:    true,
@@ -107,7 +112,7 @@ func (a *API) rewriteServiceDomainEnv(ctx context.Context, teamID, serviceID uui
 			if host == "" {
 				continue
 			}
-			_, _ = a.Store.UpsertEnvVar(ctx, teamID, "service", serviceID, store.UpsertEnvVarInput{
+			_, _ = a.Store.UpsertEnvVar(ctx, teamID, resourceType, resourceID, store.UpsertEnvVarInput{
 				Key:        v.Key,
 				Value:      host,
 				Runtime:    true,
@@ -117,4 +122,8 @@ func (a *API) rewriteServiceDomainEnv(ctx context.Context, teamID, serviceID uui
 			})
 		}
 	}
+}
+
+func (a *API) rewriteServiceDomainEnv(ctx context.Context, teamID, serviceID uuid.UUID, domains string) {
+	a.rewriteResourceDomainEnv(ctx, teamID, "service", serviceID, domains)
 }

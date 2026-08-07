@@ -36,7 +36,7 @@ import { ServerTerminal } from '../components/Terminal'
 import { CodeEditor } from '../components/CodeEditor'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { useToast } from '../components/Toast'
-import { api } from '../lib/api'
+import { api, fetchAllEnvironments } from '../lib/api'
 import { Btn, Input } from './Servers'
 
 /** Coolify-style top IA — Configuration first, Links last. */
@@ -280,6 +280,30 @@ export function ApplicationDetailPage() {
   const nested = Boolean(projectId && envId)
 
   const app = useQuery({ queryKey: ['application', appId], queryFn: () => api.application(appId) })
+  const allEnvs = useQuery({
+    queryKey: ['all-environments'],
+    queryFn: fetchAllEnvironments,
+  })
+  const resolvedProjectId =
+    projectId ||
+    (app.data?.environment_id
+      ? allEnvs.data?.find((e) => e.id === app.data.environment_id)?.project_id
+      : undefined) ||
+    ''
+  const resolvedEnvId = envId || app.data?.environment_id || ''
+  const project = useQuery({
+    queryKey: ['project', resolvedProjectId],
+    queryFn: () => api.getProject(resolvedProjectId),
+    enabled: Boolean(resolvedProjectId),
+  })
+  const envs = useQuery({
+    queryKey: ['environments', resolvedProjectId],
+    queryFn: () => api.environments(resolvedProjectId),
+    enabled: Boolean(resolvedProjectId),
+  })
+  const envMeta =
+    (envs.data?.environments || []).find((e) => e.id === resolvedEnvId) ||
+    allEnvs.data?.find((e) => e.id === resolvedEnvId)
   const dests = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
   const gitSources = useQuery({ queryKey: ['git-sources'], queryFn: api.gitSources })
   const keys = useQuery({ queryKey: ['keys'], queryFn: api.keys })
@@ -506,7 +530,8 @@ export function ApplicationDetailPage() {
       } as NonNullable<typeof app.data>
       syncFromApp(merged)
       void qc.invalidateQueries({ queryKey: ['application', appId] })
-      toast.success('Compose file loaded')
+      void qc.invalidateQueries({ queryKey: ['env-vars', 'application', appId] })
+      toast.success('Compose file loaded — environment variables updated')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Load compose failed')
     } finally {
@@ -635,29 +660,50 @@ export function ApplicationDetailPage() {
     return <PageSkeleton cards={3} />
   }
 
-  const backLink =
-    nested && projectId && envId ? (
-      <Link
-        to="/projects/$projectId/environments/$envId"
-        params={{ projectId, envId }}
-        className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
-      >
-        ← Resources
-      </Link>
+  const crumbs =
+    resolvedProjectId && resolvedEnvId ? (
+      <nav className="flex flex-wrap items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+        <Link to="/projects" className="hover:text-brand-600 dark:hover:text-brand-400">
+          Projects
+        </Link>
+        <span>/</span>
+        <Link
+          to="/projects/$projectId"
+          params={{ projectId: resolvedProjectId }}
+          className="hover:text-brand-600 dark:hover:text-brand-400"
+        >
+          {project.data?.name ||
+            allEnvs.data?.find((e) => e.id === resolvedEnvId)?.project_name ||
+            '…'}
+        </Link>
+        <span>/</span>
+        <Link
+          to="/projects/$projectId/environments/$envId"
+          params={{ projectId: resolvedProjectId, envId: resolvedEnvId }}
+          className="hover:text-brand-600 dark:hover:text-brand-400"
+        >
+          {envMeta?.name || '…'}
+        </Link>
+        {app.data?.name ? (
+          <>
+            <span>/</span>
+            <span className="text-gray-900 dark:text-white">{app.data.name}</span>
+          </>
+        ) : null}
+      </nav>
     ) : (
-      <Link
-        to="/projects"
-        className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
-      >
-        ← Projects
-      </Link>
+      <nav className="flex flex-wrap items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+        <Link to="/projects" className="hover:text-brand-600 dark:hover:text-brand-400">
+          Projects
+        </Link>
+      </nav>
     )
 
   if (app.error || !app.data) {
     return (
       <div className="space-y-4">
+        {crumbs}
         <p className="text-error-500">{app.error?.message || 'Application not found'}</p>
-        {backLink}
       </div>
     )
   }
@@ -686,7 +732,7 @@ export function ApplicationDetailPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          {backLink}
+          {crumbs}
           <h1 className="mt-2 text-xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
             {a.name}
           </h1>
@@ -694,12 +740,6 @@ export function ApplicationDetailPage() {
             <span className="capitalize">{a.build_pack}</span>
             <span>·</span>
             <StatusText status={a.status} />
-            {a.fqdn ? (
-              <>
-                <span>·</span>
-                <span className="max-w-md truncate font-mono text-xs">{a.fqdn.split(',')[0]}</span>
-              </>
-            ) : null}
             {activeDep && (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-500/15 px-2 py-0.5 text-[11px] font-medium text-brand-600 dark:text-brand-300">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-400" />
@@ -755,14 +795,6 @@ export function ApplicationDetailPage() {
               {stopApp.isPending ? 'Stopping…' : 'Stop'}
             </button>
           )}
-          <Btn
-            onClick={() => {
-              setTopTab('configuration')
-              setSide('general')
-            }}
-          >
-            Configuration
-          </Btn>
           <Btn primary onClick={() => deploy.mutate({})}>
             Redeploy
           </Btn>
@@ -1828,6 +1860,11 @@ export function ApplicationDetailPage() {
                   <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
                     Environment Variables
                   </h2>
+                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                    {a.build_pack === 'dockercompose'
+                      ? 'Coolify-style SERVICE_* secrets and URLs are generated from your Docker Compose file (Load Compose or after domains change).'
+                      : 'Environment (secrets) variables for this application.'}
+                  </p>
                 </div>
                 <EnvVarsPanel
                   resourceType="application"

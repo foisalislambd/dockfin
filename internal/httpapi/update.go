@@ -332,6 +332,9 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
+	if body.FQDN != nil || body.DockerComposeDomains != nil {
+		a.rewriteResourceDomainEnv(r.Context(), teamID, "application", appID, app.FQDN)
+	}
 	if body.IsForceHTTPS != nil {
 		if err := a.Store.SetApplicationForceHTTPS(r.Context(), teamID, appID, *body.IsForceHTTPS); err != nil {
 			mapStoreErr(w, err)

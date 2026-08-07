@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -201,33 +202,38 @@ func (a *API) loadApplicationCompose(r *http.Request, teamID uuid.UUID, app *sto
 	}
 
 	prepared := raw
+	var fullEnv map[string]string
+	// Always prepare once so Coolify-style SERVICE_* secrets/URLs are generated for
+	// Environment Variables (even when "Compose prepare" is off and we store raw YAML).
+	fqdn := aggregateComposeDomains(domains)
+	if fqdn == "" {
+		fqdn = app.FQDN
+	}
+	baseURL := proxy.AutoPublicURL(fqdn)
+	routerName := app.Name + "-" + app.ID.String()[:8]
+	port := services.DetectProxyPortForGitCompose(raw, app.PortsExposes)
+	opts := services.PrepareOpts{
+		ServiceID:  app.ID.String(),
+		BaseURL:    baseURL,
+		FQDN:       fqdn,
+		RouterName: routerName,
+		Port:       port,
+		Redirect:   app.Redirect,
+	}
+	if app.DestinationID != nil {
+		if dest, err := a.Store.GetDestination(ctx, teamID, *app.DestinationID); err == nil {
+			opts.Network = dest.Network
+		}
+	}
+	if envMap, err := a.composeAppExistingEnv(r, teamID, app); err == nil {
+		opts.ExistingEnv = envMap
+	}
+	out, magic, err := services.PrepareCompose(raw, opts)
+	if err != nil {
+		return nil, fmt.Errorf("prepare compose: %w", err)
+	}
+	fullEnv = magic
 	if app.ComposePrepare {
-		fqdn := aggregateComposeDomains(domains)
-		if fqdn == "" {
-			fqdn = app.FQDN
-		}
-		baseURL := proxy.AutoPublicURL(fqdn)
-		routerName := app.Name + "-" + app.ID.String()[:8]
-		port := services.DetectProxyPortForGitCompose(raw, app.PortsExposes)
-		opts := services.PrepareOpts{
-			ServiceID:  app.ID.String(),
-			BaseURL:    baseURL,
-			FQDN:       fqdn,
-			RouterName: routerName,
-			Port:       port,
-		}
-		if app.DestinationID != nil {
-			if dest, err := a.Store.GetDestination(ctx, teamID, *app.DestinationID); err == nil {
-				opts.Network = dest.Network
-			}
-		}
-		if envMap, err := a.composeAppExistingEnv(r, teamID, app); err == nil {
-			opts.ExistingEnv = envMap
-		}
-		out, _, err := services.PrepareCompose(raw, opts)
-		if err != nil {
-			return nil, fmt.Errorf("prepare compose: %w", err)
-		}
 		prepared = out
 	}
 
@@ -241,6 +247,7 @@ func (a *API) loadApplicationCompose(r *http.Request, teamID uuid.UUID, app *sto
 	if err := a.Store.UpdateApplication(ctx, app); err != nil {
 		return nil, err
 	}
+	a.syncResourceCoolifyEnv(ctx, teamID, "application", app.ID, raw, out, fullEnv)
 	fresh, err := a.Store.GetApplication(ctx, teamID, app.ID)
 	if err != nil {
 		return nil, err
@@ -318,10 +325,10 @@ func enrichApplicationCompose(app *store.Application) map[string]any {
 	units := services.ParseComposeUnits(src)
 	volumes := services.ParseComposeVolumes(src)
 	type unitOut struct {
-		Name         string `json:"name"`
-		Image        string `json:"image"`
-		IsDatabase   bool   `json:"is_database"`
-		Domain       string `json:"domain,omitempty"`
+		Name       string `json:"name"`
+		Image      string `json:"image"`
+		IsDatabase bool   `json:"is_database"`
+		Domain     string `json:"domain,omitempty"`
 	}
 	domains := parseComposeDomains(app.DockerComposeDomains)
 	outUnits := make([]unitOut, 0, len(units))
@@ -339,4 +346,55 @@ func enrichApplicationCompose(app *store.Application) map[string]any {
 	m["compose_volumes"] = volumes
 	m["docker_compose_domains"] = domains
 	return m
+}
+
+// ensureApplicationComposeEnv generates Coolify SERVICE_* env vars from an already-loaded
+// compose file when none exist yet (so Environment Variables fills without re-clicking Load).
+func (a *API) ensureApplicationComposeEnv(ctx context.Context, teamID, appID uuid.UUID) {
+	app, err := a.Store.GetApplication(ctx, teamID, appID)
+	if err != nil || app.BuildPack != "dockercompose" {
+		return
+	}
+	raw := strings.TrimSpace(app.DockerComposeRaw)
+	if raw == "" {
+		raw = strings.TrimSpace(app.DockerCompose)
+	}
+	if raw == "" {
+		return
+	}
+	vars, err := a.Store.ListEnvVars(ctx, teamID, "application", appID, false)
+	if err != nil {
+		return
+	}
+	for _, v := range vars {
+		if strings.HasPrefix(v.Key, "SERVICE_") {
+			return
+		}
+	}
+	domains := parseComposeDomains(app.DockerComposeDomains)
+	fqdn := aggregateComposeDomains(domains)
+	if fqdn == "" {
+		fqdn = app.FQDN
+	}
+	opts := services.PrepareOpts{
+		ServiceID:  app.ID.String(),
+		BaseURL:    proxy.AutoPublicURL(fqdn),
+		FQDN:       fqdn,
+		RouterName: app.Name + "-" + app.ID.String()[:8],
+		Port:       services.DetectProxyPortForGitCompose(raw, app.PortsExposes),
+		Redirect:   app.Redirect,
+	}
+	if app.DestinationID != nil {
+		if dest, err := a.Store.GetDestination(ctx, teamID, *app.DestinationID); err == nil {
+			opts.Network = dest.Network
+		}
+	}
+	if envMap, err := a.Store.ResolvedEnvMap(ctx, teamID, "application", app.ID, nil, &app.EnvironmentID, nil); err == nil {
+		opts.ExistingEnv = envMap
+	}
+	prepared, fullEnv, err := services.PrepareCompose(raw, opts)
+	if err != nil {
+		return
+	}
+	a.syncResourceCoolifyEnv(ctx, teamID, "application", app.ID, raw, prepared, fullEnv)
 }

@@ -18,8 +18,13 @@ func (a *API) handleListEnvVars(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "resource_type and resource_id required")
 		return
 	}
+	teamID := currentTeamID(r)
+	// Coolify: once compose is loaded, Environment Variables auto-fill SERVICE_* keys.
+	if resourceType == "application" {
+		a.ensureApplicationComposeEnv(r.Context(), teamID, rid)
+	}
 	reveal := r.URL.Query().Get("reveal") == "1"
-	vars, err := a.Store.ListEnvVars(r.Context(), currentTeamID(r), resourceType, rid, reveal)
+	vars, err := a.Store.ListEnvVars(r.Context(), teamID, resourceType, rid, reveal)
 	if err != nil {
 		mapStoreErr(w, err)
 		return
