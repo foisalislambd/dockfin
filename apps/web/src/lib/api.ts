@@ -600,6 +600,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  updateScheduledBackup: (
+    id: string,
+    body: { frequency?: string; retention?: number; enabled?: boolean; s3_storage_id?: string | null },
+  ) =>
+    request<ScheduledBackup>(`/api/v1/scheduled-backups/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteScheduledBackup: (id: string) =>
+    request<{ status: string }>(`/api/v1/scheduled-backups/${id}`, { method: 'DELETE' }),
   databaseBackups: (dbId: string) =>
     request<{ backup_executions: BackupExecution[] }>(`/api/v1/databases/${dbId}/backups`),
   runDatabaseBackup: (dbId: string) =>
@@ -950,6 +960,7 @@ export type Deployment = {
   error_message: string
   commit_sha?: string
   commit_message?: string
+  logs?: unknown
 }
 export type EnvVar = {
   id: string

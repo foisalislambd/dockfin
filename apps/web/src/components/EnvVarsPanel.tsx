@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Eye, EyeOff, Info } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api, type EnvVar } from '../lib/api'
+import { useConfirm } from './ConfirmDialog'
 import { Btn, Modal } from '../pages/Servers'
 
 type Props = {
@@ -114,6 +115,7 @@ function EnvVarCard({
   resourceId: string
   onChanged: () => void
 }) {
+  const confirm = useConfirm()
   const [draft, setDraft] = useState(() => draftFrom(variable))
   const [show, setShow] = useState(false)
   const locked = !!variable.is_locked
@@ -279,7 +281,18 @@ function EnvVarCard({
           type="button"
           disabled={del.isPending}
           onClick={() => {
-            if (confirm(`Delete ${variable.key}?`)) del.mutate()
+            void (async () => {
+              if (
+                await confirm({
+                  title: 'Delete variable',
+                  message: `Delete ${variable.key}?`,
+                  confirmLabel: 'Delete',
+                  danger: true,
+                })
+              ) {
+                del.mutate()
+              }
+            })()
           }}
           className="inline-flex h-8 items-center rounded-md bg-error-500 px-2.5 text-xs font-medium text-white transition hover:bg-error-500/90 disabled:opacity-50"
         >

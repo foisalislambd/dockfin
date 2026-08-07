@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { DeployLogPanel } from '../components/DeployLogPanel'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { Meta } from '../components/ui/tabs'
 import { api } from '../lib/api'
@@ -16,7 +17,6 @@ export function DeploymentShowPage() {
   const qc = useQueryClient()
   const nested = Boolean(projectId && envId)
   const [logs, setLogs] = useState<string[]>([])
-  const logRef = useRef<HTMLPreElement>(null)
 
   const dep = useQuery({
     queryKey: ['deployment', deploymentId],
@@ -56,8 +56,25 @@ export function DeploymentShowPage() {
   }, [deploymentId])
 
   useEffect(() => {
-    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
-  }, [logs])
+    const raw = dep.data?.logs
+    if (!raw || logs.length) return
+    try {
+      const entries = (typeof raw === 'string' ? JSON.parse(raw) : raw) as Array<{
+        stage?: string
+        line?: string
+      }>
+      if (Array.isArray(entries) && entries.length) {
+        setLogs(
+          entries.map((e) => {
+            const prefix = e.stage ? `[${e.stage}] ` : ''
+            return `${prefix}${e.line || ''}`
+          }),
+        )
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [dep.data?.logs, logs.length])
 
   const back =
     nested && projectId && envId ? (
@@ -125,15 +142,11 @@ export function DeploymentShowPage() {
         <p className="text-sm text-gray-600 dark:text-gray-300">{d.commit_message}</p>
       )}
 
-      <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Live logs</h2>
-        <pre
-          ref={logRef}
-          className="max-h-[32rem] overflow-auto rounded-xl border border-gray-200 bg-white p-4 font-mono text-xs leading-relaxed text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300"
-        >
-          {logs.length ? logs.join('\n') : busy ? 'Waiting for log events…' : 'No log lines.'}
-        </pre>
-      </section>
+      <DeployLogPanel
+        lines={logs}
+        busy={busy}
+        emptyHint={busy ? 'Waiting for log events…' : 'No log lines.'}
+      />
 
       {cancel.error && <p className="text-sm text-error-500">{cancel.error.message}</p>}
     </div>

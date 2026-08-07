@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
+import { useConfirm } from '../components/ConfirmDialog'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { ServerTerminal } from '../components/Terminal'
 import { PageSkeleton } from '../components/ui/Skeleton'
@@ -28,6 +29,7 @@ const SERVER_TABS = [
 
 function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
   const qc = useQueryClient()
+  const confirm = useConfirm()
   const backups = useQuery({ queryKey: ['scheduled-backups'], queryFn: api.scheduledBackups })
   const executions = useQuery({
     queryKey: ['db-backups', dbId],
@@ -55,6 +57,15 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
       }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['scheduled-backups'] }),
   })
+  const removeSchedule = useMutation({
+    mutationFn: (id: string) => api.deleteScheduledBackup(id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['scheduled-backups'] }),
+  })
+  const toggleSchedule = useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      api.updateScheduledBackup(id, { enabled }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['scheduled-backups'] }),
+  })
   const runNow = useMutation({
     mutationFn: () => api.runDatabaseBackup(dbId),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['db-backups', dbId] }),
@@ -80,7 +91,7 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Manual dumps write to `/data/dockfin/backups` on the server (PostgreSQL).
+          Manual dumps write to `/data/dockfin/backups` on the server (PostgreSQL, MySQL/MariaDB, Redis).
         </p>
         <Btn primary onClick={() => runNow.mutate()}>
           {runNow.isPending ? 'Dumping…' : 'Run backup now'}
@@ -129,9 +140,18 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
                       className="text-brand-600 dark:text-brand-400"
                       disabled={restore.isPending}
                       onClick={() => {
-                        if (window.confirm('Restore this dump into the running database?')) {
-                          restore.mutate(b.id)
-                        }
+                        void (async () => {
+                          if (
+                            await confirm({
+                              title: 'Restore backup',
+                              message: 'Restore this dump into the running database?',
+                              confirmLabel: 'Restore',
+                              danger: true,
+                            })
+                          ) {
+                            restore.mutate(b.id)
+                          }
+                        })()
                       }}
                     >
                       Restore
@@ -162,6 +182,7 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
               <th className="px-3 py-2">Retention</th>
               <th className="px-3 py-2">S3</th>
               <th className="px-3 py-2">Enabled</th>
+              <th className="px-3 py-2">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -171,11 +192,27 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
                 <td className="px-3 py-2">{b.retention}</td>
                 <td className="px-3 py-2 font-mono text-xs">{b.s3_storage_id?.slice(0, 8) || '—'}</td>
                 <td className="px-3 py-2">{b.enabled ? 'yes' : 'no'}</td>
+                <td className="px-3 py-2 space-x-3">
+                  <button
+                    type="button"
+                    className="text-brand-600 dark:text-brand-400"
+                    onClick={() => toggleSchedule.mutate({ id: b.id, enabled: !b.enabled })}
+                  >
+                    {b.enabled ? 'Disable' : 'Enable'}
+                  </button>
+                  <button
+                    type="button"
+                    className="text-error-500"
+                    onClick={() => removeSchedule.mutate(b.id)}
+                  >
+                    Delete
+                  </button>
+                </td>
               </tr>
             ))}
             {!mine.length && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                   No scheduled backups for this database.
                 </td>
               </tr>

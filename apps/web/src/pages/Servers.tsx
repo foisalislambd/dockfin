@@ -1,11 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
 import type { FormEvent } from 'react'
 import { CreatePageShell, FormActions, FormInput, FormSelect } from '../components/ui/forms'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { api } from '../lib/api'
+
+export { Btn } from '../components/ui/Button'
+export { Header } from '../components/ui/Header'
+export { Input } from '../components/ui/Input'
+export { Modal } from '../components/ui/Modal'
+
+import { Btn } from '../components/ui/Button'
+import { Header } from '../components/ui/Header'
+import { Input } from '../components/ui/Input'
+import { Modal } from '../components/ui/Modal'
 
 export function ServersPage() {
   const qc = useQueryClient()
@@ -212,131 +221,6 @@ function KeyForm({ onSubmit, error }: { onSubmit: (name: string, key: string) =>
         Save key
       </Btn>
     </form>
-  )
-}
-
-export function Header({
-  title,
-  actions,
-}: {
-  title: string
-  subtitle?: string
-  actions?: React.ReactNode
-}) {
-  return (
-    <div className="flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">{title}</h1>
-      </div>
-      <div className="flex gap-2">{actions}</div>
-    </div>
-  )
-}
-
-export function Btn({
-  children,
-  onClick,
-  primary,
-  type = 'button',
-  disabled,
-}: {
-  children: React.ReactNode
-  onClick?: () => void
-  primary?: boolean
-  type?: 'button' | 'submit'
-  disabled?: boolean
-}) {
-  return (
-    <button
-      type={type}
-      onClick={onClick}
-      disabled={disabled}
-      className={`inline-flex h-8 items-center rounded-md px-2.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
-        primary
-          ? 'bg-brand-500 text-white hover:bg-brand-600'
-          : 'border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-white/5'
-      }`}
-    >
-      {children}
-    </button>
-  )
-}
-
-export function Modal({
-  title,
-  children,
-  onClose,
-  wide,
-}: {
-  title: string
-  children: React.ReactNode
-  onClose: () => void
-  wide?: boolean
-}) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prev
-    }
-  }, [onClose])
-
-  // Portal above the shell so the overlay covers the sidebar (z-50) too.
-  return createPortal(
-    <div className="panel-modal-backdrop" onClick={onClose} role="presentation">
-      <div
-        className={`panel-modal w-full p-5 ${wide ? 'max-w-xl' : 'max-w-md'}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white">{title}</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md p-1 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10"
-          >
-            ✕
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>,
-    document.body,
-  )
-}
-
-export function Input({
-  label,
-  value,
-  onChange,
-  onBlur,
-  required = true,
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  onBlur?: () => void
-  required?: boolean
-}) {
-  return (
-    <label className="block text-sm">
-      <span className="mb-1 block text-gray-500 dark:text-gray-400">{label}</span>
-      <input
-        required={required}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={() => onBlur?.()}
-        className="panel-field w-full rounded-lg px-3 py-2 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
-      />
-    </label>
   )
 }
 

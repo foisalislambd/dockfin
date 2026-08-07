@@ -257,6 +257,8 @@ func (a *API) Router() http.Handler {
 			r.Route("/scheduled-backups", func(r chi.Router) {
 				r.Get("/", a.handleListScheduledBackups)
 				r.Post("/", a.handleCreateScheduledBackup)
+				r.Patch("/{backupID}", a.handlePatchScheduledBackup)
+				r.Delete("/{backupID}", a.handleDeleteScheduledBackup)
 			})
 
 			r.Get("/notifications", a.handleListNotifications)

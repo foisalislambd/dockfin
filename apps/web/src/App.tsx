@@ -11,6 +11,8 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider, useAuth } from './lib/auth'
 import { ThemeProvider } from './components/theme/ThemeProvider'
+import { ToastProvider } from './components/Toast'
+import { ConfirmProvider } from './components/ConfirmDialog'
 import { AppShell } from './components/AppShell'
 import { AppShellSkeleton } from './components/ui/Skeleton'
 import { LoginPage, RegisterPage } from './pages/Auth'
@@ -72,9 +74,13 @@ const GitSourceDetailPage = lazyPage(() => import('./pages/GitSources'), 'GitSou
 function RootComponent() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <Outlet />
-      </AuthProvider>
+      <ToastProvider>
+        <ConfirmProvider>
+          <AuthProvider>
+            <Outlet />
+          </AuthProvider>
+        </ConfirmProvider>
+      </ToastProvider>
     </ThemeProvider>
   )
 }

@@ -879,12 +879,10 @@ func (a *API) handleDeleteDatabase(w http.ResponseWriter, r *http.Request) {
 	if db.DestinationID != nil {
 		if dest, err := a.Store.GetDestination(r.Context(), teamID, *db.DestinationID); err == nil {
 			if client, err := a.dialServer(r, dest.ServerID); err == nil {
-				// Do not call database.Stop first — it rm's without -v and orphans anonymous volumes.
-				cname := "dockfin-db-" + id.String()
+				cname := database.ContainerName(id.String())
+				_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", cname)
 				if opts.volumes() {
-					_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", "-v", cname)
-				} else {
-					_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", cname)
+					_ = database.RemoveData(client, id.String())
 				}
 				if opts.networks() {
 					removeResourceScopedNetwork(client, id.String())

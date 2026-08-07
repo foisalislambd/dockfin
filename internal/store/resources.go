@@ -113,7 +113,8 @@ func scanApplication(scan func(dest ...any) error) (*Application, error) {
 type Deployment struct {
 	ID            uuid.UUID       `json:"id"`
 	TeamID        uuid.UUID       `json:"team_id"`
-	ApplicationID uuid.UUID       `json:"application_id"`
+	ApplicationID *uuid.UUID      `json:"application_id,omitempty"`
+	ServiceID     *uuid.UUID      `json:"service_id,omitempty"`
 	ServerID      *uuid.UUID      `json:"server_id"`
 	Status        string          `json:"status"`
 	CommitSHA     string          `json:"commit_sha"`
@@ -686,32 +687,48 @@ func (s *Store) SetDeploymentBuildServer(ctx context.Context, deploymentID uuid.
 	return err
 }
 
-func (s *Store) CreateDeployment(ctx context.Context, teamID, appID uuid.UUID, serverID *uuid.UUID, commitSHA, commitMsg string, forceRebuild, isWebhook, isAPI bool, pullRequestID int) (*Deployment, error) {
+const deploymentColumns = `id, team_id, application_id, service_id, server_id, status, commit_sha, commit_message, pull_request_id, current_stage, logs, error_message, started_at, finished_at, created_at`
+
+func scanDeployment(scan func(dest ...any) error) (*Deployment, error) {
 	var d Deployment
-	err := s.Pool.QueryRow(ctx, `
-		INSERT INTO deployments (team_id, application_id, server_id, status, commit_sha, commit_message, force_rebuild, is_webhook, is_api, pull_request_id)
-		VALUES ($1,$2,$3,'queued',$4,$5,$6,$7,$8,$9)
-		RETURNING id, team_id, application_id, server_id, status, commit_sha, commit_message, pull_request_id, current_stage, logs, error_message, started_at, finished_at, created_at
-	`, teamID, appID, serverID, commitSHA, commitMsg, forceRebuild, isWebhook, isAPI, pullRequestID).Scan(
-		&d.ID, &d.TeamID, &d.ApplicationID, &d.ServerID, &d.Status, &d.CommitSHA, &d.CommitMessage, &d.PullRequestID,
+	err := scan(
+		&d.ID, &d.TeamID, &d.ApplicationID, &d.ServiceID, &d.ServerID, &d.Status, &d.CommitSHA, &d.CommitMessage, &d.PullRequestID,
 		&d.CurrentStage, &d.Logs, &d.ErrorMessage, &d.StartedAt, &d.FinishedAt, &d.CreatedAt,
 	)
-	return &d, err
+	if err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+
+func (s *Store) CreateDeployment(ctx context.Context, teamID, appID uuid.UUID, serverID *uuid.UUID, commitSHA, commitMsg string, forceRebuild, isWebhook, isAPI bool, pullRequestID int) (*Deployment, error) {
+	row := s.Pool.QueryRow(ctx, `
+		INSERT INTO deployments (team_id, application_id, server_id, status, commit_sha, commit_message, force_rebuild, is_webhook, is_api, pull_request_id)
+		VALUES ($1,$2,$3,'queued',$4,$5,$6,$7,$8,$9)
+		RETURNING `+deploymentColumns+`
+	`, teamID, appID, serverID, commitSHA, commitMsg, forceRebuild, isWebhook, isAPI, pullRequestID)
+	return scanDeployment(row.Scan)
+}
+
+func (s *Store) CreateServiceDeployment(ctx context.Context, teamID, serviceID uuid.UUID, serverID *uuid.UUID, forceRebuild, isWebhook, isAPI bool) (*Deployment, error) {
+	row := s.Pool.QueryRow(ctx, `
+		INSERT INTO deployments (team_id, service_id, server_id, status, force_rebuild, is_webhook, is_api)
+		VALUES ($1,$2,$3,'queued',$4,$5,$6)
+		RETURNING `+deploymentColumns+`
+	`, teamID, serviceID, serverID, forceRebuild, isWebhook, isAPI)
+	return scanDeployment(row.Scan)
 }
 
 func (s *Store) GetDeployment(ctx context.Context, teamID, id uuid.UUID) (*Deployment, error) {
-	var d Deployment
-	err := s.Pool.QueryRow(ctx, `
-		SELECT id, team_id, application_id, server_id, status, commit_sha, commit_message, pull_request_id, current_stage, logs, error_message, started_at, finished_at, created_at
+	row := s.Pool.QueryRow(ctx, `
+		SELECT `+deploymentColumns+`
 		FROM deployments WHERE id=$1 AND team_id=$2
-	`, id, teamID).Scan(
-		&d.ID, &d.TeamID, &d.ApplicationID, &d.ServerID, &d.Status, &d.CommitSHA, &d.CommitMessage, &d.PullRequestID,
-		&d.CurrentStage, &d.Logs, &d.ErrorMessage, &d.StartedAt, &d.FinishedAt, &d.CreatedAt,
-	)
+	`, id, teamID)
+	d, err := scanDeployment(row.Scan)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
-	return &d, err
+	return d, err
 }
 
 func (s *Store) ListDeployments(ctx context.Context, teamID, appID uuid.UUID, limit int) ([]Deployment, error) {
@@ -719,7 +736,7 @@ func (s *Store) ListDeployments(ctx context.Context, teamID, appID uuid.UUID, li
 		limit = 50
 	}
 	rows, err := s.Pool.Query(ctx, `
-		SELECT id, team_id, application_id, server_id, status, commit_sha, commit_message, pull_request_id, current_stage, logs, error_message, started_at, finished_at, created_at
+		SELECT `+deploymentColumns+`
 		FROM deployments WHERE team_id=$1 AND application_id=$2
 		ORDER BY created_at DESC LIMIT $3
 	`, teamID, appID, limit)
@@ -729,14 +746,35 @@ func (s *Store) ListDeployments(ctx context.Context, teamID, appID uuid.UUID, li
 	defer rows.Close()
 	var out []Deployment
 	for rows.Next() {
-		var d Deployment
-		if err := rows.Scan(
-			&d.ID, &d.TeamID, &d.ApplicationID, &d.ServerID, &d.Status, &d.CommitSHA, &d.CommitMessage, &d.PullRequestID,
-			&d.CurrentStage, &d.Logs, &d.ErrorMessage, &d.StartedAt, &d.FinishedAt, &d.CreatedAt,
-		); err != nil {
+		d, err := scanDeployment(rows.Scan)
+		if err != nil {
 			return nil, err
 		}
-		out = append(out, d)
+		out = append(out, *d)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) ListServiceDeployments(ctx context.Context, teamID, serviceID uuid.UUID, limit int) ([]Deployment, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	rows, err := s.Pool.Query(ctx, `
+		SELECT `+deploymentColumns+`
+		FROM deployments WHERE team_id=$1 AND service_id=$2
+		ORDER BY created_at DESC LIMIT $3
+	`, teamID, serviceID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Deployment
+	for rows.Next() {
+		d, err := scanDeployment(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *d)
 	}
 	return out, rows.Err()
 }
@@ -1023,7 +1061,7 @@ func (s *Store) ListQueuedDeployments(ctx context.Context, limit int) ([]Deploym
 		limit = 100
 	}
 	rows, err := s.Pool.Query(ctx, `
-		SELECT id, team_id, application_id, server_id, status, commit_sha, commit_message, pull_request_id, current_stage, logs, error_message, started_at, finished_at, created_at
+		SELECT `+deploymentColumns+`
 		FROM deployments
 		WHERE status IN ('queued', 'in_progress')
 		ORDER BY created_at ASC
@@ -1035,14 +1073,11 @@ func (s *Store) ListQueuedDeployments(ctx context.Context, limit int) ([]Deploym
 	defer rows.Close()
 	var out []Deployment
 	for rows.Next() {
-		var d Deployment
-		if err := rows.Scan(
-			&d.ID, &d.TeamID, &d.ApplicationID, &d.ServerID, &d.Status, &d.CommitSHA, &d.CommitMessage, &d.PullRequestID,
-			&d.CurrentStage, &d.Logs, &d.ErrorMessage, &d.StartedAt, &d.FinishedAt, &d.CreatedAt,
-		); err != nil {
+		d, err := scanDeployment(rows.Scan)
+		if err != nil {
 			return nil, err
 		}
-		out = append(out, d)
+		out = append(out, *d)
 	}
 	return out, rows.Err()
 }
@@ -1275,6 +1310,60 @@ func (s *Store) CreateScheduledBackup(ctx context.Context, teamID uuid.UUID, res
 		&b.ID, &b.TeamID, &b.ResourceType, &b.ResourceID, &b.S3StorageID, &b.Frequency, &b.Enabled, &b.Retention, &b.CreatedAt,
 	)
 	return &b, err
+}
+
+type UpdateScheduledBackupInput struct {
+	Frequency   *string
+	Retention   *int
+	Enabled     *bool
+	S3StorageID **uuid.UUID // pointer to pointer: nil = omit, &nil = clear, &id = set
+}
+
+func (s *Store) UpdateScheduledBackup(ctx context.Context, teamID, id uuid.UUID, in UpdateScheduledBackupInput) (*ScheduledBackup, error) {
+	cur, err := s.GetScheduledBackup(ctx, teamID, id)
+	if err != nil {
+		return nil, err
+	}
+	freq, ret, en := cur.Frequency, cur.Retention, cur.Enabled
+	s3 := cur.S3StorageID
+	if in.Frequency != nil {
+		freq = strings.TrimSpace(*in.Frequency)
+		if freq == "" {
+			freq = "0 0 * * *"
+		}
+	}
+	if in.Retention != nil {
+		ret = *in.Retention
+		if ret <= 0 {
+			ret = 7
+		}
+	}
+	if in.Enabled != nil {
+		en = *in.Enabled
+	}
+	if in.S3StorageID != nil {
+		s3 = *in.S3StorageID
+	}
+	_, err = s.Pool.Exec(ctx, `
+		UPDATE scheduled_backups
+		SET frequency=$3, retention=$4, enabled=$5, s3_storage_id=$6, updated_at=NOW()
+		WHERE id=$1 AND team_id=$2
+	`, id, teamID, freq, ret, en, s3)
+	if err != nil {
+		return nil, err
+	}
+	return s.GetScheduledBackup(ctx, teamID, id)
+}
+
+func (s *Store) DeleteScheduledBackup(ctx context.Context, teamID, id uuid.UUID) error {
+	tag, err := s.Pool.Exec(ctx, `DELETE FROM scheduled_backups WHERE id=$1 AND team_id=$2`, id, teamID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *Store) GetScheduledBackup(ctx context.Context, teamID, id uuid.UUID) (*ScheduledBackup, error) {

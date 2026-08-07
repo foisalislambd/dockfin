@@ -237,10 +237,10 @@ func (r *Runner) runBackups(ctx context.Context, minute time.Time) {
 			}
 			continue
 		}
-		if db.Engine != "postgresql" {
+		if db.Engine != "postgresql" && db.Engine != "mysql" && db.Engine != "mariadb" && db.Engine != "redis" && db.Engine != "keydb" {
 			exec, err := r.Store.CreateBackupExecutionScheduled(ctx, b.TeamID, &sid, "database", db.ID, "skipped")
 			if err == nil {
-				_ = r.Store.FinishBackupExecution(ctx, exec.ID, "failed", 0, "scheduled backup currently supports postgresql only")
+				_ = r.Store.FinishBackupExecution(ctx, exec.ID, "failed", 0, fmt.Sprintf("scheduled backup does not support engine %q", db.Engine))
 			}
 			continue
 		}
@@ -250,11 +250,11 @@ func (r *Runner) runBackups(ctx context.Context, minute time.Time) {
 			r.Logger.Error("create backup execution", "err", err)
 			continue
 		}
-		go r.executeBackup(context.Background(), db, exec.ID, filename, b.S3StorageID)
+		go r.executeBackup(context.Background(), db, exec.ID, filename, b.S3StorageID, b.Retention)
 	}
 }
 
-func (r *Runner) executeBackup(ctx context.Context, db *store.Database, execID uuid.UUID, filename string, s3StorageID *uuid.UUID) {
+func (r *Runner) executeBackup(ctx context.Context, db *store.Database, execID uuid.UUID, filename string, s3StorageID *uuid.UUID, retention int) {
 	done := false
 	defer func() {
 		if !done {
@@ -270,7 +270,7 @@ func (r *Runner) executeBackup(ctx context.Context, db *store.Database, execID u
 	}
 	path := backup.DumpPath(filename)
 	container := "dockfin-db-" + db.ID.String()
-	if err := backup.DumpPostgres(client, container, password, path); err != nil {
+	if err := backup.DumpDatabase(client, db.Engine, container, password, path); err != nil {
 		_ = r.Store.FinishBackupExecution(ctx, execID, "failed", 0, err.Error())
 		done = true
 		return
@@ -279,6 +279,7 @@ func (r *Runner) executeBackup(ctx context.Context, db *store.Database, execID u
 	_ = r.Store.FinishBackupExecution(ctx, execID, "finished", size, "")
 	done = true
 	r.Logger.Info("scheduled backup finished", "db", db.ID, "file", filename, "bytes", size)
+	_ = backup.EnforceRemoteRetention(client, db.Engine, db.ID.String(), retention)
 
 	if s3StorageID != nil {
 		if err := r.uploadBackupToS3(ctx, client, db, execID, filename, path, *s3StorageID); err != nil {

@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/deploy"
 	"github.com/dockfin/dockfin/internal/notify"
+	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/dockfin/dockfin/internal/ws"
@@ -124,7 +125,17 @@ func (q *Queue) handle(ctx context.Context, job DeployJob) {
 	_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "in_progress", "")
 	q.publish(job.DeploymentID, "status", "in_progress")
 
-	app, err := q.Store.GetApplication(ctx, job.TeamID, dep.ApplicationID)
+	if dep.ServiceID != nil {
+		q.handleService(ctx, job, dep)
+		return
+	}
+	if dep.ApplicationID == nil {
+		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", "deployment has no application or service")
+		q.publish(job.DeploymentID, "status", "failed")
+		return
+	}
+
+	app, err := q.Store.GetApplication(ctx, job.TeamID, *dep.ApplicationID)
 	if err != nil {
 		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
 		q.publish(job.DeploymentID, "status", "failed")
@@ -252,6 +263,123 @@ func (q *Queue) handle(ctx context.Context, job DeployJob) {
 	_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "finished", "")
 	q.publish(job.DeploymentID, "status", "finished")
 	q.notifyDeploy(ctx, job.TeamID, app.Name, "finished", "")
+}
+
+func (q *Queue) handleService(ctx context.Context, job DeployJob, dep *store.Deployment) {
+	svc, err := q.Store.GetService(ctx, job.TeamID, *dep.ServiceID)
+	if err != nil {
+		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
+		q.publish(job.DeploymentID, "status", "failed")
+		return
+	}
+	if svc.DockerComposeRaw == "" && svc.DockerCompose == "" {
+		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", "service has no docker compose content")
+		q.publish(job.DeploymentID, "status", "failed")
+		return
+	}
+
+	var serverID uuid.UUID
+	var dest *store.Destination
+	switch {
+	case svc.ServerID != nil:
+		serverID = *svc.ServerID
+		if svc.DestinationID != nil {
+			dest, _ = q.Store.GetDestination(ctx, job.TeamID, *svc.DestinationID)
+		}
+	case svc.DestinationID != nil:
+		var err error
+		dest, err = q.Store.GetDestination(ctx, job.TeamID, *svc.DestinationID)
+		if err != nil {
+			_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
+			q.publish(job.DeploymentID, "status", "failed")
+			return
+		}
+		serverID = dest.ServerID
+	default:
+		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", "service has no server or destination")
+		q.publish(job.DeploymentID, "status", "failed")
+		return
+	}
+
+	srv, err := q.Store.GetServer(ctx, job.TeamID, serverID)
+	if err != nil {
+		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
+		q.publish(job.DeploymentID, "status", "failed")
+		return
+	}
+	if srv.PrivateKeyID == nil {
+		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", "server has no private key")
+		q.publish(job.DeploymentID, "status", "failed")
+		return
+	}
+	enc, err := q.Store.GetPrivateKeyMaterial(ctx, job.TeamID, *srv.PrivateKeyID)
+	if err != nil {
+		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
+		q.publish(job.DeploymentID, "status", "failed")
+		return
+	}
+	priv, err := q.Store.Box.DecryptString(enc)
+	if err != nil {
+		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", "decrypt key: "+err.Error())
+		q.publish(job.DeploymentID, "status", "failed")
+		return
+	}
+
+	res, err := q.SSH.Dial(sshx.Target{
+		Host:                srv.IP,
+		Port:                srv.Port,
+		User:                srv.UserName,
+		PrivateKey:          []byte(priv),
+		ExpectedFingerprint: srv.HostKeyFingerprint,
+		ExpectedKeyType:     srv.HostKeyType,
+	})
+	if err != nil {
+		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
+		_ = q.Store.UpdateServiceStatus(ctx, svc.ID, "exited")
+		q.publish(job.DeploymentID, "status", "failed")
+		return
+	}
+	client := res.Client
+
+	emit := func(stage, line string) {
+		if cancelled, _ := q.Store.IsDeploymentCancelled(context.Background(), job.DeploymentID); cancelled {
+			return
+		}
+		_ = q.Store.AppendDeploymentLog(context.Background(), job.DeploymentID, stage, line)
+		q.publish(job.DeploymentID, stage, line)
+	}
+
+	err = services.RunDeploy(ctx, services.DeployParams{
+		Store:    q.Store,
+		Client:   client,
+		TeamID:   job.TeamID,
+		Service:  svc,
+		Server:   srv,
+		ServerID: serverID,
+		Dest:     dest,
+		Force:    job.ForceRebuild,
+		Emit:     emit,
+	})
+	if err != nil {
+		if cancelled, _ := q.Store.IsDeploymentCancelled(ctx, job.DeploymentID); cancelled ||
+			strings.Contains(err.Error(), "deployment cancelled") {
+			q.publish(job.DeploymentID, "status", "cancelled")
+			return
+		}
+		slog.Error("service deployment failed", "id", job.DeploymentID, "err", err)
+		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
+		_ = q.Store.UpdateServiceStatus(ctx, svc.ID, "exited")
+		q.publish(job.DeploymentID, "status", "failed")
+		q.notifyDeploy(ctx, job.TeamID, svc.Name, "failed", err.Error())
+		return
+	}
+	if cancelled, _ := q.Store.IsDeploymentCancelled(ctx, job.DeploymentID); cancelled {
+		q.publish(job.DeploymentID, "status", "cancelled")
+		return
+	}
+	_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "finished", "")
+	q.publish(job.DeploymentID, "status", "finished")
+	q.notifyDeploy(ctx, job.TeamID, svc.Name, "finished", "")
 }
 
 func (q *Queue) notifyDeploy(ctx context.Context, teamID uuid.UUID, appName, status, errMsg string) {

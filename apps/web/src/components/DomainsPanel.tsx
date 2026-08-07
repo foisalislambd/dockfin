@@ -498,9 +498,13 @@ export function DomainsPanel({
   hint?: string
 }) {
   const [local, setLocal] = useState(value)
+  const [draft, setDraft] = useState('')
+  const [error, setError] = useState('')
+  const [advanced, setAdvanced] = useState(false)
 
   useEffect(() => {
     setLocal(value)
+    setError('')
   }, [value])
 
   const server = useQuery({
@@ -515,11 +519,28 @@ export function DomainsPanel({
     return pickUsableIP(s.public_ip, s.ip)
   }, [server.data])
 
+  const chips = useMemo(() => splitDomainEntries(local), [local])
+
   const applyNormalized = (raw: string) => {
     const next = normalizeDomains(raw)
     setLocal(next)
     onChange(next)
     return next
+  }
+
+  const setFromChips = (nextChips: string[]) => {
+    applyNormalized(nextChips.join(','))
+  }
+
+  const addChip = () => {
+    const entry = normalizeDomainEntry(draft.trim())
+    if (!entry) return
+    if (chips.includes(entry)) {
+      setDraft('')
+      return
+    }
+    setFromChips([...chips, entry])
+    setDraft('')
   }
 
   return (
@@ -546,26 +567,77 @@ export function DomainsPanel({
         ) : null}
       </div>
 
-      <input
-        value={local}
-        placeholder="app.example.com"
-        onChange={(e) => {
-          setLocal(e.target.value)
-          onChange(e.target.value)
-        }}
-        onBlur={() => applyNormalized(local)}
-        className="panel-field w-full rounded-lg px-3 py-2 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
-      />
+      <div className="flex min-h-10 flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-2 py-1.5 dark:border-gray-800 dark:bg-gray-950">
+        {chips.map((host) => (
+          <span
+            key={host}
+            className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 font-mono text-xs text-gray-800 dark:bg-white/10 dark:text-gray-100"
+          >
+            {host}
+            <button
+              type="button"
+              className="text-gray-500 hover:text-error-500"
+              aria-label={`Remove ${host}`}
+              onClick={() => setFromChips(chips.filter((c) => c !== host))}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        <input
+          value={draft}
+          placeholder={chips.length ? 'Add domain…' : 'app.example.com'}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ',') {
+              e.preventDefault()
+              addChip()
+            }
+            if (e.key === 'Backspace' && !draft && chips.length) {
+              setFromChips(chips.slice(0, -1))
+            }
+          }}
+          onBlur={() => addChip()}
+          className="min-w-[10rem] flex-1 border-0 bg-transparent px-1 py-1 text-sm outline-none"
+        />
+      </div>
+
+      <button
+        type="button"
+        className="text-xs text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
+        onClick={() => setAdvanced((v) => !v)}
+      >
+        {advanced ? 'Hide raw editor' : 'Edit as comma-separated list'}
+      </button>
+      {advanced && (
+        <input
+          value={local}
+          placeholder="app.example.com, api.example.com"
+          onChange={(e) => {
+            setLocal(e.target.value)
+            onChange(e.target.value)
+          }}
+          onBlur={() => applyNormalized(local)}
+          className="panel-field w-full rounded-lg px-3 py-2 font-mono text-xs outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
+        />
+      )}
+
       <DomainDNSAlert
         domains={local}
         serverIp={serverIp}
         serverId={serverId}
         destinationId={destinationId}
       />
+      {error && (
+        <p className="text-sm text-error-500" role="alert">
+          {error}
+        </p>
+      )}
       <button
         type="button"
         className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
         onClick={() => {
+          setError('')
           void api
             .generateDomain({
               name: resourceName || 'app',
@@ -576,7 +648,10 @@ export function DomainsPanel({
             .then((d) => {
               applyNormalized(d.fqdn || d.url || '')
             })
-            .catch(() => undefined)
+            .catch((e: unknown) => {
+              const msg = e instanceof Error ? e.message : 'Could not generate free domain'
+              setError(msg)
+            })
         }}
       >
         Generate free domain

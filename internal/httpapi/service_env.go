@@ -2,8 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"net/url"
-	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -76,43 +74,7 @@ func (a *API) loadServiceMagicEnv(ctx context.Context, teamID, serviceID uuid.UU
 // Skips unusable magic hosts (e.g. *.127.0.0.1.sslip.io) so a repaired FQDN
 // cannot be overwritten by a stale env value.
 func preferURLFromMagicEnv(env map[string]string) (baseURL, fqdn string) {
-	keys := make([]string, 0)
-	for k := range env {
-		if strings.HasPrefix(k, "SERVICE_URL_") && env[k] != "" {
-			keys = append(keys, k)
-		}
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		raw := strings.TrimSpace(env[k])
-		host := proxy.HostFromDomainEntry(raw)
-		if host == "" {
-			u, err := url.Parse(raw)
-			if err != nil || u.Host == "" {
-				continue
-			}
-			host = u.Hostname()
-		}
-		if proxy.FQDNUsesUnusableMagicIP(host) {
-			continue
-		}
-		return proxy.PublicURL(raw), host
-	}
-	fqKeys := make([]string, 0)
-	for k, v := range env {
-		if strings.HasPrefix(k, "SERVICE_FQDN_") && v != "" && !strings.Contains(v, "://") {
-			fqKeys = append(fqKeys, k)
-		}
-	}
-	sort.Strings(fqKeys)
-	for _, k := range fqKeys {
-		host := proxy.HostFromDomainEntry(env[k])
-		if host == "" || proxy.FQDNUsesUnusableMagicIP(host) {
-			continue
-		}
-		return proxy.PublicURL(host), host
-	}
-	return "", ""
+	return services.PreferURLFromMagicEnv(env)
 }
 
 // rewriteServiceDomainEnv updates SERVICE_URL_* / SERVICE_FQDN_* pairs to match

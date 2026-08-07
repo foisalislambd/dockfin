@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api'
-import { Btn, Modal } from '../pages/Servers'
+import { Btn } from './ui/Button'
+import { Modal } from './ui/Modal'
 
 export type DeletePayload = {
   confirmation_name: string

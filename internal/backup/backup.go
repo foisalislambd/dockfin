@@ -22,6 +22,51 @@ func DumpPostgres(client *ssh.Client, container, password, outPath string) error
 	return nil
 }
 
+// DumpMySQL runs mysqldump inside a MySQL/MariaDB container.
+func DumpMySQL(client *ssh.Client, container, password, outPath string) error {
+	cmd := fmt.Sprintf(
+		`mkdir -p /data/dockfin/backups && docker exec -e MYSQL_PWD=%s %s mysqldump -uroot --single-transaction --routines --triggers dockfin > %s`,
+		shellQuote(password), shellQuote(container), shellQuote(outPath),
+	)
+	_, errOut, err := sshx.Run(client, cmd)
+	if err != nil {
+		return fmt.Errorf("mysqldump: %v %s", err, errOut)
+	}
+	return nil
+}
+
+// DumpRedis copies the Redis RDB (or AOF) from the container data dir via docker cp.
+func DumpRedis(client *ssh.Client, container, outPath string) error {
+	c := shellQuote(container)
+	out := shellQuote(outPath)
+	cmd := fmt.Sprintf(
+		`mkdir -p /data/dockfin/backups && docker exec %s redis-cli BGSAVE >/dev/null 2>&1 || true; sleep 1; `+
+			`if docker exec %s test -f /data/dump.rdb; then docker cp %s:/data/dump.rdb %s; `+
+			`elif docker exec %s test -f /data/appendonly.aof; then docker cp %s:/data/appendonly.aof %s; `+
+			`else echo 'no redis dump file found' >&2; exit 1; fi`,
+		c, c, container, out, c, container, out,
+	)
+	_, errOut, err := sshx.Run(client, cmd)
+	if err != nil {
+		return fmt.Errorf("redis dump: %v %s", err, errOut)
+	}
+	return nil
+}
+
+// DumpDatabase dispatches to the engine-specific dump implementation.
+func DumpDatabase(client *ssh.Client, engine, container, password, outPath string) error {
+	switch engine {
+	case "postgresql":
+		return DumpPostgres(client, container, password, outPath)
+	case "mysql", "mariadb":
+		return DumpMySQL(client, container, password, outPath)
+	case "redis", "keydb":
+		return DumpRedis(client, container, outPath)
+	default:
+		return fmt.Errorf("backup not supported for engine %q", engine)
+	}
+}
+
 // RestorePostgres pipes a SQL dump into the database container.
 func RestorePostgres(client *ssh.Client, container, password, dumpPath string) error {
 	cmd := fmt.Sprintf(
@@ -31,6 +76,19 @@ func RestorePostgres(client *ssh.Client, container, password, dumpPath string) e
 	_, errOut, err := sshx.Run(client, cmd)
 	if err != nil {
 		return fmt.Errorf("psql restore: %v %s", err, errOut)
+	}
+	return nil
+}
+
+// RestoreMySQL pipes a SQL dump into MySQL/MariaDB.
+func RestoreMySQL(client *ssh.Client, container, password, dumpPath string) error {
+	cmd := fmt.Sprintf(
+		`docker exec -i -e MYSQL_PWD=%s %s mysql -uroot dockfin < %s`,
+		shellQuote(password), shellQuote(container), shellQuote(dumpPath),
+	)
+	_, errOut, err := sshx.Run(client, cmd)
+	if err != nil {
+		return fmt.Errorf("mysql restore: %v %s", err, errOut)
 	}
 	return nil
 }
@@ -47,11 +105,31 @@ func FileSize(client *ssh.Client, path string) int64 {
 }
 
 func DefaultFilename(engine, id string) string {
-	return fmt.Sprintf("%s-%s-%s.sql", engine, id, time.Now().UTC().Format("20060102-150405"))
+	ext := "sql"
+	switch engine {
+	case "redis", "keydb", "dragonfly":
+		ext = "rdb"
+	}
+	return fmt.Sprintf("%s-%s-%s.%s", engine, id, time.Now().UTC().Format("20060102-150405"), ext)
 }
 
 func DumpPath(filename string) string {
 	return "/data/dockfin/backups/" + filename
+}
+
+// EnforceRemoteRetention keeps the newest keepCount dumps matching prefix on the remote host.
+func EnforceRemoteRetention(client *ssh.Client, engine, resourceID string, keepCount int) error {
+	if keepCount <= 0 || client == nil {
+		return nil
+	}
+	prefix := fmt.Sprintf("%s-%s-", engine, resourceID)
+	prefix = strings.ReplaceAll(prefix, "'", "")
+	cmd := fmt.Sprintf(
+		`cd /data/dockfin/backups 2>/dev/null && ls -1t %s* 2>/dev/null | tail -n +%d | xargs -r rm -f`,
+		prefix, keepCount+1,
+	)
+	_, _, err := sshx.Run(client, cmd)
+	return err
 }
 
 func shellQuote(s string) string {

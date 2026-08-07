@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/backup"
+	"github.com/dockfin/dockfin/internal/database"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
 	"golang.org/x/crypto/ssh"
@@ -155,6 +156,68 @@ func (a *API) handleCreateScheduledBackup(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusCreated, b)
 }
 
+func (a *API) handlePatchScheduledBackup(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "backupID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var body struct {
+		Frequency   *string `json:"frequency"`
+		Retention   *int    `json:"retention"`
+		Enabled     *bool   `json:"enabled"`
+		S3StorageID *string `json:"s3_storage_id"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	teamID := currentTeamID(r)
+	in := store.UpdateScheduledBackupInput{
+		Frequency: body.Frequency,
+		Retention: body.Retention,
+		Enabled:   body.Enabled,
+	}
+	if body.S3StorageID != nil {
+		raw := strings.TrimSpace(*body.S3StorageID)
+		if raw == "" {
+			var nilID *uuid.UUID
+			in.S3StorageID = &nilID
+		} else {
+			sid, err := uuid.Parse(raw)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "invalid s3_storage_id")
+				return
+			}
+			if _, err := a.Store.GetS3Storage(r.Context(), teamID, sid); err != nil {
+				mapStoreErr(w, err)
+				return
+			}
+			ptr := &sid
+			in.S3StorageID = &ptr
+		}
+	}
+	b, err := a.Store.UpdateScheduledBackup(r.Context(), teamID, id, in)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, b)
+}
+
+func (a *API) handleDeleteScheduledBackup(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "backupID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if err := a.Store.DeleteScheduledBackup(r.Context(), currentTeamID(r), id); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
 func (a *API) handleListDatabaseBackups(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "dbID"))
 	if err != nil {
@@ -189,8 +252,8 @@ func (a *API) handleRunDatabaseBackup(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	if db.Engine != "postgresql" {
-		writeError(w, http.StatusBadRequest, "manual backup currently supports postgresql only")
+	if db.Engine != "postgresql" && db.Engine != "mysql" && db.Engine != "mariadb" && db.Engine != "redis" && db.Engine != "keydb" {
+		writeError(w, http.StatusBadRequest, "manual backup supports postgresql, mysql/mariadb, and redis/keydb")
 		return
 	}
 	client, password, err := a.openDatabaseSSH(r, db)
@@ -215,8 +278,8 @@ func (a *API) handleRunDatabaseBackup(w http.ResponseWriter, r *http.Request) {
 			_ = a.Store.FinishBackupExecution(context.Background(), exec.ID, "failed", 0, "interrupted")
 		}
 	}()
-	container := "dockfin-db-" + id.String()
-	if err := backup.DumpPostgres(client, container, password, path); err != nil {
+	container := database.ContainerName(id.String())
+	if err := backup.DumpDatabase(client, db.Engine, container, password, path); err != nil {
 		_ = a.Store.FinishBackupExecution(r.Context(), exec.ID, "failed", 0, err.Error())
 		done = true
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -229,6 +292,7 @@ func (a *API) handleRunDatabaseBackup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	done = true
+	_ = backup.EnforceRemoteRetention(client, db.Engine, id.String(), 14)
 	out, err := a.Store.GetBackupExecution(r.Context(), teamID, exec.ID)
 	if err != nil {
 		mapStoreErr(w, err)
@@ -257,8 +321,8 @@ func (a *API) handleRestoreDatabaseBackup(w http.ResponseWriter, r *http.Request
 		mapStoreErr(w, err)
 		return
 	}
-	if db.Engine != "postgresql" {
-		writeError(w, http.StatusBadRequest, "restore currently supports postgresql only")
+	if db.Engine != "postgresql" && db.Engine != "mysql" && db.Engine != "mariadb" {
+		writeError(w, http.StatusBadRequest, "restore supports postgresql and mysql/mariadb")
 		return
 	}
 	filename := body.Filename
@@ -296,9 +360,17 @@ func (a *API) handleRestoreDatabaseBackup(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	container := "dockfin-db-" + id.String()
-	if err := backup.RestorePostgres(client, container, password, backup.DumpPath(filename)); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	container := database.ContainerName(id.String())
+	dumpPath := backup.DumpPath(filename)
+	var restoreErr error
+	switch db.Engine {
+	case "postgresql":
+		restoreErr = backup.RestorePostgres(client, container, password, dumpPath)
+	case "mysql", "mariadb":
+		restoreErr = backup.RestoreMySQL(client, container, password, dumpPath)
+	}
+	if restoreErr != nil {
+		writeError(w, http.StatusInternalServerError, restoreErr.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "restored", "filename": filename})

@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -16,7 +14,7 @@ import (
 	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
-	"golang.org/x/crypto/ssh"
+	"github.com/dockfin/dockfin/internal/worker"
 )
 
 func (a *API) handleListServices(w http.ResponseWriter, r *http.Request) {
@@ -256,318 +254,119 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "service has no docker compose content")
 		return
 	}
-	var serverID uuid.UUID
-	var dest *store.Destination
-	switch {
-	case svc.ServerID != nil:
-		serverID = *svc.ServerID
-		if svc.DestinationID != nil {
-			dest, _ = a.Store.GetDestination(r.Context(), teamID, *svc.DestinationID)
-		}
-	case svc.DestinationID != nil:
-		var err error
-		dest, err = a.Store.GetDestination(r.Context(), teamID, *svc.DestinationID)
-		if err != nil {
-			mapStoreErr(w, err)
-			return
-		}
-		serverID = dest.ServerID
-	default:
-		writeError(w, http.StatusBadRequest, "service has no server or destination")
+	serverID, _, err := a.resolveServiceTarget(r.Context(), teamID, svc)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	stream := r.URL.Query().Get("stream") == "1" ||
 		strings.Contains(r.Header.Get("Accept"), "text/event-stream")
 	force := r.URL.Query().Get("force") == "true" || r.URL.Query().Get("force") == "1"
+	isWebhook := r.URL.Query().Get("uuid") != "" || strings.Contains(r.URL.Path, "/webhooks/")
 
-	var emit func(stage, line string)
-	var finishOK func()
-	var finishErr func(msg string)
+	sid := serverID
+	dep, err := a.Store.CreateServiceDeployment(r.Context(), teamID, id, &sid, force, isWebhook, !isWebhook)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if a.Queue == nil {
+		writeError(w, http.StatusServiceUnavailable, "deploy queue unavailable")
+		return
+	}
+	if err := a.Queue.Enqueue(worker.DeployJob{DeploymentID: dep.ID, TeamID: teamID, ForceRebuild: force}); err != nil {
+		writeError(w, http.StatusInternalServerError, "enqueue failed")
+		return
+	}
 
 	if stream {
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			writeError(w, http.StatusInternalServerError, "streaming unsupported")
-			return
-		}
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-		w.Header().Set("X-Accel-Buffering", "no")
-		w.WriteHeader(http.StatusOK)
-		flusher.Flush()
-
-		emit = func(stage, line string) {
-			payload, _ := json.Marshal(map[string]string{"stage": stage, "line": line})
-			_, _ = fmt.Fprintf(w, "data: %s\n\n", payload)
-			flusher.Flush()
-		}
-		finishOK = func() {
-			payload, _ := json.Marshal(map[string]string{"stage": "done", "line": "Deploy finished", "status": "running"})
-			_, _ = fmt.Fprintf(w, "data: %s\n\n", payload)
-			flusher.Flush()
-		}
-		finishErr = func(msg string) {
-			payload, _ := json.Marshal(map[string]string{"stage": "error", "line": msg, "status": "failed"})
-			_, _ = fmt.Fprintf(w, "data: %s\n\n", payload)
-			flusher.Flush()
-		}
-	} else {
-		emit = func(stage, line string) {}
-		finishOK = func() {
-			writeJSON(w, http.StatusOK, map[string]string{"status": "running"})
-		}
-		finishErr = func(msg string) {
-			writeError(w, http.StatusInternalServerError, msg)
-		}
-	}
-
-	emit("prepare", "Preparing docker compose…")
-	composeYAML := svc.DockerCompose
-	rawCompose := svc.DockerComposeRaw
-	if rawCompose == "" {
-		rawCompose = composeYAML
-	}
-
-	// Assign or repair free domain (never keep *.127.0.0.1.sslip.io — browsers hit localhost).
-	if srv, err := a.Store.GetServer(r.Context(), teamID, serverID); err == nil {
-		if publicIP := strings.TrimSpace(srv.PublicIP); publicIP == "" || proxy.IsUnusableMagicIP(publicIP) {
-			// Best-effort detect before generating domain.
-			if client, derr := a.dialServer(r, serverID); derr == nil {
-				if detected := detectServerPublicIP(client); detected != "" {
-					_ = a.Store.SetServerPublicIP(r.Context(), teamID, serverID, detected)
-					srv.PublicIP = detected
-				}
-			}
-		}
-		needsFQDN := svc.FQDN == "" || proxy.FQDNUsesUnusableMagicIP(svc.FQDN)
-		if needsFQDN {
-			if fqdn := generateResourceFQDN(svc.Name, svc.ID, srv); fqdn != "" {
-				fqdn = proxy.NormalizeDomains(fqdn)
-				if fqdn != svc.FQDN {
-					emit("prepare", fmt.Sprintf("Updating domain %s → %s", svc.FQDN, fqdn))
-				} else {
-					emit("prepare", fmt.Sprintf("Assigned free domain %s", fqdn))
-				}
-				svc.FQDN = fqdn
-				_ = a.Store.UpdateServiceFQDN(r.Context(), id, fqdn)
-			} else if proxy.FQDNUsesUnusableMagicIP(svc.FQDN) {
-				emit("prepare", "Warning: server has no public IP — domain still points at localhost. Set Public IP on the server or run Validate.")
-			}
-		} else if n := proxy.NormalizeDomains(svc.FQDN); n != "" && n != svc.FQDN {
-			// Bare domain.com → https://domain.com (persist scheme for UI + env sync).
-			svc.FQDN = n
-			_ = a.Store.UpdateServiceFQDN(r.Context(), id, n)
-			emit("prepare", fmt.Sprintf("Normalized domain → %s", n))
-		}
-	}
-
-	fqdnHost := proxy.PrimaryHost(svc.FQDN)
-	needPrepare := composeYAML == "" || composeYAML == svc.DockerComposeRaw || looksLikeUnpreparedCompose(svc.DockerComposeRaw, composeYAML)
-	if fqdnHost != "" && composeYAML != "" {
-		wantURL := proxy.AutoPublicURL(svc.FQDN)
-		// Re-bake when host missing OR scheme outdated (http→https for custom domains).
-		if !strings.Contains(composeYAML, fqdnHost) || !strings.Contains(composeYAML, wantURL) {
-			needPrepare = true
-		}
-		// Force re-bake when custom domain compose still lacks Let's Encrypt labels.
-		if proxy.WantAutoHTTPS(svc.FQDN) && !strings.Contains(composeYAML, "certresolver") {
-			needPrepare = true
-		}
-	}
-	if proxy.FQDNUsesUnusableMagicIP(composeYAML) {
-		needPrepare = true
-	}
-
-	if needPrepare {
-		existing := services.ExtractMagicEnv(composeYAML)
-		for k, v := range a.loadServiceMagicEnv(r.Context(), teamID, id) {
-			existing[k] = v
-		}
-		opts := services.PrepareOpts{
-			ServiceID:   id.String(),
-			BaseURL:     "http://127.0.0.1",
-			RouterName:  svc.Name + "-" + id.String()[:8],
-			ExistingEnv: existing,
-		}
-		if dest != nil {
-			opts.Network = dest.Network
-		}
-		if u, host := preferURLFromMagicEnv(existing); u != "" {
-			opts.BaseURL = u
-			// Keep multi-host Domains list when the env URL matches the primary host.
-			if host != "" && host == fqdnHost && strings.TrimSpace(svc.FQDN) != "" {
-				opts.FQDN = svc.FQDN
-			} else {
-				opts.FQDN = host
-			}
-			if host != "" && host != fqdnHost {
-				// Environment Variables domain differs — sync resource FQDN with scheme.
-				svc.FQDN = proxy.NormalizeDomains(host)
-				_ = a.Store.UpdateServiceFQDN(r.Context(), id, svc.FQDN)
-				fqdnHost = proxy.PrimaryHost(svc.FQDN)
-				emit("prepare", fmt.Sprintf("Using domain from Environment Variables: %s", svc.FQDN))
-			}
-			// Auto SSL: upgrade sticky http:// custom domains to https:// for Let's Encrypt.
-			domainForSSL := opts.FQDN
-			if strings.TrimSpace(domainForSSL) == "" {
-				domainForSSL = host
-			}
-			if strings.TrimSpace(svc.FQDN) != "" {
-				domainForSSL = svc.FQDN
-			}
-			if proxy.WantAutoHTTPS(domainForSSL) {
-				opts.BaseURL = proxy.AutoPublicURL(domainForSSL)
-				opts.FQDN = proxy.NormalizeDomains(domainForSSL)
-				if proxy.WantAutoHTTPS(svc.FQDN) && strings.Contains(svc.FQDN, ",") {
-					// Keep multi-host list from Domains field.
-					opts.FQDN = svc.FQDN
-				}
-			}
-		} else if svc.FQDN != "" {
-			opts.BaseURL = proxy.AutoPublicURL(svc.FQDN)
-			opts.FQDN = svc.FQDN
-		}
-		prepared, fullEnv, err := services.PrepareCompose(rawCompose, opts)
-		if err != nil {
-			if stream {
-				finishErr(fmt.Sprintf("prepare compose: %v", err))
-			} else {
-				writeError(w, http.StatusBadRequest, fmt.Sprintf("prepare compose: %v", err))
-			}
-			return
-		}
-		composeYAML = prepared
-		_ = a.Store.UpdateServiceCompose(r.Context(), id, prepared)
-		a.syncServiceCoolifyEnv(r.Context(), teamID, id, rawCompose, prepared, fullEnv)
-		if svc.FQDN != "" {
-			emit("prepare", fmt.Sprintf("Compose prepared · domain %s", svc.FQDN))
-			if proxy.WantAutoHTTPS(svc.FQDN) {
-				emit("prepare", "Auto SSL enabled (Let's Encrypt) for custom domain")
-			}
-		} else {
-			emit("prepare", "Compose prepared (volumes + magic env)")
-		}
-	} else {
-		emit("prepare", "Using stored compose")
-		if svc.FQDN != "" {
-			emit("prepare", fmt.Sprintf("Public URL: %s", proxy.PublicURL(svc.FQDN)))
-		}
-		a.syncServiceCoolifyEnv(r.Context(), teamID, id, rawCompose, composeYAML, services.ExtractMagicEnv(composeYAML))
-	}
-
-	_ = a.Store.UpdateServiceStatus(r.Context(), id, "deploying")
-	emit("connect", "Connecting to server over SSH…")
-	client, err := a.dialServer(r, serverID)
-	if err != nil {
-		_ = a.Store.UpdateServiceStatus(r.Context(), id, "exited")
-		if stream {
-			finishErr(err.Error())
-		} else {
-			writeError(w, http.StatusBadRequest, err.Error())
-		}
+		a.streamQueuedDeployment(w, r, teamID, dep.ID)
 		return
 	}
-
-	if dest != nil && dest.Network != "" {
-		emit("network", fmt.Sprintf("Ensuring Docker network %q…", dest.Network))
-		if _, _, err := sshx.RunArgs(client, "docker", "network", "inspect", dest.Network); err != nil {
-			err = sshx.RunArgsStreaming(client, func(line string) { emit("network", line) }, "docker", "network", "create", dest.Network)
-			if err != nil {
-				_ = a.Store.UpdateServiceStatus(r.Context(), id, "exited")
-				finishErr(fmt.Sprintf("create network: %v", err))
-				return
-			}
-		} else {
-			emit("network", "Network already exists")
-		}
-	}
-
-	remoteDir := "/data/dockfin/services/" + id.String()
-	emit("setup", fmt.Sprintf("Creating remote dir %s", remoteDir))
-	_, errOut, err := sshx.RunArgs(client, "mkdir", "-p", remoteDir)
-	if err != nil {
-		_ = a.Store.UpdateServiceStatus(r.Context(), id, "exited")
-		finishErr(fmt.Sprintf("mkdir: %v %s", err, errOut))
-		return
-	}
-
-	composePath := remoteDir + "/docker-compose.yml"
-	emit("setup", "Writing docker-compose.yml…")
-	writeCmd := fmt.Sprintf("cat > %s <<'DOCKFIN_COMPOSE_EOF'\n%s\nDOCKFIN_COMPOSE_EOF", composePath, composeYAML)
-	_, errOut, err = sshx.Run(client, writeCmd)
-	if err != nil {
-		_ = a.Store.UpdateServiceStatus(r.Context(), id, "exited")
-		finishErr(fmt.Sprintf("write compose: %v %s", err, errOut))
-		return
-	}
-	emit("setup", "Compose file written")
-
-	project := "dockfin-svc-" + id.String()[:8]
-	upArgs := []string{"docker", "compose", "-p", project, "-f", composePath, "up", "-d", "--remove-orphans"}
-	if force {
-		upArgs = append(upArgs, "--force-recreate")
-		emit("compose", fmt.Sprintf("docker compose -p %s up -d --remove-orphans --force-recreate", project))
-	} else {
-		emit("compose", fmt.Sprintf("docker compose -p %s up -d --remove-orphans", project))
-	}
-	err = sshx.RunArgsStreaming(client, func(line string) {
-		emit("compose", line)
-	}, upArgs...)
-	if err != nil {
-		_ = a.Store.UpdateServiceStatus(r.Context(), id, "exited")
-		finishErr(fmt.Sprintf("compose up: %v", err))
-		return
-	}
-
-	// compose up returns as soon as containers are started — Traefik often still
-	// returns 502 for a few seconds. Wait until the public URL responds so the
-	// first browser visit after "Deploy finished" is not a blank/502 page.
-	if fqdnHost != "" {
-		waitServiceHTTPReady(client, fqdnHost, emit)
-	}
-
-	_ = a.Store.UpdateServiceStatus(r.Context(), id, "running")
-	finishOK()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":        "queued",
+		"deployment_id": dep.ID,
+		"resource_type": "service",
+		"uuid":          id,
+	})
 }
 
-// waitServiceHTTPReady polls Traefik via Host header until the backend answers
-// with a non-gateway error (not 502/503/504) or the deadline expires.
-func waitServiceHTTPReady(client *ssh.Client, fqdn string, emit func(stage, line string)) {
-	host := proxy.PrimaryHost(fqdn)
-	if host == "" {
-		host = strings.TrimSpace(strings.Split(fqdn, ",")[0])
-	}
-	if host == "" || client == nil {
+// streamQueuedDeployment bridges Hub publish events to an SSE response until the job finishes.
+func (a *API) streamQueuedDeployment(w http.ResponseWriter, r *http.Request, teamID, depID uuid.UUID) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming unsupported")
 		return
 	}
-	emit("ready", fmt.Sprintf("Waiting for http://%s to become ready…", host))
-	deadline := time.Now().Add(90 * time.Second)
-	var last string
-	for time.Now().Before(deadline) {
-		// Escape host for single-quoted shell arg.
-		safeHost := strings.ReplaceAll(host, "'", `'\''`)
-		cmd := fmt.Sprintf(
-			`curl -sS -o /dev/null -w '%%{http_code}' --connect-timeout 2 --max-time 5 -H 'Host: %s' http://127.0.0.1/ 2>/dev/null || echo 000`,
-			safeHost,
-		)
-		out, _, _ := sshx.Run(client, cmd)
-		code := strings.TrimSpace(out)
-		if i := strings.LastIndexAny(code, "\n\r"); i >= 0 {
-			code = strings.TrimSpace(code[i+1:])
-		}
-		last = code
-		n, _ := strconv.Atoi(code)
-		// Ready only when Traefik has a real backend route — not gateway errors
-		// and not Traefik's own 404 (router not registered yet).
-		if n >= 200 && n < 500 && n != 404 {
-			emit("ready", fmt.Sprintf("Service reachable (HTTP %s)", code))
-			return
-		}
-		time.Sleep(1500 * time.Millisecond)
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	emit := func(payload map[string]string) {
+		b, _ := json.Marshal(payload)
+		_, _ = fmt.Fprintf(w, "data: %s\n\n", b)
+		flusher.Flush()
 	}
-	emit("ready", fmt.Sprintf("Timed out waiting for ready (last HTTP %s) — open the URL in a few seconds", last))
+	emit(map[string]string{"stage": "queue", "line": "Queued deployment " + depID.String()})
+
+	if dep, err := a.Store.GetDeployment(r.Context(), teamID, depID); err == nil && len(dep.Logs) > 2 {
+		var logs []map[string]any
+		if json.Unmarshal(dep.Logs, &logs) == nil {
+			for _, entry := range logs {
+				stage, _ := entry["stage"].(string)
+				line, _ := entry["line"].(string)
+				if line != "" {
+					emit(map[string]string{"stage": stage, "line": line})
+				}
+			}
+		}
+	}
+
+	var ch chan []byte
+	if a.Hub != nil {
+		ch = a.Hub.Subscribe(depID)
+		defer a.Hub.Unsubscribe(depID, ch)
+	}
+
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	notify := r.Context().Done()
+	for {
+		select {
+		case <-notify:
+			return
+		case msg, ok := <-ch:
+			if ok && len(msg) > 0 {
+				_, _ = fmt.Fprintf(w, "data: %s\n\n", msg)
+				flusher.Flush()
+			}
+		case <-ticker.C:
+			dep, err := a.Store.GetDeployment(r.Context(), teamID, depID)
+			if err != nil {
+				emit(map[string]string{"stage": "error", "line": err.Error(), "status": "failed"})
+				return
+			}
+			switch dep.Status {
+			case "finished":
+				emit(map[string]string{"stage": "done", "line": "Deploy finished", "status": "running"})
+				return
+			case "failed":
+				msg := dep.ErrorMessage
+				if msg == "" {
+					msg = "deploy failed"
+				}
+				emit(map[string]string{"stage": "error", "line": msg, "status": "failed"})
+				return
+			case "cancelled":
+				emit(map[string]string{"stage": "error", "line": "cancelled", "status": "failed"})
+				return
+			}
+		}
+	}
 }
 
 func (a *API) handlePatchService(w http.ResponseWriter, r *http.Request) {
@@ -756,29 +555,6 @@ func (a *API) resolveServiceTarget(ctx context.Context, teamID uuid.UUID, svc *s
 		return uuid.Nil, nil, fmt.Errorf("service has no server or destination")
 	}
 	return serverID, dest, nil
-}
-
-func looksLikeUnpreparedCompose(raw, prepared string) bool {
-	if prepared == "" || prepared == raw {
-		return true
-	}
-	if strings.Contains(prepared, "$SERVICE_") {
-		return true
-	}
-	if regexp.MustCompile(`(?m)^\s*-\s+SERVICE_(URL|FQDN|PASSWORD|USER)_[A-Z0-9_]+\s*$`).MatchString(prepared) {
-		return true
-	}
-	return hasNamedVolumeMounts(raw) && !hasTopLevelVolumes(prepared)
-}
-
-func hasTopLevelVolumes(compose string) bool {
-	return regexp.MustCompile(`(?m)^volumes:\s*$`).MatchString(compose) ||
-		strings.Contains(compose, "\nvolumes:\n") ||
-		strings.HasPrefix(compose, "volumes:\n")
-}
-
-func hasNamedVolumeMounts(raw string) bool {
-	return regexp.MustCompile(`(?m)^\s*-\s+([a-zA-Z][a-zA-Z0-9_.-]*):/`).MatchString(raw)
 }
 
 func (a *API) handleListServiceTemplates(w http.ResponseWriter, r *http.Request) {

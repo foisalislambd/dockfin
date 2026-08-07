@@ -13,6 +13,8 @@ import { ServiceLogo } from '../components/ServiceLogo'
 import { ServiceWebhooksPanel } from '../components/ServiceWebhooksPanel'
 import { ServerTerminal } from '../components/Terminal'
 import { PageSkeleton } from '../components/ui/Skeleton'
+import { useConfirm } from '../components/ConfirmDialog'
+import { useToast } from '../components/Toast'
 import { api, type Service, type ServiceUnit } from '../lib/api'
 import { Btn, Input } from './Servers'
 
@@ -89,6 +91,8 @@ export function ServiceDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
   const autoDeployed = useRef(false)
+  const confirm = useConfirm()
+  const toast = useToast()
 
   useEffect(() => {
     setTopTab(search.deploy === '1' ? 'logs' : 'configuration')
@@ -189,10 +193,12 @@ export function ServiceDetailPage() {
       )
       void qc.invalidateQueries({ queryKey: ['service', svcId] })
       void qc.invalidateQueries({ queryKey: ['services'] })
+      toast.success('Deploy finished')
     } catch (e) {
       if ((e as Error).name === 'AbortError') return
       const msg = e instanceof Error ? e.message : 'Deploy failed'
       setDeployError(msg)
+      toast.error(msg)
       setDeployLines((prev) => (prev.some((l) => l.includes(msg)) ? prev : [...prev, `[error] ${msg}`]))
       void qc.invalidateQueries({ queryKey: ['service', svcId] })
     } finally {
@@ -274,7 +280,18 @@ export function ServiceDetailPage() {
             className="inline-flex h-8 items-center gap-1.5 rounded-md bg-error-500/15 px-2.5 text-xs font-medium text-error-500 hover:bg-error-500/25"
             disabled={stop.isPending || deployBusy}
             onClick={() => {
-              if (confirm('Stop this service stack?')) stop.mutate()
+              void (async () => {
+                if (
+                  await confirm({
+                    title: 'Stop service',
+                    message: 'Stop this service stack?',
+                    confirmLabel: 'Stop',
+                    danger: true,
+                  })
+                ) {
+                  stop.mutate()
+                }
+              })()
             }}
           >
             {stop.isPending ? 'Stopping…' : 'Stop'}

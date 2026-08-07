@@ -400,36 +400,7 @@ func (p *Pipeline) deployImage(ctx context.Context, client *ssh.Client, req Requ
 		return fmt.Errorf("docker pull: %v %s", err, errOut)
 	}
 
-	p.log("run", "Stopping previous container if any")
-	_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", name)
-
-	args := []string{
-		"docker", "run", "-d",
-		"--name", name,
-		"--restart", "unless-stopped",
-		"--network", req.Destination.Network,
-	}
-	args = append(args, p.limitArgs(req.App)...)
-	args = append(args, p.runtimeEnvArgs(ctx, req)...)
-	args = append(args, p.proxyLabelArgsReq(req)...)
-	args = append(args, full)
-
-	p.log("run", "Starting container "+name)
-	_, errOut, err = sshx.RunArgs(client, args...)
-	if err != nil {
-		return fmt.Errorf("docker run: %v %s", err, errOut)
-	}
-	if err := p.waitHealthy(client, name, req.App); err != nil {
-		return err
-	}
-	p.log("finalize", "Deployment finished")
-	if p.Store != nil && req.PullRequestID == 0 {
-		_ = p.Store.UpdateApplicationStatus(context.Background(), req.App.ID, "running")
-	}
-	if p.Store != nil && req.PullRequestID > 0 {
-		_ = p.Store.UpdatePreviewStatus(context.Background(), req.TeamID, req.App.ID, req.PullRequestID, "running")
-	}
-	return nil
+	return p.runWithHealthCutover(ctx, client, req, name, full)
 }
 
 func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClient *ssh.Client, req Request) error {
@@ -478,25 +449,56 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 }
 
 func (p *Pipeline) runBuiltImage(ctx context.Context, client *ssh.Client, req Request, name, imageTag string) error {
-	p.log("run", "Replacing container")
-	_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", name)
+	return p.runWithHealthCutover(ctx, client, req, name, imageTag)
+}
+
+// runWithHealthCutover starts a candidate container, waits for health, then swaps it
+// into the production name. If health fails, the previous container is left running.
+func (p *Pipeline) runWithHealthCutover(ctx context.Context, client *ssh.Client, req Request, name, image string) error {
+	candidate := name + "-new"
+	p.log("run", "Starting candidate container "+candidate)
+
+	_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", candidate)
+
+	oldRunning := false
+	if out, _, err := sshx.RunArgs(client, "docker", "inspect", "-f", "{{.State.Running}}", name); err == nil && strings.TrimSpace(out) == "true" {
+		oldRunning = true
+	}
+
+	// Candidate gets full Traefik labels. Until cutover, Traefik may briefly see both
+	// Host rules; after health passes we remove the old container.
 	args := []string{
 		"docker", "run", "-d",
-		"--name", name,
+		"--name", candidate,
 		"--restart", "unless-stopped",
 		"--network", req.Destination.Network,
 	}
 	args = append(args, p.limitArgs(req.App)...)
 	args = append(args, p.runtimeEnvArgs(ctx, req)...)
 	args = append(args, p.proxyLabelArgsReq(req)...)
-	args = append(args, imageTag)
+	args = append(args, image)
+
 	_, errOut, err := sshx.RunArgs(client, args...)
 	if err != nil {
 		return fmt.Errorf("docker run: %v %s", err, errOut)
 	}
-	if err := p.waitHealthy(client, name, req.App); err != nil {
-		return err
+
+	if err := p.waitHealthy(client, candidate, req.App); err != nil {
+		p.log("run", "Candidate unhealthy — removing it and keeping previous container")
+		_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", candidate)
+		if !oldRunning {
+			return err
+		}
+		return fmt.Errorf("%w (previous container left running)", err)
 	}
+
+	p.log("run", "Candidate healthy — cutting over")
+	_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", name)
+	_, errOut, err = sshx.RunArgs(client, "docker", "rename", candidate, name)
+	if err != nil {
+		return fmt.Errorf("docker rename: %v %s", err, errOut)
+	}
+
 	p.log("finalize", "Deployment finished")
 	if p.Store != nil && req.PullRequestID == 0 {
 		_ = p.Store.UpdateApplicationStatus(context.Background(), req.App.ID, "running")

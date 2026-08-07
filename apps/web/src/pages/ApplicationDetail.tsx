@@ -9,25 +9,31 @@ import { MoveResourcePanel } from '../components/MoveResourcePanel'
 import { ScheduledTasksPanel } from '../components/ScheduledTasksPanel'
 import { ServerTerminal } from '../components/Terminal'
 import { PageSkeleton } from '../components/ui/Skeleton'
-import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
+import { Meta } from '../components/ui/tabs'
+import { useToast } from '../components/Toast'
 import { api } from '../lib/api'
 import { Btn, Input } from './Servers'
 
-const APP_TABS = [
+const TOP_TABS = [
   { id: 'links', label: 'Links' },
   { id: 'configuration', label: 'Configuration' },
+  { id: 'deployments', label: 'Deployments' },
+  { id: 'terminal', label: 'Terminal' },
+] as const
+
+const SIDE_ITEMS = [
+  { id: 'general', label: 'General' },
+  { id: 'domains', label: 'Domains' },
   { id: 'health', label: 'Health Checks' },
   { id: 'limits', label: 'Resource Limits' },
   { id: 'environment', label: 'Environment Variables' },
-  { id: 'deployments', label: 'Deployments' },
   { id: 'previews', label: 'Previews' },
-  { id: 'terminal', label: 'Terminal' },
-  { id: 'tasks', label: 'Scheduled Tasks' },
   { id: 'webhooks', label: 'Webhooks' },
+  { id: 'tasks', label: 'Scheduled Tasks' },
   { id: 'operations', label: 'Resource Operations' },
   { id: 'rollback', label: 'Rollback' },
   { id: 'danger', label: 'Danger Zone' },
-]
+] as const
 
 export function ApplicationDetailPage() {
   const { appId, projectId, envId } = useParams({ strict: false }) as {
@@ -37,6 +43,7 @@ export function ApplicationDetailPage() {
   }
   const nav = useNavigate()
   const qc = useQueryClient()
+  const toast = useToast()
   const nested = Boolean(projectId && envId)
 
   const app = useQuery({ queryKey: ['application', appId], queryFn: () => api.application(appId) })
@@ -57,7 +64,8 @@ export function ApplicationDetailPage() {
     enabled: Boolean(appId),
   })
 
-  const [tab, setTab] = useState('links')
+  const [topTab, setTopTab] = useState<(typeof TOP_TABS)[number]['id']>('links')
+  const [side, setSide] = useState<(typeof SIDE_ITEMS)[number]['id']>('general')
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [cfg, setCfg] = useState({
     name: '',
@@ -90,7 +98,8 @@ export function ApplicationDetailPage() {
   const [webhookSecret, setWebhookSecret] = useState<string | null>(null)
 
   useEffect(() => {
-    setTab('configuration')
+    setTopTab('links')
+    setSide('general')
     setWebhookSecret(null)
     setCfg({
       name: '',
@@ -245,6 +254,7 @@ export function ApplicationDetailPage() {
   const deploy = useMutation({
     mutationFn: (vars: { force?: boolean } = {}) => api.deployApplication(appId, Boolean(vars.force)),
     onSuccess: (dep) => {
+      toast.success('Deploy queued')
       void qc.invalidateQueries({ queryKey: ['deployments', appId] })
       void qc.invalidateQueries({ queryKey: ['application', appId] })
       if (nested && projectId && envId) {
@@ -366,9 +376,17 @@ export function ApplicationDetailPage() {
           <h1 className="mt-2 text-xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
             {a.name}
           </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {a.build_pack} · {a.status}
-            {a.fqdn ? ` · ${a.fqdn}` : ''}
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+            <span>
+              {a.build_pack} · {a.status}
+              {a.fqdn ? ` · ${a.fqdn}` : ''}
+            </span>
+            {activeDep && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-500/15 px-2 py-0.5 text-[11px] font-medium text-brand-600 dark:text-brand-300">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-400" />
+                {activeDep.status}
+              </span>
+            )}
           </p>
         </div>
         <div className="flex gap-2">
@@ -386,16 +404,54 @@ export function ApplicationDetailPage() {
         <Meta label="FQDN" value={a.fqdn || '—'} />
       </div>
 
-      <ResourceTabs tabs={APP_TABS} active={tab} onChange={setTab} />
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 dark:border-gray-800">
+        <nav className="flex flex-wrap gap-1" role="tablist">
+          {TOP_TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={topTab === t.id}
+              onClick={() => setTopTab(t.id)}
+              className={`relative px-3 py-2.5 text-sm font-medium transition ${
+                topTab === t.id
+                  ? 'text-gray-900 dark:text-white'
+                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+              }`}
+            >
+              {t.label}
+              {topTab === t.id && (
+                <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-brand-500" />
+              )}
+            </button>
+          ))}
+        </nav>
+      </div>
 
-      {tab === 'links' && (
-        <TabPanel>
-          <LinksPanel links={a.links || []} />
-        </TabPanel>
-      )}
+      {topTab === 'links' && <LinksPanel links={a.links || []} />}
 
-      {tab === 'configuration' && (
-        <TabPanel>
+      {topTab === 'configuration' && (
+        <div className="flex flex-col gap-6 md:flex-row">
+          <aside className="w-full shrink-0 md:w-52">
+            <nav className="space-y-0.5">
+              {SIDE_ITEMS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSide(item.id)}
+                  className={`block w-full rounded-md px-2 py-1.5 text-left text-sm ${
+                    side === item.id
+                      ? 'bg-gray-100 font-medium text-gray-900 dark:bg-white/10 dark:text-white'
+                      : 'text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/5'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+          </aside>
+          <div className="min-w-0 flex-1 space-y-6">
+          {side === 'general' && (
           <form
             className="space-y-4"
             onSubmit={(e) => {
@@ -413,16 +469,6 @@ export function ApplicationDetailPage() {
                 onChange={(v) => setCfg({ ...cfg, description: v })}
                 required={false}
               />
-              <div className="sm:col-span-2">
-                <DomainsPanel
-                  value={cfg.fqdn}
-                  onChange={(v) => setCfg({ ...cfg, fqdn: v })}
-                  serverId={serverId || undefined}
-                  destinationId={cfg.destination_id || a.destination_id || undefined}
-                  resourceId={a.id}
-                  resourceName={cfg.name || a.name}
-                />
-              </div>
               <Input
                 label="Ports exposes"
                 value={cfg.ports_exposes}
@@ -609,11 +655,26 @@ export function ApplicationDetailPage() {
               {save.isPending ? 'Saving…' : 'Save'}
             </Btn>
           </form>
-        </TabPanel>
-      )}
-
-      {tab === 'health' && (
-        <TabPanel>
+          )}
+          {side === 'domains' && (
+            <div className="panel-card space-y-4 p-5">
+              <DomainsPanel
+                value={cfg.fqdn}
+                onChange={(v) => setCfg({ ...cfg, fqdn: v })}
+                onSave={(next) => {
+                  setCfg((c) => ({ ...c, fqdn: next }))
+                  save.mutate({ fqdn: next })
+                }}
+                saveBusy={save.isPending}
+                serverId={serverId || undefined}
+                destinationId={cfg.destination_id || a.destination_id || undefined}
+                resourceId={a.id}
+                resourceName={cfg.name || a.name}
+              />
+            </div>
+          )}
+          {side === 'health' && (
+            <div>
           <form
             className="space-y-4"
             onSubmit={(e) => {
@@ -689,11 +750,11 @@ export function ApplicationDetailPage() {
               {saveHealth.isPending ? 'Saving…' : 'Save health checks'}
             </Btn>
           </form>
-        </TabPanel>
+        </div>
       )}
 
-      {tab === 'limits' && (
-        <TabPanel>
+      {side === 'limits' && (
+            <div>
           <form
             className="space-y-4"
             onSubmit={(e) => {
@@ -728,72 +789,18 @@ export function ApplicationDetailPage() {
               {saveLimits.isPending ? 'Saving…' : 'Save limits'}
             </Btn>
           </form>
-        </TabPanel>
+        </div>
       )}
 
-      {tab === 'environment' && (
-        <TabPanel>
+      {side === 'environment' && (
+            <div>
           <EnvVarsPanel resourceType="application" resourceId={appId} title="" />
-        </TabPanel>
+        </div>
       )}
 
-      {tab === 'deployments' && (
-        <TabPanel>
-          <div className="panel-card overflow-hidden">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
-                <tr>
-                  <th className="px-3 py-2">ID</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">Stage</th>
-                  <th className="px-3 py-2">Created</th>
-                  <th className="px-3 py-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(deps.data?.deployments || []).map((d) => (
-                  <tr key={d.id} className="border-t border-gray-200 dark:border-gray-800">
-                    <td className="px-3 py-2 font-mono text-xs">{d.id.slice(0, 8)}…</td>
-                    <td className="px-3 py-2">{d.status}</td>
-                    <td className="px-3 py-2">{d.current_stage || '—'}</td>
-                    <td className="px-3 py-2 text-gray-500 dark:text-gray-400">
-                      {new Date(d.created_at).toLocaleString()}
-                    </td>
-                    <td className="space-x-3 px-3 py-2">
-                      <button
-                        type="button"
-                        className="text-brand-600 dark:text-brand-400"
-                        onClick={() => openDeployment(d.id)}
-                      >
-                        Open
-                      </button>
-                      {(d.status === 'queued' || d.status === 'in_progress') && (
-                        <button
-                          type="button"
-                          className="text-error-500"
-                          onClick={() => cancel.mutate(d.id)}
-                        >
-                          Cancel
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {!deps.data?.deployments?.length && (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                      No deployments yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </TabPanel>
-      )}
 
-      {tab === 'previews' && (
-        <TabPanel>
+      {side === 'previews' && (
+            <div>
           <div className="space-y-4">
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Pull-request preview deployments for this application.
@@ -853,28 +860,12 @@ export function ApplicationDetailPage() {
               <p className="text-sm text-error-500">{deletePreview.error.message}</p>
             )}
           </div>
-        </TabPanel>
+        </div>
       )}
 
-      {tab === 'terminal' && (
-        <TabPanel>
-          {serverId ? (
-            <ServerTerminal
-              serverId={serverId}
-              defaultContainer={`dockfin-${appId}`}
-              containerOptions={[`dockfin-${appId}`]}
-              hideHostShell
-            />
-          ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Assign a destination so the application container terminal can connect.
-            </p>
-          )}
-        </TabPanel>
-      )}
 
-      {tab === 'webhooks' && (
-        <TabPanel>
+      {side === 'webhooks' && (
+            <div>
           <div className="panel-card space-y-4 p-5">
             <div>
               <div className="text-xs text-gray-500 dark:text-gray-400">Git webhook URL</div>
@@ -899,17 +890,17 @@ export function ApplicationDetailPage() {
             )}
             {webhook.error && <p className="text-sm text-error-500">{webhook.error.message}</p>}
           </div>
-        </TabPanel>
+        </div>
       )}
 
-      {tab === 'tasks' && (
-        <TabPanel>
+      {side === 'tasks' && (
+            <div>
           <ScheduledTasksPanel resourceType="application" resourceId={appId} />
-        </TabPanel>
+        </div>
       )}
 
-      {tab === 'operations' && (
-        <TabPanel>
+      {side === 'operations' && (
+            <div>
           <div className="space-y-4">
             <div className="panel-card space-y-3 p-5">
               <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Deploy</h2>
@@ -927,11 +918,11 @@ export function ApplicationDetailPage() {
               projectId={projectId}
             />
           </div>
-        </TabPanel>
+        </div>
       )}
 
-      {tab === 'rollback' && (
-        <TabPanel>
+      {side === 'rollback' && (
+            <div>
           <div className="panel-card space-y-4 p-5">
             <p className="text-sm text-gray-600 dark:text-gray-300">
               Redeploy the last finished commit (or force an image rebuild). This queues a new
@@ -942,11 +933,11 @@ export function ApplicationDetailPage() {
             </Btn>
             {rollback.error && <p className="text-sm text-error-500">{rollback.error.message}</p>}
           </div>
-        </TabPanel>
+        </div>
       )}
 
-      {tab === 'danger' && (
-        <TabPanel>
+      {side === 'danger' && (
+            <div>
           <div className="space-y-4">
             <div className="panel-card space-y-4 border-error-200 p-5 dark:border-error-500/30">
               <h2 className="text-sm font-semibold text-error-500">Force rebuild</h2>
@@ -1003,7 +994,82 @@ export function ApplicationDetailPage() {
               onConfirm={(payload) => remove.mutate(payload)}
             />
           </div>
-        </TabPanel>
+        </div>
+      )}
+          </div>
+        </div>
+      )}
+
+      {topTab === 'deployments' && (
+        <div>
+          <div className="panel-card overflow-hidden">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+                <tr>
+                  <th className="px-3 py-2">ID</th>
+                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2">Stage</th>
+                  <th className="px-3 py-2">Created</th>
+                  <th className="px-3 py-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(deps.data?.deployments || []).map((d) => (
+                  <tr key={d.id} className="border-t border-gray-200 dark:border-gray-800">
+                    <td className="px-3 py-2 font-mono text-xs">{d.id.slice(0, 8)}…</td>
+                    <td className="px-3 py-2">{d.status}</td>
+                    <td className="px-3 py-2">{d.current_stage || '—'}</td>
+                    <td className="px-3 py-2 text-gray-500 dark:text-gray-400">
+                      {new Date(d.created_at).toLocaleString()}
+                    </td>
+                    <td className="space-x-3 px-3 py-2">
+                      <button
+                        type="button"
+                        className="text-brand-600 dark:text-brand-400"
+                        onClick={() => openDeployment(d.id)}
+                      >
+                        Open
+                      </button>
+                      {(d.status === 'queued' || d.status === 'in_progress') && (
+                        <button
+                          type="button"
+                          className="text-error-500"
+                          onClick={() => cancel.mutate(d.id)}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {!deps.data?.deployments?.length && (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                      No deployments yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {topTab === 'terminal' && (
+        <div>
+          {serverId ? (
+            <ServerTerminal
+              serverId={serverId}
+              defaultContainer={`dockfin-${appId}`}
+              containerOptions={[`dockfin-${appId}`]}
+              hideHostShell
+            />
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Assign a destination so the application container terminal can connect.
+            </p>
+          )}
+        </div>
       )}
     </div>
   )
