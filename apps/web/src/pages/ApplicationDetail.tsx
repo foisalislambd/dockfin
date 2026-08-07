@@ -6,34 +6,62 @@ import { DomainsPanel, normalizeDomains } from '../components/DomainsPanel'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { LinksMenu, LinksPanel } from '../components/LinksMenu'
 import { MoveResourcePanel } from '../components/MoveResourcePanel'
+import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
 import { ScheduledTasksPanel } from '../components/ScheduledTasksPanel'
 import { ServerTerminal } from '../components/Terminal'
 import { PageSkeleton } from '../components/ui/Skeleton'
-import { Meta } from '../components/ui/tabs'
 import { useToast } from '../components/Toast'
 import { api } from '../lib/api'
 import { Btn, Input } from './Servers'
 
+/** Coolify-style top IA — Configuration first, Links last. */
 const TOP_TABS = [
-  { id: 'links', label: 'Links' },
   { id: 'configuration', label: 'Configuration' },
   { id: 'deployments', label: 'Deployments' },
+  { id: 'logs', label: 'Logs' },
   { id: 'terminal', label: 'Terminal' },
+  { id: 'links', label: 'Links' },
 ] as const
 
+/** Coolify-style configuration sidebar (Dockfin design tokens). */
 const SIDE_ITEMS = [
   { id: 'general', label: 'General' },
-  { id: 'domains', label: 'Domains' },
-  { id: 'health', label: 'Health Checks' },
-  { id: 'limits', label: 'Resource Limits' },
+  { id: 'advanced', label: 'Advanced' },
   { id: 'environment', label: 'Environment Variables' },
-  { id: 'previews', label: 'Previews' },
-  { id: 'webhooks', label: 'Webhooks' },
+  { id: 'storages', label: 'Persistent Storage' },
+  { id: 'git', label: 'Git Source' },
+  { id: 'servers', label: 'Servers' },
   { id: 'tasks', label: 'Scheduled Tasks' },
-  { id: 'operations', label: 'Resource Operations' },
+  { id: 'webhooks', label: 'Webhooks' },
+  { id: 'previews', label: 'Preview Deployments' },
   { id: 'rollback', label: 'Rollback' },
+  { id: 'limits', label: 'Resource Limits' },
+  { id: 'operations', label: 'Resource Operations' },
+  { id: 'metrics', label: 'Metrics' },
+  { id: 'tags', label: 'Tags' },
   { id: 'danger', label: 'Danger Zone' },
 ] as const
+
+function statusTone(status: string) {
+  const s = (status || '').toLowerCase()
+  if (s.includes('run') || s.includes('healthy')) return 'ok'
+  if (s.includes('deploy') || s.includes('queue') || s.includes('progress')) return 'warn'
+  if (s.includes('exit') || s.includes('stop') || s.includes('fail') || s.includes('error')) return 'bad'
+  return 'muted'
+}
+
+function StatusText({ status }: { status: string }) {
+  const tone = statusTone(status)
+  const color =
+    tone === 'ok'
+      ? 'text-emerald-600 dark:text-emerald-400'
+      : tone === 'warn'
+        ? 'text-amber-600 dark:text-amber-400'
+        : tone === 'bad'
+          ? 'text-error-500'
+          : 'text-gray-500 dark:text-gray-400'
+  return <span className={`capitalize ${color}`}>{status || 'unknown'}</span>
+}
 
 export function ApplicationDetailPage() {
   const { appId, projectId, envId } = useParams({ strict: false }) as {
@@ -64,7 +92,7 @@ export function ApplicationDetailPage() {
     enabled: Boolean(appId),
   })
 
-  const [topTab, setTopTab] = useState<(typeof TOP_TABS)[number]['id']>('links')
+  const [topTab, setTopTab] = useState<(typeof TOP_TABS)[number]['id']>('configuration')
   const [side, setSide] = useState<(typeof SIDE_ITEMS)[number]['id']>('general')
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [cfg, setCfg] = useState({
@@ -98,7 +126,7 @@ export function ApplicationDetailPage() {
   const [webhookSecret, setWebhookSecret] = useState<string | null>(null)
 
   useEffect(() => {
-    setTopTab('links')
+    setTopTab('configuration')
     setSide('general')
     setWebhookSecret(null)
     setCfg({
@@ -377,10 +405,15 @@ export function ApplicationDetailPage() {
             {a.name}
           </h1>
           <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-            <span>
-              {a.build_pack} · {a.status}
-              {a.fqdn ? ` · ${a.fqdn}` : ''}
-            </span>
+            <span className="capitalize">{a.build_pack}</span>
+            <span>·</span>
+            <StatusText status={a.status} />
+            {a.fqdn ? (
+              <>
+                <span>·</span>
+                <span className="max-w-md truncate font-mono text-xs">{a.fqdn.split(',')[0]}</span>
+              </>
+            ) : null}
             {activeDep && (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-500/15 px-2 py-0.5 text-[11px] font-medium text-brand-600 dark:text-brand-300">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-400" />
@@ -389,19 +422,21 @@ export function ApplicationDetailPage() {
             )}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <LinksMenu links={a.links || []} />
-          {activeDep && <Btn onClick={() => cancel.mutate(activeDep.id)}>Cancel deploy</Btn>}
+          {activeDep && <Btn onClick={() => cancel.mutate(activeDep.id)}>Cancel</Btn>}
+          <Btn
+            onClick={() => {
+              setTopTab('configuration')
+              setSide('general')
+            }}
+          >
+            Configuration
+          </Btn>
           <Btn primary onClick={() => deploy.mutate({})}>
-            Deploy
+            Redeploy
           </Btn>
         </div>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Meta label="Status" value={a.status} />
-        <Meta label="Build pack" value={a.build_pack} />
-        <Meta label="FQDN" value={a.fqdn || '—'} />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 dark:border-gray-800">
@@ -428,11 +463,9 @@ export function ApplicationDetailPage() {
         </nav>
       </div>
 
-      {topTab === 'links' && <LinksPanel links={a.links || []} />}
-
       {topTab === 'configuration' && (
         <div className="flex flex-col gap-6 md:flex-row">
-          <aside className="w-full shrink-0 md:w-52">
+          <aside className="w-full shrink-0 md:w-56">
             <nav className="space-y-0.5">
               {SIDE_ITEMS.map((item) => (
                 <button
@@ -441,7 +474,7 @@ export function ApplicationDetailPage() {
                   onClick={() => setSide(item.id)}
                   className={`block w-full rounded-md px-2 py-1.5 text-left text-sm ${
                     side === item.id
-                      ? 'bg-gray-100 font-medium text-gray-900 dark:bg-white/10 dark:text-white'
+                      ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-300'
                       : 'text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/5'
                   }`}
                 >
@@ -451,557 +484,726 @@ export function ApplicationDetailPage() {
             </nav>
           </aside>
           <div className="min-w-0 flex-1 space-y-6">
-          {side === 'general' && (
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault()
-              const fqdn = normalizeDomains(cfg.fqdn)
-              setCfg((c) => ({ ...c, fqdn }))
-              save.mutate({ fqdn })
-            }}
-          >
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Input label="Name" value={cfg.name} onChange={(v) => setCfg({ ...cfg, name: v })} />
-              <Input
-                label="Description"
-                value={cfg.description}
-                onChange={(v) => setCfg({ ...cfg, description: v })}
-                required={false}
-              />
-              <Input
-                label="Ports exposes"
-                value={cfg.ports_exposes}
-                onChange={(v) => setCfg({ ...cfg, ports_exposes: v })}
-                required={false}
-              />
-              {a.build_pack === 'dockercompose' ? (
-                <p className="-mt-2 text-xs text-gray-500 dark:text-gray-400 sm:col-span-2">
-                  For Compose, leave empty to auto-detect the container port from the compose file.
-                  Set a value only to override Traefik&apos;s target port.
-                </p>
-              ) : null}
-              {a.build_pack === 'dockercompose' ? (
-                <>
-                  <Input
-                    label="Compose file path"
-                    value={cfg.docker_compose_location}
-                    onChange={(v) => setCfg({ ...cfg, docker_compose_location: v })}
-                    required={false}
-                  />
-                  <div className="sm:col-span-2 -mt-2 flex flex-wrap items-center gap-3">
-                    <button
-                      type="button"
-                      className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
-                      onClick={() => {
-                        void api
-                          .detectComposeForApp(appId, true)
-                          .then((d) => {
-                            setCfg((c) => ({ ...c, docker_compose_location: d.location }))
-                            void qc.invalidateQueries({ queryKey: ['application', appId] })
-                          })
-                          .catch(() => undefined)
-                      }}
-                    >
-                      Auto-detect from repository
-                    </button>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      Empty path = auto-find on deploy (
-                      <code className="font-mono">docker-compose.yml</code> /{' '}
-                      <code className="font-mono">compose.yaml</code>, depth 3).
-                    </span>
-                  </div>
-                  <fieldset className="space-y-3 sm:col-span-2">
-                    <legend className="text-sm text-gray-500 dark:text-gray-400">
-                      Compose adaptation
-                    </legend>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Adapt adds Traefik labels, joins the proxy network, and removes host port
-                      mappings so you do not conflict with ports 80/443.
-                    </p>
-                    <label className="flex items-start gap-3 text-sm">
-                      <input
-                        type="radio"
-                        className="mt-1"
-                        name="compose_prepare"
-                        checked={cfg.compose_prepare}
-                        onChange={() => setCfg({ ...cfg, compose_prepare: true })}
-                      />
-                      <span>
-                        Adapt for Dockfin (recommended)
-                        <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
-                          Auto-fix compose for Dockfin proxy on each deploy.
-                        </span>
-                      </span>
-                    </label>
-                    <label className="flex items-start gap-3 text-sm">
-                      <input
-                        type="radio"
-                        className="mt-1"
-                        name="compose_prepare"
-                        checked={!cfg.compose_prepare}
-                        onChange={() => setCfg({ ...cfg, compose_prepare: false })}
-                      />
-                      <span>
-                        Don&apos;t modify
-                        <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
-                          Use the repository compose file as-is.
-                        </span>
-                      </span>
-                    </label>
-                  </fieldset>
-                </>
-              ) : null}
-              <Input
-                label="Git repository"
-                value={cfg.git_repository}
-                onChange={(v) => setCfg({ ...cfg, git_repository: v })}
-                required={false}
-              />
-              <Input
-                label="Git branch"
-                value={cfg.git_branch}
-                onChange={(v) => setCfg({ ...cfg, git_branch: v })}
-                required={false}
-              />
-              <Input
-                label="Registry image"
-                value={cfg.docker_registry_image_name}
-                onChange={(v) => setCfg({ ...cfg, docker_registry_image_name: v })}
-                required={false}
-              />
-              <Input
-                label="Image tag"
-                value={cfg.docker_registry_image_tag}
-                onChange={(v) => setCfg({ ...cfg, docker_registry_image_tag: v })}
-                required={false}
-              />
-              <label className="block text-sm">
-                <span className="mb-1 block text-gray-500 dark:text-gray-400">Destination</span>
-                <select
-                  value={cfg.destination_id}
-                  onChange={(e) => setCfg({ ...cfg, destination_id: e.target.value })}
-                  className="w-full panel-field rounded-lg px-3 py-2"
-                >
-                  <option value="">Select destination</option>
-                  {(dests.data?.destinations || []).map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {(gitSources.data?.git_sources || []).length > 0 && (
-                <label className="block text-sm">
-                  <span className="mb-1 block text-gray-500 dark:text-gray-400">Git source</span>
-                  <select
-                    value={cfg.git_source_id}
-                    onChange={(e) => setCfg({ ...cfg, git_source_id: e.target.value })}
-                    className="w-full panel-field rounded-lg px-3 py-2"
-                  >
-                    <option value="">None (public HTTPS clone)</option>
-                    {(gitSources.data?.git_sources || []).map((gs) => (
-                      <option key={gs.id} value={gs.id}>
-                        {gs.name}
-                        {gs.installation_id ? '' : ' (not installed)'}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              <label className="flex items-center gap-3 text-sm sm:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={cfg.is_force_https}
-                  onChange={(e) => setCfg({ ...cfg, is_force_https: e.target.checked })}
-                />
-                <span>
-                  Force HTTPS redirects
-                  <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
-                    Custom domains already get automatic Let&apos;s Encrypt SSL. Free sslip.io /
-                    nip.io domains always stay on HTTP.
-                  </span>
-                </span>
-              </label>
-              <label className="flex items-center gap-3 text-sm sm:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={cfg.is_preview_enabled}
-                  onChange={(e) => setCfg({ ...cfg, is_preview_enabled: e.target.checked })}
-                />
-                <span>
-                  Enable preview deployments
-                  <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
-                    Allows PR preview environments when webhooks include pull request events.
-                  </span>
-                </span>
-              </label>
-              <label className="flex items-center gap-3 text-sm sm:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={cfg.is_build_server_enabled}
-                  onChange={(e) => setCfg({ ...cfg, is_build_server_enabled: e.target.checked })}
-                />
-                <span>
-                  Build on dedicated build server
-                  <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
-                    Requires at least one server marked as a build server.
-                  </span>
-                </span>
-              </label>
-            </div>
-            {save.error && <p className="text-sm text-error-500">{save.error.message}</p>}
-            <Btn primary type="submit">
-              {save.isPending ? 'Saving…' : 'Save'}
-            </Btn>
-          </form>
-          )}
-          {side === 'domains' && (
-            <div className="panel-card space-y-4 p-5">
-              <DomainsPanel
-                value={cfg.fqdn}
-                onChange={(v) => setCfg({ ...cfg, fqdn: v })}
-                onSave={(next) => {
-                  setCfg((c) => ({ ...c, fqdn: next }))
-                  save.mutate({ fqdn: next })
+            {side === 'general' && (
+              <form
+                className="space-y-6"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  const fqdn = normalizeDomains(cfg.fqdn)
+                  setCfg((c) => ({ ...c, fqdn }))
+                  save.mutate({ fqdn })
                 }}
-                saveBusy={save.isPending}
-                serverId={serverId || undefined}
-                destinationId={cfg.destination_id || a.destination_id || undefined}
-                resourceId={a.id}
-                resourceName={cfg.name || a.name}
-              />
-            </div>
-          )}
-          {side === 'health' && (
-            <div>
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault()
-              saveHealth.mutate()
-            }}
-          >
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              After deploy, Dockfin probes this HTTP endpoint inside the container (path / port /
-              expected status). Retries use the interval below until healthy or exhausted.
-            </p>
-            <label className="flex items-center gap-3 text-sm">
-              <input
-                type="checkbox"
-                checked={health.health_check_enabled}
-                onChange={(e) => setHealth({ ...health, health_check_enabled: e.target.checked })}
-              />
-              Enable health checks
-            </label>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Input
-                label="Path"
-                value={health.health_check_path}
-                onChange={(v) => setHealth({ ...health, health_check_path: v })}
-              />
-              <Input
-                label="Port (optional)"
-                value={health.health_check_port}
-                onChange={(v) => setHealth({ ...health, health_check_port: v })}
-                required={false}
-              />
-              <label className="block text-sm">
-                <span className="mb-1 block text-gray-500 dark:text-gray-400">Method</span>
-                <select
-                  value={health.health_check_method}
-                  onChange={(e) => setHealth({ ...health, health_check_method: e.target.value })}
-                  className="panel-field w-full rounded-lg px-3 py-2"
-                >
-                  {['GET', 'HEAD', 'POST'].map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <Input
-                label="Expected status"
-                value={String(health.health_check_return_code)}
-                onChange={(v) =>
-                  setHealth({ ...health, health_check_return_code: Number(v) || 200 })
-                }
-              />
-              <Input
-                label="Interval (s)"
-                value={String(health.health_check_interval)}
-                onChange={(v) =>
-                  setHealth({ ...health, health_check_interval: Number(v) || 5 })
-                }
-              />
-              <Input
-                label="Timeout (s)"
-                value={String(health.health_check_timeout)}
-                onChange={(v) => setHealth({ ...health, health_check_timeout: Number(v) || 5 })}
-              />
-              <Input
-                label="Retries"
-                value={String(health.health_check_retries)}
-                onChange={(v) => setHealth({ ...health, health_check_retries: Number(v) || 10 })}
-              />
-            </div>
-            {saveHealth.error && <p className="text-sm text-error-500">{saveHealth.error.message}</p>}
-            <Btn primary type="submit">
-              {saveHealth.isPending ? 'Saving…' : 'Save health checks'}
-            </Btn>
-          </form>
-        </div>
-      )}
-
-      {side === 'limits' && (
-            <div>
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault()
-              saveLimits.mutate()
-            }}
-          >
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Docker resource limits applied on the next deploy. Leave empty for unlimited.
-            </p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Input
-                label="Memory limit"
-                value={limits.limits_memory}
-                onChange={(v) => setLimits({ ...limits, limits_memory: v })}
-                required={false}
-              />
-              <Input
-                label="CPU limit"
-                value={limits.limits_cpus}
-                onChange={(v) => setLimits({ ...limits, limits_cpus: v })}
-                required={false}
-              />
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Examples: memory <code className="font-mono">512m</code> /{' '}
-              <code className="font-mono">1g</code>, CPUs <code className="font-mono">0.5</code> /{' '}
-              <code className="font-mono">2</code>.
-            </p>
-            {saveLimits.error && <p className="text-sm text-error-500">{saveLimits.error.message}</p>}
-            <Btn primary type="submit">
-              {saveLimits.isPending ? 'Saving…' : 'Save limits'}
-            </Btn>
-          </form>
-        </div>
-      )}
-
-      {side === 'environment' && (
-            <div>
-          <EnvVarsPanel resourceType="application" resourceId={appId} title="" />
-        </div>
-      )}
-
-
-      {side === 'previews' && (
-            <div>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Pull-request preview deployments for this application.
-              {!cfg.is_preview_enabled && (
-                <>
-                  {' '}
-                  Enable “preview deployments” under Configuration to accept PR webhooks.
-                </>
-              )}
-            </p>
-            <div className="panel-card overflow-hidden">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
-                  <tr>
-                    <th className="px-3 py-2">PR</th>
-                    <th className="px-3 py-2">Title</th>
-                    <th className="px-3 py-2">Branch</th>
-                    <th className="px-3 py-2">FQDN</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {(previews.data?.previews || []).map((p) => (
-                    <tr key={p.id} className="border-t border-gray-200 dark:border-gray-800">
-                      <td className="px-3 py-2 font-mono text-xs">#{p.pull_request_id}</td>
-                      <td className="px-3 py-2">{p.pull_request_title || '—'}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{p.git_branch || '—'}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{p.fqdn || '—'}</td>
-                      <td className="px-3 py-2">{p.status}</td>
-                      <td className="px-3 py-2 text-right">
-                        <button
+              >
+                <div>
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h2 className="text-sm font-semibold text-gray-900 dark:text-white">General</h2>
+                      <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                        General configuration for your application.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Btn primary type="submit" disabled={save.isPending}>
+                        {save.isPending ? 'Saving…' : 'Save'}
+                      </Btn>
+                      {a.build_pack === 'dockercompose' ? (
+                        <Btn
                           type="button"
-                          className="text-error-500"
                           onClick={() => {
-                            if (confirm(`Delete preview for PR #${p.pull_request_id}?`)) {
-                              deletePreview.mutate(p.pull_request_id)
-                            }
+                            void api
+                              .detectComposeForApp(appId, true)
+                              .then((d) => {
+                                setCfg((c) => ({ ...c, docker_compose_location: d.location }))
+                                void qc.invalidateQueries({ queryKey: ['application', appId] })
+                                toast.success('Compose file reloaded')
+                              })
+                              .catch((err: Error) => toast.error(err.message || 'Detect failed'))
                           }}
                         >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {!previews.data?.previews?.length && (
-                    <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                        No preview deployments yet.
-                      </td>
-                    </tr>
+                          Reload Compose File
+                        </Btn>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="panel-card grid gap-4 p-5 sm:grid-cols-2">
+                    <Input label="Name" value={cfg.name} onChange={(v) => setCfg({ ...cfg, name: v })} />
+                    <Input
+                      label="Description"
+                      value={cfg.description}
+                      onChange={(v) => setCfg({ ...cfg, description: v })}
+                      required={false}
+                    />
+                    <label className="block text-sm sm:col-span-2">
+                      <span className="mb-1 block text-gray-500 dark:text-gray-400">Build Pack</span>
+                      <input
+                        readOnly
+                        value={a.build_pack}
+                        className="panel-field w-full cursor-default rounded-lg px-3 py-2 capitalize opacity-80"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="panel-card space-y-4 p-5">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Domains</h3>
+                  <DomainsPanel
+                    value={cfg.fqdn}
+                    onChange={(v) => setCfg({ ...cfg, fqdn: v })}
+                    onSave={(next) => {
+                      setCfg((c) => ({ ...c, fqdn: next }))
+                      save.mutate({ fqdn: next })
+                    }}
+                    saveBusy={save.isPending}
+                    serverId={serverId || undefined}
+                    destinationId={cfg.destination_id || a.destination_id || undefined}
+                    resourceId={a.id}
+                    resourceName={cfg.name || a.name}
+                  />
+                </div>
+
+                <div className="panel-card grid gap-4 p-5 sm:grid-cols-2">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white sm:col-span-2">
+                    Build
+                  </h3>
+                  {a.build_pack === 'dockercompose' ? (
+                    <>
+                      <Input
+                        label="Docker Compose Location"
+                        value={cfg.docker_compose_location}
+                        onChange={(v) => setCfg({ ...cfg, docker_compose_location: v })}
+                        required={false}
+                      />
+                      <Input
+                        label="Ports exposes (optional)"
+                        value={cfg.ports_exposes}
+                        onChange={(v) => setCfg({ ...cfg, ports_exposes: v })}
+                        required={false}
+                      />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 sm:col-span-2">
+                        Empty compose path = auto-find on deploy. Empty port = detect from compose.
+                      </p>
+                    </>
+                  ) : (
+                    <Input
+                      label="Ports exposes"
+                      value={cfg.ports_exposes}
+                      onChange={(v) => setCfg({ ...cfg, ports_exposes: v })}
+                      required={false}
+                    />
                   )}
-                </tbody>
-              </table>
-            </div>
-            {deletePreview.error && (
-              <p className="text-sm text-error-500">{deletePreview.error.message}</p>
+                  {a.build_pack === 'dockerimage' || a.build_pack === 'dockerfile' ? (
+                    <>
+                      <Input
+                        label="Registry image"
+                        value={cfg.docker_registry_image_name}
+                        onChange={(v) => setCfg({ ...cfg, docker_registry_image_name: v })}
+                        required={false}
+                      />
+                      <Input
+                        label="Image tag"
+                        value={cfg.docker_registry_image_tag}
+                        onChange={(v) => setCfg({ ...cfg, docker_registry_image_tag: v })}
+                        required={false}
+                      />
+                    </>
+                  ) : null}
+                </div>
+                {save.error && <p className="text-sm text-error-500">{save.error.message}</p>}
+              </form>
             )}
-          </div>
-        </div>
-      )}
 
-
-      {side === 'webhooks' && (
-            <div>
-          <div className="panel-card space-y-4 p-5">
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Git webhook URL</div>
-              <code className="mt-1 block break-all font-mono text-sm text-gray-900 dark:text-white">
-                {webhookUrl}
-              </code>
-            </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Point GitHub/GitLab webhook here. Generate a secret and configure the same value on your
-              provider (HMAC).
-            </p>
-            <Btn primary onClick={() => webhook.mutate()}>
-              {webhook.isPending ? 'Generating…' : 'Generate webhook secret'}
-            </Btn>
-            {webhookSecret && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-500/30 dark:bg-amber-500/10">
-                <p className="text-xs font-medium text-amber-800 dark:text-amber-200">
-                  Copy now — shown once
-                </p>
-                <code className="mt-1 block break-all font-mono text-sm">{webhookSecret}</code>
+            {side === 'advanced' && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Advanced</h2>
+                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                    Health checks and deployment behaviour.
+                  </p>
+                </div>
+                <form
+                  className="panel-card space-y-4 p-5"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    save.mutate({})
+                  }}
+                >
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white">Options</h3>
+                  {a.build_pack === 'dockercompose' ? (
+                    <fieldset className="space-y-3">
+                      <legend className="text-sm text-gray-500 dark:text-gray-400">
+                        Compose adaptation
+                      </legend>
+                      <label className="flex items-start gap-3 text-sm">
+                        <input
+                          type="radio"
+                          className="mt-1"
+                          name="compose_prepare"
+                          checked={cfg.compose_prepare}
+                          onChange={() => setCfg({ ...cfg, compose_prepare: true })}
+                        />
+                        <span>
+                          Adapt for Dockfin (recommended)
+                          <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
+                            Traefik labels, proxy network, strip host ports.
+                          </span>
+                        </span>
+                      </label>
+                      <label className="flex items-start gap-3 text-sm">
+                        <input
+                          type="radio"
+                          className="mt-1"
+                          name="compose_prepare"
+                          checked={!cfg.compose_prepare}
+                          onChange={() => setCfg({ ...cfg, compose_prepare: false })}
+                        />
+                        <span>Don&apos;t modify — deploy compose as-is</span>
+                      </label>
+                    </fieldset>
+                  ) : null}
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.is_force_https}
+                      onChange={(e) => setCfg({ ...cfg, is_force_https: e.target.checked })}
+                    />
+                    <span>Force HTTPS redirects</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.is_preview_enabled}
+                      onChange={(e) => setCfg({ ...cfg, is_preview_enabled: e.target.checked })}
+                    />
+                    <span>Enable preview deployments</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.is_build_server_enabled}
+                      onChange={(e) => setCfg({ ...cfg, is_build_server_enabled: e.target.checked })}
+                    />
+                    <span>Build on dedicated build server</span>
+                  </label>
+                  <Btn primary type="submit" disabled={save.isPending}>
+                    {save.isPending ? 'Saving…' : 'Save'}
+                  </Btn>
+                </form>
+                <form
+                  className="panel-card space-y-4 p-5"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    saveHealth.mutate()
+                  }}
+                >
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white">Health Checks</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    After deploy, Dockfin probes this HTTP endpoint inside the container.
+                  </p>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={health.health_check_enabled}
+                      onChange={(e) => setHealth({ ...health, health_check_enabled: e.target.checked })}
+                    />
+                    Enable health checks
+                  </label>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Input
+                      label="Path"
+                      value={health.health_check_path}
+                      onChange={(v) => setHealth({ ...health, health_check_path: v })}
+                    />
+                    <Input
+                      label="Port (optional)"
+                      value={health.health_check_port}
+                      onChange={(v) => setHealth({ ...health, health_check_port: v })}
+                      required={false}
+                    />
+                    <label className="block text-sm">
+                      <span className="mb-1 block text-gray-500 dark:text-gray-400">Method</span>
+                      <select
+                        value={health.health_check_method}
+                        onChange={(e) => setHealth({ ...health, health_check_method: e.target.value })}
+                        className="panel-field w-full rounded-lg px-3 py-2"
+                      >
+                        {['GET', 'HEAD', 'POST'].map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <Input
+                      label="Expected status"
+                      value={String(health.health_check_return_code)}
+                      onChange={(v) =>
+                        setHealth({ ...health, health_check_return_code: Number(v) || 200 })
+                      }
+                    />
+                    <Input
+                      label="Interval (s)"
+                      value={String(health.health_check_interval)}
+                      onChange={(v) =>
+                        setHealth({ ...health, health_check_interval: Number(v) || 5 })
+                      }
+                    />
+                    <Input
+                      label="Timeout (s)"
+                      value={String(health.health_check_timeout)}
+                      onChange={(v) => setHealth({ ...health, health_check_timeout: Number(v) || 5 })}
+                    />
+                    <Input
+                      label="Retries"
+                      value={String(health.health_check_retries)}
+                      onChange={(v) =>
+                        setHealth({ ...health, health_check_retries: Number(v) || 10 })
+                      }
+                    />
+                  </div>
+                  {saveHealth.error && (
+                    <p className="text-sm text-error-500">{saveHealth.error.message}</p>
+                  )}
+                  <Btn primary type="submit">
+                    {saveHealth.isPending ? 'Saving…' : 'Save health checks'}
+                  </Btn>
+                </form>
               </div>
             )}
-            {webhook.error && <p className="text-sm text-error-500">{webhook.error.message}</p>}
-          </div>
-        </div>
-      )}
 
-      {side === 'tasks' && (
-            <div>
-          <ScheduledTasksPanel resourceType="application" resourceId={appId} />
-        </div>
-      )}
-
-      {side === 'operations' && (
-            <div>
-          <div className="space-y-4">
-            <div className="panel-card space-y-3 p-5">
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Deploy</h2>
-              <div className="flex flex-wrap gap-2">
-                <Btn primary onClick={() => deploy.mutate({})}>
-                  Deploy
+            {side === 'git' && (
+              <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  save.mutate({})
+                }}
+              >
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Git Source</h2>
+                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                    Repository and branch used for deployments.
+                  </p>
+                </div>
+                <div className="panel-card grid gap-4 p-5 sm:grid-cols-2">
+                  <Input
+                    label="Git repository"
+                    value={cfg.git_repository}
+                    onChange={(v) => setCfg({ ...cfg, git_repository: v })}
+                    required={false}
+                  />
+                  <Input
+                    label="Git branch"
+                    value={cfg.git_branch}
+                    onChange={(v) => setCfg({ ...cfg, git_branch: v })}
+                    required={false}
+                  />
+                  {(gitSources.data?.git_sources || []).length > 0 && (
+                    <label className="block text-sm sm:col-span-2">
+                      <span className="mb-1 block text-gray-500 dark:text-gray-400">GitHub App</span>
+                      <select
+                        value={cfg.git_source_id}
+                        onChange={(e) => setCfg({ ...cfg, git_source_id: e.target.value })}
+                        className="panel-field w-full rounded-lg px-3 py-2"
+                      >
+                        <option value="">None (public HTTPS clone)</option>
+                        {(gitSources.data?.git_sources || []).map((gs) => (
+                          <option key={gs.id} value={gs.id}>
+                            {gs.name}
+                            {gs.installation_id ? '' : ' (not installed)'}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </div>
+                {save.error && <p className="text-sm text-error-500">{save.error.message}</p>}
+                <Btn primary type="submit">
+                  {save.isPending ? 'Saving…' : 'Save'}
                 </Btn>
-                <Btn onClick={() => deploy.mutate({ force: true })}>Force rebuild</Btn>
+              </form>
+            )}
+
+            {side === 'servers' && (
+              <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  save.mutate({})
+                }}
+              >
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Servers</h2>
+                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                    Destination where this application is deployed.
+                  </p>
+                </div>
+                <div className="panel-card space-y-4 p-5">
+                  <label className="block text-sm">
+                    <span className="mb-1 block text-gray-500 dark:text-gray-400">Destination</span>
+                    <select
+                      value={cfg.destination_id}
+                      onChange={(e) => setCfg({ ...cfg, destination_id: e.target.value })}
+                      className="panel-field w-full rounded-lg px-3 py-2"
+                    >
+                      <option value="">Select destination</option>
+                      {(dests.data?.destinations || []).map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name} ({d.network})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {serverId ? (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Server ID:{' '}
+                      <Link
+                        to="/servers/$serverId"
+                        params={{ serverId }}
+                        className="font-mono text-brand-600 hover:underline dark:text-brand-400"
+                      >
+                        {serverId.slice(0, 8)}…
+                      </Link>
+                    </p>
+                  ) : null}
+                </div>
+                <Btn primary type="submit">
+                  {save.isPending ? 'Saving…' : 'Save'}
+                </Btn>
+              </form>
+            )}
+
+            {side === 'storages' && (
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                    Persistent Storage
+                  </h2>
+                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                    Volumes come from your compose / Dockerfile bind mounts on the target server.
+                  </p>
+                </div>
+                {a.build_pack === 'dockercompose' ? (
+                  <PersistentStoragesPanel compose="" volumes={[]} />
+                ) : (
+                  <div className="panel-card p-5 text-sm text-gray-500 dark:text-gray-400">
+                    Persistent volumes for non-compose apps are managed on the destination server
+                    under{' '}
+                    <code className="font-mono text-xs">/data/dockfin/applications/{'{id}'}</code>.
+                  </div>
+                )}
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Tip: declare volumes in your compose file; Dockfin creates named volumes on deploy.
+                </p>
               </div>
-            </div>
-            <MoveResourcePanel
-              resourceType="application"
-              resourceId={appId}
-              currentEnvironmentId={a.environment_id}
-              projectId={projectId}
-            />
-          </div>
-        </div>
-      )}
+            )}
 
-      {side === 'rollback' && (
-            <div>
-          <div className="panel-card space-y-4 p-5">
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              Redeploy the last finished commit (or force an image rebuild). This queues a new
-              deployment.
-            </p>
-            <Btn primary onClick={() => rollback.mutate()}>
-              {rollback.isPending ? 'Queuing…' : 'Rollback / redeploy'}
-            </Btn>
-            {rollback.error && <p className="text-sm text-error-500">{rollback.error.message}</p>}
-          </div>
-        </div>
-      )}
+            {side === 'metrics' && (
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Metrics</h2>
+                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                    Host metrics for the server running this application.
+                  </p>
+                </div>
+                <div className="panel-card space-y-3 p-5">
+                  {serverId ? (
+                    <Link
+                      to="/servers/$serverId"
+                      params={{ serverId }}
+                      className="text-sm font-medium text-brand-600 hover:underline dark:text-brand-400"
+                    >
+                      Open server metrics →
+                    </Link>
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Select a destination under Servers first.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
 
-      {side === 'danger' && (
-            <div>
-          <div className="space-y-4">
-            <div className="panel-card space-y-4 border-error-200 p-5 dark:border-error-500/30">
-              <h2 className="text-sm font-semibold text-error-500">Force rebuild</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Queue a deployment with force rebuild enabled.
-              </p>
-              <Btn onClick={() => deploy.mutate({ force: true })}>Force rebuild deploy</Btn>
-              {deploy.error && <p className="text-sm text-error-500">{deploy.error.message}</p>}
-            </div>
+            {side === 'tags' && (
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Tags</h2>
+                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                    Organize resources with tags from the environment overview.
+                  </p>
+                </div>
+                <div className="panel-card p-5 text-sm text-gray-500 dark:text-gray-400">
+                  Manage tags on the environment resources page. Application-level tag attach UI is
+                  coming next.
+                </div>
+              </div>
+            )}
 
-            <DangerZoneCard>
+            {side === 'limits' && (
               <div>
-                <h3 className="text-sm font-semibold text-error-500">Delete Resource</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  This will stop your containers, delete related data on the server, and remove the
-                  application from Dockfin. Beware — there is no coming back.
-                </p>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                  Container status:{' '}
-                  <span className="font-medium capitalize">{a.status || 'unknown'}</span>
-                  {a.status === 'running'
-                    ? ' — container will be stopped and removed.'
-                    : a.status === 'exited' || a.status === 'stopped'
-                      ? ' — container is already stopped; it will still be removed.'
-                      : ' — Dockfin will best-effort remove any matching container.'}
-                </p>
+                <form
+                  className="space-y-4"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    saveLimits.mutate()
+                  }}
+                >
+                  <div>
+                    <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                      Resource Limits
+                    </h2>
+                    <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                      Docker resource limits applied on the next deploy. Leave empty for unlimited.
+                    </p>
+                  </div>
+                  <div className="panel-card grid gap-4 p-5 sm:grid-cols-2">
+                    <Input
+                      label="Memory limit"
+                      value={limits.limits_memory}
+                      onChange={(v) => setLimits({ ...limits, limits_memory: v })}
+                      required={false}
+                    />
+                    <Input
+                      label="CPU limit"
+                      value={limits.limits_cpus}
+                      onChange={(v) => setLimits({ ...limits, limits_cpus: v })}
+                      required={false}
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 sm:col-span-2">
+                      Examples: memory <code className="font-mono">512m</code> /{' '}
+                      <code className="font-mono">1g</code>, CPUs{' '}
+                      <code className="font-mono">0.5</code> / <code className="font-mono">2</code>.
+                    </p>
+                  </div>
+                  {saveLimits.error && (
+                    <p className="text-sm text-error-500">{saveLimits.error.message}</p>
+                  )}
+                  <Btn primary type="submit">
+                    {saveLimits.isPending ? 'Saving…' : 'Save limits'}
+                  </Btn>
+                </form>
               </div>
-              <Btn type="button" onClick={() => setDeleteOpen(true)}>
-                Delete
-              </Btn>
-              {remove.error && <p className="text-sm text-error-500">{remove.error.message}</p>}
-            </DangerZoneCard>
+            )}
 
-            <DangerConfirmModal
-              open={deleteOpen}
-              onClose={() => setDeleteOpen(false)}
-              title="Confirm Resource Deletion?"
-              resourceLabel="Resource Name"
-              expectedName={a.name}
-              statusLine={
-                a.status === 'running'
-                  ? `Container is currently RUNNING (${a.status}). Deleting will stop and remove it.`
-                  : `Current status: ${a.status || 'unknown'}.`
-              }
-              actions={[
-                'Permanently delete all containers of this resource.',
-                'Remove the application record, env vars, and scheduled jobs from Dockfin.',
-              ]}
-              requirePassword
-              showResourceCheckboxes
-              confirmButtonLabel="Delete"
-              busy={remove.isPending}
-              error={remove.error?.message}
-              onConfirm={(payload) => remove.mutate(payload)}
-            />
-          </div>
-        </div>
-      )}
+            {side === 'environment' && (
+              <div>
+                <div className="mb-3">
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                    Environment Variables
+                  </h2>
+                </div>
+                <EnvVarsPanel resourceType="application" resourceId={appId} title="" />
+              </div>
+            )}
+
+            {side === 'previews' && (
+              <div>
+                <div className="mb-3">
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                    Preview Deployments
+                  </h2>
+                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                    Pull-request preview deployments for this application.
+                    {!cfg.is_preview_enabled && (
+                      <> Enable them under Advanced to accept PR webhooks.</>
+                    )}
+                  </p>
+                </div>
+                <div className="panel-card overflow-hidden">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+                      <tr>
+                        <th className="px-3 py-2">PR</th>
+                        <th className="px-3 py-2">Title</th>
+                        <th className="px-3 py-2">Branch</th>
+                        <th className="px-3 py-2">FQDN</th>
+                        <th className="px-3 py-2">Status</th>
+                        <th className="px-3 py-2" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(previews.data?.previews || []).map((p) => (
+                        <tr key={p.id} className="border-t border-gray-200 dark:border-gray-800">
+                          <td className="px-3 py-2 font-mono text-xs">#{p.pull_request_id}</td>
+                          <td className="px-3 py-2">{p.pull_request_title || '—'}</td>
+                          <td className="px-3 py-2 font-mono text-xs">{p.git_branch || '—'}</td>
+                          <td className="px-3 py-2 font-mono text-xs">{p.fqdn || '—'}</td>
+                          <td className="px-3 py-2">{p.status}</td>
+                          <td className="px-3 py-2 text-right">
+                            <button
+                              type="button"
+                              className="text-error-500"
+                              onClick={() => {
+                                if (confirm(`Delete preview for PR #${p.pull_request_id}?`)) {
+                                  deletePreview.mutate(p.pull_request_id)
+                                }
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {!previews.data?.previews?.length && (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="px-4 py-8 text-center text-gray-500 dark:text-gray-400"
+                          >
+                            No preview deployments yet.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {deletePreview.error && (
+                  <p className="text-sm text-error-500">{deletePreview.error.message}</p>
+                )}
+              </div>
+            )}
+
+            {side === 'webhooks' && (
+              <div>
+                <div className="mb-3">
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Webhooks</h2>
+                </div>
+                <div className="panel-card space-y-4 p-5">
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Git webhook URL</div>
+                    <code className="mt-1 block break-all font-mono text-sm text-gray-900 dark:text-white">
+                      {webhookUrl}
+                    </code>
+                  </div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Point GitHub/GitLab webhook here. Generate a secret and configure the same value
+                    on your provider (HMAC).
+                  </p>
+                  <Btn primary onClick={() => webhook.mutate()}>
+                    {webhook.isPending ? 'Generating…' : 'Generate webhook secret'}
+                  </Btn>
+                  {webhookSecret && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-500/30 dark:bg-amber-500/10">
+                      <p className="text-xs font-medium text-amber-800 dark:text-amber-200">
+                        Copy now — shown once
+                      </p>
+                      <code className="mt-1 block break-all font-mono text-sm">{webhookSecret}</code>
+                    </div>
+                  )}
+                  {webhook.error && <p className="text-sm text-error-500">{webhook.error.message}</p>}
+                </div>
+              </div>
+            )}
+
+            {side === 'tasks' && (
+              <div>
+                <ScheduledTasksPanel resourceType="application" resourceId={appId} />
+              </div>
+            )}
+
+            {side === 'operations' && (
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                    Resource Operations
+                  </h2>
+                </div>
+                <div className="panel-card space-y-3 p-5">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Deploy</h3>
+                  <div className="flex flex-wrap gap-2">
+                    <Btn primary onClick={() => deploy.mutate({})}>
+                      Redeploy
+                    </Btn>
+                    <Btn onClick={() => deploy.mutate({ force: true })}>Force rebuild</Btn>
+                  </div>
+                </div>
+                <MoveResourcePanel
+                  resourceType="application"
+                  resourceId={appId}
+                  currentEnvironmentId={a.environment_id}
+                  projectId={projectId}
+                />
+              </div>
+            )}
+
+            {side === 'rollback' && (
+              <div className="panel-card space-y-4 p-5">
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Rollback</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Redeploy the last finished commit (or force an image rebuild). This queues a new
+                  deployment.
+                </p>
+                <Btn primary onClick={() => rollback.mutate()}>
+                  {rollback.isPending ? 'Queuing…' : 'Rollback / redeploy'}
+                </Btn>
+                {rollback.error && <p className="text-sm text-error-500">{rollback.error.message}</p>}
+              </div>
+            )}
+
+            {side === 'danger' && (
+              <div className="space-y-4">
+                <div className="panel-card space-y-4 border-error-200 p-5 dark:border-error-500/30">
+                  <h2 className="text-sm font-semibold text-error-500">Force rebuild</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Queue a deployment with force rebuild enabled.
+                  </p>
+                  <Btn onClick={() => deploy.mutate({ force: true })}>Force rebuild deploy</Btn>
+                  {deploy.error && <p className="text-sm text-error-500">{deploy.error.message}</p>}
+                </div>
+
+                <DangerZoneCard>
+                  <div>
+                    <h3 className="text-sm font-semibold text-error-500">Delete Resource</h3>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      This will stop your containers, delete related data on the server, and remove
+                      the application from Dockfin. Beware — there is no coming back.
+                    </p>
+                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                      Container status:{' '}
+                      <span className="font-medium capitalize">{a.status || 'unknown'}</span>
+                    </p>
+                  </div>
+                  <Btn type="button" onClick={() => setDeleteOpen(true)}>
+                    Delete
+                  </Btn>
+                  {remove.error && <p className="text-sm text-error-500">{remove.error.message}</p>}
+                </DangerZoneCard>
+
+                <DangerConfirmModal
+                  open={deleteOpen}
+                  onClose={() => setDeleteOpen(false)}
+                  title="Confirm Resource Deletion?"
+                  resourceLabel="Resource Name"
+                  expectedName={a.name}
+                  statusLine={
+                    a.status === 'running'
+                      ? `Container is currently RUNNING (${a.status}). Deleting will stop and remove it.`
+                      : `Current status: ${a.status || 'unknown'}.`
+                  }
+                  actions={[
+                    'Permanently delete all containers of this resource.',
+                    'Remove the application record, env vars, and scheduled jobs from Dockfin.',
+                  ]}
+                  requirePassword
+                  showResourceCheckboxes
+                  confirmButtonLabel="Delete"
+                  busy={remove.isPending}
+                  error={remove.error?.message}
+                  onConfirm={(payload) => remove.mutate(payload)}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {topTab === 'deployments' && (
         <div>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Deployments</h2>
+            <Btn primary onClick={() => deploy.mutate({})}>
+              Redeploy
+            </Btn>
+          </div>
           <div className="panel-card overflow-hidden">
             <table className="w-full text-left text-sm">
               <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
@@ -1028,7 +1230,7 @@ export function ApplicationDetailPage() {
                         className="text-brand-600 dark:text-brand-400"
                         onClick={() => openDeployment(d.id)}
                       >
-                        Open
+                        Logs
                       </button>
                       {(d.status === 'queued' || d.status === 'in_progress') && (
                         <button
@@ -1055,6 +1257,39 @@ export function ApplicationDetailPage() {
         </div>
       )}
 
+      {topTab === 'logs' && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Open a deployment to stream build / compose logs. Live deploys appear here first.
+            </p>
+            <Btn primary onClick={() => deploy.mutate({})}>
+              Redeploy
+            </Btn>
+          </div>
+          <div className="panel-card divide-y divide-gray-200 dark:divide-gray-800">
+            {(deps.data?.deployments || []).slice(0, 8).map((d) => (
+              <button
+                key={d.id}
+                type="button"
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm hover:bg-gray-50 dark:hover:bg-white/5"
+                onClick={() => openDeployment(d.id)}
+              >
+                <span className="font-mono text-xs text-gray-500">{d.id.slice(0, 8)}…</span>
+                <span className="capitalize">{d.status}</span>
+                <span className="text-xs text-gray-500">{d.current_stage || '—'}</span>
+                <span className="text-brand-600 dark:text-brand-400">View logs →</span>
+              </button>
+            ))}
+            {!deps.data?.deployments?.length && (
+              <p className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                No deployment logs yet. Click Redeploy to start one.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {topTab === 'terminal' && (
         <div>
           {serverId ? (
@@ -1071,6 +1306,8 @@ export function ApplicationDetailPage() {
           )}
         </div>
       )}
+
+      {topTab === 'links' && <LinksPanel links={a.links || []} />}
     </div>
   )
 }
