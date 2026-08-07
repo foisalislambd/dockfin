@@ -22,6 +22,23 @@ const BUILD_PACKS = [
 
 type SourceType = 'public' | 'private-gh-app' | 'private-deploy-key' | ''
 
+/** Parse owner/repo from clone URL, SSH URL, or owner/repo. */
+function parseOwnerRepo(raw: string): { owner: string; name: string; short: string } {
+  let s = (raw || '').trim().replace(/\.git$/i, '')
+  if (!s) return { owner: '', name: '', short: '' }
+  // git@host:owner/repo
+  const ssh = s.match(/^git@[^:]+:(.+)$/)
+  if (ssh) s = ssh[1]
+  // https://host/owner/repo[/...]
+  s = s.replace(/^https?:\/\/[^/]+\//i, '')
+  // ssh://git@host/owner/repo
+  s = s.replace(/^ssh:\/\/[^/]+\//i, '')
+  const parts = s.split('/').filter(Boolean)
+  const owner = parts[0] || ''
+  const name = parts[1] || ''
+  return { owner, name, short: owner && name ? `${owner}/${name}` : s }
+}
+
 export function CreateApplicationPage() {
   const nav = useNavigate()
   const qc = useQueryClient()
@@ -118,6 +135,45 @@ export function CreateApplicationPage() {
       setForm((f) => ({ ...f, git_source_id: installedSources[0].id }))
     }
   }, [sourceType, installedSources, form.git_source_id])
+
+  const runDetectCompose = (repoRaw: string, branch: string, sourceId: string, keyId: string) => {
+    const parsed = parseOwnerRepo(repoRaw)
+    const repo =
+      sourceType === 'private-gh-app' && parsed.owner && parsed.name
+        ? parsed.short
+        : repoRaw
+    if (!repo.trim()) return
+    setDetectError('')
+    setDetecting(true)
+    void api
+      .detectCompose({
+        git_repository: repo,
+        git_branch: branch || 'main',
+        git_source_id: sourceId || undefined,
+        private_key_id: keyId || undefined,
+      })
+      .then((d) => {
+        setForm((f) => ({ ...f, docker_compose_location: d.location }))
+        setComposeCandidates(d.candidates || [])
+      })
+      .catch((e: Error) => setDetectError(e.message || 'Detect failed'))
+      .finally(() => setDetecting(false))
+  }
+
+  const applyRepoSelection = (v: string) => {
+    const { owner, name, short } = parseOwnerRepo(v)
+    setRepoOwner(owner)
+    setRepoName(name)
+    setForm((f) => ({
+      ...f,
+      git_repository: v,
+      git_branch: 'main',
+      name: f.name.trim() ? f.name : name || short.split('/').pop() || f.name,
+    }))
+    if (form.build_pack === 'dockercompose' && (owner || v)) {
+      runDetectCompose(v, 'main', form.git_source_id, form.private_key_id)
+    }
+  }
 
   const nested = Boolean(params.projectId && params.envId)
   const backEnvId = form.environment_id || params.envId || ''
@@ -256,6 +312,8 @@ export function CreateApplicationPage() {
                         bp.id === 'dockercompose'
                           ? ''
                           : form.ports_exposes || '80',
+                      docker_compose_location:
+                        bp.id === 'dockercompose' ? form.docker_compose_location : '',
                     })
                   }
                 />
@@ -325,16 +383,19 @@ export function CreateApplicationPage() {
                       : 'No repositories found'
                 }
                 options={repoOptions}
-                onChange={(v) => {
-                  const full = v.replace(/\.git$/, '')
-                  const [owner, name] = full.includes('/')
-                    ? full.replace(/^https?:\/\/[^/]+\//, '').split('/')
-                    : ['', '']
-                  setRepoOwner(owner || '')
-                  setRepoName((name || '').replace(/\.git$/, ''))
-                  setForm({ ...form, git_repository: v, git_branch: 'main' })
-                }}
+                onChange={applyRepoSelection}
               />
+              {form.git_repository ? (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Selected:{' '}
+                  <span className="font-medium text-gray-800 dark:text-gray-200">
+                    {parseOwnerRepo(form.git_repository).short || form.git_repository}
+                  </span>
+                  {form.build_pack === 'dockercompose' && detecting
+                    ? ' · detecting compose…'
+                    : null}
+                </p>
+              ) : null}
               <FormSelect
                 label="Branch"
                 value={form.git_branch}
@@ -396,17 +457,24 @@ export function CreateApplicationPage() {
           )}
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <FormInput
-              label="Port"
-              value={form.ports_exposes}
-              onChange={(v) => setForm({ ...form, ports_exposes: v })}
-              placeholder="80"
-              hint={
-                form.build_pack === 'dockercompose'
-                  ? 'Optional. Leave empty to auto-detect from the compose file.'
-                  : undefined
-              }
-            />
+            {form.build_pack !== 'dockercompose' ? (
+              <FormInput
+                label="Port"
+                value={form.ports_exposes || '80'}
+                onChange={(v) => setForm({ ...form, ports_exposes: v })}
+                placeholder="80"
+                hint="Container listen port (Traefik routes to this)."
+              />
+            ) : (
+              <FormInput
+                label="Port (optional)"
+                value={form.ports_exposes}
+                onChange={(v) => setForm({ ...form, ports_exposes: v })}
+                required={false}
+                placeholder="Auto from compose"
+                hint="Usually leave empty — Dockfin reads ports from the compose file."
+              />
+            )}
             <div className="space-y-2 sm:col-span-2">
               <DomainsPanel
                 value={form.fqdn}
@@ -432,8 +500,8 @@ export function CreateApplicationPage() {
                     setForm({ ...form, docker_compose_location: v })
                   }}
                   required={false}
-                  placeholder="Leave empty to auto-detect on deploy"
-                  hint="Empty = Dockfin finds docker-compose.yml / compose.yaml in the repo."
+                  placeholder="Auto-detect (recommended)"
+                  hint="Pick a repo above and Dockfin finds docker-compose.yml automatically."
                 />
                 <div className="flex flex-wrap items-center gap-3">
                   <button
@@ -441,32 +509,19 @@ export function CreateApplicationPage() {
                     className="text-xs font-medium text-brand-600 hover:underline disabled:opacity-50 dark:text-brand-400"
                     disabled={
                       detecting ||
-                      (!form.git_repository && sourceType !== 'private-gh-app') ||
-                      (sourceType === 'private-gh-app' && (!form.git_source_id || !repoOwner || !repoName))
+                      !form.git_repository ||
+                      (sourceType === 'private-gh-app' && !form.git_source_id)
                     }
-                    onClick={() => {
-                      setDetectError('')
-                      setDetecting(true)
-                      const repo =
-                        sourceType === 'private-gh-app' && repoOwner && repoName
-                          ? `${repoOwner}/${repoName}`
-                          : form.git_repository
-                      void api
-                        .detectCompose({
-                          git_repository: repo,
-                          git_branch: form.git_branch || 'main',
-                          git_source_id: form.git_source_id || undefined,
-                          private_key_id: form.private_key_id || undefined,
-                        })
-                        .then((d) => {
-                          setForm((f) => ({ ...f, docker_compose_location: d.location }))
-                          setComposeCandidates(d.candidates || [])
-                        })
-                        .catch((e: Error) => setDetectError(e.message || 'Detect failed'))
-                        .finally(() => setDetecting(false))
-                    }}
+                    onClick={() =>
+                      runDetectCompose(
+                        form.git_repository,
+                        form.git_branch || 'main',
+                        form.git_source_id,
+                        form.private_key_id,
+                      )
+                    }
                   >
-                    {detecting ? 'Detecting…' : 'Auto-detect from repository'}
+                    {detecting ? 'Detecting…' : 'Re-detect compose file'}
                   </button>
                   {form.docker_compose_location ? (
                     <button
@@ -484,6 +539,10 @@ export function CreateApplicationPage() {
                 {detectError ? (
                   <p className="text-xs text-error-500" role="alert">
                     {detectError}
+                  </p>
+                ) : form.docker_compose_location ? (
+                  <p className="text-xs text-success-600 dark:text-success-400">
+                    Using {form.docker_compose_location}
                   </p>
                 ) : null}
                 {composeCandidates.length > 1 ? (

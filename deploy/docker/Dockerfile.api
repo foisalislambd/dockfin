@@ -20,7 +20,8 @@ RUN CGO_ENABLED=0 go build \
   -o /out/dockfin ./cmd/dockfin
 
 FROM alpine:3.21
-RUN apk add --no-cache ca-certificates tzdata
+# git + openssh: compose auto-detect / local git operations inside the API container
+RUN apk add --no-cache ca-certificates tzdata git openssh-client
 WORKDIR /app
 COPY --from=build /out/dockfin /usr/local/bin/dockfin
 COPY --from=web /web/dist /app/web
