@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/dockfin/dockfin/internal/git/githubapp"
+	"github.com/dockfin/dockfin/internal/redact"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"golang.org/x/crypto/ssh"
 )
@@ -81,7 +82,7 @@ func (p *Pipeline) gitClone(ctx context.Context, client *ssh.Client, req Request
 		args = append(args, "git", "clone", "--branch", branch, "--depth", "1", repo, destDir)
 		_, errOut, err := sshx.RunArgs(client, args...)
 		if err != nil {
-			return fmt.Errorf("git clone: %v %s", err, errOut)
+			return fmt.Errorf("git clone: %s", redact.Join(err.Error(), errOut))
 		}
 		if commit != "" {
 			p.log("fetch", "Checking out commit "+commit)
@@ -90,12 +91,12 @@ func (p *Pipeline) gitClone(ctx context.Context, client *ssh.Client, req Request
 				// Fall back to unshallow fetch of the SHA (some remotes reject shallow fetch by SHA).
 				_, errOut2, err2 := sshx.RunArgs(client, "git", "-C", destDir, "fetch", "origin", commit)
 				if err2 != nil {
-					return fmt.Errorf("git fetch commit: %v %s (%v %s)", err, errOut, err2, errOut2)
+					return fmt.Errorf("git fetch commit: %s", redact.Join(err.Error(), errOut, err2.Error(), errOut2))
 				}
 			}
 			_, errOut, err = sshx.RunArgs(client, "git", "-C", destDir, "checkout", commit)
 			if err != nil {
-				return fmt.Errorf("git checkout: %v %s", err, errOut)
+				return fmt.Errorf("git checkout: %s", redact.Join(err.Error(), errOut))
 			}
 		}
 		return nil

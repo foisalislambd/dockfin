@@ -49,7 +49,11 @@ type TaskRunner interface {
 func (a *API) Router() http.Handler {
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
-	r.Use(chimw.RealIP)
+	// RealIP only when explicitly trusted — otherwise clients can spoof
+	// X-Forwarded-For and bypass login rate limits / API IP allowlists.
+	if a.Cfg != nil && a.Cfg.TrustProxy {
+		r.Use(chimw.RealIP)
+	}
 	r.Use(chimw.Recoverer)
 	r.Use(cors.Handler(cors.Options{
 		AllowOriginFunc:  a.corsAllowOrigin,
@@ -422,7 +426,11 @@ func (a *API) corsAllowOrigin(r *http.Request, origin string) bool {
 	if a.Cfg != nil {
 		for _, o := range a.Cfg.CORSOrigins {
 			o = strings.TrimRight(strings.TrimSpace(o), "/")
-			if o == "*" || strings.EqualFold(o, origin) {
+			// Never reflect arbitrary Origin when credentials are enabled.
+			if o == "*" {
+				continue
+			}
+			if strings.EqualFold(o, origin) {
 				return true
 			}
 		}

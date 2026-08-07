@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/deploy"
 	"github.com/dockfin/dockfin/internal/notify"
+	"github.com/dockfin/dockfin/internal/redact"
 	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
@@ -389,7 +390,7 @@ func (q *Queue) notifyDeploy(ctx context.Context, teamID uuid.UUID, appName, sta
 	if status == "failed" {
 		eventType = "deployment_failure"
 		title = "Deployment failed"
-		msg = appName + ": " + errMsg
+		msg = appName + ": " + redact.Secrets(errMsg)
 	}
 	(&notify.Dispatcher{Store: q.Store}).Send(ctx, teamID, notify.Event{
 		Type:    eventType,

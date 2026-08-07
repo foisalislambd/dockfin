@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/coder/websocket"
 	"github.com/go-chi/chi/v5"
@@ -23,6 +24,18 @@ func (a *API) handleCreateTerminal(w http.ResponseWriter, r *http.Request) {
 		Container string `json:"container"`
 	}
 	_ = decodeJSON(r, &body)
+	body.Container = strings.TrimSpace(body.Container)
+	// Host shell (no container) is equivalent to server exec — admin/owner only.
+	if body.Container == "" {
+		role, _ := r.Context().Value(ctxRole).(string)
+		if role != "owner" && role != "admin" {
+			writeError(w, http.StatusForbidden, "host shell requires admin or owner role")
+			return
+		}
+	} else if !terminal.ValidContainerName(body.Container) {
+		writeError(w, http.StatusBadRequest, "invalid container name")
+		return
+	}
 
 	client, err := a.dialServer(r, serverID)
 	if err != nil {
@@ -37,7 +50,7 @@ func (a *API) handleCreateTerminal(w http.ResponseWriter, r *http.Request) {
 		Container: body.Container,
 	})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]string{"session_id": sessionID.String()})

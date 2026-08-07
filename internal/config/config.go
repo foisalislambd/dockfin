@@ -27,6 +27,7 @@ type Config struct {
 	PublicIP         string // optional override for bootstrap / magic DNS
 	BootstrapSSHUser string
 	BootstrapSSHPort int
+	TrustProxy       bool // honor X-Forwarded-* / RealIP only when true
 }
 
 func Load() (*Config, error) {
@@ -49,6 +50,7 @@ func Load() (*Config, error) {
 		BootstrapSSHPort: 22,
 	}
 	cfg.BootstrapSelf = parseBool(getenv("DOCKFIN_BOOTSTRAP_SELF", "1"), true)
+	cfg.TrustProxy = parseBool(getenv("DOCKFIN_TRUST_PROXY", "0"), false)
 	if p := getenv("DOCKFIN_BOOTSTRAP_SSH_PORT", ""); p != "" {
 		if n, err := fmt.Sscanf(p, "%d", &cfg.BootstrapSSHPort); n != 1 || err != nil || cfg.BootstrapSSHPort <= 0 {
 			cfg.BootstrapSSHPort = 22

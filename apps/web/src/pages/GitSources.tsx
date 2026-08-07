@@ -293,6 +293,15 @@ export function GitSourceDetailPage() {
     onError: (e: Error) => setError(e.message),
   })
 
+  const tabs = useMemo(() => {
+    const t: { id: string; label: string }[] = [{ id: 'general', label: 'General' }]
+    if (source.data?.installed) {
+      t.push({ id: 'repositories', label: 'Repositories' })
+      t.push({ id: 'resources', label: 'Resources' })
+    }
+    return t
+  }, [source.data?.installed])
+
   const startManual = () => {
     setManualOpen(true)
     setForm((f) => ({
@@ -309,15 +318,6 @@ export function GitSourceDetailPage() {
   const gs = source.data
   const needsRegister = !gs.configured
   const needsInstall = gs.configured && !gs.installed
-
-  const tabs = useMemo(() => {
-    const t: { id: string; label: string }[] = [{ id: 'general', label: 'General' }]
-    if (gs.installed) {
-      t.push({ id: 'repositories', label: 'Repositories' })
-      t.push({ id: 'resources', label: 'Resources' })
-    }
-    return t
-  }, [gs.installed])
 
   return (
     <div className="space-y-6">

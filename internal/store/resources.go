@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/dockfin/dockfin/internal/redact"
 )
 
 type Project struct {
@@ -796,6 +797,7 @@ func (s *Store) AppendDeploymentLog(ctx context.Context, id uuid.UUID, stage, li
 }
 
 func (s *Store) SetDeploymentStatus(ctx context.Context, id uuid.UUID, status, errMsg string) error {
+	errMsg = redact.Secrets(errMsg)
 	// Never overwrite a cancelled deployment with finished/failed/in_progress.
 	tag, err := s.Pool.Exec(ctx, `
 		UPDATE deployments SET

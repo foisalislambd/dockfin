@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/git/githubapp"
+	"github.com/dockfin/dockfin/internal/redact"
 	"github.com/dockfin/dockfin/internal/services"
 )
 
@@ -132,7 +133,7 @@ func (a *API) detectComposeInRepo(r *http.Request, teamID uuid.UUID, body detect
 		_ = os.RemoveAll(tmp)
 		tmp2, err2 := os.MkdirTemp("", "dockfin-compose-detect-*")
 		if err2 != nil {
-			return nil, fmt.Errorf("git clone: %v (%s)", err, truncateOut(out))
+			return nil, fmt.Errorf("git clone: %s", redact.Join(err.Error(), truncateOut(out)))
 		}
 		cleanupDir = tmp2
 		tmp = tmp2
@@ -140,7 +141,7 @@ func (a *API) detectComposeInRepo(r *http.Request, teamID uuid.UUID, body detect
 		cmd.Env = append(os.Environ(), env...)
 		cmd.Env = append(cmd.Env, "GIT_TERMINAL_PROMPT=0")
 		if out2, err2 := cmd.CombinedOutput(); err2 != nil {
-			return nil, fmt.Errorf("git clone: %v (%s)", err2, truncateOut(out2))
+			return nil, fmt.Errorf("git clone: %s", redact.Join(err2.Error(), truncateOut(out2)))
 		}
 	}
 

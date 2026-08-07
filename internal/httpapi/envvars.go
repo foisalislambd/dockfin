@@ -279,13 +279,14 @@ func (a *API) verifyWebhookAuth(r *http.Request, appID uuid.UUID, body []byte) e
 		return nil
 	}
 	if tok := r.Header.Get("X-Gitlab-Token"); tok != "" {
-		if tok != secret {
+		if !secureTokenEqual(secret, tok) {
 			return errUnauthorizedWebhook
 		}
 		return nil
 	}
 	if q := r.URL.Query().Get("secret"); q != "" {
-		if q != secret {
+		// Query secrets leak to logs; keep for compatibility but constant-time compare.
+		if !secureTokenEqual(secret, q) {
 			return errUnauthorizedWebhook
 		}
 		return nil
