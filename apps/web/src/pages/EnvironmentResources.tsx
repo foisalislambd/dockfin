@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
 import { useMemo, useState, type FormEvent, type MouseEvent } from 'react'
 import { PageSkeleton } from '../components/ui/Skeleton'
+import { useToast } from '../components/Toast'
 import { api, LAST_ENV_KEY, type Tag } from '../lib/api'
 import { Btn, Header, Input, Modal } from './Servers'
 
@@ -85,6 +86,7 @@ export function EnvironmentResourcesPage() {
   const { projectId, envId } = useParams({ strict: false }) as { projectId: string; envId: string }
   const nav = useNavigate()
   const qc = useQueryClient()
+  const toast = useToast()
   const [search, setSearch] = useState('')
   const [cloneOpen, setCloneOpen] = useState(false)
   const [cloneName, setCloneName] = useState('')
@@ -191,11 +193,15 @@ export function EnvironmentResourcesPage() {
       setCloneOpen(false)
       setCloneName('')
       void qc.invalidateQueries({ queryKey: ['environments', projectId] })
+      toast.success(
+        `Cloned ${res.applications} application(s), ${res.databases} database(s), ${res.services} service(s)`,
+      )
       void nav({
         to: '/projects/$projectId/environments/$envId',
         params: { projectId, envId: res.environment.id },
       })
     },
+    onError: (e: Error) => toast.error(e.message || 'Clone failed'),
   })
 
   const attachTag = useMutation({

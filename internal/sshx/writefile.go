@@ -34,7 +34,8 @@ func ValidRemotePath(p string) bool {
 }
 
 // WriteFile writes data to an absolute remote path without shell heredocs.
-// Content is base64-encoded so user-controlled payloads cannot break out of delimiters.
+// Content is base64-encoded on stdin so large payloads do not hit ARG_MAX
+// (the previous printf-in-command form broke multi‑MB backup imports).
 func WriteFile(client *ssh.Client, remotePath string, data []byte) error {
 	if client == nil {
 		return fmt.Errorf("nil ssh client")
@@ -42,11 +43,41 @@ func WriteFile(client *ssh.Client, remotePath string, data []byte) error {
 	if !ValidRemotePath(remotePath) {
 		return fmt.Errorf("invalid remote path")
 	}
-	enc := base64.StdEncoding.EncodeToString(data)
-	cmd := fmt.Sprintf("printf '%%s' %s | base64 -d > %s", shellQuote(enc), shellQuote(remotePath))
-	_, errOut, err := Run(client, cmd)
+	session, err := client.NewSession()
 	if err != nil {
-		return fmt.Errorf("write remote file: %v %s", err, errOut)
+		return err
+	}
+	defer session.Close()
+
+	stdin, err := session.StdinPipe()
+	if err != nil {
+		return err
+	}
+	var errBuf strings.Builder
+	session.Stderr = &errBuf
+
+	cmd := fmt.Sprintf("base64 -d > %s", shellQuote(remotePath))
+	if err := session.Start(cmd); err != nil {
+		_ = stdin.Close()
+		return fmt.Errorf("write remote file: %v", err)
+	}
+	enc := base64.NewEncoder(base64.StdEncoding, stdin)
+	if _, err := enc.Write(data); err != nil {
+		_ = stdin.Close()
+		_ = session.Wait()
+		return fmt.Errorf("write remote file: %v %s", err, errBuf.String())
+	}
+	if err := enc.Close(); err != nil {
+		_ = stdin.Close()
+		_ = session.Wait()
+		return fmt.Errorf("write remote file: %v %s", err, errBuf.String())
+	}
+	if err := stdin.Close(); err != nil {
+		_ = session.Wait()
+		return fmt.Errorf("write remote file: %v %s", err, errBuf.String())
+	}
+	if err := session.Wait(); err != nil {
+		return fmt.Errorf("write remote file: %v %s", err, errBuf.String())
 	}
 	return nil
 }

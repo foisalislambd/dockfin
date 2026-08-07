@@ -25,15 +25,20 @@ func (a *API) handleCreateTerminal(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = decodeJSON(r, &body)
 	body.Container = strings.TrimSpace(body.Container)
+	role, _ := r.Context().Value(ctxRole).(string)
+	isAdmin := role == "owner" || role == "admin"
 	// Host shell (no container) is equivalent to server exec — admin/owner only.
 	if body.Container == "" {
-		role, _ := r.Context().Value(ctxRole).(string)
-		if role != "owner" && role != "admin" {
+		if !isAdmin {
 			writeError(w, http.StatusForbidden, "host shell requires admin or owner role")
 			return
 		}
 	} else if !terminal.ValidContainerName(body.Container) {
 		writeError(w, http.StatusBadRequest, "invalid container name")
+		return
+	}
+	if !isAdmin && !a.terminalACLAllows(r, serverID) {
+		writeError(w, http.StatusForbidden, "terminal access is restricted on this server")
 		return
 	}
 
@@ -54,6 +59,23 @@ func (a *API) handleCreateTerminal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]string{"session_id": sessionID.String()})
+}
+
+// terminalACLAllows reports whether the caller may open a terminal on the
+// server. An empty terminal_acl_user_ids list keeps the previous behaviour of
+// allowing every team member; owners and admins always bypass the list.
+func (a *API) terminalACLAllows(r *http.Request, serverID uuid.UUID) bool {
+	ops, err := a.Store.GetServerOpsSettings(r.Context(), currentTeamID(r), serverID)
+	if err != nil || len(ops.TerminalACLUserIDs) == 0 {
+		return true
+	}
+	me := currentUser(r).ID.String()
+	for _, id := range ops.TerminalACLUserIDs {
+		if strings.EqualFold(strings.TrimSpace(id), me) {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *API) handleTerminalWS(w http.ResponseWriter, r *http.Request) {

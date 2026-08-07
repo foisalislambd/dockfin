@@ -123,6 +123,20 @@ func (a *API) handleListEnvironmentTags(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]any{"resource_tags": out})
 }
 
+func (a *API) handleListTagResources(w http.ResponseWriter, r *http.Request) {
+	tagID, err := uuid.Parse(chi.URLParam(r, "tagID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid tag id")
+		return
+	}
+	list, err := a.Store.ListTagResources(r.Context(), currentTeamID(r), tagID)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"resources": list})
+}
+
 func (a *API) handleAttachTag(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		TagID        string `json:"tag_id"`

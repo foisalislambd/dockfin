@@ -1477,6 +1477,55 @@ func (s *Store) UpdateDatabaseStatus(ctx context.Context, id uuid.UUID, status s
 	return err
 }
 
+// UpdateDatabaseInput carries the safe, patchable fields for a database resource.
+type UpdateDatabaseInput struct {
+	Name          *string
+	Description   *string
+	Image         *string
+	IsPublic      *bool
+	PublicPort    **int
+	DestinationID **uuid.UUID
+}
+
+// UpdateDatabase patches non-nil fields on a database, scoped to team, and returns the refreshed row.
+func (s *Store) UpdateDatabase(ctx context.Context, teamID, id uuid.UUID, in UpdateDatabaseInput) (*Database, error) {
+	db, err := s.GetDatabase(ctx, teamID, id)
+	if err != nil {
+		return nil, err
+	}
+	if in.Name != nil {
+		db.Name = *in.Name
+	}
+	if in.Description != nil {
+		db.Description = *in.Description
+	}
+	if in.Image != nil {
+		db.Image = *in.Image
+	}
+	if in.IsPublic != nil {
+		db.IsPublic = *in.IsPublic
+	}
+	if in.PublicPort != nil {
+		db.PublicPort = *in.PublicPort
+	}
+	if in.DestinationID != nil {
+		db.DestinationID = *in.DestinationID
+	}
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE databases SET
+			name=$3, description=$4, image=$5, is_public=$6, public_port=$7, destination_id=$8,
+			updated_at=NOW()
+		WHERE id=$1 AND team_id=$2
+	`, id, teamID, db.Name, db.Description, db.Image, db.IsPublic, db.PublicPort, db.DestinationID)
+	if err != nil {
+		return nil, err
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, ErrNotFound
+	}
+	return s.GetDatabase(ctx, teamID, id)
+}
+
 func (s *Store) CreateService(ctx context.Context, svc *Service) (*Service, error) {
 	prepared := svc.DockerCompose
 	if prepared == "" {

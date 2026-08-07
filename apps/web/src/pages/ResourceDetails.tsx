@@ -1,20 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import {
   Activity,
   AlertTriangle,
   Archive,
+  Cloud,
   LayoutDashboard,
   Network,
   Route,
+  ScrollText,
   Settings2,
+  Shield,
+  Tags,
   Terminal,
+  Trash2,
   Variable,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { useConfirm } from '../components/ConfirmDialog'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
+import { ResourceTagsPanel } from '../components/ResourceTagsPanel'
 import { ServerTerminal } from '../components/Terminal'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
@@ -25,18 +31,38 @@ const DB_TABS = [
   { id: 'configuration', label: 'Configuration', icon: Settings2 },
   { id: 'environment', label: 'Environment Variables', icon: Variable },
   { id: 'backups', label: 'Backups', icon: Archive },
+  { id: 'logs', label: 'Logs', icon: ScrollText },
+  { id: 'terminal', label: 'Terminal', icon: Terminal },
+  { id: 'metrics', label: 'Metrics', icon: Activity },
+  { id: 'tags', label: 'Tags', icon: Tags },
   { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
 ]
 
 const SERVER_TABS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'metrics', label: 'Metrics', icon: Activity },
+  { id: 'sentinel', label: 'Sentinel', icon: Shield },
+  { id: 'cleanup', label: 'Docker Cleanup', icon: Trash2 },
   { id: 'proxy', label: 'Proxy', icon: Route },
   { id: 'destinations', label: 'Destinations', icon: Network },
+  { id: 'edge', label: 'Edge', icon: Cloud },
   { id: 'settings', label: 'Settings', icon: Settings2 },
   { id: 'terminal', label: 'Terminal', icon: Terminal },
   { id: 'danger', label: 'Danger', icon: AlertTriangle },
 ]
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = String(reader.result || '')
+      const comma = result.indexOf(',')
+      resolve(comma >= 0 ? result.slice(comma + 1) : result)
+    }
+    reader.onerror = () => reject(reader.error || new Error('Failed to read file'))
+    reader.readAsDataURL(file)
+  })
+}
 
 function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
   const qc = useQueryClient()
@@ -86,9 +112,28 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
       api.restoreDatabaseBackup(dbId, { execution_id: executionId }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['db-backups', dbId] }),
   })
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importRestore, setImportRestore] = useState(true)
+  const importBackup = useMutation({
+    mutationFn: async () => {
+      if (!importFile) throw new Error('Choose a file to import')
+      const contentBase64 = await fileToBase64(importFile)
+      return api.importDatabaseBackup(dbId, {
+        filename: importFile.name,
+        content_base64: contentBase64,
+        restore: importRestore,
+      })
+    },
+    onSuccess: () => {
+      setImportFile(null)
+      void qc.invalidateQueries({ queryKey: ['db-backups', dbId] })
+    },
+  })
   useEffect(() => {
     restore.reset()
     runNow.reset()
+    importBackup.reset()
+    setImportFile(null)
   }, [dbId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const formatBytes = (n: number) => {
@@ -180,6 +225,42 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="panel-card space-y-3 p-4">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Import backup</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Upload a `.sql` dump (PostgreSQL / MySQL / MariaDB) to store it under `/data/dockfin/backups`
+          and optionally restore it immediately.
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="block min-w-[220px] flex-1 text-sm">
+            <span className="mb-1 block text-gray-500 dark:text-gray-400">File</span>
+            <input
+              type="file"
+              onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+              className="panel-field w-full rounded-lg px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="flex items-center gap-2 pb-2 text-sm">
+            <input
+              type="checkbox"
+              checked={importRestore}
+              onChange={(e) => setImportRestore(e.target.checked)}
+            />
+            <span className="text-gray-700 dark:text-gray-300">Restore immediately</span>
+          </label>
+          <Btn primary onClick={() => importBackup.mutate()} disabled={!importFile || importBackup.isPending}>
+            {importBackup.isPending ? 'Importing…' : 'Import'}
+          </Btn>
+        </div>
+        {importBackup.error && <p className="text-sm text-error-500">{importBackup.error.message}</p>}
+        {importBackup.isSuccess && (
+          <p className="text-sm text-emerald-600 dark:text-emerald-400">
+            Imported {importBackup.data?.filename}
+            {importRestore ? ' and restored.' : '.'}
+          </p>
+        )}
       </div>
 
       <div className="panel-card overflow-hidden">
@@ -281,6 +362,64 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
 }
 
 
+function DatabaseLiveLogs({ dbId }: { dbId: string }) {
+  const [lines, setLines] = useState<string[]>([])
+  const [status, setStatus] = useState<'connecting' | 'live' | 'ended' | 'error'>('connecting')
+  const [error, setError] = useState('')
+  const [nonce, setNonce] = useState(0)
+
+  useEffect(() => {
+    setLines([])
+    setStatus('connecting')
+    setError('')
+    const qs = new URLSearchParams({ tail: '200' })
+    const es = new EventSource(`/api/v1/databases/${dbId}/logs/stream?${qs}`, {
+      withCredentials: true,
+    })
+    es.addEventListener('log', (ev) => {
+      try {
+        const data = JSON.parse((ev as MessageEvent).data) as { line?: string }
+        setLines((prev) => [...prev.slice(-2000), data.line ?? (ev as MessageEvent).data])
+        setStatus('live')
+      } catch {
+        setLines((prev) => [...prev.slice(-2000), (ev as MessageEvent).data])
+        setStatus('live')
+      }
+    })
+    es.addEventListener('done', () => {
+      setStatus('ended')
+      es.close()
+    })
+    es.onerror = () => {
+      setStatus((s) => (s === 'live' ? 'ended' : 'error'))
+      setError('Stream disconnected')
+      es.close()
+    }
+    return () => es.close()
+  }, [dbId, nonce])
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs text-gray-500 dark:text-gray-400">
+          {status === 'live'
+            ? 'Streaming live'
+            : status === 'connecting'
+              ? 'Connecting…'
+              : status === 'ended'
+                ? 'Stream ended'
+                : 'Disconnected'}
+        </span>
+        <Btn onClick={() => setNonce((n) => n + 1)}>Reconnect</Btn>
+      </div>
+      {error && <p className="text-sm text-error-500">{error}</p>}
+      <pre className="max-h-[32rem] overflow-auto rounded-lg bg-gray-950 p-3 font-mono text-xs text-gray-200">
+        {lines.length ? lines.join('\n') : 'Waiting for log output…'}
+      </pre>
+    </div>
+  )
+}
+
 export function DatabaseDetailPage() {
   const { projectId, envId, dbId } = useParams({ strict: false }) as {
     projectId?: string
@@ -295,6 +434,23 @@ export function DatabaseDetailPage() {
     setTab('configuration')
   }, [dbId])
   const db = useQuery({ queryKey: ['database', dbId], queryFn: () => api.getDatabase(dbId) })
+  const destinations = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
+  const serverId =
+    (destinations.data?.destinations || []).find((dd) => dd.id === db.data?.destination_id)?.server_id || ''
+  const metrics = useQuery({
+    queryKey: ['server-metrics', serverId],
+    queryFn: () => api.serverMetrics(serverId, 60),
+    enabled: Boolean(serverId) && tab === 'metrics',
+    refetchInterval: tab === 'metrics' ? 15000 : false,
+  })
+
+  const [isPublic, setIsPublic] = useState(false)
+  const [publicPort, setPublicPort] = useState('')
+  useEffect(() => {
+    if (!db.data) return
+    setIsPublic(Boolean(db.data.is_public))
+    setPublicPort(db.data.public_port != null ? String(db.data.public_port) : '')
+  }, [db.data])
 
   const start = useMutation({
     mutationFn: () => api.startDatabase(dbId),
@@ -302,6 +458,10 @@ export function DatabaseDetailPage() {
   })
   const stop = useMutation({
     mutationFn: () => api.stopDatabase(dbId),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['database', dbId] }),
+  })
+  const patch = useMutation({
+    mutationFn: (body: Parameters<typeof api.updateDatabase>[1]) => api.updateDatabase(dbId, body),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['database', dbId] }),
   })
   const remove = useMutation({
@@ -375,6 +535,45 @@ export function DatabaseDetailPage() {
           {(start.error || stop.error) && (
             <p className="mt-4 text-sm text-error-500">{(start.error || stop.error)?.message}</p>
           )}
+
+          <div className="mt-6 panel-card space-y-4 p-5">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Public networking</h3>
+            <label className="flex items-center gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={isPublic}
+                onChange={(e) => setIsPublic(e.target.checked)}
+              />
+              <span>
+                <span className="font-medium text-gray-900 dark:text-white">Publish port</span>
+                <span className="mt-0.5 block text-gray-500 dark:text-gray-400">
+                  Expose the database on a host port so it is reachable from outside Docker.
+                </span>
+              </span>
+            </label>
+            {isPublic && (
+              <Input label="Public port" value={publicPort} onChange={setPublicPort} />
+            )}
+            <div className="flex flex-wrap items-center gap-3">
+              <Btn
+                primary
+                onClick={() =>
+                  patch.mutate({
+                    is_public: isPublic,
+                    public_port: isPublic ? Number(publicPort) || null : null,
+                  })
+                }
+                disabled={patch.isPending}
+              >
+                {patch.isPending ? 'Saving…' : 'Save'}
+              </Btn>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Restart or redeploy the database for port publishing changes to take effect on the
+                running container.
+              </p>
+            </div>
+            {patch.error && <p className="text-sm text-error-500">{patch.error.message}</p>}
+          </div>
         </TabPanel>
       )}
 
@@ -387,6 +586,60 @@ export function DatabaseDetailPage() {
       {tab === 'backups' && (
         <TabPanel>
           <DatabaseBackupsPanel dbId={dbId} />
+        </TabPanel>
+      )}
+
+      {tab === 'logs' && (
+        <TabPanel>
+          <DatabaseLiveLogs dbId={dbId} />
+        </TabPanel>
+      )}
+
+      {tab === 'terminal' && (
+        <TabPanel>
+          {serverId ? (
+            <ServerTerminal
+              serverId={serverId}
+              defaultContainer={`dockfin-db-${dbId}`}
+              containerOptions={[`dockfin-db-${dbId}`]}
+              hideHostShell
+            />
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Assign a destination so the database container terminal can connect.
+            </p>
+          )}
+        </TabPanel>
+      )}
+
+      {tab === 'metrics' && (
+        <TabPanel>
+          {serverId ? (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Host-level metrics for the server running this database.{' '}
+                <Link
+                  to="/servers/$serverId"
+                  params={{ serverId }}
+                  className="text-brand-600 dark:text-brand-400"
+                >
+                  Open server →
+                </Link>
+              </p>
+              <ServerMetricsView metrics={metrics.data?.metrics || []} loading={metrics.isLoading} />
+              {metrics.error && <p className="text-sm text-error-500">{metrics.error.message}</p>}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Assign a destination to view server metrics for this database.
+            </p>
+          )}
+        </TabPanel>
+      )}
+
+      {tab === 'tags' && (
+        <TabPanel>
+          <ResourceTagsPanel resourceType="database" resourceId={dbId} />
         </TabPanel>
       )}
 
@@ -546,23 +799,270 @@ function ServerMetricsView({
   )
 }
 
+function ServerEdgePanel({ serverId }: { serverId: string }) {
+  const qc = useQueryClient()
+  const ops = useQuery({
+    queryKey: ['server-ops', serverId],
+    queryFn: () => api.getServerOps(serverId),
+  })
+  const members = useQuery({ queryKey: ['team-members'], queryFn: api.teamMembers })
+  const [tunnelToken, setTunnelToken] = useState('')
+  const [drainEnabled, setDrainEnabled] = useState(false)
+  const [drainType, setDrainType] = useState('newrelic')
+  const [drainConfig, setDrainConfig] = useState('')
+  const [caCert, setCaCert] = useState('')
+  const [aclIds, setAclIds] = useState<string[]>([])
+  const [aclText, setAclText] = useState('')
+
+  useEffect(() => {
+    if (!ops.data) return
+    setDrainEnabled(Boolean(ops.data.log_drain_enabled))
+    setDrainType(ops.data.log_drain_type || 'newrelic')
+    setDrainConfig(ops.data.log_drain_config || '')
+    setCaCert(ops.data.ca_certificate || '')
+    setAclIds(ops.data.terminal_acl_user_ids || [])
+    setAclText((ops.data.terminal_acl_user_ids || []).join(', '))
+  }, [ops.data])
+
+  const patchOps = useMutation({
+    mutationFn: (body: Parameters<typeof api.patchServerOps>[1]) =>
+      api.patchServerOps(serverId, body),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['server-ops', serverId] }),
+  })
+  const tunnel = useMutation({
+    mutationFn: (action: 'install' | 'stop' | 'status') =>
+      api.cloudflareTunnelAction(serverId, action, tunnelToken || undefined),
+    onSuccess: () => {
+      setTunnelToken('')
+      void qc.invalidateQueries({ queryKey: ['server-ops', serverId] })
+    },
+  })
+  const patches = useMutation({ mutationFn: () => api.checkServerPatches(serverId) })
+
+  const memberList = members.data?.members || []
+  const warnings = patchOps.data?.warnings || []
+
+  return (
+    <div className="space-y-4">
+      <div className="panel-card space-y-4 p-5">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Cloudflare Tunnel</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Runs <code className="text-xs">cloudflare/cloudflared</code> on the host so services can
+            be reached without opening inbound ports.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Meta label="Enabled" value={ops.data?.cloudflare_tunnel_enabled ? 'Yes' : 'No'} />
+          <Meta label="Saved token" value={ops.data?.cloudflare_tunnel_token || '—'} />
+        </div>
+        <Input
+          label="Tunnel token"
+          value={tunnelToken}
+          onChange={setTunnelToken}
+          required={false}
+        />
+        <div className="flex flex-wrap gap-2">
+          <Btn primary onClick={() => tunnel.mutate('install')}>
+            {tunnel.isPending ? 'Working…' : 'Install / Start'}
+          </Btn>
+          <Btn onClick={() => tunnel.mutate('stop')}>Stop</Btn>
+          <Btn onClick={() => tunnel.mutate('status')}>Status</Btn>
+        </div>
+        {tunnel.data?.status && (
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            Container status: <span className="font-mono">{tunnel.data.status}</span>
+          </p>
+        )}
+        {tunnel.error && <p className="text-sm text-error-500">{tunnel.error.message}</p>}
+      </div>
+
+      <div className="panel-card space-y-4 p-5">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Log drain</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Saved settings are written to{' '}
+            <code className="text-xs">/data/dockfin/log-drain.env</code> on the server for the log
+            shipper to consume.
+          </p>
+        </div>
+        <label className="flex items-center gap-3 text-sm">
+          <input
+            type="checkbox"
+            checked={drainEnabled}
+            onChange={(e) => setDrainEnabled(e.target.checked)}
+          />
+          <span className="font-medium text-gray-900 dark:text-white">Enable log drain</span>
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block text-gray-500 dark:text-gray-400">Type</span>
+          <select
+            value={drainType}
+            onChange={(e) => setDrainType(e.target.value)}
+            className="w-full panel-field rounded-lg px-3 py-2"
+          >
+            <option value="newrelic">New Relic</option>
+            <option value="axiom">Axiom</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block text-gray-500 dark:text-gray-400">
+            Config (JSON, e.g. endpoint + API key)
+          </span>
+          <textarea
+            value={drainConfig}
+            onChange={(e) => setDrainConfig(e.target.value)}
+            rows={4}
+            placeholder='{"endpoint":"https://log-api.newrelic.com/log/v1","api_key":"…"}'
+            className="w-full panel-field rounded-lg px-3 py-2 font-mono text-xs"
+          />
+        </label>
+        <Btn
+          primary
+          onClick={() =>
+            patchOps.mutate({
+              log_drain_enabled: drainEnabled,
+              log_drain_type: drainType,
+              log_drain_config: drainConfig,
+            })
+          }
+        >
+          {patchOps.isPending ? 'Saving…' : 'Save log drain'}
+        </Btn>
+      </div>
+
+      <div className="panel-card space-y-4 p-5">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">CA certificate</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Written to <code className="text-xs">/data/dockfin/ca/custom-ca.crt</code> on save.
+          </p>
+        </div>
+        <textarea
+          value={caCert}
+          onChange={(e) => setCaCert(e.target.value)}
+          rows={6}
+          placeholder="-----BEGIN CERTIFICATE-----"
+          className="w-full panel-field rounded-lg px-3 py-2 font-mono text-xs"
+        />
+        <Btn primary onClick={() => patchOps.mutate({ ca_certificate: caCert })}>
+          {patchOps.isPending ? 'Saving…' : 'Save certificate'}
+        </Btn>
+      </div>
+
+      <div className="panel-card space-y-4 p-5">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Terminal access</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Restrict who may open terminals on this server. Owners and admins always have access;
+            an empty list allows every team member.
+          </p>
+        </div>
+        {memberList.length ? (
+          <div className="space-y-2">
+            {memberList.map((m) => (
+              <label key={m.user_id} className="flex items-center gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={aclIds.includes(m.user_id)}
+                  onChange={(e) =>
+                    setAclIds((prev) =>
+                      e.target.checked
+                        ? [...prev, m.user_id]
+                        : prev.filter((id) => id !== m.user_id),
+                    )
+                  }
+                />
+                <span className="text-gray-900 dark:text-white">
+                  {m.name || m.email}{' '}
+                  <span className="text-xs text-gray-500 dark:text-gray-400">({m.role})</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        ) : (
+          <label className="block text-sm">
+            <span className="mb-1 block text-gray-500 dark:text-gray-400">
+              Allowed user IDs (comma separated)
+            </span>
+            <textarea
+              value={aclText}
+              onChange={(e) => {
+                setAclText(e.target.value)
+                setAclIds(
+                  e.target.value
+                    .split(',')
+                    .map((v) => v.trim())
+                    .filter(Boolean),
+                )
+              }}
+              rows={3}
+              className="w-full panel-field rounded-lg px-3 py-2 font-mono text-xs"
+            />
+          </label>
+        )}
+        <Btn primary onClick={() => patchOps.mutate({ terminal_acl_user_ids: aclIds })}>
+          {patchOps.isPending ? 'Saving…' : 'Save terminal access'}
+        </Btn>
+      </div>
+
+      <div className="panel-card space-y-4 p-5">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Security patches</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Lists pending OS package updates via the host package manager.
+          </p>
+        </div>
+        <Btn primary onClick={() => patches.mutate()}>
+          {patches.isPending ? 'Checking…' : 'Check for updates'}
+        </Btn>
+        {patches.data && (
+          <>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              {patches.data.count} update(s) pending.
+            </p>
+            <pre className="max-h-64 overflow-auto rounded-lg bg-gray-950 p-3 font-mono text-xs text-gray-200">
+              {patches.data.output}
+            </pre>
+          </>
+        )}
+        {patches.error && <p className="text-sm text-error-500">{patches.error.message}</p>}
+      </div>
+
+      {warnings.length > 0 && (
+        <p className="text-sm text-warning-500">{warnings.join(' · ')}</p>
+      )}
+      {patchOps.error && <p className="text-sm text-error-500">{patchOps.error.message}</p>}
+    </div>
+  )
+}
+
 export function ServerDetailPage() {
   const { serverId } = useParams({ strict: false }) as { serverId: string }
+  const search = useSearch({ strict: false }) as { tab?: string }
   const nav = useNavigate()
   const qc = useQueryClient()
-  const [tab, setTab] = useState('overview')
+  const [tab, setTab] = useState(search.tab || 'overview')
   const [destName, setDestName] = useState('')
   const [destKind, setDestKind] = useState('standalone')
   const [destNetwork, setDestNetwork] = useState('dockfin')
   const [wildcardDomain, setWildcardDomain] = useState('')
   const [magicDomain, setMagicDomain] = useState('sslip.io')
   const [publicIP, setPublicIP] = useState('')
+  const [cleanupFreq, setCleanupFreq] = useState('0 0 * * *')
+  const [cleanupThreshold, setCleanupThreshold] = useState('80')
+  const [forceCleanup, setForceCleanup] = useState(false)
+  const [proxyCfgName, setProxyCfgName] = useState('custom.yml')
+  const [proxyCfgValue, setProxyCfgValue] = useState('')
+  const [freshToken, setFreshToken] = useState('')
   useEffect(() => {
-    setTab('overview')
+    setTab(search.tab || 'overview')
     setDestName('')
     setDestKind('standalone')
     setDestNetwork('dockfin')
-  }, [serverId])
+    setFreshToken('')
+  }, [serverId, search.tab])
 
   const server = useQuery({ queryKey: ['server', serverId], queryFn: () => api.getServer(serverId) })
   useEffect(() => {
@@ -576,6 +1076,39 @@ export function ServerDetailPage() {
     queryKey: ['server-metrics', serverId],
     queryFn: () => api.serverMetrics(serverId, 60),
     refetchInterval: tab === 'metrics' ? 15000 : false,
+  })
+  const ops = useQuery({
+    queryKey: ['server-ops', serverId],
+    queryFn: () => api.getServerOps(serverId),
+    enabled: tab === 'sentinel' || tab === 'cleanup' || tab === 'settings',
+  })
+  useEffect(() => {
+    if (!ops.data) return
+    setCleanupFreq(ops.data.docker_cleanup_frequency || '0 0 * * *')
+    setCleanupThreshold(String(ops.data.docker_cleanup_threshold || 80))
+    setForceCleanup(Boolean(ops.data.force_docker_cleanup))
+  }, [ops.data])
+  const cleanupExecs = useQuery({
+    queryKey: ['docker-cleanup', serverId],
+    queryFn: () => api.dockerCleanupExecutions(serverId),
+    enabled: tab === 'cleanup',
+    refetchInterval: tab === 'cleanup' ? 5000 : false,
+  })
+  const proxyDynamic = useQuery({
+    queryKey: ['proxy-dynamic', serverId],
+    queryFn: () => api.listProxyDynamic(serverId),
+    enabled: tab === 'proxy',
+  })
+  const proxyLogs = useQuery({
+    queryKey: ['proxy-logs', serverId],
+    queryFn: () => api.proxyLogs(serverId),
+    enabled: tab === 'proxy',
+  })
+  const sentinelLogs = useQuery({
+    queryKey: ['sentinel-logs', serverId],
+    queryFn: () => api.sentinelLogs(serverId),
+    enabled: tab === 'sentinel',
+    refetchInterval: tab === 'sentinel' ? 10000 : false,
   })
 
   const validate = useMutation({
@@ -621,6 +1154,40 @@ export function ServerDetailPage() {
       setDestName('')
       void qc.invalidateQueries({ queryKey: ['destinations'] })
     },
+  })
+  const patchOps = useMutation({
+    mutationFn: (body: Parameters<typeof api.patchServerOps>[1]) => api.patchServerOps(serverId, body),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['server-ops', serverId] }),
+  })
+  const sentinelMut = useMutation({
+    mutationFn: (action: 'install' | 'restart' | 'stop') => api.sentinelAction(serverId, action),
+    onSuccess: (data) => {
+      if (data.sentinel_token) setFreshToken(data.sentinel_token)
+      void qc.invalidateQueries({ queryKey: ['server-ops', serverId] })
+      void qc.invalidateQueries({ queryKey: ['sentinel-logs', serverId] })
+    },
+  })
+  const rotateToken = useMutation({
+    mutationFn: () => api.rotateSentinelToken(serverId),
+    onSuccess: (data) => {
+      setFreshToken(data.sentinel_token)
+      void qc.invalidateQueries({ queryKey: ['server-ops', serverId] })
+    },
+  })
+  const runCleanup = useMutation({
+    mutationFn: () => api.runDockerCleanup(serverId),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['docker-cleanup', serverId] }),
+  })
+  const saveProxyCfg = useMutation({
+    mutationFn: () => api.upsertProxyDynamic(serverId, { name: proxyCfgName, value: proxyCfgValue }),
+    onSuccess: () => {
+      setProxyCfgValue('')
+      void qc.invalidateQueries({ queryKey: ['proxy-dynamic', serverId] })
+    },
+  })
+  const deleteProxyCfg = useMutation({
+    mutationFn: (configId: string) => api.deleteProxyDynamic(serverId, configId),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['proxy-dynamic', serverId] }),
   })
 
   if (server.isLoading) return <PageSkeleton cards={3} />
@@ -679,6 +1246,116 @@ export function ServerDetailPage() {
         </TabPanel>
       )}
 
+      {tab === 'sentinel' && (
+        <TabPanel>
+          <div className="panel-card space-y-4 p-5">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Meta label="Enabled" value={ops.data?.sentinel_enabled ? 'Yes' : 'No'} />
+              <Meta label="Token" value={freshToken || ops.data?.sentinel_token || '—'} />
+            </div>
+            <label className="flex items-center gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={Boolean(ops.data?.sentinel_enabled)}
+                onChange={(e) => patchOps.mutate({ sentinel_enabled: e.target.checked })}
+              />
+              <span className="font-medium text-gray-900 dark:text-white">Sentinel metrics agent</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <Btn primary onClick={() => sentinelMut.mutate('install')}>
+                {sentinelMut.isPending ? 'Working…' : 'Install / Start'}
+              </Btn>
+              <Btn onClick={() => sentinelMut.mutate('restart')}>Restart</Btn>
+              <Btn onClick={() => sentinelMut.mutate('stop')}>Stop</Btn>
+              <Btn onClick={() => rotateToken.mutate()}>Rotate token</Btn>
+            </div>
+            {(sentinelMut.error || rotateToken.error || patchOps.error) && (
+              <p className="text-sm text-error-500">
+                {(sentinelMut.error || rotateToken.error || patchOps.error)?.message}
+              </p>
+            )}
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Logs</h3>
+                <button
+                  type="button"
+                  className="text-xs text-brand-600 dark:text-brand-400"
+                  onClick={() => setTab('metrics')}
+                >
+                  View metrics →
+                </button>
+              </div>
+              <pre className="max-h-64 overflow-auto rounded-lg bg-gray-950 p-3 font-mono text-xs text-gray-200">
+                {sentinelLogs.data?.logs || sentinelLogs.data?.error || 'No logs yet.'}
+              </pre>
+            </div>
+          </div>
+        </TabPanel>
+      )}
+
+      {tab === 'cleanup' && (
+        <TabPanel>
+          <div className="panel-card space-y-4 p-5">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input label="Cron frequency" value={cleanupFreq} onChange={setCleanupFreq} />
+              <Input label="Disk threshold %" value={cleanupThreshold} onChange={setCleanupThreshold} />
+            </div>
+            <label className="flex items-center gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={forceCleanup}
+                onChange={(e) => setForceCleanup(e.target.checked)}
+              />
+              <span>
+                <span className="font-medium text-gray-900 dark:text-white">Force cleanup</span>
+                <span className="mt-0.5 block text-gray-500 dark:text-gray-400">
+                  Ignore disk threshold and prune every run.
+                </span>
+              </span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <Btn
+                primary
+                onClick={() =>
+                  patchOps.mutate({
+                    docker_cleanup_frequency: cleanupFreq,
+                    docker_cleanup_threshold: Number(cleanupThreshold) || 80,
+                    force_docker_cleanup: forceCleanup,
+                  })
+                }
+              >
+                {patchOps.isPending ? 'Saving…' : 'Save schedule'}
+              </Btn>
+              <Btn onClick={() => runCleanup.mutate()}>
+                {runCleanup.isPending ? 'Running…' : 'Run now'}
+              </Btn>
+            </div>
+            {(patchOps.error || runCleanup.error) && (
+              <p className="text-sm text-error-500">
+                {(patchOps.error || runCleanup.error)?.message}
+              </p>
+            )}
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">History</h3>
+              {(cleanupExecs.data?.executions || []).map((e) => (
+                <div key={e.id} className="rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-800">
+                  <div className="flex justify-between gap-2">
+                    <span className="font-medium capitalize text-gray-900 dark:text-white">{e.status}</span>
+                    <span className="text-xs text-gray-500">{new Date(e.started_at).toLocaleString()}</span>
+                  </div>
+                  {e.message && (
+                    <p className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{e.message}</p>
+                  )}
+                </div>
+              ))}
+              {!cleanupExecs.data?.executions?.length && (
+                <p className="text-sm text-gray-500 dark:text-gray-400">No cleanup runs yet.</p>
+              )}
+            </div>
+          </div>
+        </TabPanel>
+      )}
+
       {tab === 'proxy' && (
         <TabPanel>
           <div className="panel-card space-y-4 p-5">
@@ -697,6 +1374,7 @@ export function ServerDetailPage() {
                 Start proxy
               </Btn>
               <Btn onClick={() => stopProxy.mutate()}>Stop proxy</Btn>
+              <Btn onClick={() => void proxyLogs.refetch()}>Refresh logs</Btn>
             </div>
             {s.proxy_type === 'none' && (
               <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -708,6 +1386,55 @@ export function ServerDetailPage() {
                 {(startProxy.error || stopProxy.error)?.message}
               </p>
             )}
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
+                Dynamic Traefik configs
+              </h3>
+              <div className="space-y-2">
+                {(proxyDynamic.data?.configurations || []).map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex items-start justify-between gap-2 rounded-lg border border-gray-200 p-3 dark:border-gray-800"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="font-mono text-xs text-gray-900 dark:text-white">{c.name}</div>
+                      <pre className="mt-1 max-h-24 overflow-auto text-xs text-gray-500">{c.value || '(empty)'}</pre>
+                    </div>
+                    <button
+                      type="button"
+                      className="text-xs text-error-500"
+                      onClick={() => deleteProxyCfg.mutate(c.id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 space-y-2">
+                <Input label="Filename" value={proxyCfgName} onChange={setProxyCfgName} />
+                <label className="block text-sm">
+                  <span className="mb-1 block text-gray-500 dark:text-gray-400">YAML value</span>
+                  <textarea
+                    value={proxyCfgValue}
+                    onChange={(e) => setProxyCfgValue(e.target.value)}
+                    rows={5}
+                    className="w-full panel-field rounded-lg px-3 py-2 font-mono text-xs"
+                  />
+                </label>
+                <Btn primary onClick={() => saveProxyCfg.mutate()}>
+                  {saveProxyCfg.isPending ? 'Saving…' : 'Save config'}
+                </Btn>
+                {saveProxyCfg.error && (
+                  <p className="text-sm text-error-500">{saveProxyCfg.error.message}</p>
+                )}
+              </div>
+            </div>
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">Proxy logs</h3>
+              <pre className="max-h-64 overflow-auto rounded-lg bg-gray-950 p-3 font-mono text-xs text-gray-200">
+                {proxyLogs.data?.logs || proxyLogs.data?.error || 'No logs.'}
+              </pre>
+            </div>
           </div>
         </TabPanel>
       )}
@@ -760,9 +1487,30 @@ export function ServerDetailPage() {
         </TabPanel>
       )}
 
+      {tab === 'edge' && (
+        <TabPanel>
+          <ServerEdgePanel serverId={serverId} />
+        </TabPanel>
+      )}
+
       {tab === 'settings' && (
         <TabPanel>
           <div className="panel-card space-y-4 p-5">
+            <div className="flex items-center justify-between gap-3 border-b border-gray-200 pb-4 dark:border-gray-800">
+              <div>
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white">Shared variables</h3>
+                <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                  Variables shared across resources deployed on this server.
+                </p>
+              </div>
+              <Link
+                to="/shared-variables"
+                search={{ scope: 'server', server_id: serverId }}
+                className="inline-flex h-8 items-center rounded-md border border-gray-200 px-2.5 text-xs font-medium hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-white/5"
+              >
+                Manage →
+              </Link>
+            </div>
             <label className="flex items-center gap-3 text-sm">
               <input
                 type="checkbox"

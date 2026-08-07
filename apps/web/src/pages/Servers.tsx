@@ -128,6 +128,36 @@ export function ServersPage() {
 }
 
 export function CreateServerPage() {
+  const [mode, setMode] = useState<'ssh' | 'cloud'>('ssh')
+  return (
+    <CreatePageShell title="Add server" backTo="/servers" backLabel="Back to Servers">
+      <div className="mb-5 flex gap-2">
+        {(
+          [
+            ['ssh', 'Existing server (SSH)'],
+            ['cloud', 'From cloud provider'],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setMode(id)}
+            className={`inline-flex h-8 items-center rounded-md px-2.5 text-xs font-medium ${
+              mode === id
+                ? 'bg-brand-500 text-white'
+                : 'border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {mode === 'ssh' ? <SshServerForm /> : <CloudServerForm />}
+    </CreatePageShell>
+  )
+}
+
+function SshServerForm() {
   const qc = useQueryClient()
   const nav = useNavigate()
   const keys = useQuery({ queryKey: ['keys'], queryFn: api.keys })
@@ -153,44 +183,170 @@ export function CreateServerPage() {
   })
 
   return (
-    <CreatePageShell title="Add server" backTo="/servers" backLabel="Back to Servers">
-      <form
-        className="space-y-4"
-        onSubmit={(e: FormEvent) => {
-          e.preventDefault()
-          create.mutate({
-            name,
-            ip,
-            port: Number(port) || 22,
-            user_name: user,
-            private_key_id: keyId || undefined,
-            proxy_type: proxyType,
-          })
-        }}
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <FormInput label="Name" value={name} onChange={setName} />
-          <FormInput label="IP / hostname" value={ip} onChange={setIp} />
-          <FormInput label="SSH user" value={user} onChange={setUser} />
-          <FormInput label="Port" value={port} onChange={setPort} type="number" />
-          <FormSelect label="Proxy" value={proxyType} onChange={setProxyType}>
-            <option value="traefik">Traefik</option>
-            <option value="caddy">Caddy</option>
-            <option value="none">None</option>
-          </FormSelect>
-          <FormSelect label="SSH key" value={keyId} onChange={setKeyId} required={false}>
-            <option value="">None</option>
-            {(keys.data?.private_keys || []).map((k) => (
-              <option key={k.id} value={k.id}>
-                {k.name}
-              </option>
-            ))}
-          </FormSelect>
-        </div>
-        {create.error && <p className="text-sm text-error-500">{create.error.message}</p>}
-        <FormActions busy={create.isPending} submitLabel="Create" cancelTo="/servers" />
-      </form>
-    </CreatePageShell>
+    <form
+      className="space-y-4"
+      onSubmit={(e: FormEvent) => {
+        e.preventDefault()
+        create.mutate({
+          name,
+          ip,
+          port: Number(port) || 22,
+          user_name: user,
+          private_key_id: keyId || undefined,
+          proxy_type: proxyType,
+        })
+      }}
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormInput label="Name" value={name} onChange={setName} />
+        <FormInput label="IP / hostname" value={ip} onChange={setIp} />
+        <FormInput label="SSH user" value={user} onChange={setUser} />
+        <FormInput label="Port" value={port} onChange={setPort} type="number" />
+        <FormSelect label="Proxy" value={proxyType} onChange={setProxyType}>
+          <option value="traefik">Traefik</option>
+          <option value="caddy">Caddy</option>
+          <option value="none">None</option>
+        </FormSelect>
+        <FormSelect label="SSH key" value={keyId} onChange={setKeyId} required={false}>
+          <option value="">None</option>
+          {(keys.data?.private_keys || []).map((k) => (
+            <option key={k.id} value={k.id}>
+              {k.name}
+            </option>
+          ))}
+        </FormSelect>
+      </div>
+      {create.error && <p className="text-sm text-error-500">{create.error.message}</p>}
+      <FormActions busy={create.isPending} submitLabel="Create" cancelTo="/servers" />
+    </form>
+  )
+}
+
+function CloudServerForm() {
+  const qc = useQueryClient()
+  const nav = useNavigate()
+  const keys = useQuery({ queryKey: ['keys'], queryFn: api.keys })
+  const tokens = useQuery({ queryKey: ['cloud-tokens'], queryFn: api.cloudTokens })
+  const scripts = useQuery({ queryKey: ['cloud-init-scripts'], queryFn: api.cloudInitScripts })
+  const [tokenId, setTokenId] = useState('')
+  const [name, setName] = useState('')
+  const [region, setRegion] = useState('')
+  const [size, setSize] = useState('')
+  const [image, setImage] = useState('')
+  const [keyId, setKeyId] = useState('')
+  const [scriptId, setScriptId] = useState('')
+  const [proxyType, setProxyType] = useState('traefik')
+
+  useEffect(() => {
+    if (!tokenId && tokens.data?.cloud_tokens?.[0]?.id) setTokenId(tokens.data.cloud_tokens[0].id)
+  }, [tokens.data, tokenId])
+  useEffect(() => {
+    if (!keyId && keys.data?.private_keys?.[0]?.id) setKeyId(keys.data.private_keys[0].id)
+  }, [keys.data, keyId])
+
+  const defaults = useQuery({
+    queryKey: ['cloud-defaults', tokenId],
+    queryFn: () => api.cloudProviderDefaults(tokenId),
+    enabled: Boolean(tokenId),
+  })
+
+  const provision = useMutation({
+    mutationFn: () =>
+      api.provisionServer({
+        cloud_token_id: tokenId,
+        name,
+        region: region || undefined,
+        size: size || undefined,
+        image: image || undefined,
+        private_key_id: keyId,
+        cloud_init_script_id: scriptId || undefined,
+        proxy_type: proxyType,
+      }),
+    onSuccess: (res) => {
+      void qc.invalidateQueries({ queryKey: ['servers'] })
+      void nav({ to: '/servers/$serverId', params: { serverId: res.server.id } })
+    },
+  })
+
+  if (!tokens.isLoading && !tokens.data?.cloud_tokens?.length) {
+    return (
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        No cloud provider tokens yet. Add a Hetzner, DigitalOcean, or Vultr API token under{' '}
+        <Link to="/security" className="text-brand-600 dark:text-brand-400">
+          Security → Cloud tokens
+        </Link>
+        .
+      </p>
+    )
+  }
+
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={(e: FormEvent) => {
+        e.preventDefault()
+        provision.mutate()
+      }}
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormSelect label="Cloud token" value={tokenId} onChange={setTokenId}>
+          {(tokens.data?.cloud_tokens || []).map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name} ({t.provider})
+            </option>
+          ))}
+        </FormSelect>
+        <FormInput label="Name" value={name} onChange={setName} />
+        <FormInput
+          label="Region / location"
+          value={region}
+          onChange={setRegion}
+          required={false}
+          placeholder={defaults.data?.region}
+        />
+        <FormInput
+          label="Size / plan"
+          value={size}
+          onChange={setSize}
+          required={false}
+          placeholder={defaults.data?.size}
+        />
+        <FormInput
+          label="Image"
+          value={image}
+          onChange={setImage}
+          required={false}
+          placeholder={defaults.data?.image}
+        />
+        <FormSelect label="SSH key" value={keyId} onChange={setKeyId}>
+          {(keys.data?.private_keys || []).map((k) => (
+            <option key={k.id} value={k.id}>
+              {k.name}
+            </option>
+          ))}
+        </FormSelect>
+        <FormSelect label="Cloud-init script" value={scriptId} onChange={setScriptId} required={false}>
+          <option value="">Default (install Docker)</option>
+          {(scripts.data?.cloud_init_scripts || []).map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </FormSelect>
+        <FormSelect label="Proxy" value={proxyType} onChange={setProxyType}>
+          <option value="traefik">Traefik</option>
+          <option value="caddy">Caddy</option>
+          <option value="none">None</option>
+        </FormSelect>
+      </div>
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        The selected SSH key is uploaded to the provider if missing, the instance boots with
+        cloud-init, and Dockfin registers it as <code>root@IP:22</code> once a public IP is
+        assigned. Leave region/size/image empty to use the provider defaults shown as placeholders.
+      </p>
+      {provision.error && <p className="text-sm text-error-500">{provision.error.message}</p>}
+      <FormActions busy={provision.isPending} submitLabel="Provision server" cancelTo="/servers" />
+    </form>
   )
 }
 

@@ -14,10 +14,19 @@
 - [x] Validate (TCP + Docker + data dirs)
 - [x] Destinations (default network)
 - [x] Traefik proxy start/stop
+- [x] Proxy dynamic Traefik file configs + proxy container logs
+- [x] Sentinel agent install/restart/stop/logs + token rotate (SSH docker metrics agent)
+- [x] Docker cleanup schedule (cron + threshold + force) with execution history
 - [x] SSH host key TOFU / fingerprint persistence
 - [x] Remote exec helper
 - [x] Caddy proxy
 - [x] Swarm destinations
+- [x] Provision a VPS from a cloud token (Hetzner / DigitalOcean / Vultr) and auto-register it
+- [x] Cloudflare Tunnel connector install/stop/status per server
+- [x] Server log drain settings (newrelic / axiom / custom) written to `/data/dockfin/log-drain.env`
+- [x] Custom CA certificate pushed to `/data/dockfin/ca/custom-ca.crt`
+- [x] Terminal ACL (`terminal_acl_user_ids`) enforced on terminal create
+- [x] Pending OS security patch check
 
 ## Projects
 - [x] Projects + production environment
@@ -76,6 +85,12 @@
 - [x] Backup dump helper
 - [x] Full restore UI
 - [x] Scheduled backup S3 upload
+- [x] Patch API (`PATCH /databases/{id}`) + Configuration tab UI for `is_public`/`public_port` (requires restart/redeploy to take effect on the running container)
+- [x] Import backup (upload a dump, stored under `/data/dockfin/backups`, optional immediate restore)
+- [x] Logs tab (SSE stream from the `dockfin-db-{id}` container, mirrors application logs)
+- [x] Terminal tab (reuses `ServerTerminal` against the database container)
+- [x] Metrics tab (links to the destination server's host metrics)
+- [x] Tags tab (`ResourceTagsPanel`, resourceType=database)
 
 ## Services
 - [x] Catalog loader (builtin + templates/compose)
@@ -92,6 +107,47 @@
 - [x] Full xterm browser terminal
 - [x] Metrics charts UI polish
 - [x] Application / database delete (danger zone)
+- [x] Top-level Destinations nav (all destinations across servers, deep-link to server tab)
+- [x] Top-level Tags nav (Coolify-style tag browser with attached-resource list)
+- [x] Top-level Terminal nav (server picker + xterm, no detail page needed)
+- [x] Environment clone success toast (application/database/service counts)
+- [x] Settings → Scheduled Jobs "Recent issues" (failed task executions + failed docker cleanup runs)
+- [x] Shared Variables server-scope hub (`/shared-variables?scope=server&server_id=...`, server picker, deep-link from Server → Settings)
+
+## Cloud provisioning & edge (wave 4)
+
+`POST /api/v1/cloud-tokens/{tokenID}/provision` (alias `POST /api/v1/servers/provision`, both
+admin-only) creates a VPS and registers it:
+
+1. The stored provider token is decrypted and the selected private key's public key is uploaded to
+   the provider if it is not already there.
+2. An instance is created with cloud-init user data — either the selected cloud-init script or a
+   built-in `#cloud-config` that installs Docker.
+3. Dockfin polls for up to 90s for a public IPv4, then calls `CreateServer` with `root@IP:22` and
+   the chosen private key.
+
+Region/size/image are free-form provider identifiers. `GET /cloud-tokens/{id}/defaults` returns the
+fallbacks used when they are blank (Hetzner `nbg1`/`cpx11`/`ubuntu-24.04`, DigitalOcean
+`nyc3`/`s-1vcpu-1gb`/`ubuntu-24-04-x64`, Vultr `ewr`/`vc2-1c-1gb`/OS id `2284`). For Vultr a numeric
+image is treated as `os_id`, anything else as a marketplace `image_id`. Run **Validate** on the new
+server once cloud-init has finished installing Docker.
+
+The server detail **Edge** tab covers the rest:
+
+- **Cloudflare Tunnel** — `POST /servers/{id}/cloudflare-tunnel/{install|restart|stop|status}` runs
+  `cloudflare/cloudflared tunnel run --token …` as the `dockfin-cloudflared` host-network container.
+  The token is persisted (encrypted) in the server ops settings.
+- **Log drain** — saving `log_drain_*` via `PATCH /servers/{id}/ops` also writes
+  `/data/dockfin/log-drain.env` on the host (removed when disabled). Deploys are unaffected;
+  shipping container logs is left to the drain agent.
+- **CA certificate** — saving `ca_certificate` writes `/data/dockfin/ca/custom-ca.crt`.
+- **Terminal access** — `terminal_acl_user_ids` is enforced by `POST /servers/{id}/terminal`. Empty
+  list keeps the old behaviour; owners/admins always pass.
+- **Security patches** — `POST /servers/{id}/patches/check` (admin-only) shells out to apt/dnf/yum/apk
+  and returns the raw upgradable list.
+
+Remote writes are best-effort: if SSH is unavailable the settings still save and the response
+carries a `warnings` array.
 
 ## Polish
 - [x] Command palette (⌘K)

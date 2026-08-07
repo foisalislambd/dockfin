@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { useState, type FormEvent } from 'react'
 import { EnvSecretCell, SecretInput } from '../components/SecretValue'
 import { CreatePageShell, FormActions, FormInput } from '../components/ui/forms'
@@ -357,33 +357,53 @@ export function TeamPage() {
 }
 
 export function SharedVariablesPage({
-  scopeType = 'team',
+  scopeType,
   scopeId,
   title = 'Shared Variables',
 }: {
-  scopeType?: 'team' | 'project' | 'environment'
+  scopeType?: 'team' | 'project' | 'environment' | 'server'
   scopeId?: string
   title?: string
 } = {}) {
   const qc = useQueryClient()
+  const nav = useNavigate()
+  // When rendered directly on /shared-variables (no props), support ?scope=server&server_id=...
+  // so links like Server detail settings can deep-link into the server scope hub.
+  const search = useSearch({ strict: false }) as { scope?: string; server_id?: string }
+  const usingProps = scopeType !== undefined
+  const effectiveScopeType: 'team' | 'project' | 'environment' | 'server' = usingProps
+    ? scopeType
+    : search.scope === 'server'
+      ? 'server'
+      : 'team'
+  const [serverId, setServerId] = useState(search.server_id || '')
+  const effectiveScopeId = usingProps ? scopeId : effectiveScopeType === 'server' ? serverId || undefined : undefined
+
+  const servers = useQuery({
+    queryKey: ['servers'],
+    queryFn: api.servers,
+    enabled: !usingProps && effectiveScopeType === 'server',
+  })
+
   const vars = useQuery({
-    queryKey: ['shared-env', scopeType, scopeId || ''],
-    queryFn: () => api.sharedEnvVars(scopeType, scopeId, true),
+    queryKey: ['shared-env', effectiveScopeType, effectiveScopeId || ''],
+    queryFn: () => api.sharedEnvVars(effectiveScopeType, effectiveScopeId, true),
+    enabled: effectiveScopeType !== 'server' || Boolean(effectiveScopeId),
   })
   const [key, setKey] = useState('')
   const [value, setValue] = useState('')
   const upsert = useMutation({
     mutationFn: () =>
       api.upsertSharedEnvVar({
-        scope_type: scopeType,
-        scope_id: scopeId,
+        scope_type: effectiveScopeType,
+        scope_id: effectiveScopeId,
         key,
         value,
       }),
     onSuccess: () => {
       setKey('')
       setValue('')
-      void qc.invalidateQueries({ queryKey: ['shared-env', scopeType, scopeId || ''] })
+      void qc.invalidateQueries({ queryKey: ['shared-env', effectiveScopeType, effectiveScopeId || ''] })
     },
   })
 
@@ -391,56 +411,121 @@ export function SharedVariablesPage({
     <div className="space-y-6">
       <Header title={title} />
 
-      <div className="panel-card overflow-hidden">
-        <table className="panel-table">
-          <thead>
-            <tr>
-              <th>Key</th>
-              <th>Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(vars.data?.shared_environment_variables || []).map((v) => (
-              <tr key={v.id}>
-                <td className="font-mono text-xs text-gray-900 dark:text-gray-100">{v.key}</td>
-                <td>
-                  <EnvSecretCell envKey={v.key} value={v.value} />
-                </td>
-              </tr>
-            ))}
-            {!vars.data?.shared_environment_variables?.length && (
-              <tr>
-                <td colSpan={2} className="panel-table-empty">
-                  No shared variables yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <form
-        className="flex flex-wrap items-end gap-3"
-        onSubmit={(e) => {
-          e.preventDefault()
-          upsert.mutate()
-        }}
-      >
-        <div className="min-w-[140px] flex-1">
-          <Input label="Key" value={key} onChange={setKey} />
-        </div>
-        <div className="min-w-[180px] flex-1">
-          {isSecretEnvKey(key) ? (
-            <SecretInput label="Value" value={value} onChange={setValue} required />
-          ) : (
-            <Input label="Value" value={value} onChange={setValue} />
+      {!usingProps && (
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="inline-flex rounded-lg border border-gray-200 p-1 dark:border-gray-800">
+            <button
+              type="button"
+              className={`rounded-md px-3 py-1 text-sm ${
+                effectiveScopeType === 'team'
+                  ? 'bg-brand-500 text-white'
+                  : 'text-gray-600 dark:text-gray-300'
+              }`}
+              onClick={() => void nav({ to: '/shared-variables', search: {} })}
+            >
+              Team
+            </button>
+            <button
+              type="button"
+              className={`rounded-md px-3 py-1 text-sm ${
+                effectiveScopeType === 'server'
+                  ? 'bg-brand-500 text-white'
+                  : 'text-gray-600 dark:text-gray-300'
+              }`}
+              onClick={() =>
+                void nav({
+                  to: '/shared-variables',
+                  search: { scope: 'server', server_id: serverId || undefined },
+                })
+              }
+            >
+              Server
+            </button>
+          </div>
+          {effectiveScopeType === 'server' && (
+            <label className="block min-w-[220px] text-sm">
+              <span className="mb-1 block text-gray-500 dark:text-gray-400">Server</span>
+              <select
+                value={serverId}
+                onChange={(e) => {
+                  setServerId(e.target.value)
+                  void nav({
+                    to: '/shared-variables',
+                    search: { scope: 'server', server_id: e.target.value || undefined },
+                  })
+                }}
+                className="panel-field w-full rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="">Select a server…</option>
+                {(servers.data?.servers || []).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
           )}
         </div>
-        <Btn primary type="submit">
-          Save
-        </Btn>
-        {upsert.error && <p className="w-full text-sm text-error-500">{upsert.error.message}</p>}
-      </form>
+      )}
+
+      {effectiveScopeType === 'server' && !effectiveScopeId ? (
+        <div className="panel-card p-8 text-center text-sm text-gray-500 dark:text-gray-400">
+          Select a server above to view or edit its shared variables.
+        </div>
+      ) : (
+        <>
+          <div className="panel-card overflow-hidden">
+            <table className="panel-table">
+              <thead>
+                <tr>
+                  <th>Key</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(vars.data?.shared_environment_variables || []).map((v) => (
+                  <tr key={v.id}>
+                    <td className="font-mono text-xs text-gray-900 dark:text-gray-100">{v.key}</td>
+                    <td>
+                      <EnvSecretCell envKey={v.key} value={v.value} />
+                    </td>
+                  </tr>
+                ))}
+                {!vars.data?.shared_environment_variables?.length && (
+                  <tr>
+                    <td colSpan={2} className="panel-table-empty">
+                      No shared variables yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <form
+            className="flex flex-wrap items-end gap-3"
+            onSubmit={(e) => {
+              e.preventDefault()
+              upsert.mutate()
+            }}
+          >
+            <div className="min-w-[140px] flex-1">
+              <Input label="Key" value={key} onChange={setKey} />
+            </div>
+            <div className="min-w-[180px] flex-1">
+              {isSecretEnvKey(key) ? (
+                <SecretInput label="Value" value={value} onChange={setValue} required />
+              ) : (
+                <Input label="Value" value={value} onChange={setValue} />
+              )}
+            </div>
+            <Btn primary type="submit">
+              Save
+            </Btn>
+            {upsert.error && <p className="w-full text-sm text-error-500">{upsert.error.message}</p>}
+          </form>
+        </>
+      )}
     </div>
   )
 }

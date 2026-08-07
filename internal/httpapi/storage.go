@@ -2,11 +2,15 @@ package httpapi
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -393,6 +397,190 @@ func (a *API) handleRestoreDatabaseBackup(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "restored", "filename": filename})
+}
+
+func (a *API) handleImportDatabaseBackup(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "dbID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var body struct {
+		Filename      string `json:"filename"`
+		ContentBase64 string `json:"content_base64"`
+		Restore       *bool  `json:"restore"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	if body.ContentBase64 == "" {
+		writeError(w, http.StatusBadRequest, "content_base64 required")
+		return
+	}
+	data, err := base64.StdEncoding.DecodeString(body.ContentBase64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid base64 content")
+		return
+	}
+	if len(data) == 0 {
+		writeError(w, http.StatusBadRequest, "uploaded file is empty")
+		return
+	}
+	// JSON+base64 import is memory-bound on the API; keep a practical ceiling.
+	const maxImportBytes = 64 << 20 // 64 MiB
+	if len(data) > maxImportBytes {
+		writeError(w, http.StatusBadRequest, "uploaded file too large (max 64 MiB via import; use restore from an existing dump for larger files)")
+		return
+	}
+	teamID := currentTeamID(r)
+	db, err := a.Store.GetDatabase(r.Context(), teamID, id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if db.Engine != "postgresql" && db.Engine != "mysql" && db.Engine != "mariadb" {
+		writeError(w, http.StatusBadRequest, "import supports postgresql and mysql/mariadb")
+		return
+	}
+	restore := true
+	if body.Restore != nil {
+		restore = *body.Restore
+	}
+	filename := strings.TrimSpace(body.Filename)
+	if filename == "" {
+		filename = backup.DefaultFilename(db.Engine, id.String())
+	}
+	if !safeBackupFilename(filename) {
+		writeError(w, http.StatusBadRequest, "invalid filename")
+		return
+	}
+	client, password, err := a.openDatabaseSSH(r, db)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			mapStoreErr(w, err)
+			return
+		}
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	dumpPath := backup.DumpPath(filename)
+	if err := sshx.WriteFile(client, dumpPath, data); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	exec, err := a.Store.CreateBackupExecution(r.Context(), teamID, "database", id, filename)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if err := a.Store.FinishBackupExecution(r.Context(), exec.ID, "finished", int64(len(data)), ""); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	resp := map[string]any{"status": "imported", "filename": filename, "size_bytes": len(data)}
+	if restore {
+		container := database.ContainerName(id.String())
+		var restoreErr error
+		switch db.Engine {
+		case "postgresql":
+			restoreErr = backup.RestorePostgres(client, container, password, dumpPath)
+		case "mysql", "mariadb":
+			restoreErr = backup.RestoreMySQL(client, container, password, dumpPath)
+		}
+		if restoreErr != nil {
+			writeError(w, http.StatusInternalServerError, restoreErr.Error())
+			return
+		}
+		resp["status"] = "imported_and_restored"
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (a *API) handleDatabaseLogsStream(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "dbID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	teamID := currentTeamID(r)
+	db, err := a.Store.GetDatabase(r.Context(), teamID, id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if db.DestinationID == nil {
+		writeError(w, http.StatusBadRequest, "database has no destination")
+		return
+	}
+	dest, err := a.Store.GetDestination(r.Context(), teamID, *db.DestinationID)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	client, err := a.dialServer(r, dest.ServerID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	container := database.ContainerName(id.String())
+	tail := 200
+	if t := r.URL.Query().Get("tail"); t != "" {
+		if n, err := strconv.Atoi(t); err == nil && n > 0 && n <= 5000 {
+			tail = n
+		}
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming unsupported")
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	var mu sync.Mutex
+	send := func(event, data string) {
+		mu.Lock()
+		defer mu.Unlock()
+		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, data)
+		flusher.Flush()
+	}
+	meta, _ := json.Marshal(map[string]string{"container": container})
+	send("meta", string(meta))
+
+	ctx := r.Context()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = sshx.RunArgsStreaming(client, func(line string) {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+			b, _ := json.Marshal(map[string]string{"line": line})
+			send("log", string(b))
+		}, "docker", "logs", "-f", "--tail", strconv.Itoa(tail), container)
+	}()
+
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-done:
+			send("done", `{"status":"ended"}`)
+			return
+		case <-ticker.C:
+			send("ping", `{}`)
+		}
+	}
 }
 
 func (a *API) openDatabaseSSH(r *http.Request, db *store.Database) (*ssh.Client, string, error) {

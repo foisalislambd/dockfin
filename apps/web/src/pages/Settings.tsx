@@ -233,6 +233,26 @@ export function SettingsPage() {
     queryFn: () => api.scheduledTasks(),
     enabled: topTab === 'scheduled',
   })
+  const failedTaskExecs = useQuery({
+    queryKey: ['scheduled-task-executions', 'failed'],
+    queryFn: () => api.scheduledTaskExecutionsForTeam('failed', 20),
+    enabled: topTab === 'scheduled',
+  })
+  const failedCleanupExecs = useQuery({
+    queryKey: ['docker-cleanup-executions', 'failed'],
+    queryFn: () => api.dockerCleanupExecutionsForTeam('failed', 20),
+    enabled: topTab === 'scheduled',
+  })
+  const jobsServers = useQuery({
+    queryKey: ['servers'],
+    queryFn: api.servers,
+    enabled: topTab === 'scheduled',
+  })
+  const serverNameById = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const s of jobsServers.data?.servers || []) m.set(s.id, s.name)
+    return m
+  }, [jobsServers.data])
   const backups = useQuery({
     queryKey: ['instance-backup'],
     queryFn: api.instanceBackup,
@@ -1121,6 +1141,72 @@ export function SettingsPage() {
                   <tr>
                     <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
                       No scheduled tasks yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <SectionHead title="Recent issues" />
+          <div className="panel-card overflow-hidden">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+                <tr>
+                  <th className="px-3 py-2">Task</th>
+                  <th className="px-3 py-2">Started</th>
+                  <th className="px-3 py-2">Output</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(failedTaskExecs.data?.executions || []).map((e) => (
+                  <tr key={e.id} className="border-t border-gray-200 dark:border-gray-800">
+                    <td className="px-3 py-2 font-medium">{e.task_name}</td>
+                    <td className="px-3 py-2 text-gray-500 dark:text-gray-400">
+                      {new Date(e.started_at).toLocaleString()}
+                    </td>
+                    <td className="max-w-md truncate px-3 py-2 font-mono text-xs text-error-500">
+                      {e.output || '—'}
+                    </td>
+                  </tr>
+                ))}
+                {!failedTaskExecs.data?.executions?.length && (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-6 text-center text-gray-500">
+                      No failed task executions recently.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <SectionHead title="Docker cleanup issues" />
+          <div className="panel-card overflow-hidden">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+                <tr>
+                  <th className="px-3 py-2">Server</th>
+                  <th className="px-3 py-2">Started</th>
+                  <th className="px-3 py-2">Message</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(failedCleanupExecs.data?.executions || []).map((e) => (
+                  <tr key={e.id} className="border-t border-gray-200 dark:border-gray-800">
+                    <td className="px-3 py-2">{serverNameById.get(e.server_id) || e.server_id}</td>
+                    <td className="px-3 py-2 text-gray-500 dark:text-gray-400">
+                      {new Date(e.started_at).toLocaleString()}
+                    </td>
+                    <td className="max-w-md truncate px-3 py-2 font-mono text-xs text-error-500">
+                      {e.message || '—'}
+                    </td>
+                  </tr>
+                ))}
+                {!failedCleanupExecs.data?.executions?.length && (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-6 text-center text-gray-500">
+                      No failed docker cleanup runs recently.
                     </td>
                   </tr>
                 )}

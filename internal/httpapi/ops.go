@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -761,6 +762,25 @@ func (a *API) handleListScheduledTaskExecutions(w http.ResponseWriter, r *http.R
 		return
 	}
 	list, err := a.Store.ListScheduledTaskExecutions(r.Context(), teamID, id, 20)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"executions": list})
+}
+
+// handleListScheduledTaskExecutionsForTeam returns recent executions across all scheduled tasks
+// for the current team, optionally filtered by ?status=failed. Powers the Settings > Scheduled
+// Jobs "recent issues" view.
+func (a *API) handleListScheduledTaskExecutionsForTeam(w http.ResponseWriter, r *http.Request) {
+	status := r.URL.Query().Get("status")
+	limit := 50
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			limit = n
+		}
+	}
+	list, err := a.Store.ListScheduledTaskExecutionsForTeam(r.Context(), currentTeamID(r), status, limit)
 	if err != nil {
 		mapStoreErr(w, err)
 		return

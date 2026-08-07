@@ -70,6 +70,7 @@ func (r *Runner) tick(ctx context.Context) {
 	r.runTasks(ctx, minute)
 	r.runBackups(ctx, minute)
 	r.runInstanceBackup(ctx, minute)
+	r.runDockerCleanups(ctx, minute)
 }
 
 func (r *Runner) runTasks(ctx context.Context, minute time.Time) {
@@ -587,6 +588,77 @@ func (r *Runner) dialServer(ctx context.Context, teamID, serverID uuid.UUID) (*s
 		return nil, err
 	}
 	return res.Client, nil
+}
+
+func (r *Runner) runDockerCleanups(ctx context.Context, minute time.Time) {
+	servers, err := r.Store.ListServersForDockerCleanup(ctx)
+	if err != nil {
+		r.Logger.Error("list servers for docker cleanup", "err", err)
+		return
+	}
+	for _, s := range servers {
+		if !Matches(s.Frequency, minute) {
+			continue
+		}
+		// Skip if already started this minute.
+		recent, err := r.Store.ListDockerCleanupExecutions(ctx, s.TeamID, s.ServerID, 1)
+		if err == nil && len(recent) > 0 && recent[0].StartedAt.Truncate(time.Minute).Equal(minute) {
+			continue
+		}
+		ops, err := r.Store.GetServerOpsSettings(ctx, s.TeamID, s.ServerID)
+		if err != nil {
+			continue
+		}
+		exec, err := r.Store.CreateDockerCleanupExecution(ctx, s.TeamID, s.ServerID)
+		if err != nil {
+			r.Logger.Error("create docker cleanup execution", "server", s.ServerID, "err", err)
+			continue
+		}
+		go func(teamID, serverID, execID uuid.UUID, force bool, threshold int) {
+			client, err := r.dialServer(context.Background(), teamID, serverID)
+			if err != nil {
+				_ = r.Store.FinishDockerCleanupExecution(context.Background(), execID, "failed", err.Error())
+				return
+			}
+			msg, runErr := scheduledDockerCleanup(client, force, threshold)
+			status := "finished"
+			if runErr != nil {
+				status = "failed"
+				if msg == "" {
+					msg = runErr.Error()
+				} else {
+					msg += "; " + runErr.Error()
+				}
+			}
+			_ = r.Store.FinishDockerCleanupExecution(context.Background(), execID, status, msg)
+		}(s.TeamID, s.ServerID, exec.ID, ops.ForceDockerCleanup, ops.DockerCleanupThreshold)
+	}
+}
+
+func scheduledDockerCleanup(client *ssh.Client, force bool, threshold int) (string, error) {
+	var parts []string
+	if !force && threshold > 0 {
+		out, _, err := sshx.Run(client, `df -P / | awk 'NR==2 {gsub(/%/,"",$5); print $5}'`)
+		if err == nil {
+			used := 0
+			fmt.Sscanf(strings.TrimSpace(out), "%d", &used)
+			if used > 0 && used < threshold {
+				return fmt.Sprintf("skipped: disk usage %d%% below threshold %d%%", used, threshold), nil
+			}
+			parts = append(parts, fmt.Sprintf("disk usage %d%%", used))
+		}
+	}
+	if _, errOut, err := sshx.RunArgs(client, "docker", "image", "prune", "-af"); err != nil {
+		return strings.Join(parts, "; "), fmt.Errorf("image prune: %v %s", err, errOut)
+	}
+	parts = append(parts, "image prune ok")
+	if _, errOut, err := sshx.RunArgs(client, "docker", "builder", "prune", "-af"); err != nil {
+		return strings.Join(parts, "; "), fmt.Errorf("builder prune: %v %s", err, errOut)
+	}
+	parts = append(parts, "builder prune ok")
+	_, _, _ = sshx.RunArgs(client, "docker", "container", "prune", "-f")
+	parts = append(parts, "container prune ok")
+	return strings.Join(parts, "; "), nil
 }
 
 func shellQuote(s string) string {

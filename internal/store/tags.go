@@ -127,6 +127,51 @@ func (s *Store) ListEnvironmentResourceTags(ctx context.Context, teamID, envID u
 	return out, rows.Err()
 }
 
+// TaggedResource is a resource attached to a tag, enriched with a display name for the tag
+// browser page.
+type TaggedResource struct {
+	ResourceType string    `json:"resource_type"`
+	ResourceID   uuid.UUID `json:"resource_id"`
+	Name         string    `json:"name"`
+}
+
+// ListTagResources returns all applications, databases, and services attached to a tag.
+func (s *Store) ListTagResources(ctx context.Context, teamID, tagID uuid.UUID) ([]TaggedResource, error) {
+	rows, err := s.Pool.Query(ctx, `
+		SELECT tg.resource_type, tg.resource_id, a.name
+		FROM taggables tg
+		JOIN applications a ON a.id = tg.resource_id AND tg.resource_type = 'application'
+		WHERE tg.tag_id = $1 AND a.team_id = $2
+		UNION ALL
+		SELECT tg.resource_type, tg.resource_id, d.name
+		FROM taggables tg
+		JOIN databases d ON d.id = tg.resource_id AND tg.resource_type = 'database'
+		WHERE tg.tag_id = $1 AND d.team_id = $2
+		UNION ALL
+		SELECT tg.resource_type, tg.resource_id, sv.name
+		FROM taggables tg
+		JOIN services sv ON sv.id = tg.resource_id AND tg.resource_type = 'service'
+		WHERE tg.tag_id = $1 AND sv.team_id = $2 AND sv.deleted_at IS NULL
+		ORDER BY name
+	`, tagID, teamID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []TaggedResource
+	for rows.Next() {
+		var t TaggedResource
+		if err := rows.Scan(&t.ResourceType, &t.ResourceID, &t.Name); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	if out == nil {
+		out = []TaggedResource{}
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) AttachTag(ctx context.Context, teamID, tagID uuid.UUID, resourceType string, resourceID uuid.UUID) error {
 	switch resourceType {
 	case "application", "database", "service":

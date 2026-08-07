@@ -70,6 +70,9 @@ const StoragesPage = lazyPage(() => import('./pages/OpsPages'), 'StoragesPage')
 const TeamPage = lazyPage(() => import('./pages/OpsPages'), 'TeamPage')
 const GitSourcesPage = lazyPage(() => import('./pages/GitSources'), 'GitSourcesPage')
 const GitSourceDetailPage = lazyPage(() => import('./pages/GitSources'), 'GitSourceDetailPage')
+const DestinationsPage = lazyPage(() => import('./pages/NavSurfaces'), 'DestinationsPage')
+const TagsPage = lazyPage(() => import('./pages/NavSurfaces'), 'TagsPage')
+const TerminalPickerPage = lazyPage(() => import('./pages/NavSurfaces'), 'TerminalPickerPage')
 
 function RootComponent() {
   return (
@@ -157,6 +160,9 @@ const createServerRoute = createRoute({
 const serverDetailRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/servers/$serverId',
+  validateSearch: (search: Record<string, unknown>): { tab?: string } => ({
+    tab: typeof search.tab === 'string' ? search.tab : undefined,
+  }),
   component: ServerDetailPage,
 })
 
@@ -371,6 +377,10 @@ const teamRoute = createRoute({
 const sharedVariablesRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/shared-variables',
+  validateSearch: (search: Record<string, unknown>): { scope?: string; server_id?: string } => ({
+    scope: typeof search.scope === 'string' ? search.scope : undefined,
+    server_id: typeof search.server_id === 'string' ? search.server_id : undefined,
+  }),
   component: SharedVariablesPage,
 })
 
@@ -409,6 +419,24 @@ const gitSourceDetailRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/git-sources/$sourceId',
   component: GitSourceDetailPage,
+})
+
+const destinationsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/destinations',
+  component: DestinationsPage,
+})
+
+const tagsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/tags',
+  component: TagsPage,
+})
+
+const terminalRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/terminal',
+  component: TerminalPickerPage,
 })
 
 const routeTree = rootRoute.addChildren([
@@ -456,6 +484,9 @@ const routeTree = rootRoute.addChildren([
     gitSourcesRoute,
     gitSourceDetailRoute,
     apiTokensRoute,
+    destinationsRoute,
+    tagsRoute,
+    terminalRoute,
   ]),
 ])
 

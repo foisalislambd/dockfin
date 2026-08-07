@@ -177,6 +177,62 @@ func (s *Store) ListScheduledTaskExecutions(ctx context.Context, teamID, taskID 
 	return out, rows.Err()
 }
 
+// ScheduledTaskExecutionWithTask carries the parent task's identity alongside an execution row,
+// used for the team-wide "recent failures" view (Settings → Scheduled Jobs).
+type ScheduledTaskExecutionWithTask struct {
+	ID           uuid.UUID  `json:"id"`
+	Status       string     `json:"status"`
+	Output       string     `json:"output"`
+	StartedAt    time.Time  `json:"started_at"`
+	FinishedAt   *time.Time `json:"finished_at"`
+	TaskID       uuid.UUID  `json:"task_id"`
+	TaskName     string     `json:"task_name"`
+	ResourceType string     `json:"resource_type"`
+	ResourceID   uuid.UUID  `json:"resource_id"`
+}
+
+// ListScheduledTaskExecutionsForTeam returns recent executions across all scheduled tasks for a
+// team, optionally filtered by status (e.g. "failed"). Used by the Settings > Scheduled Jobs
+// "recent issues" view.
+func (s *Store) ListScheduledTaskExecutionsForTeam(ctx context.Context, teamID uuid.UUID, status string, limit int) ([]ScheduledTaskExecutionWithTask, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	q := `
+		SELECT e.id, e.status, COALESCE(e.output,''), e.started_at, e.finished_at,
+		       t.id, t.name, t.resource_type, t.resource_id
+		FROM scheduled_task_executions e
+		JOIN scheduled_tasks t ON t.id = e.scheduled_task_id
+		WHERE e.team_id = $1`
+	args := []any{teamID}
+	if status != "" {
+		args = append(args, status)
+		q += fmt.Sprintf(" AND e.status = $%d", len(args))
+	}
+	args = append(args, limit)
+	q += fmt.Sprintf(" ORDER BY e.started_at DESC LIMIT $%d", len(args))
+	rows, err := s.Pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ScheduledTaskExecutionWithTask
+	for rows.Next() {
+		var e ScheduledTaskExecutionWithTask
+		if err := rows.Scan(
+			&e.ID, &e.Status, &e.Output, &e.StartedAt, &e.FinishedAt,
+			&e.TaskID, &e.TaskName, &e.ResourceType, &e.ResourceID,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	if out == nil {
+		out = []ScheduledTaskExecutionWithTask{}
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) GetServiceWebhookSecret(ctx context.Context, serviceID uuid.UUID) (teamID uuid.UUID, secret string, err error) {
 	var enc string
 	err = s.Pool.QueryRow(ctx, `

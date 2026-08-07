@@ -65,6 +65,35 @@ export type CreateServerBody = {
   description?: string
 }
 
+export type ProvisionServerBody = {
+  cloud_token_id: string
+  name: string
+  region?: string
+  size?: string
+  image?: string
+  private_key_id: string
+  cloud_init_script_id?: string
+  proxy_type?: string
+  description?: string
+}
+
+export type CloudProviderDefaults = {
+  provider: string
+  region: string
+  size: string
+  image: string
+}
+
+export type ProvisionedInstance = {
+  provider: string
+  instance_id: string
+  ssh_key_id: string
+  ip: string
+  region: string
+  size: string
+  image: string
+}
+
 export const api = {
   health: () => request<{ status: string }>('/health'),
   version: () => request<{ version: string; name: string; license?: string }>('/api/v1/version'),
@@ -127,6 +156,57 @@ export const api = {
     request(`/api/v1/servers/${id}/proxy/start`, { method: 'POST' }),
   stopProxy: (id: string) =>
     request(`/api/v1/servers/${id}/proxy/stop`, { method: 'POST' }),
+  proxyLogs: (id: string, tail = 200) =>
+    request<{ logs: string; error?: string }>(`/api/v1/servers/${id}/proxy/logs?tail=${tail}`),
+  listProxyDynamic: (id: string) =>
+    request<{ configurations: ServerProxyConfiguration[] }>(`/api/v1/servers/${id}/proxy/dynamic`),
+  upsertProxyDynamic: (id: string, body: { name: string; value: string }) =>
+    request<ServerProxyConfiguration>(`/api/v1/servers/${id}/proxy/dynamic`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  deleteProxyDynamic: (serverId: string, configId: string) =>
+    request<{ status: string }>(`/api/v1/servers/${serverId}/proxy/dynamic/${configId}`, {
+      method: 'DELETE',
+    }),
+  getServerOps: (id: string) => request<ServerOpsSettings>(`/api/v1/servers/${id}/ops`),
+  patchServerOps: (id: string, body: Partial<ServerOpsSettings>) =>
+    request<{ status: string; warnings?: string[] }>(`/api/v1/servers/${id}/ops`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  cloudflareTunnelAction: (
+    id: string,
+    action: 'install' | 'restart' | 'stop' | 'status',
+    cloudflare_tunnel_token?: string,
+  ) =>
+    request<{ status: string; enabled?: boolean }>(
+      `/api/v1/servers/${id}/cloudflare-tunnel/${action}`,
+      { method: 'POST', body: JSON.stringify({ cloudflare_tunnel_token }) },
+    ),
+  checkServerPatches: (id: string) =>
+    request<{ output: string; count: number }>(`/api/v1/servers/${id}/patches/check`, {
+      method: 'POST',
+    }),
+  sentinelAction: (id: string, action: 'install' | 'restart' | 'stop') =>
+    request<{ status: string; sentinel_token?: string }>(`/api/v1/servers/${id}/sentinel/${action}`, {
+      method: 'POST',
+    }),
+  rotateSentinelToken: (id: string) =>
+    request<{ sentinel_token: string }>(`/api/v1/servers/${id}/sentinel/rotate-token`, {
+      method: 'POST',
+    }),
+  sentinelLogs: (id: string, tail = 200) =>
+    request<{ logs: string; error?: string }>(`/api/v1/servers/${id}/sentinel/logs?tail=${tail}`),
+  runDockerCleanup: (id: string) =>
+    request<{ status: string; message: string; execution_id: string }>(
+      `/api/v1/servers/${id}/docker-cleanup`,
+      { method: 'POST' },
+    ),
+  dockerCleanupExecutions: (id: string, limit = 50) =>
+    request<{ executions: DockerCleanupExecution[] }>(
+      `/api/v1/servers/${id}/docker-cleanup/executions?limit=${limit}`,
+    ),
 
   keys: () => request<{ private_keys: Key[] }>('/api/v1/private-keys'),
   getKey: (id: string) => request<Key>(`/api/v1/private-keys/${id}`),
@@ -177,6 +257,13 @@ export const api = {
     request<{ status: string }>(`/api/v1/cloud-tokens/${id}`, { method: 'DELETE' }),
   validateCloudToken: (id: string) =>
     request<{ status: string }>(`/api/v1/cloud-tokens/${id}/validate`, { method: 'POST' }),
+  cloudProviderDefaults: (id: string) =>
+    request<CloudProviderDefaults>(`/api/v1/cloud-tokens/${id}/defaults`),
+  provisionServer: (body: ProvisionServerBody) =>
+    request<{ server: Server; cloud: ProvisionedInstance }>(
+      `/api/v1/cloud-tokens/${body.cloud_token_id}/provision`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
 
   cloudInitScripts: () =>
     request<{ cloud_init_scripts: CloudInitScript[] }>('/api/v1/cloud-init-scripts'),
@@ -272,6 +359,8 @@ export const api = {
       `/api/v1/tags/${tagId}/attach?resource_type=${encodeURIComponent(resource_type)}&resource_id=${resource_id}`,
       { method: 'DELETE' },
     ),
+  tagResources: (tagId: string) =>
+    request<{ resources: TaggedResource[] }>(`/api/v1/tags/${tagId}/resources`),
 
   applications: (environment_id?: string) =>
     request<{ applications: Application[] }>(
@@ -482,6 +571,17 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  updateDatabase: (
+    id: string,
+    body: {
+      name?: string
+      description?: string
+      image?: string
+      is_public?: boolean
+      public_port?: number | null
+      destination_id?: string
+    },
+  ) => request<Database>(`/api/v1/databases/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   startDatabase: (id: string) =>
     request(`/api/v1/databases/${id}/start`, { method: 'POST' }),
   stopDatabase: (id: string) =>
@@ -491,6 +591,14 @@ export const api = {
       method: 'DELETE',
       body: body ? JSON.stringify(body) : undefined,
     }),
+  importDatabaseBackup: (
+    dbId: string,
+    body: { filename?: string; content_base64: string; restore?: boolean },
+  ) =>
+    request<{ status: string; filename: string; size_bytes: number }>(
+      `/api/v1/databases/${dbId}/backups/import`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
 
   services: (environment_id?: string) =>
     request<{ services: Service[] }>(
@@ -782,6 +890,20 @@ export const api = {
     request<{ executions: ScheduledTaskExecution[] }>(
       `/api/v1/scheduled-tasks/${id}/executions`,
     ),
+  scheduledTaskExecutionsForTeam: (status?: string, limit = 50) =>
+    request<{ executions: ScheduledTaskExecutionWithTask[] }>(
+      `/api/v1/scheduled-task-executions?${new URLSearchParams({
+        ...(status ? { status } : {}),
+        limit: String(limit),
+      }).toString()}`,
+    ),
+  dockerCleanupExecutionsForTeam: (status?: string, limit = 50) =>
+    request<{ executions: DockerCleanupExecution[] }>(
+      `/api/v1/docker-cleanup-executions?${new URLSearchParams({
+        ...(status ? { status } : {}),
+        limit: String(limit),
+      }).toString()}`,
+    ),
   serverMetrics: (id: string, limit = 60) =>
     request<{ metrics: ServerMetric[] }>(`/api/v1/servers/${id}/metrics?limit=${limit}`),
 
@@ -938,6 +1060,37 @@ export type Server = {
   magic_domain?: string
   public_ip?: string
 }
+export type ServerOpsSettings = {
+  sentinel_enabled: boolean
+  sentinel_token?: string
+  sentinel_metrics_refresh_rate_seconds: number
+  docker_cleanup_frequency: string
+  docker_cleanup_threshold: number
+  force_docker_cleanup: boolean
+  cloudflare_tunnel_token?: string
+  cloudflare_tunnel_enabled: boolean
+  log_drain_enabled: boolean
+  log_drain_type?: string
+  log_drain_config?: string
+  ca_certificate?: string
+  terminal_acl_user_ids: string[]
+}
+export type DockerCleanupExecution = {
+  id: string
+  server_id: string
+  status: string
+  message: string
+  started_at: string
+  finished_at?: string | null
+}
+export type ServerProxyConfiguration = {
+  id: string
+  server_id: string
+  name: string
+  value: string
+  created_at: string
+  updated_at: string
+}
 export type GitSource = {
   id: string
   name: string
@@ -1002,6 +1155,11 @@ export type Tag = {
   name: string
   color: string
   created_at: string
+}
+export type TaggedResource = {
+  resource_type: string
+  resource_id: string
+  name: string
 }
 export type Service = {
   id: string
@@ -1321,6 +1479,12 @@ export type ScheduledTaskExecution = {
   output: string
   started_at: string
   finished_at?: string | null
+}
+export type ScheduledTaskExecutionWithTask = ScheduledTaskExecution & {
+  task_id: string
+  task_name: string
+  resource_type: string
+  resource_id: string
 }
 export type InstanceSettings = {
   id: number

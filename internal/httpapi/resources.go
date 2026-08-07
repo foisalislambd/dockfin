@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -811,6 +812,77 @@ func (a *API) handleGetDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	db, err := a.Store.GetDatabase(r.Context(), currentTeamID(r), id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, db)
+}
+
+func (a *API) handleUpdateDatabase(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "dbID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var body struct {
+		Name          *string         `json:"name"`
+		Description   *string         `json:"description"`
+		Image         *string         `json:"image"`
+		IsPublic      *bool           `json:"is_public"`
+		PublicPort    json.RawMessage `json:"public_port"`
+		DestinationID *string         `json:"destination_id"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	teamID := currentTeamID(r)
+	in := store.UpdateDatabaseInput{
+		Name:        body.Name,
+		Description: body.Description,
+		Image:       body.Image,
+		IsPublic:    body.IsPublic,
+	}
+	if body.PublicPort != nil {
+		raw := bytes.TrimSpace(body.PublicPort)
+		if string(raw) == "null" {
+			var nilPort *int
+			in.PublicPort = &nilPort
+		} else {
+			var p int
+			if err := json.Unmarshal(raw, &p); err != nil {
+				writeError(w, http.StatusBadRequest, "invalid public_port")
+				return
+			}
+			if p <= 0 || p > 65535 {
+				writeError(w, http.StatusBadRequest, "public_port must be 1-65535")
+				return
+			}
+			pp := &p
+			in.PublicPort = &pp
+		}
+	}
+	if body.DestinationID != nil {
+		raw := strings.TrimSpace(*body.DestinationID)
+		if raw == "" {
+			var nilID *uuid.UUID
+			in.DestinationID = &nilID
+		} else {
+			did, err := uuid.Parse(raw)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "invalid destination_id")
+				return
+			}
+			if _, err := a.Store.GetDestination(r.Context(), teamID, did); err != nil {
+				mapStoreErr(w, err)
+				return
+			}
+			ptr := &did
+			in.DestinationID = &ptr
+		}
+	}
+	db, err := a.Store.UpdateDatabase(r.Context(), teamID, id, in)
 	if err != nil {
 		mapStoreErr(w, err)
 		return
