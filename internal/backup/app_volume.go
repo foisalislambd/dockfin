@@ -72,6 +72,45 @@ func TarNamedDockerVolume(client *ssh.Client, volumeName, outPath string) error 
 	return nil
 }
 
+// UntarHostPaths extracts a gzipped tar created by TarHostPaths onto the remote host (/).
+func UntarHostPaths(client *ssh.Client, archivePath string) error {
+	archivePath = strings.TrimSpace(archivePath)
+	if archivePath == "" {
+		return fmt.Errorf("archive path required")
+	}
+	cmd := fmt.Sprintf(`test -f %s && tar xzf %s -C /`, shellQuote(archivePath), shellQuote(archivePath))
+	_, errOut, err := sshx.Run(client, cmd)
+	if err != nil {
+		return fmt.Errorf("untar: %v %s", err, errOut)
+	}
+	return nil
+}
+
+// ListDockerImages returns image refs matching prefix (e.g. dockfin/{uuid}).
+func ListDockerImages(client *ssh.Client, prefix string) ([]string, error) {
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" {
+		return nil, fmt.Errorf("prefix required")
+	}
+	cmd := fmt.Sprintf(
+		`docker images --format '{{.Repository}}:{{.Tag}}' %s 2>/dev/null | head -n 50`,
+		shellQuote(prefix),
+	)
+	out, _, err := sshx.Run(client, cmd)
+	if err != nil {
+		return nil, err
+	}
+	var images []string
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasSuffix(line, ":<none>") {
+			continue
+		}
+		images = append(images, line)
+	}
+	return images, nil
+}
+
 // EnforceAppBackupRetention keeps the newest keepCount archives under
 // /data/dockfin/backups/applications/{appID}/.
 func EnforceAppBackupRetention(client *ssh.Client, appID string, keepCount int) error {

@@ -53,6 +53,14 @@ type Application struct {
 	DockerRegistryImageName string     `json:"docker_registry_image_name"`
 	DockerRegistryImageTag  string     `json:"docker_registry_image_tag"`
 	PortsExposes            string     `json:"ports_exposes"`
+	PortsMappings           string     `json:"ports_mappings,omitempty"`
+	CustomNetworkAliases    string     `json:"custom_network_aliases,omitempty"`
+	InstallCommand          string     `json:"install_command,omitempty"`
+	BuildCommand            string     `json:"build_command,omitempty"`
+	StartCommand            string     `json:"start_command,omitempty"`
+	PublishDirectory        string     `json:"publish_directory,omitempty"`
+	CustomNginxConfiguration string    `json:"custom_nginx_configuration,omitempty"`
+	PreviewURLTemplate      string     `json:"preview_url_template,omitempty"`
 	// ComposePrepare adapts Git compose for Dockfin (Traefik, network, strip host ports).
 	// False = deploy the repository compose file unchanged.
 	ComposePrepare bool `json:"compose_prepare"`
@@ -73,6 +81,12 @@ type Application struct {
 	HealthCheckInterval               int             `json:"health_check_interval"`
 	HealthCheckTimeout                int             `json:"health_check_timeout"`
 	HealthCheckRetries                int             `json:"health_check_retries"`
+	HealthCheckHost                   string          `json:"health_check_host"`
+	HealthCheckScheme                 string          `json:"health_check_scheme"`
+	HealthCheckResponseText           string          `json:"health_check_response_text,omitempty"`
+	HealthCheckStartPeriod            int             `json:"health_check_start_period"`
+	HealthCheckType                   string          `json:"health_check_type"`
+	HealthCheckCommand                string          `json:"health_check_command,omitempty"`
 	LimitsMemory                      string          `json:"limits_memory"`
 	LimitsCpus                        string          `json:"limits_cpus"`
 	PreDeploymentCommand              string          `json:"pre_deployment_command,omitempty"`
@@ -99,6 +113,31 @@ type Application struct {
 	GPUCount                          int             `json:"gpu_count"`
 	CustomDockerStopTimeout           int             `json:"custom_docker_stop_timeout"`
 	CustomDockerRestartPolicy         string          `json:"custom_docker_restart_policy"`
+	IsSPA                             bool            `json:"is_spa"`
+	InjectBuildArgsToDockerfile       bool            `json:"inject_build_args_to_dockerfile"`
+	UseBuildSecrets                   bool            `json:"use_build_secrets"`
+	IncludeSourceCommitInBuild        bool            `json:"include_source_commit_in_build"`
+	DockerImagesToKeep                int             `json:"docker_images_to_keep"`
+	IsConsistentContainerNameEnabled  bool            `json:"is_consistent_container_name_enabled"`
+	CustomInternalName                string          `json:"custom_internal_name,omitempty"`
+	IsGzipEnabled                     bool            `json:"is_gzip_enabled"`
+	IsStripPrefixEnabled              bool            `json:"is_stripprefix_enabled"`
+	IsLogDrainEnabled                 bool            `json:"is_log_drain_enabled"`
+	IsDebugEnabled                    bool            `json:"is_debug_enabled"`
+	IsEnvSortingEnabled               bool            `json:"is_env_sorting_enabled"`
+	IsPRDeploymentsPublicEnabled      bool            `json:"is_pr_deployments_public_enabled"`
+	SkipRebuildIfUnchanged            bool            `json:"skip_rebuild_if_unchanged"`
+	GPUDriver                         string          `json:"gpu_driver,omitempty"`
+	GPUDeviceIDs                      string          `json:"gpu_device_ids,omitempty"`
+	GPUOptions                        string          `json:"gpu_options,omitempty"`
+	CustomDockerMaxRestartCount       int             `json:"custom_docker_max_restart_count"`
+	PreDeploymentCommandContainer     string          `json:"pre_deployment_command_container,omitempty"`
+	PostDeploymentCommandContainer    string          `json:"post_deployment_command_container,omitempty"`
+	IsSwarmOnlyWorkerNodes            bool            `json:"is_swarm_only_worker_nodes"`
+	IsIncludeTimestamps               bool            `json:"is_include_timestamps"`
+	LogsLineLimit                     int             `json:"logs_line_limit"`
+	SwarmReplicas                     int             `json:"swarm_replicas"`
+	SwarmPlacementConstraints         string          `json:"swarm_placement_constraints,omitempty"`
 	CreatedAt                         time.Time       `json:"created_at"`
 }
 
@@ -119,6 +158,10 @@ const applicationSelectCols = `
 	a.git_repository, a.git_branch, a.git_commit_sha, a.dockerfile_location, COALESCE(a.dockerfile, ''),
 	a.docker_compose_location,
 	a.docker_registry_image_name, a.docker_registry_image_tag, a.ports_exposes,
+	COALESCE(a.ports_mappings, ''), COALESCE(a.custom_network_aliases, ''),
+	COALESCE(a.install_command, ''), COALESCE(a.build_command, ''), COALESCE(a.start_command, ''),
+	COALESCE(a.publish_directory, ''), COALESCE(a.custom_nginx_configuration, ''),
+	COALESCE(NULLIF(a.preview_url_template, ''), '{{pr_id}}.{{domain}}'),
 	COALESCE(a.compose_prepare, TRUE),
 	COALESCE(a.docker_compose_raw, ''), COALESCE(a.docker_compose, ''),
 	COALESCE(a.docker_compose_domains, '{}'::jsonb),
@@ -129,6 +172,9 @@ const applicationSelectCols = `
 	COALESCE(a.dockerfile_target_build, ''),
 	a.health_check_enabled, a.health_check_path, a.health_check_port, a.health_check_method,
 	a.health_check_return_code, a.health_check_interval, a.health_check_timeout, a.health_check_retries,
+	COALESCE(a.health_check_host, 'localhost'), COALESCE(a.health_check_scheme, 'http'),
+	COALESCE(a.health_check_response_text, ''), COALESCE(a.health_check_start_period, 5),
+	COALESCE(NULLIF(a.health_check_type, ''), 'http'), COALESCE(a.health_check_command, ''),
 	a.limits_memory, a.limits_cpus,
 	COALESCE(a.pre_deployment_command, ''), COALESCE(a.post_deployment_command, ''),
 	COALESCE(a.custom_labels, ''), COALESCE(a.http_basic_auth_username, ''), COALESCE(a.http_basic_auth_password_enc, ''),
@@ -149,6 +195,31 @@ const applicationSelectCols = `
 	COALESCE(s.gpu_count, 0),
 	COALESCE(s.custom_docker_stop_timeout, 0),
 	COALESCE(NULLIF(s.custom_docker_restart_policy, ''), 'unless-stopped'),
+	COALESCE(s.is_spa, FALSE),
+	COALESCE(s.inject_build_args_to_dockerfile, TRUE),
+	COALESCE(s.use_build_secrets, FALSE),
+	COALESCE(s.include_source_commit_in_build, FALSE),
+	COALESCE(s.docker_images_to_keep, 5),
+	COALESCE(s.is_consistent_container_name_enabled, FALSE),
+	COALESCE(s.custom_internal_name, ''),
+	COALESCE(s.is_gzip_enabled, TRUE),
+	COALESCE(s.is_stripprefix_enabled, TRUE),
+	COALESCE(s.is_log_drain_enabled, FALSE),
+	COALESCE(s.is_debug_enabled, FALSE),
+	COALESCE(s.is_env_sorting_enabled, TRUE),
+	COALESCE(s.is_pr_deployments_public_enabled, FALSE),
+	COALESCE(s.skip_rebuild_if_unchanged, TRUE),
+	COALESCE(NULLIF(s.gpu_driver, ''), 'nvidia'),
+	COALESCE(s.gpu_device_ids, ''),
+	COALESCE(s.gpu_options, ''),
+	COALESCE(s.custom_docker_max_restart_count, 0),
+	COALESCE(s.pre_deployment_command_container, ''),
+	COALESCE(s.post_deployment_command_container, ''),
+	COALESCE(s.is_swarm_only_worker_nodes, FALSE),
+	COALESCE(s.is_include_timestamps, FALSE),
+	COALESCE(s.logs_line_limit, 1000),
+	COALESCE(a.swarm_replicas, 1),
+	COALESCE(a.swarm_placement_constraints, ''),
 	a.created_at`
 
 func scanApplication(scan func(dest ...any) error) (*Application, error) {
@@ -157,6 +228,9 @@ func scanApplication(scan func(dest ...any) error) (*Application, error) {
 		&a.ID, &a.TeamID, &a.EnvironmentID, &a.DestinationID, &a.Name, &a.Description, &a.FQDN, &a.Status, &a.BuildPack,
 		&a.GitRepository, &a.GitBranch, &a.GitCommitSHA, &a.DockerfileLocation, &a.Dockerfile, &a.DockerComposeLocation,
 		&a.DockerRegistryImageName, &a.DockerRegistryImageTag, &a.PortsExposes,
+		&a.PortsMappings, &a.CustomNetworkAliases,
+		&a.InstallCommand, &a.BuildCommand, &a.StartCommand,
+		&a.PublishDirectory, &a.CustomNginxConfiguration, &a.PreviewURLTemplate,
 		&a.ComposePrepare,
 		&a.DockerComposeRaw, &a.DockerCompose, &a.DockerComposeDomains,
 		&a.BaseDirectory,
@@ -164,6 +238,8 @@ func scanApplication(scan func(dest ...any) error) (*Application, error) {
 		&a.CustomDockerRunOptions, &a.DockerfileTargetBuild,
 		&a.HealthCheckEnabled, &a.HealthCheckPath, &a.HealthCheckPort, &a.HealthCheckMethod,
 		&a.HealthCheckReturnCode, &a.HealthCheckInterval, &a.HealthCheckTimeout, &a.HealthCheckRetries,
+		&a.HealthCheckHost, &a.HealthCheckScheme, &a.HealthCheckResponseText, &a.HealthCheckStartPeriod,
+		&a.HealthCheckType, &a.HealthCheckCommand,
 		&a.LimitsMemory, &a.LimitsCpus,
 		&a.PreDeploymentCommand, &a.PostDeploymentCommand, &a.CustomLabels, &a.HTTPBasicAuthUsername, &a.HTTPBasicAuthPasswordEnc,
 		&a.GitSourceID, &a.PrivateKeyID, &a.IsBuildServerEnabled, &a.IsForceHTTPS, &a.IsPreviewEnabled,
@@ -171,6 +247,14 @@ func scanApplication(scan func(dest ...any) error) (*Application, error) {
 		&a.Redirect, &a.DockerRegistryID,
 		&a.IsDisableBuildCache, &a.IsGitShallowCloneEnabled, &a.IsGitLFSEnabled,
 		&a.IsGPUEnabled, &a.GPUCount, &a.CustomDockerStopTimeout, &a.CustomDockerRestartPolicy,
+		&a.IsSPA, &a.InjectBuildArgsToDockerfile, &a.UseBuildSecrets, &a.IncludeSourceCommitInBuild,
+		&a.DockerImagesToKeep, &a.IsConsistentContainerNameEnabled, &a.CustomInternalName,
+		&a.IsGzipEnabled, &a.IsStripPrefixEnabled, &a.IsLogDrainEnabled, &a.IsDebugEnabled,
+		&a.IsEnvSortingEnabled, &a.IsPRDeploymentsPublicEnabled, &a.SkipRebuildIfUnchanged,
+		&a.GPUDriver, &a.GPUDeviceIDs, &a.GPUOptions, &a.CustomDockerMaxRestartCount,
+		&a.PreDeploymentCommandContainer, &a.PostDeploymentCommandContainer,
+		&a.IsSwarmOnlyWorkerNodes, &a.IsIncludeTimestamps, &a.LogsLineLimit,
+		&a.SwarmReplicas, &a.SwarmPlacementConstraints,
 		&a.CreatedAt,
 	)
 	if err != nil {
@@ -184,6 +268,30 @@ func scanApplication(scan func(dest ...any) error) (*Application, error) {
 	}
 	if a.CustomDockerRestartPolicy == "" {
 		a.CustomDockerRestartPolicy = "unless-stopped"
+	}
+	if a.PreviewURLTemplate == "" {
+		a.PreviewURLTemplate = "{{pr_id}}.{{domain}}"
+	}
+	if a.HealthCheckType == "" {
+		a.HealthCheckType = "http"
+	}
+	if a.HealthCheckHost == "" {
+		a.HealthCheckHost = "localhost"
+	}
+	if a.HealthCheckScheme == "" {
+		a.HealthCheckScheme = "http"
+	}
+	if a.GPUDriver == "" {
+		a.GPUDriver = "nvidia"
+	}
+	if a.DockerImagesToKeep <= 0 {
+		a.DockerImagesToKeep = 5
+	}
+	if a.LogsLineLimit <= 0 {
+		a.LogsLineLimit = 1000
+	}
+	if a.SwarmReplicas <= 0 {
+		a.SwarmReplicas = 1
 	}
 	a.HasHTTPBasicAuth = strings.TrimSpace(a.HTTPBasicAuthPasswordEnc) != "" && strings.TrimSpace(a.HTTPBasicAuthUsername) != ""
 	return &a, nil
@@ -652,6 +760,16 @@ func (s *Store) UpdateApplicationStatus(ctx context.Context, id uuid.UUID, statu
 	return err
 }
 
+// UpdateApplicationGitCommitSHA persists the last successfully deployed commit (Coolify parity).
+func (s *Store) UpdateApplicationGitCommitSHA(ctx context.Context, id uuid.UUID, sha string) error {
+	sha = strings.TrimSpace(sha)
+	if sha == "" || strings.EqualFold(sha, "HEAD") {
+		return nil
+	}
+	_, err := s.Pool.Exec(ctx, `UPDATE applications SET git_commit_sha=$2, updated_at=NOW() WHERE id=$1`, id, sha)
+	return err
+}
+
 func (s *Store) UpdateApplication(ctx context.Context, app *Application) error {
 	domains := app.DockerComposeDomains
 	if len(domains) == 0 {
@@ -677,8 +795,15 @@ func (s *Store) UpdateApplication(ctx context.Context, app *Application) error {
 			pre_deployment_command=$36, post_deployment_command=$37, custom_labels=$38,
 			http_basic_auth_username=$39, http_basic_auth_password_enc=$40,
 			redirect=$41, docker_registry_id=$42,
+			ports_mappings=$43, custom_network_aliases=$44,
+			install_command=$45, build_command=$46, start_command=$47, publish_directory=$48,
+			custom_nginx_configuration=$49, preview_url_template=$50,
+			health_check_host=$51, health_check_scheme=$52, health_check_response_text=$53,
+			health_check_start_period=$54, health_check_type=$55, health_check_command=$56,
+			swarm_replicas=$57, swarm_placement_constraints=$58,
+			build_pack=$59,
 			updated_at=NOW()
-		WHERE id=$1 AND team_id=$43
+		WHERE id=$1 AND team_id=$60
 	`, app.ID, app.Name, app.Description, app.FQDN, app.GitRepository, app.GitBranch,
 		app.PortsExposes, app.DockerRegistryImageName, app.DockerRegistryImageTag,
 		app.DockerfileLocation, app.Dockerfile, app.DockerComposeLocation, app.DestinationID, app.GitSourceID, app.PrivateKeyID,
@@ -693,6 +818,13 @@ func (s *Store) UpdateApplication(ctx context.Context, app *Application) error {
 		app.PreDeploymentCommand, app.PostDeploymentCommand, app.CustomLabels,
 		app.HTTPBasicAuthUsername, app.HTTPBasicAuthPasswordEnc,
 		app.Redirect, app.DockerRegistryID,
+		app.PortsMappings, app.CustomNetworkAliases,
+		app.InstallCommand, app.BuildCommand, app.StartCommand, app.PublishDirectory,
+		app.CustomNginxConfiguration, app.PreviewURLTemplate,
+		app.HealthCheckHost, app.HealthCheckScheme, app.HealthCheckResponseText,
+		app.HealthCheckStartPeriod, app.HealthCheckType, app.HealthCheckCommand,
+		app.SwarmReplicas, app.SwarmPlacementConstraints,
+		app.BuildPack,
 		app.TeamID)
 	return err
 }
@@ -806,6 +938,18 @@ func (s *Store) SetApplicationAdvancedSettings(ctx context.Context, teamID, appI
 	if policy == "" {
 		policy = "unless-stopped"
 	}
+	keep := in.DockerImagesToKeep
+	if keep <= 0 {
+		keep = 5
+	}
+	logsLimit := in.LogsLineLimit
+	if logsLimit <= 0 {
+		logsLimit = 1000
+	}
+	driver := strings.TrimSpace(in.GPUDriver)
+	if driver == "" {
+		driver = "nvidia"
+	}
 	tag, err := s.Pool.Exec(ctx, `
 		UPDATE application_settings SET
 			is_disable_build_cache=$3,
@@ -815,11 +959,41 @@ func (s *Store) SetApplicationAdvancedSettings(ctx context.Context, teamID, appI
 			gpu_count=$7,
 			custom_docker_stop_timeout=$8,
 			custom_docker_restart_policy=$9,
+			is_spa=$10,
+			inject_build_args_to_dockerfile=$11,
+			use_build_secrets=$12,
+			include_source_commit_in_build=$13,
+			docker_images_to_keep=$14,
+			is_consistent_container_name_enabled=$15,
+			custom_internal_name=$16,
+			is_gzip_enabled=$17,
+			is_stripprefix_enabled=$18,
+			is_log_drain_enabled=$19,
+			is_debug_enabled=$20,
+			is_env_sorting_enabled=$21,
+			is_pr_deployments_public_enabled=$22,
+			skip_rebuild_if_unchanged=$23,
+			gpu_driver=$24,
+			gpu_device_ids=$25,
+			gpu_options=$26,
+			custom_docker_max_restart_count=$27,
+			pre_deployment_command_container=$28,
+			post_deployment_command_container=$29,
+			is_swarm_only_worker_nodes=$30,
+			is_include_timestamps=$31,
+			logs_line_limit=$32,
 			updated_at=NOW()
 		WHERE application_id=$1 AND EXISTS (SELECT 1 FROM applications WHERE id=$1 AND team_id=$2)
 	`, appID, teamID,
 		in.IsDisableBuildCache, in.IsGitShallowCloneEnabled, in.IsGitLFSEnabled,
-		in.IsGPUEnabled, in.GPUCount, in.CustomDockerStopTimeout, policy)
+		in.IsGPUEnabled, in.GPUCount, in.CustomDockerStopTimeout, policy,
+		in.IsSPA, in.InjectBuildArgsToDockerfile, in.UseBuildSecrets, in.IncludeSourceCommitInBuild,
+		keep, in.IsConsistentContainerNameEnabled, in.CustomInternalName,
+		in.IsGzipEnabled, in.IsStripPrefixEnabled, in.IsLogDrainEnabled, in.IsDebugEnabled,
+		in.IsEnvSortingEnabled, in.IsPRDeploymentsPublicEnabled, in.SkipRebuildIfUnchanged,
+		driver, in.GPUDeviceIDs, in.GPUOptions, in.CustomDockerMaxRestartCount,
+		in.PreDeploymentCommandContainer, in.PostDeploymentCommandContainer,
+		in.IsSwarmOnlyWorkerNodes, in.IsIncludeTimestamps, logsLimit)
 	if err != nil {
 		return err
 	}
@@ -830,13 +1004,127 @@ func (s *Store) SetApplicationAdvancedSettings(ctx context.Context, teamID, appI
 }
 
 type ApplicationAdvancedSettings struct {
-	IsDisableBuildCache       bool
-	IsGitShallowCloneEnabled  bool
-	IsGitLFSEnabled           bool
-	IsGPUEnabled              bool
-	GPUCount                  int
-	CustomDockerStopTimeout   int
-	CustomDockerRestartPolicy string
+	IsDisableBuildCache              bool
+	IsGitShallowCloneEnabled         bool
+	IsGitLFSEnabled                  bool
+	IsGPUEnabled                     bool
+	GPUCount                         int
+	CustomDockerStopTimeout          int
+	CustomDockerRestartPolicy        string
+	IsSPA                            bool
+	InjectBuildArgsToDockerfile      bool
+	UseBuildSecrets                  bool
+	IncludeSourceCommitInBuild       bool
+	DockerImagesToKeep               int
+	IsConsistentContainerNameEnabled bool
+	CustomInternalName               string
+	IsGzipEnabled                    bool
+	IsStripPrefixEnabled             bool
+	IsLogDrainEnabled                bool
+	IsDebugEnabled                   bool
+	IsEnvSortingEnabled              bool
+	IsPRDeploymentsPublicEnabled     bool
+	SkipRebuildIfUnchanged           bool
+	GPUDriver                        string
+	GPUDeviceIDs                     string
+	GPUOptions                       string
+	CustomDockerMaxRestartCount      int
+	PreDeploymentCommandContainer    string
+	PostDeploymentCommandContainer   string
+	IsSwarmOnlyWorkerNodes           bool
+	IsIncludeTimestamps              bool
+	LogsLineLimit                    int
+}
+
+// CloneApplication duplicates a single application into the same or another environment.
+// Copies config + env vars + volumes metadata + scheduled tasks/backups. Clears FQDN.
+func (s *Store) CloneApplication(ctx context.Context, teamID, appID uuid.UUID, name string, environmentID *uuid.UUID) (*Application, error) {
+	src, err := s.GetApplication(ctx, teamID, appID)
+	if err != nil {
+		return nil, err
+	}
+	envID := src.EnvironmentID
+	if environmentID != nil {
+		env, err := s.GetEnvironment(ctx, teamID, *environmentID)
+		if err != nil {
+			return nil, err
+		}
+		srcEnv, err := s.GetEnvironment(ctx, teamID, src.EnvironmentID)
+		if err != nil {
+			return nil, err
+		}
+		if env.ProjectID != srcEnv.ProjectID {
+			return nil, fmt.Errorf("%w: target environment must be in the same project", ErrConflict)
+		}
+		envID = env.ID
+	}
+	clone := *src
+	clone.ID = uuid.Nil
+	clone.EnvironmentID = envID
+	clone.FQDN = ""
+	clone.Status = "exited"
+	clone.DockerCompose = ""
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = uniqueCloneName(src.Name, "clone")
+	}
+	clone.Name = name
+	created, err := s.CreateApplication(ctx, &clone)
+	if err != nil {
+		return nil, err
+	}
+	// Copy application-level columns not set on INSERT.
+	clone.ID = created.ID
+	clone.TeamID = teamID
+	if err := s.UpdateApplication(ctx, &clone); err != nil {
+		_ = s.DeleteApplication(ctx, teamID, created.ID)
+		return nil, err
+	}
+	adv := ApplicationAdvancedSettings{
+		IsDisableBuildCache:              src.IsDisableBuildCache,
+		IsGitShallowCloneEnabled:         src.IsGitShallowCloneEnabled,
+		IsGitLFSEnabled:                  src.IsGitLFSEnabled,
+		IsGPUEnabled:                     src.IsGPUEnabled,
+		GPUCount:                         src.GPUCount,
+		CustomDockerStopTimeout:          src.CustomDockerStopTimeout,
+		CustomDockerRestartPolicy:        src.CustomDockerRestartPolicy,
+		IsSPA:                            src.IsSPA,
+		InjectBuildArgsToDockerfile:      src.InjectBuildArgsToDockerfile,
+		UseBuildSecrets:                  src.UseBuildSecrets,
+		IncludeSourceCommitInBuild:       src.IncludeSourceCommitInBuild,
+		DockerImagesToKeep:               src.DockerImagesToKeep,
+		IsConsistentContainerNameEnabled: src.IsConsistentContainerNameEnabled,
+		CustomInternalName:               "",
+		IsGzipEnabled:                    src.IsGzipEnabled,
+		IsStripPrefixEnabled:             src.IsStripPrefixEnabled,
+		IsLogDrainEnabled:                src.IsLogDrainEnabled,
+		IsDebugEnabled:                   src.IsDebugEnabled,
+		IsEnvSortingEnabled:              src.IsEnvSortingEnabled,
+		IsPRDeploymentsPublicEnabled:     src.IsPRDeploymentsPublicEnabled,
+		SkipRebuildIfUnchanged:           src.SkipRebuildIfUnchanged,
+		GPUDriver:                        src.GPUDriver,
+		GPUDeviceIDs:                     src.GPUDeviceIDs,
+		GPUOptions:                       src.GPUOptions,
+		CustomDockerMaxRestartCount:      src.CustomDockerMaxRestartCount,
+		PreDeploymentCommandContainer:    src.PreDeploymentCommandContainer,
+		PostDeploymentCommandContainer:   src.PostDeploymentCommandContainer,
+		IsSwarmOnlyWorkerNodes:           src.IsSwarmOnlyWorkerNodes,
+		IsIncludeTimestamps:              src.IsIncludeTimestamps,
+		LogsLineLimit:                    src.LogsLineLimit,
+	}
+	_ = s.SetApplicationAdvancedSettings(ctx, teamID, created.ID, adv)
+	_ = s.SetApplicationPreviewEnabled(ctx, teamID, created.ID, src.IsPreviewEnabled)
+	_ = s.SetApplicationAutoDeployEnabled(ctx, teamID, created.ID, src.IsAutoDeployEnabled)
+	_ = s.SetApplicationGitSubmodulesEnabled(ctx, teamID, created.ID, src.IsGitSubmodulesEnabled)
+	_ = s.SetApplicationPreserveRepositoryEnabled(ctx, teamID, created.ID, src.IsPreserveRepositoryEnabled)
+	_ = s.SetApplicationWatchPaths(ctx, teamID, created.ID, src.WatchPaths)
+	_ = s.SetApplicationBuildServerEnabled(ctx, teamID, created.ID, src.IsBuildServerEnabled)
+	_ = s.SetApplicationForceHTTPS(ctx, teamID, created.ID, src.IsForceHTTPS)
+	if err := s.copyResourceExtras(ctx, teamID, "application", src.ID, created.ID); err != nil {
+		_ = s.DeleteApplication(ctx, teamID, created.ID)
+		return nil, err
+	}
+	return s.GetApplication(ctx, teamID, created.ID)
 }
 
 // MoveResource relocates an application, database, or service to another environment.

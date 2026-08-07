@@ -392,6 +392,19 @@ func (p *Pipeline) proxyLabelArgs(app *store.Application, proxyType string) []st
 			router := sanitizeProxyRouter(app.Name)
 			labels = append(labels, fmt.Sprintf("traefik.http.routers.%s.middlewares=%s", router, strings.Join(middlewares, ",")))
 		}
+		router := sanitizeProxyRouter(app.Name)
+		if app.IsGzipEnabled {
+			gzipMW := router + "-gzip"
+			labels = append(labels, fmt.Sprintf("traefik.http.middlewares.%s.compress=true", gzipMW))
+			labels = appendTraefikMiddleware(labels, router, gzipMW)
+		}
+		if app.IsStripPrefixEnabled {
+			if path := pathPrefixFromFQDN(app.FQDN); path != "" && path != "/" {
+				stripMW := router + "-stripprefix"
+				labels = append(labels, fmt.Sprintf("traefik.http.middlewares.%s.stripprefix.prefixes=%s", stripMW, path))
+				labels = appendTraefikMiddleware(labels, router, stripMW)
+			}
+		}
 	}
 	for _, l := range proxy.ParseCustomLabels(app.CustomLabels) {
 		labels = append(labels, l)
@@ -444,6 +457,40 @@ func (p *Pipeline) waitHealthy(client *ssh.Client, name string, app *store.Appli
 	if timeout <= 0 {
 		timeout = 5
 	}
+	startPeriod := app.HealthCheckStartPeriod
+	if startPeriod > 0 {
+		p.log("healthcheck", fmt.Sprintf("Waiting %ds before health checks (start period)", startPeriod))
+		time.Sleep(time.Duration(startPeriod) * time.Second)
+	}
+
+	checkType := strings.ToLower(strings.TrimSpace(app.HealthCheckType))
+	if checkType == "" {
+		checkType = "http"
+	}
+
+	if checkType == "cmd" {
+		cmd := strings.TrimSpace(app.HealthCheckCommand)
+		if cmd == "" {
+			return fmt.Errorf("health check type cmd requires health_check_command")
+		}
+		wantText := strings.TrimSpace(app.HealthCheckResponseText)
+		p.log("healthcheck", fmt.Sprintf("Waiting for command health check (%d retries, %ds interval)", retries, interval))
+		for i := 0; i < retries; i++ {
+			out, _, err := sshx.RunArgs(client, "docker", "exec", name, "sh", "-lc", cmd)
+			if err == nil {
+				if wantText == "" || strings.Contains(out, wantText) {
+					p.log("healthcheck", "Command health check OK")
+					return nil
+				}
+				p.log("healthcheck", "command output missing expected text")
+			} else {
+				p.log("healthcheck", "command health check failed")
+			}
+			time.Sleep(time.Duration(interval) * time.Second)
+		}
+		return fmt.Errorf("health check failed: command not healthy after %d attempts", retries)
+	}
+
 	path := strings.TrimSpace(app.HealthCheckPath)
 	if path == "" {
 		path = "/"
@@ -465,10 +512,19 @@ func (p *Pipeline) waitHealthy(client *ssh.Client, name string, app *store.Appli
 	if wantCode <= 0 {
 		wantCode = 200
 	}
+	scheme := strings.ToLower(strings.TrimSpace(app.HealthCheckScheme))
+	if scheme == "" {
+		scheme = "http"
+	}
+	host := strings.TrimSpace(app.HealthCheckHost)
+	if host == "" {
+		host = "localhost"
+	}
+	wantText := strings.TrimSpace(app.HealthCheckResponseText)
 
 	p.log("healthcheck", fmt.Sprintf(
-		"Waiting for HTTP %s http://container:%s%s → %d (%d retries, %ds interval)",
-		method, port, path, wantCode, retries, interval,
+		"Waiting for HTTP %s %s://%s:%s%s → %d (%d retries, %ds interval)",
+		method, scheme, host, port, path, wantCode, retries, interval,
 	))
 
 	for i := 0; i < retries; i++ {
@@ -479,7 +535,7 @@ func (p *Pipeline) waitHealthy(client *ssh.Client, name string, app *store.Appli
 			continue
 		}
 
-		code, checkErr := httpHealthStatus(client, name, method, port, path, timeout)
+		code, body, checkErr := httpHealthProbe(client, name, method, scheme, host, port, path, timeout)
 		if checkErr != nil {
 			// Fall back to Docker HEALTHCHECK / running when curl/wget unavailable.
 			if strings.Contains(checkErr.Error(), "no http client") {
@@ -500,55 +556,80 @@ func (p *Pipeline) waitHealthy(client *ssh.Client, name string, app *store.Appli
 			time.Sleep(time.Duration(interval) * time.Second)
 			continue
 		}
-		if code == wantCode {
+		if code == wantCode && (wantText == "" || strings.Contains(body, wantText)) {
 			p.log("healthcheck", fmt.Sprintf("HTTP %d OK", code))
 			return nil
 		}
-		p.log("healthcheck", fmt.Sprintf("HTTP %d (want %d)", code, wantCode))
+		if code == wantCode && wantText != "" {
+			p.log("healthcheck", "HTTP status OK but response text mismatch")
+		} else {
+			p.log("healthcheck", fmt.Sprintf("HTTP %d (want %d)", code, wantCode))
+		}
 		time.Sleep(time.Duration(interval) * time.Second)
 	}
 	return fmt.Errorf("health check failed: container %s not healthy after %d attempts", name, retries)
 }
 
-// httpHealthStatus probes the app from inside the container (127.0.0.1) so it works
-// without published ports. Prefers curl, then wget.
-func httpHealthStatus(client *ssh.Client, container, method, port, path string, timeoutSec int) (int, error) {
+// httpHealthProbe probes the app from inside the container so it works without
+// published ports. Prefers curl, then wget. Returns status code and response body.
+func httpHealthProbe(client *ssh.Client, container, method, scheme, host, port, path string, timeoutSec int) (int, string, error) {
 	method = strings.ToUpper(strings.TrimSpace(method))
 	switch method {
 	case "GET", "HEAD", "POST":
 	default:
 		method = "GET"
 	}
+	scheme = strings.ToLower(strings.TrimSpace(scheme))
+	if scheme != "http" && scheme != "https" {
+		scheme = "http"
+	}
+	host = strings.TrimSpace(host)
+	if host == "" {
+		host = "localhost"
+	}
+	if strings.ContainsAny(host, " \t\n\r\"'`$;&|<>(){}") {
+		return 0, "", fmt.Errorf("invalid health check host")
+	}
 	if !regexp.MustCompile(`^[0-9]{1,5}$`).MatchString(port) {
-		return 0, fmt.Errorf("invalid health check port")
+		return 0, "", fmt.Errorf("invalid health check port")
 	}
 	var portNum int
 	if _, err := fmt.Sscanf(port, "%d", &portNum); err != nil || portNum < 1 || portNum > 65535 {
-		return 0, fmt.Errorf("invalid health check port")
+		return 0, "", fmt.Errorf("invalid health check port")
 	}
 	if path == "" || path[0] != '/' || strings.ContainsAny(path, " \t\n\r\"'`$;&|<>(){}") {
-		return 0, fmt.Errorf("invalid health check path")
+		return 0, "", fmt.Errorf("invalid health check path")
 	}
 	if !ValidContainerNameForHealth(container) {
-		return 0, fmt.Errorf("invalid container name")
+		return 0, "", fmt.Errorf("invalid container name")
 	}
-	url := fmt.Sprintf("http://127.0.0.1:%s%s", port, path)
+	url := fmt.Sprintf("%s://%s:%s%s", scheme, host, port, path)
 	timeout := fmt.Sprintf("%d", timeoutSec)
 	out, _, err := sshx.RunArgs(client, "docker", "exec", container, "sh", "-lc",
-		fmt.Sprintf(`if command -v curl >/dev/null 2>&1; then curl -s -o /dev/null -w '%%{http_code}' -X %s --max-time %s %q; elif command -v wget >/dev/null 2>&1; then wget -q -S -O /dev/null --timeout=%s %q 2>&1 | awk '/^  HTTP\//{c=$2} END{print c+0}'; else echo NOCLIENT; fi`,
+		fmt.Sprintf(`if command -v curl >/dev/null 2>&1; then body=$(mktemp); code=$(curl -s -o "$body" -w '%%{http_code}' -X %s --max-time %s %q); cat "$body"; echo "___DOCKFIN_HC___$code"; rm -f "$body"; elif command -v wget >/dev/null 2>&1; then wget -q -O - --timeout=%s %q 2>/dev/null; echo "___DOCKFIN_HC___200"; else echo NOCLIENT; fi`,
 			method, timeout, url, timeout, url))
-	codeStr := strings.TrimSpace(out)
-	if codeStr == "NOCLIENT" || (err != nil && codeStr == "") {
-		return 0, fmt.Errorf("no http client in container")
+	raw := strings.TrimSpace(out)
+	if raw == "NOCLIENT" || (err != nil && raw == "") {
+		return 0, "", fmt.Errorf("no http client in container")
 	}
+	const marker = "___DOCKFIN_HC___"
+	idx := strings.LastIndex(raw, marker)
+	if idx < 0 {
+		if err != nil {
+			return 0, "", fmt.Errorf("health probe failed: %v (%s)", err, raw)
+		}
+		return 0, "", fmt.Errorf("health probe returned %q", raw)
+	}
+	body := raw[:idx]
+	codeStr := strings.TrimSpace(raw[idx+len(marker):])
 	var code int
 	if _, scanErr := fmt.Sscanf(codeStr, "%d", &code); scanErr != nil || code <= 0 {
 		if err != nil {
-			return 0, fmt.Errorf("health probe failed: %v (%s)", err, codeStr)
+			return 0, body, fmt.Errorf("health probe failed: %v (%s)", err, codeStr)
 		}
-		return 0, fmt.Errorf("health probe returned %q", codeStr)
+		return 0, body, fmt.Errorf("health probe returned %q", codeStr)
 	}
-	return code, nil
+	return code, body, nil
 }
 
 func ValidContainerNameForHealth(name string) bool {
@@ -653,7 +734,10 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 	inline := strings.TrimSpace(req.App.Dockerfile)
 	if inline != "" {
 		// Coolify SimpleDockerfile: write pasted content (no Git).
-		content := services.InjectDockerfileBuildArgs(inline, buildKeys)
+		content := inline
+		if injectBuildArgsEnabled(req.App) && len(buildKeys) > 0 {
+			content = services.InjectDockerfileBuildArgs(inline, buildKeys)
+		}
 		dockerfilePath = workdir + "/src/Dockerfile"
 		p.log("prepare", "Writing inline Dockerfile")
 		if err := sshx.WriteFile(buildClient, dockerfilePath, []byte(content+"\n")); err != nil {
@@ -672,6 +756,9 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 		if err := p.runPreDeployCommand(buildClient, req, workdir); err != nil {
 			return err
 		}
+		if sha := p.resolveGitHEAD(buildClient, workdir+"/src"); sha != "" {
+			req.CommitSHA = sha
+		}
 		dockerfile := req.App.DockerfileLocation
 		if dockerfile == "" {
 			dockerfile = "/Dockerfile"
@@ -688,7 +775,7 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 		dockerfile = strings.TrimPrefix(cleaned, "/")
 		srcPath := workdir + "/src/" + dockerfile
 		dockerfilePath = srcPath
-		if len(buildKeys) > 0 {
+		if injectBuildArgsEnabled(req.App) && len(buildKeys) > 0 {
 			raw, errOut, err := sshx.RunArgs(buildClient, "cat", srcPath)
 			if err != nil {
 				return fmt.Errorf("read dockerfile: %v %s", err, errOut)
@@ -702,6 +789,17 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 		}
 	}
 
+	if p.shouldSkipBuild(buildClient, req, imageTag) {
+		if err := p.transferIfNeeded(buildClient, deployClient, req, imageTag); err != nil {
+			return err
+		}
+		if err := p.runBuiltImage(ctx, deployClient, req, name, imageTag); err != nil {
+			return err
+		}
+		p.persistDeployedCommit(buildClient, req, workdir+"/src")
+		return nil
+	}
+
 	p.log("build", "Building image "+imageTag)
 	buildArgs := []string{"docker", "build", "-t", imageTag, "-f", dockerfilePath}
 	if target := strings.TrimSpace(req.App.DockerfileTargetBuild); target != "" {
@@ -713,8 +811,26 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 	for _, k := range buildKeys {
 		buildArgs = append(buildArgs, "--build-arg", k+"="+buildVals[k])
 	}
+	if req.App.IncludeSourceCommitInBuild {
+		if commit := deployCommit(req); commit != "" {
+			buildArgs = append(buildArgs, "--build-arg", "SOURCE_COMMIT="+commit)
+		}
+	}
+	secretFlags, secretExports := p.dockerBuildSecretArgs(ctx, req)
+	if len(secretFlags) > 0 {
+		buildArgs = append(buildArgs, secretFlags...)
+	}
 	buildArgs = append(buildArgs, workdir+"/src")
-	_, errOut, err = sshx.RunArgs(buildClient, buildArgs...)
+	if len(secretExports) > 0 {
+		var quoted []string
+		for _, a := range buildArgs[1:] {
+			quoted = append(quoted, shellSingleQuote(a))
+		}
+		buildCmd := strings.Join(secretExports, "\n") + "\nexport DOCKER_BUILDKIT=1\ndocker " + strings.Join(quoted, " ")
+		_, errOut, err = sshx.Run(buildClient, buildCmd)
+	} else {
+		_, errOut, err = sshx.RunArgs(buildClient, buildArgs...)
+	}
 	if err != nil {
 		return fmt.Errorf("docker build: %v %s", err, errOut)
 	}
@@ -722,7 +838,11 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 	if err := p.transferIfNeeded(buildClient, deployClient, req, imageTag); err != nil {
 		return err
 	}
-	return p.runBuiltImage(ctx, deployClient, req, name, imageTag)
+	if err := p.runBuiltImage(ctx, deployClient, req, name, imageTag); err != nil {
+		return err
+	}
+	p.persistDeployedCommit(buildClient, req, workdir+"/src")
+	return nil
 }
 
 // dockerBuildtimeEnv returns sorted build-time env keys and their values.
@@ -760,6 +880,9 @@ func (p *Pipeline) dockerBuildtimeEnv(ctx context.Context, req Request) (keys []
 }
 
 func (p *Pipeline) runBuiltImage(ctx context.Context, client *ssh.Client, req Request, name, imageTag string) error {
+	if p.isSwarmDeploy(req) {
+		return p.runSwarmService(ctx, client, req, name, imageTag)
+	}
 	return p.runWithHealthCutover(ctx, client, req, name, imageTag)
 }
 
@@ -782,15 +905,8 @@ func (p *Pipeline) runWithHealthCutover(ctx context.Context, client *ssh.Client,
 	args := []string{
 		"docker", "run", "-d",
 		"--name", candidate,
-		"--restart", restartPolicy(req.App),
-		"--network", req.Destination.Network,
 	}
-	args = append(args, p.limitArgs(req.App)...)
-	args = append(args, p.gpuArgs(req.App)...)
-	args = append(args, p.stopTimeoutArgs(req.App)...)
-	args = append(args, p.volumeArgs(ctx, client, req)...)
-	args = append(args, p.runtimeEnvArgs(ctx, req)...)
-	args = append(args, p.customDockerRunArgs(req.App)...)
+	args = append(args, p.dockerRunBaseArgs(ctx, client, req)...)
 	args = append(args, image)
 
 	_, errOut, err := sshx.RunArgs(client, args...)
@@ -813,15 +929,8 @@ func (p *Pipeline) runWithHealthCutover(ctx context.Context, client *ssh.Client,
 	finalArgs := []string{
 		"docker", "run", "-d",
 		"--name", name + "-cutover",
-		"--restart", restartPolicy(req.App),
-		"--network", req.Destination.Network,
 	}
-	finalArgs = append(finalArgs, p.limitArgs(req.App)...)
-	finalArgs = append(finalArgs, p.gpuArgs(req.App)...)
-	finalArgs = append(finalArgs, p.stopTimeoutArgs(req.App)...)
-	finalArgs = append(finalArgs, p.volumeArgs(ctx, client, req)...)
-	finalArgs = append(finalArgs, p.runtimeEnvArgs(ctx, req)...)
-	finalArgs = append(finalArgs, p.customDockerRunArgs(req.App)...)
+	finalArgs = append(finalArgs, p.dockerRunBaseArgs(ctx, client, req)...)
 	finalArgs = append(finalArgs, p.proxyLabelArgsReq(req)...)
 	finalArgs = append(finalArgs, image)
 
@@ -853,6 +962,9 @@ func (p *Pipeline) runWithHealthCutover(ctx context.Context, client *ssh.Client,
 	if err := p.fanOutAdditionalDestinations(ctx, client, req, image); err != nil {
 		return err
 	}
+	if req.App != nil && req.App.DockerImagesToKeep > 0 {
+		p.pruneOldImages(client, req.App.ID.String(), req.App.DockerImagesToKeep)
+	}
 	return nil
 }
 
@@ -862,7 +974,10 @@ func restartPolicy(app *store.Application) string {
 	}
 	p := strings.TrimSpace(app.CustomDockerRestartPolicy)
 	if p == "" {
-		return "unless-stopped"
+		p = "unless-stopped"
+	}
+	if app.CustomDockerMaxRestartCount > 0 && strings.HasPrefix(p, "on-failure") {
+		return fmt.Sprintf("on-failure:%d", app.CustomDockerMaxRestartCount)
 	}
 	return p
 }
@@ -870,6 +985,9 @@ func restartPolicy(app *store.Application) string {
 func (p *Pipeline) gpuArgs(app *store.Application) []string {
 	if app == nil || !app.IsGPUEnabled {
 		return nil
+	}
+	if ids := strings.TrimSpace(app.GPUDeviceIDs); ids != "" {
+		return []string{"--gpus", fmt.Sprintf("device=%s", ids)}
 	}
 	if app.GPUCount > 0 {
 		return []string{"--gpus", strconv.Itoa(app.GPUCount)}
@@ -909,14 +1027,44 @@ func (p *Pipeline) deployStatic(ctx context.Context, buildClient, deployClient *
 		return err
 	}
 
-	dockerfile := `FROM nginx:alpine
-COPY . /usr/share/nginx/html
-EXPOSE 80
-`
+	srcDir := workdir + "/src"
+	if sha := p.resolveGitHEAD(buildClient, srcDir); sha != "" {
+		req.CommitSHA = sha
+	}
+
+	if p.shouldSkipRebuild(buildClient, req, imageTag) {
+		p.log("build", "Skipping rebuild — image unchanged")
+		if err := p.transferIfNeeded(buildClient, deployClient, req, imageTag); err != nil {
+			return err
+		}
+		if err := p.runBuiltImage(ctx, deployClient, req, name, imageTag); err != nil {
+			return err
+		}
+		p.persistDeployedCommit(buildClient, req, srcDir)
+		return nil
+	}
+
+	if install := strings.TrimSpace(req.App.InstallCommand); install != "" {
+		p.log("build", "Running install command")
+		if _, errOut, err := sshx.Run(buildClient, fmt.Sprintf("cd %s && %s", shellQuotePath(srcDir), install)); err != nil {
+			return fmt.Errorf("install command: %v %s", err, errOut)
+		}
+	}
+	if build := strings.TrimSpace(req.App.BuildCommand); build != "" {
+		p.log("build", "Running build command")
+		if _, errOut, err := sshx.Run(buildClient, fmt.Sprintf("cd %s && %s", shellQuotePath(srcDir), build)); err != nil {
+			return fmt.Errorf("build command: %v %s", err, errOut)
+		}
+	}
+
+	dockerfile, nginxConf := buildStaticDockerfile(req.App)
 	p.log("build", "Writing nginx Dockerfile for static site")
 	dfPath := workdir + "/src/Dockerfile.dockfin-static"
 	if err := sshx.WriteFile(buildClient, dfPath, []byte(dockerfile)); err != nil {
 		return fmt.Errorf("write dockerfile: %w", err)
+	}
+	if err := sshx.WriteFile(buildClient, workdir+"/src/nginx.dockfin.conf", []byte(nginxConf)); err != nil {
+		return fmt.Errorf("write nginx.conf: %w", err)
 	}
 
 	p.log("build", "Building static image "+imageTag)
@@ -938,7 +1086,11 @@ EXPOSE 80
 	if err := p.transferIfNeeded(buildClient, deployClient, req, imageTag); err != nil {
 		return err
 	}
-	return p.runBuiltImage(ctx, deployClient, req, name, imageTag)
+	if err := p.runBuiltImage(ctx, deployClient, req, name, imageTag); err != nil {
+		return err
+	}
+	p.persistDeployedCommit(buildClient, req, workdir+"/src")
+	return nil
 }
 
 func (p *Pipeline) deployRailpack(ctx context.Context, buildClient, deployClient *ssh.Client, req Request) error {
@@ -966,6 +1118,22 @@ func (p *Pipeline) deployRailpack(ctx context.Context, buildClient, deployClient
 		return err
 	}
 
+	if sha := p.resolveGitHEAD(buildClient, workdir+"/src"); sha != "" {
+		req.CommitSHA = sha
+	}
+
+	if p.shouldSkipRebuild(buildClient, req, imageTag) {
+		p.log("build", "Skipping rebuild — image unchanged")
+		if err := p.transferIfNeeded(buildClient, deployClient, req, imageTag); err != nil {
+			return err
+		}
+		if err := p.runBuiltImage(ctx, deployClient, req, name, imageTag); err != nil {
+			return err
+		}
+		p.persistDeployedCommit(buildClient, req, workdir+"/src")
+		return nil
+	}
+
 	srcDir := workdir + "/src"
 	base := strings.TrimSpace(req.App.BaseDirectory)
 	if base != "" && base != "/" && base != "." {
@@ -980,7 +1148,7 @@ func (p *Pipeline) deployRailpack(ctx context.Context, buildClient, deployClient
 		return err
 	}
 	p.log("build", "Building with railpack CLI")
-	envFlags := p.railpackEnvFlags(ctx, req)
+	envFlags := p.railpackEnvFlags(ctx, req) + railpackCommandEnv(req.App)
 	noCache := ""
 	if req.ForceRebuild || (req.App != nil && req.App.IsDisableBuildCache) {
 		noCache = " --no-cache"
@@ -1007,10 +1175,12 @@ railpack build . --name %s%s%s
 	if err := p.transferIfNeeded(buildClient, deployClient, req, imageTag); err != nil {
 		return err
 	}
-	return p.runBuiltImage(ctx, deployClient, req, name, imageTag)
+	if err := p.runBuiltImage(ctx, deployClient, req, name, imageTag); err != nil {
+		return err
+	}
+	p.persistDeployedCommit(buildClient, req, workdir+"/src")
+	return nil
 }
-
-// ensureRemoteCLI installs a build CLI on the remote host if missing (Coolify-style).
 func (p *Pipeline) ensureRemoteCLI(client *ssh.Client, bin, installURL string) error {
 	check := fmt.Sprintf(
 		`export PATH="/usr/local/bin:/usr/bin:$HOME/.local/bin:$PATH"; command -v %s`,
@@ -1060,9 +1230,6 @@ func (p *Pipeline) railpackEnvFlags(ctx context.Context, req Request) string {
 }
 
 func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Request) error {
-	if req.App.GitRepository == "" {
-		return fmt.Errorf("git repository is required for dockercompose")
-	}
 	workdir := "/data/dockfin/applications/" + req.App.ID.String()
 	project := "dockfin-" + req.App.ID.String()[:8]
 	if req.PullRequestID > 0 {
@@ -1070,12 +1237,25 @@ func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Re
 		project = fmt.Sprintf("dockfin-%s-pr-%d", req.App.ID.String()[:8], req.PullRequestID)
 	}
 	p.log("prepare", "Preparing compose workdir "+workdir)
-	_, errOut, err := sshx.RunArgs(client, "mkdir", "-p", workdir)
+	_, errOut, err := sshx.RunArgs(client, "mkdir", "-p", workdir+"/src")
 	if err != nil {
 		return fmt.Errorf("mkdir: %v %s", err, errOut)
 	}
-	if err := p.gitClone(ctx, client, req, workdir+"/src"); err != nil {
-		return err
+
+	rawCompose := strings.TrimSpace(req.App.DockerComposeRaw)
+	if req.App.GitRepository != "" {
+		if err := p.gitClone(ctx, client, req, workdir+"/src"); err != nil {
+			return err
+		}
+	} else if rawCompose != "" {
+		p.log("prepare", "Using pasted docker_compose_raw (no Git)")
+		composeFile := workdir + "/src/docker-compose.yaml"
+		if err := sshx.WriteFile(client, composeFile, []byte(rawCompose+"\n")); err != nil {
+			return fmt.Errorf("write compose: %w", err)
+		}
+		req.App.DockerComposeLocation = "/docker-compose.yaml"
+	} else {
+		return fmt.Errorf("git repository or docker_compose_raw is required for dockercompose")
 	}
 	if err := p.runPreDeployCommand(client, req, workdir); err != nil {
 		return err
@@ -1345,6 +1525,18 @@ func (p *Pipeline) adaptComposeForDockfin(ctx context.Context, client *ssh.Clien
 	if req.App.CustomDockerStopTimeout > 0 {
 		opts.StopGracePeriodSec = req.App.CustomDockerStopTimeout
 	}
+	if req.Destination != nil && req.Destination.Kind == "swarm" {
+		opts.SwarmReplicas = req.App.SwarmReplicas
+		opts.SwarmWorkersOnly = req.App.IsSwarmOnlyWorkerNodes
+		for _, c := range strings.FieldsFunc(req.App.SwarmPlacementConstraints, func(r rune) bool {
+			return r == ',' || r == '\n' || r == ';'
+		}) {
+			c = strings.TrimSpace(c)
+			if c != "" {
+				opts.SwarmPlacementConstraints = append(opts.SwarmPlacementConstraints, c)
+			}
+		}
+	}
 
 	prepared, magicEnv, err := services.PrepareCompose(raw, opts)
 	if err != nil {
@@ -1482,6 +1674,14 @@ func containerNameFor(req Request) string {
 	if req.App == nil {
 		return ""
 	}
+	if req.App.IsConsistentContainerNameEnabled {
+		if custom := sanitizeContainerName(req.App.CustomInternalName); custom != "" {
+			if strings.HasPrefix(custom, "dockfin-") {
+				return custom
+			}
+			return "dockfin-" + custom
+		}
+	}
 	return containerName(req.App)
 }
 
@@ -1594,6 +1794,13 @@ func (p *Pipeline) runPreDeployCommand(client *ssh.Client, req Request, workdir 
 		return nil
 	}
 	p.log("prepare", "Running pre-deployment command")
+	if cname := strings.TrimSpace(req.App.PreDeploymentCommandContainer); cname != "" {
+		_, errOut, err := sshx.RunArgs(client, "docker", "exec", cname, "sh", "-lc", cmd)
+		if err == nil {
+			return nil
+		}
+		p.log("prepare", "pre-deploy docker exec failed, trying host: "+errOut)
+	}
 	if workdir == "" {
 		workdir = "/data/dockfin/applications/" + req.App.ID.String()
 	}
@@ -1611,8 +1818,12 @@ func (p *Pipeline) runPostDeployCommand(client *ssh.Client, req Request, contain
 		return nil
 	}
 	p.log("finalize", "Running post-deployment command")
-	if container != "" {
-		_, errOut, err := sshx.RunArgs(client, "docker", "exec", container, "sh", "-lc", cmd)
+	target := strings.TrimSpace(req.App.PostDeploymentCommandContainer)
+	if target == "" {
+		target = container
+	}
+	if target != "" {
+		_, errOut, err := sshx.RunArgs(client, "docker", "exec", target, "sh", "-lc", cmd)
 		if err == nil {
 			return nil
 		}

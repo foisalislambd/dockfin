@@ -52,10 +52,19 @@ const TOP_TABS = [
 type AppCfg = {
   name: string
   description: string
+  build_pack: string
   fqdn: string
   git_repository: string
   git_branch: string
   ports_exposes: string
+  ports_mappings: string
+  custom_network_aliases: string
+  install_command: string
+  build_command: string
+  start_command: string
+  publish_directory: string
+  custom_nginx_configuration: string
+  preview_url_template: string
   docker_compose_location: string
   compose_prepare: boolean
   base_directory: string
@@ -90,16 +99,50 @@ type AppCfg = {
   post_deployment_command: string
   custom_labels: string
   http_basic_auth_username: string
+  is_spa: boolean
+  inject_build_args_to_dockerfile: boolean
+  use_build_secrets: boolean
+  include_source_commit_in_build: boolean
+  docker_images_to_keep: number
+  is_consistent_container_name_enabled: boolean
+  custom_internal_name: string
+  is_gzip_enabled: boolean
+  is_stripprefix_enabled: boolean
+  is_log_drain_enabled: boolean
+  is_debug_enabled: boolean
+  is_env_sorting_enabled: boolean
+  is_pr_deployments_public_enabled: boolean
+  skip_rebuild_if_unchanged: boolean
+  gpu_driver: string
+  gpu_device_ids: string
+  gpu_options: string
+  custom_docker_max_restart_count: number
+  pre_deployment_command_container: string
+  post_deployment_command_container: string
+  is_swarm_only_worker_nodes: boolean
+  is_include_timestamps: boolean
+  logs_line_limit: number
+  swarm_replicas: number
+  swarm_placement_constraints: string
 }
 
 function emptyAppCfg(): AppCfg {
   return {
     name: '',
     description: '',
+    build_pack: 'dockerfile',
     fqdn: '',
     git_repository: '',
     git_branch: '',
     ports_exposes: '',
+    ports_mappings: '',
+    custom_network_aliases: '',
+    install_command: '',
+    build_command: '',
+    start_command: '',
+    publish_directory: '',
+    custom_nginx_configuration: '',
+    preview_url_template: '{{pr_id}}.{{domain}}',
     docker_compose_location: '',
     compose_prepare: true,
     base_directory: '/',
@@ -134,17 +177,50 @@ function emptyAppCfg(): AppCfg {
     post_deployment_command: '',
     custom_labels: '',
     http_basic_auth_username: '',
+    is_spa: false,
+    inject_build_args_to_dockerfile: true,
+    use_build_secrets: false,
+    include_source_commit_in_build: false,
+    docker_images_to_keep: 5,
+    is_consistent_container_name_enabled: false,
+    custom_internal_name: '',
+    is_gzip_enabled: true,
+    is_stripprefix_enabled: true,
+    is_log_drain_enabled: false,
+    is_debug_enabled: false,
+    is_env_sorting_enabled: true,
+    is_pr_deployments_public_enabled: false,
+    skip_rebuild_if_unchanged: true,
+    gpu_driver: 'nvidia',
+    gpu_device_ids: '',
+    gpu_options: '',
+    custom_docker_max_restart_count: 0,
+    pre_deployment_command_container: '',
+    post_deployment_command_container: '',
+    is_swarm_only_worker_nodes: false,
+    is_include_timestamps: false,
+    logs_line_limit: 1000,
+    swarm_replicas: 1,
+    swarm_placement_constraints: '',
   }
 }
 
 function appCfgFromData(updated: {
   name?: string
   description?: string
+  build_pack?: string
   fqdn?: string
   git_repository?: string
   git_branch?: string
   ports_exposes?: string
-  build_pack?: string
+  ports_mappings?: string
+  custom_network_aliases?: string
+  install_command?: string
+  build_command?: string
+  start_command?: string
+  publish_directory?: string
+  custom_nginx_configuration?: string
+  preview_url_template?: string
   docker_compose_location?: string
   compose_prepare?: boolean
   base_directory?: string
@@ -179,10 +255,36 @@ function appCfgFromData(updated: {
   post_deployment_command?: string
   custom_labels?: string
   http_basic_auth_username?: string
+  is_spa?: boolean
+  inject_build_args_to_dockerfile?: boolean
+  use_build_secrets?: boolean
+  include_source_commit_in_build?: boolean
+  docker_images_to_keep?: number
+  is_consistent_container_name_enabled?: boolean
+  custom_internal_name?: string
+  is_gzip_enabled?: boolean
+  is_stripprefix_enabled?: boolean
+  is_log_drain_enabled?: boolean
+  is_debug_enabled?: boolean
+  is_env_sorting_enabled?: boolean
+  is_pr_deployments_public_enabled?: boolean
+  skip_rebuild_if_unchanged?: boolean
+  gpu_driver?: string
+  gpu_device_ids?: string
+  gpu_options?: string
+  custom_docker_max_restart_count?: number
+  pre_deployment_command_container?: string
+  post_deployment_command_container?: string
+  is_swarm_only_worker_nodes?: boolean
+  is_include_timestamps?: boolean
+  logs_line_limit?: number
+  swarm_replicas?: number
+  swarm_placement_constraints?: string
 }): AppCfg {
   return {
     name: updated.name || '',
     description: updated.description || '',
+    build_pack: updated.build_pack || 'dockerfile',
     fqdn: updated.fqdn || '',
     git_repository: updated.git_repository || '',
     git_branch: updated.git_branch || 'main',
@@ -190,6 +292,14 @@ function appCfgFromData(updated: {
       updated.build_pack === 'dockercompose'
         ? updated.ports_exposes || ''
         : updated.ports_exposes || '80',
+    ports_mappings: updated.ports_mappings || '',
+    custom_network_aliases: updated.custom_network_aliases || '',
+    install_command: updated.install_command || '',
+    build_command: updated.build_command || '',
+    start_command: updated.start_command || '',
+    publish_directory: updated.publish_directory || '',
+    custom_nginx_configuration: updated.custom_nginx_configuration || '',
+    preview_url_template: updated.preview_url_template || '{{pr_id}}.{{domain}}',
     docker_compose_location: updated.docker_compose_location || '',
     compose_prepare: updated.compose_prepare !== false,
     base_directory: updated.base_directory || '/',
@@ -224,6 +334,65 @@ function appCfgFromData(updated: {
     post_deployment_command: updated.post_deployment_command || '',
     custom_labels: updated.custom_labels || '',
     http_basic_auth_username: updated.http_basic_auth_username || '',
+    is_spa: Boolean(updated.is_spa),
+    inject_build_args_to_dockerfile: updated.inject_build_args_to_dockerfile !== false,
+    use_build_secrets: Boolean(updated.use_build_secrets),
+    include_source_commit_in_build: Boolean(updated.include_source_commit_in_build),
+    docker_images_to_keep: updated.docker_images_to_keep ?? 5,
+    is_consistent_container_name_enabled: Boolean(updated.is_consistent_container_name_enabled),
+    custom_internal_name: updated.custom_internal_name || '',
+    is_gzip_enabled: updated.is_gzip_enabled !== false,
+    is_stripprefix_enabled: updated.is_stripprefix_enabled !== false,
+    is_log_drain_enabled: Boolean(updated.is_log_drain_enabled),
+    is_debug_enabled: Boolean(updated.is_debug_enabled),
+    is_env_sorting_enabled: updated.is_env_sorting_enabled !== false,
+    is_pr_deployments_public_enabled: Boolean(updated.is_pr_deployments_public_enabled),
+    skip_rebuild_if_unchanged: updated.skip_rebuild_if_unchanged !== false,
+    gpu_driver: updated.gpu_driver || 'nvidia',
+    gpu_device_ids: updated.gpu_device_ids || '',
+    gpu_options: updated.gpu_options || '',
+    custom_docker_max_restart_count: updated.custom_docker_max_restart_count ?? 0,
+    pre_deployment_command_container: updated.pre_deployment_command_container || '',
+    post_deployment_command_container: updated.post_deployment_command_container || '',
+    is_swarm_only_worker_nodes: Boolean(updated.is_swarm_only_worker_nodes),
+    is_include_timestamps: Boolean(updated.is_include_timestamps),
+    logs_line_limit: updated.logs_line_limit ?? 1000,
+    swarm_replicas: updated.swarm_replicas ?? 1,
+    swarm_placement_constraints: updated.swarm_placement_constraints || '',
+  }
+}
+
+function healthFromApp(updated: {
+  health_check_enabled?: boolean
+  health_check_path?: string
+  health_check_port?: number | null
+  health_check_method?: string
+  health_check_return_code?: number
+  health_check_interval?: number
+  health_check_timeout?: number
+  health_check_retries?: number
+  health_check_host?: string
+  health_check_scheme?: string
+  health_check_response_text?: string
+  health_check_start_period?: number
+  health_check_type?: string
+  health_check_command?: string
+}) {
+  return {
+    health_check_enabled: Boolean(updated.health_check_enabled),
+    health_check_path: updated.health_check_path || '/',
+    health_check_port: updated.health_check_port != null ? String(updated.health_check_port) : '',
+    health_check_method: updated.health_check_method || 'GET',
+    health_check_return_code: updated.health_check_return_code ?? 200,
+    health_check_interval: updated.health_check_interval ?? 5,
+    health_check_timeout: updated.health_check_timeout ?? 5,
+    health_check_retries: updated.health_check_retries ?? 10,
+    health_check_host: updated.health_check_host || 'localhost',
+    health_check_scheme: updated.health_check_scheme || 'http',
+    health_check_response_text: updated.health_check_response_text || '',
+    health_check_start_period: updated.health_check_start_period ?? 5,
+    health_check_type: updated.health_check_type || 'http',
+    health_check_command: updated.health_check_command || '',
   }
 }
 
@@ -386,9 +555,20 @@ export function ApplicationDetailPage() {
     health_check_interval: 5,
     health_check_timeout: 5,
     health_check_retries: 10,
+    health_check_host: 'localhost',
+    health_check_scheme: 'http',
+    health_check_response_text: '',
+    health_check_start_period: 5,
+    health_check_type: 'http',
+    health_check_command: '',
   })
   const [limits, setLimits] = useState({ limits_memory: '', limits_cpus: '' })
   const [webhookSecret, setWebhookSecret] = useState<string | null>(null)
+  const [previewDeploy, setPreviewDeploy] = useState({
+    pull_request_id: '',
+    pull_request_title: '',
+    git_branch: '',
+  })
 
   const registries = useQuery({ queryKey: ['docker-registries'], queryFn: api.dockerRegistries })
   const extraDests = useQuery({
@@ -419,6 +599,12 @@ export function ApplicationDetailPage() {
       health_check_interval: 5,
       health_check_timeout: 5,
       health_check_retries: 10,
+      health_check_host: 'localhost',
+      health_check_scheme: 'http',
+      health_check_response_text: '',
+      health_check_start_period: 5,
+      health_check_type: 'http',
+      health_check_command: '',
     })
     setLimits({ limits_memory: '', limits_cpus: '' })
   }, [appId])
@@ -445,16 +631,7 @@ export function ApplicationDetailPage() {
       if (!(u.name in domains) && !u.is_database) domains[u.name] = ''
     }
     setServiceDomains(domains)
-    setHealth({
-      health_check_enabled: Boolean(updated.health_check_enabled),
-      health_check_path: updated.health_check_path || '/',
-      health_check_port: updated.health_check_port != null ? String(updated.health_check_port) : '',
-      health_check_method: updated.health_check_method || 'GET',
-      health_check_return_code: updated.health_check_return_code ?? 200,
-      health_check_interval: updated.health_check_interval ?? 5,
-      health_check_timeout: updated.health_check_timeout ?? 5,
-      health_check_retries: updated.health_check_retries ?? 10,
-    })
+    setHealth(healthFromApp(updated))
     setLimits({
       limits_memory: updated.limits_memory || '',
       limits_cpus: updated.limits_cpus || '',
@@ -496,16 +673,7 @@ export function ApplicationDetailPage() {
       if (!(u.name in domains) && !u.is_database) domains[u.name] = ''
     }
     setServiceDomains(domains)
-    setHealth({
-      health_check_enabled: Boolean(updated.health_check_enabled),
-      health_check_path: updated.health_check_path || '/',
-      health_check_port: updated.health_check_port != null ? String(updated.health_check_port) : '',
-      health_check_method: updated.health_check_method || 'GET',
-      health_check_return_code: updated.health_check_return_code ?? 200,
-      health_check_interval: updated.health_check_interval ?? 5,
-      health_check_timeout: updated.health_check_timeout ?? 5,
-      health_check_retries: updated.health_check_retries ?? 10,
-    })
+    setHealth(healthFromApp(updated))
     setLimits({
       limits_memory: updated.limits_memory || '',
       limits_cpus: updated.limits_cpus || '',
@@ -596,6 +764,12 @@ export function ApplicationDetailPage() {
         health_check_interval: health.health_check_interval,
         health_check_timeout: health.health_check_timeout,
         health_check_retries: health.health_check_retries,
+        health_check_host: health.health_check_host,
+        health_check_scheme: health.health_check_scheme,
+        health_check_response_text: health.health_check_response_text,
+        health_check_start_period: health.health_check_start_period,
+        health_check_type: health.health_check_type,
+        health_check_command: health.health_check_command,
       }),
     onSuccess: (updated) => {
       void qc.invalidateQueries({ queryKey: ['application', appId] })
@@ -700,6 +874,55 @@ export function ApplicationDetailPage() {
   const deletePreview = useMutation({
     mutationFn: (prId: number) => api.deletePreview(appId, prId),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['previews', appId] }),
+  })
+
+  const deployPreview = useMutation({
+    mutationFn: (body: {
+      pull_request_id: number
+      pull_request_title?: string
+      git_branch?: string
+    }) => api.deployPreview(appId, body),
+    onSuccess: () => {
+      toast.success('Preview deploy queued')
+      void qc.invalidateQueries({ queryKey: ['previews', appId] })
+      void qc.invalidateQueries({ queryKey: ['deployments', appId] })
+    },
+    onError: (e: Error) => toast.error(e.message || 'Preview deploy failed'),
+  })
+
+  const stopCleanup = useMutation({
+    mutationFn: () => api.stopCleanupApplication(appId),
+    onSuccess: () => {
+      toast.success('Stopped and cleaned up Docker resources')
+      void qc.invalidateQueries({ queryKey: ['application', appId] })
+    },
+    onError: (e: Error) => toast.error(e.message || 'Stop + cleanup failed'),
+  })
+
+  const cloneApp = useMutation({
+    mutationFn: (name: string) => api.cloneApplication(appId, { name: name || undefined }),
+    onSuccess: (created) => {
+      toast.success(`Cloned as ${created.name}`)
+      void qc.invalidateQueries({ queryKey: ['applications'] })
+      const envMeta = allEnvs.data?.find((e) => e.id === created.environment_id)
+      if (envMeta?.project_id && created.environment_id) {
+        void nav({
+          to: '/projects/$projectId/environments/$envId/applications/$appId',
+          params: {
+            projectId: envMeta.project_id,
+            envId: created.environment_id,
+            appId: created.id,
+          },
+        })
+      }
+    },
+    onError: (e: Error) => toast.error(e.message || 'Clone failed'),
+  })
+
+  const appImages = useQuery({
+    queryKey: ['app-images', appId],
+    queryFn: () => api.listApplicationImages(appId),
+    enabled: side === 'rollback' && Boolean(appId),
   })
 
   if (app.isLoading) {
@@ -955,11 +1178,19 @@ export function ApplicationDetailPage() {
                     />
                     <label className="block text-sm sm:col-span-2">
                       <span className="mb-1 block text-gray-500 dark:text-gray-400">Build Pack</span>
-                      <input
-                        readOnly
-                        value={a.build_pack}
-                        className="panel-field w-full cursor-default rounded-lg px-3 py-2 capitalize opacity-80"
-                      />
+                      <select
+                        value={cfg.build_pack}
+                        onChange={(e) => setCfg({ ...cfg, build_pack: e.target.value })}
+                        className="panel-field w-full rounded-lg px-3 py-2 text-sm capitalize"
+                      >
+                        {['dockerfile', 'dockercompose', 'dockerimage', 'static', 'railpack'].map(
+                          (bp) => (
+                            <option key={bp} value={bp}>
+                              {bp}
+                            </option>
+                          ),
+                        )}
+                      </select>
                     </label>
                   </div>
                 </div>
@@ -1112,6 +1343,18 @@ export function ApplicationDetailPage() {
                         onChange={(v) => setCfg({ ...cfg, ports_exposes: v })}
                         required={false}
                       />
+                      <Input
+                        label="Ports mappings"
+                        value={cfg.ports_mappings}
+                        onChange={(v) => setCfg({ ...cfg, ports_mappings: v })}
+                        required={false}
+                      />
+                      <Input
+                        label="Custom network aliases"
+                        value={cfg.custom_network_aliases}
+                        onChange={(v) => setCfg({ ...cfg, custom_network_aliases: v })}
+                        required={false}
+                      />
                       <label className="block text-sm sm:col-span-2">
                         <span className="mb-1 block text-gray-500 dark:text-gray-400">Watch Paths</span>
                         <textarea
@@ -1159,6 +1402,18 @@ export function ApplicationDetailPage() {
                         label="Ports exposes"
                         value={cfg.ports_exposes}
                         onChange={(v) => setCfg({ ...cfg, ports_exposes: v })}
+                        required={false}
+                      />
+                      <Input
+                        label="Ports mappings"
+                        value={cfg.ports_mappings}
+                        onChange={(v) => setCfg({ ...cfg, ports_mappings: v })}
+                        required={false}
+                      />
+                      <Input
+                        label="Custom network aliases"
+                        value={cfg.custom_network_aliases}
+                        onChange={(v) => setCfg({ ...cfg, custom_network_aliases: v })}
                         required={false}
                       />
                       <Input
@@ -1218,6 +1473,60 @@ export function ApplicationDetailPage() {
                     </>
                   ) : null}
                 </div>
+
+                {(cfg.build_pack === 'static' || cfg.build_pack === 'railpack') && (
+                  <div className="panel-card grid gap-4 p-5 sm:grid-cols-2">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white sm:col-span-2">
+                      {cfg.build_pack === 'static' ? 'Static site' : 'Railpack'} commands
+                    </h3>
+                    <Input
+                      label="Install command"
+                      value={cfg.install_command}
+                      onChange={(v) => setCfg({ ...cfg, install_command: v })}
+                      required={false}
+                    />
+                    <Input
+                      label="Build command"
+                      value={cfg.build_command}
+                      onChange={(v) => setCfg({ ...cfg, build_command: v })}
+                      required={false}
+                    />
+                    <Input
+                      label="Start command"
+                      value={cfg.start_command}
+                      onChange={(v) => setCfg({ ...cfg, start_command: v })}
+                      required={false}
+                    />
+                    <Input
+                      label="Publish directory"
+                      value={cfg.publish_directory}
+                      onChange={(v) => setCfg({ ...cfg, publish_directory: v })}
+                      required={false}
+                    />
+                    <label className="flex items-center gap-3 text-sm sm:col-span-2">
+                      <input
+                        type="checkbox"
+                        checked={cfg.is_spa}
+                        onChange={(e) => setCfg({ ...cfg, is_spa: e.target.checked })}
+                      />
+                      <span>Single-page application (SPA) — fallback to index.html</span>
+                    </label>
+                    <label className="block text-sm sm:col-span-2">
+                      <span className="mb-1 block text-gray-500 dark:text-gray-400">
+                        Custom nginx configuration
+                      </span>
+                      <textarea
+                        rows={6}
+                        value={cfg.custom_nginx_configuration}
+                        onChange={(e) =>
+                          setCfg({ ...cfg, custom_nginx_configuration: e.target.value })
+                        }
+                        className="panel-field w-full rounded-lg px-3 py-2 font-mono text-xs"
+                        placeholder="Optional nginx server block overrides"
+                      />
+                    </label>
+                  </div>
+                )}
 
                 {a.build_pack === 'dockerfile' && cfg.dockerfile ? (
                   <div className="panel-card space-y-3 p-5">
@@ -1421,6 +1730,171 @@ export function ApplicationDetailPage() {
                       />
                     </label>
                   ) : null}
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.inject_build_args_to_dockerfile}
+                      onChange={(e) =>
+                        setCfg({ ...cfg, inject_build_args_to_dockerfile: e.target.checked })
+                      }
+                    />
+                    <span>Inject build args into Dockerfile</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.use_build_secrets}
+                      onChange={(e) => setCfg({ ...cfg, use_build_secrets: e.target.checked })}
+                    />
+                    <span>Use Docker build secrets</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.include_source_commit_in_build}
+                      onChange={(e) =>
+                        setCfg({ ...cfg, include_source_commit_in_build: e.target.checked })
+                      }
+                    />
+                    <span>Include SOURCE_COMMIT in build</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.is_consistent_container_name_enabled}
+                      onChange={(e) =>
+                        setCfg({ ...cfg, is_consistent_container_name_enabled: e.target.checked })
+                      }
+                    />
+                    <span>Consistent container name</span>
+                  </label>
+                  <Input
+                    label="Custom internal name"
+                    value={cfg.custom_internal_name}
+                    onChange={(v) => setCfg({ ...cfg, custom_internal_name: v })}
+                    required={false}
+                  />
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.is_gzip_enabled}
+                      onChange={(e) => setCfg({ ...cfg, is_gzip_enabled: e.target.checked })}
+                    />
+                    <span>Enable gzip compression (Traefik)</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.is_stripprefix_enabled}
+                      onChange={(e) => setCfg({ ...cfg, is_stripprefix_enabled: e.target.checked })}
+                    />
+                    <span>Enable StripPrefix middleware</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.is_log_drain_enabled}
+                      onChange={(e) => setCfg({ ...cfg, is_log_drain_enabled: e.target.checked })}
+                    />
+                    <span>Log drain</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.is_debug_enabled}
+                      onChange={(e) => setCfg({ ...cfg, is_debug_enabled: e.target.checked })}
+                    />
+                    <span>Debug mode</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.is_env_sorting_enabled}
+                      onChange={(e) => setCfg({ ...cfg, is_env_sorting_enabled: e.target.checked })}
+                    />
+                    <span>Sort environment variables by key</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.is_pr_deployments_public_enabled}
+                      onChange={(e) =>
+                        setCfg({ ...cfg, is_pr_deployments_public_enabled: e.target.checked })
+                      }
+                    />
+                    <span>Public PR preview deployments</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.skip_rebuild_if_unchanged}
+                      onChange={(e) =>
+                        setCfg({ ...cfg, skip_rebuild_if_unchanged: e.target.checked })
+                      }
+                    />
+                    <span>Skip rebuild if unchanged</span>
+                  </label>
+                  <label className="block text-sm sm:max-w-xs">
+                    <span className="mb-1 block text-gray-500 dark:text-gray-400">
+                      Docker images to keep
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={cfg.docker_images_to_keep}
+                      onChange={(e) =>
+                        setCfg({ ...cfg, docker_images_to_keep: Number(e.target.value) || 0 })
+                      }
+                      className="panel-field w-full rounded-lg px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <Input
+                    label="GPU driver"
+                    value={cfg.gpu_driver}
+                    onChange={(v) => setCfg({ ...cfg, gpu_driver: v })}
+                    required={false}
+                  />
+                  <Input
+                    label="GPU device IDs"
+                    value={cfg.gpu_device_ids}
+                    onChange={(v) => setCfg({ ...cfg, gpu_device_ids: v })}
+                    required={false}
+                  />
+                  <Input
+                    label="GPU options"
+                    value={cfg.gpu_options}
+                    onChange={(v) => setCfg({ ...cfg, gpu_options: v })}
+                    required={false}
+                  />
+                  <label className="block text-sm sm:max-w-xs">
+                    <span className="mb-1 block text-gray-500 dark:text-gray-400">
+                      Max Docker restart count
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={cfg.custom_docker_max_restart_count}
+                      onChange={(e) =>
+                        setCfg({
+                          ...cfg,
+                          custom_docker_max_restart_count: Number(e.target.value) || 0,
+                        })
+                      }
+                      className="panel-field w-full rounded-lg px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <Input
+                    label="Pre-deployment command container"
+                    value={cfg.pre_deployment_command_container}
+                    onChange={(v) => setCfg({ ...cfg, pre_deployment_command_container: v })}
+                    required={false}
+                  />
+                  <Input
+                    label="Post-deployment command container"
+                    value={cfg.post_deployment_command_container}
+                    onChange={(v) => setCfg({ ...cfg, post_deployment_command_container: v })}
+                    required={false}
+                  />
                   <label className="block text-sm sm:max-w-xs">
                     <span className="mb-1 block text-gray-500 dark:text-gray-400">
                       Docker stop timeout (seconds)
@@ -1558,6 +2032,58 @@ export function ApplicationDetailPage() {
                   </Btn>
                 </form>
 
+                <form
+                  className="panel-card space-y-4 p-5"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    save.mutate({})
+                  }}
+                >
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white">Swarm</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Docker Swarm placement for swarm destinations.
+                  </p>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.is_swarm_only_worker_nodes}
+                      onChange={(e) =>
+                        setCfg({ ...cfg, is_swarm_only_worker_nodes: e.target.checked })
+                      }
+                    />
+                    <span>Deploy only on worker nodes</span>
+                  </label>
+                  <label className="block text-sm sm:max-w-xs">
+                    <span className="mb-1 block text-gray-500 dark:text-gray-400">Replicas</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={cfg.swarm_replicas}
+                      onChange={(e) =>
+                        setCfg({ ...cfg, swarm_replicas: Number(e.target.value) || 0 })
+                      }
+                      className="panel-field w-full rounded-lg px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="mb-1 block text-gray-500 dark:text-gray-400">
+                      Placement constraints
+                    </span>
+                    <textarea
+                      rows={3}
+                      value={cfg.swarm_placement_constraints}
+                      onChange={(e) =>
+                        setCfg({ ...cfg, swarm_placement_constraints: e.target.value })
+                      }
+                      placeholder="node.role==worker"
+                      className="panel-field w-full rounded-lg px-3 py-2 font-mono text-xs"
+                    />
+                  </label>
+                  <Btn primary type="submit" disabled={save.isPending}>
+                    {save.isPending ? 'Saving…' : 'Save swarm settings'}
+                  </Btn>
+                </form>
+
                 {a.build_pack !== 'dockercompose' ? (
                 <form
                   className="panel-card space-y-4 p-5"
@@ -1578,6 +2104,30 @@ export function ApplicationDetailPage() {
                     />
                     Enable health checks
                   </label>
+                  <label className="block text-sm sm:max-w-xs">
+                    <span className="mb-1 block text-gray-500 dark:text-gray-400">Type</span>
+                    <select
+                      value={health.health_check_type}
+                      onChange={(e) => setHealth({ ...health, health_check_type: e.target.value })}
+                      className="panel-field w-full rounded-lg px-3 py-2 text-sm"
+                    >
+                      <option value="http">HTTP</option>
+                      <option value="cmd">Command</option>
+                    </select>
+                  </label>
+                  {health.health_check_type === 'cmd' ? (
+                    <label className="block text-sm sm:col-span-2">
+                      <span className="mb-1 block text-gray-500 dark:text-gray-400">Command</span>
+                      <input
+                        value={health.health_check_command}
+                        onChange={(e) =>
+                          setHealth({ ...health, health_check_command: e.target.value })
+                        }
+                        className="panel-field w-full rounded-lg px-3 py-2 font-mono text-sm"
+                        placeholder="CMD curl -f http://localhost/ || exit 1"
+                      />
+                    </label>
+                  ) : null}
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Input
                       label="Path"
@@ -1629,6 +2179,38 @@ export function ApplicationDetailPage() {
                       onChange={(v) =>
                         setHealth({ ...health, health_check_retries: Number(v) || 10 })
                       }
+                    />
+                    <Input
+                      label="Start period (s)"
+                      value={String(health.health_check_start_period)}
+                      onChange={(v) =>
+                        setHealth({ ...health, health_check_start_period: Number(v) || 5 })
+                      }
+                    />
+                    <label className="block text-sm">
+                      <span className="mb-1 block text-gray-500 dark:text-gray-400">Scheme</span>
+                      <select
+                        value={health.health_check_scheme}
+                        onChange={(e) =>
+                          setHealth({ ...health, health_check_scheme: e.target.value })
+                        }
+                        className="panel-field w-full rounded-lg px-3 py-2 text-sm"
+                      >
+                        <option value="http">http</option>
+                        <option value="https">https</option>
+                      </select>
+                    </label>
+                    <Input
+                      label="Host"
+                      value={health.health_check_host}
+                      onChange={(v) => setHealth({ ...health, health_check_host: v })}
+                      required={false}
+                    />
+                    <Input
+                      label="Response text (optional)"
+                      value={health.health_check_response_text}
+                      onChange={(v) => setHealth({ ...health, health_check_response_text: v })}
+                      required={false}
                     />
                   </div>
                   {saveHealth.error && (
@@ -1917,12 +2499,13 @@ export function ApplicationDetailPage() {
                   resourceId={appId}
                   title=""
                   previewTabs={Boolean(a.is_preview_enabled || cfg.is_preview_enabled)}
+                  sortByKey={cfg.is_env_sorting_enabled}
                 />
               </div>
             )}
 
             {side === 'previews' && (
-              <div>
+              <div className="space-y-6">
                 <div className="mb-3">
                   <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
                     Preview Deployments
@@ -1935,6 +2518,80 @@ export function ApplicationDetailPage() {
                     Preview-specific env vars live under Environment Variables → Preview.
                   </p>
                 </div>
+                <form
+                  className="panel-card grid gap-4 p-5 sm:grid-cols-2"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    save.mutate({})
+                  }}
+                >
+                  <Input
+                    label="Preview URL template"
+                    value={cfg.preview_url_template}
+                    onChange={(v) => setCfg({ ...cfg, preview_url_template: v })}
+                    required={false}
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 sm:col-span-2">
+                    Use <code className="font-mono">{'{{pr_id}}'}</code> and{' '}
+                    <code className="font-mono">{'{{domain}}'}</code> placeholders.
+                  </p>
+                  <div className="flex items-end sm:col-span-2">
+                    <Btn primary type="submit" disabled={save.isPending}>
+                      {save.isPending ? 'Saving…' : 'Save template'}
+                    </Btn>
+                  </div>
+                </form>
+                <form
+                  className="panel-card grid gap-4 p-5 sm:grid-cols-2"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    if (!previewDeploy.pull_request_id) return
+                    deployPreview.mutate({
+                      pull_request_id: Number(previewDeploy.pull_request_id),
+                      pull_request_title: previewDeploy.pull_request_title || undefined,
+                      git_branch: previewDeploy.git_branch || undefined,
+                    })
+                  }}
+                >
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white sm:col-span-2">
+                    Deploy preview manually
+                  </h3>
+                  <Input
+                    label="Pull request ID"
+                    value={previewDeploy.pull_request_id}
+                    onChange={(v) => setPreviewDeploy({ ...previewDeploy, pull_request_id: v })}
+                    required={false}
+                  />
+                  <Input
+                    label="PR title (optional)"
+                    value={previewDeploy.pull_request_title}
+                    onChange={(v) => setPreviewDeploy({ ...previewDeploy, pull_request_title: v })}
+                    required={false}
+                  />
+                  <Input
+                    label="Git branch (optional)"
+                    value={previewDeploy.git_branch}
+                    onChange={(v) => setPreviewDeploy({ ...previewDeploy, git_branch: v })}
+                    required={false}
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 sm:col-span-2">
+                    Branch defaults to {cfg.git_branch || a.git_branch || 'main'} when empty.
+                  </p>
+                  <div className="flex items-end">
+                    <Btn
+                      primary
+                      type="submit"
+                      disabled={deployPreview.isPending || !previewDeploy.pull_request_id}
+                    >
+                      {deployPreview.isPending ? 'Deploying…' : 'Deploy preview'}
+                    </Btn>
+                  </div>
+                  {deployPreview.error ? (
+                    <p className="text-sm text-error-500 sm:col-span-2">
+                      {deployPreview.error.message}
+                    </p>
+                  ) : null}
+                </form>
                 <div className="panel-card overflow-hidden">
                   <table className="w-full text-left text-sm">
                     <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
@@ -1944,7 +2601,7 @@ export function ApplicationDetailPage() {
                         <th className="px-3 py-2">Branch</th>
                         <th className="px-3 py-2">FQDN</th>
                         <th className="px-3 py-2">Status</th>
-                        <th className="px-3 py-2" />
+                        <th className="px-3 py-2">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1955,7 +2612,21 @@ export function ApplicationDetailPage() {
                           <td className="px-3 py-2 font-mono text-xs">{p.git_branch || '—'}</td>
                           <td className="px-3 py-2 font-mono text-xs">{p.fqdn || '—'}</td>
                           <td className="px-3 py-2">{p.status}</td>
-                          <td className="px-3 py-2 text-right">
+                          <td className="space-x-3 px-3 py-2 text-right">
+                            <button
+                              type="button"
+                              className="text-brand-600 dark:text-brand-400"
+                              disabled={deployPreview.isPending}
+                              onClick={() => {
+                                deployPreview.mutate({
+                                  pull_request_id: p.pull_request_id,
+                                  pull_request_title: p.pull_request_title || undefined,
+                                  git_branch: p.git_branch || undefined,
+                                })
+                              }}
+                            >
+                              Deploy
+                            </button>
                             <button
                               type="button"
                               className="text-error-500"
@@ -2056,6 +2727,58 @@ export function ApplicationDetailPage() {
                     <Btn onClick={() => deploy.mutate({ force: true })}>Force rebuild</Btn>
                   </div>
                 </div>
+                <div className="panel-card space-y-3 p-5">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Clone</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Duplicate this application (settings and env vars) into the same or another
+                    environment.
+                  </p>
+                  <Btn
+                    onClick={() => {
+                      void (async () => {
+                        const name = window.prompt('Clone name (optional)', `${a.name}-clone`)
+                        if (name === null) return
+                        cloneApp.mutate(name)
+                      })()
+                    }}
+                    disabled={cloneApp.isPending}
+                  >
+                    {cloneApp.isPending ? 'Cloning…' : 'Clone application'}
+                  </Btn>
+                  {cloneApp.error ? (
+                    <p className="text-sm text-error-500">{cloneApp.error.message}</p>
+                  ) : null}
+                </div>
+                <div className="panel-card space-y-3 p-5">
+                  <h3 className="text-sm font-semibold text-error-500">Stop + Docker cleanup</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Stop containers and run Docker prune on the destination server (unused images,
+                    networks, etc.).
+                  </p>
+                  <Btn
+                    onClick={() => {
+                      void (async () => {
+                        if (
+                          await confirm({
+                            title: 'Stop and cleanup',
+                            message:
+                              'Stop this application and run Docker cleanup on the server?',
+                            confirmLabel: 'Stop + cleanup',
+                            danger: true,
+                          })
+                        ) {
+                          stopCleanup.mutate()
+                        }
+                      })()
+                    }}
+                    disabled={stopCleanup.isPending}
+                  >
+                    {stopCleanup.isPending ? 'Working…' : 'Stop + Docker cleanup'}
+                  </Btn>
+                  {stopCleanup.error ? (
+                    <p className="text-sm text-error-500">{stopCleanup.error.message}</p>
+                  ) : null}
+                </div>
                 <MoveResourcePanel
                   resourceType="application"
                   resourceId={appId}
@@ -2073,6 +2796,45 @@ export function ApplicationDetailPage() {
                     Redeploy a previous finished commit. This queues a new deployment with force rebuild.
                   </p>
                 </div>
+                <form
+                  className="panel-card flex flex-wrap items-end gap-4 p-5"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    save.mutate({})
+                  }}
+                >
+                  <label className="block text-sm sm:max-w-xs">
+                    <span className="mb-1 block text-gray-500 dark:text-gray-400">
+                      Docker images to keep
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={cfg.docker_images_to_keep}
+                      onChange={(e) =>
+                        setCfg({ ...cfg, docker_images_to_keep: Number(e.target.value) || 0 })
+                      }
+                      className="panel-field w-full rounded-lg px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <Btn primary type="submit" disabled={save.isPending}>
+                    {save.isPending ? 'Saving…' : 'Save retention'}
+                  </Btn>
+                </form>
+                {(appImages.data?.images || []).length > 0 ? (
+                  <div className="panel-card overflow-hidden">
+                    <div className="border-b border-gray-200 px-3 py-2 text-sm font-medium dark:border-gray-800">
+                      Built images on server
+                    </div>
+                    <ul className="divide-y divide-gray-200 dark:divide-gray-800">
+                      {(appImages.data?.images || []).map((img) => (
+                        <li key={img} className="px-3 py-2 font-mono text-xs">
+                          {img}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 <div className="panel-card overflow-hidden">
                   <table className="w-full text-left text-sm">
                     <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
@@ -2245,7 +3007,16 @@ export function ApplicationDetailPage() {
 
       {topTab === 'logs' && (
         <div className="space-y-6">
-          <LiveContainerLogs appId={appId} isCompose={a.build_pack === 'dockercompose'} />
+          <LiveContainerLogs
+            appId={appId}
+            isCompose={a.build_pack === 'dockercompose'}
+            includeTimestamps={cfg.is_include_timestamps}
+            lineLimit={cfg.logs_line_limit}
+            onSettingsChange={(patch) => {
+              setCfg((c) => ({ ...c, ...patch }))
+              save.mutate(patch)
+            }}
+          />
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -2314,6 +3085,8 @@ export function ApplicationDetailPage() {
 
 function ApplicationBackupsPanel({ appId }: { appId: string }) {
   const qc = useQueryClient()
+  const confirm = useConfirm()
+  const toast = useToast()
   const backups = useQuery({ queryKey: ['scheduled-backups'], queryFn: api.scheduledBackups })
   const executions = useQuery({
     queryKey: ['app-backups', appId],
@@ -2360,6 +3133,12 @@ function ApplicationBackupsPanel({ appId }: { appId: string }) {
     mutationFn: () => api.runApplicationBackup(appId),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['app-backups', appId] }),
   })
+  const restoreBackup = useMutation({
+    mutationFn: (executionId: string) =>
+      api.restoreApplicationBackup(appId, { execution_id: executionId }),
+    onSuccess: () => toast.success('Backup restored'),
+    onError: (e: Error) => toast.error(e.message || 'Restore failed'),
+  })
   useEffect(() => {
     runNow.reset()
   }, [appId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -2395,6 +3174,7 @@ function ApplicationBackupsPanel({ appId }: { appId: string }) {
               <th className="px-3 py-2">Size</th>
               <th className="px-3 py-2">File</th>
               <th className="px-3 py-2">S3</th>
+              <th className="px-3 py-2">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -2412,11 +3192,38 @@ function ApplicationBackupsPanel({ appId }: { appId: string }) {
                 <td className="px-3 py-2">{formatBytes(b.size_bytes)}</td>
                 <td className="px-3 py-2 font-mono text-xs">{b.filename || '—'}</td>
                 <td className="px-3 py-2 text-xs">{b.s3_uploaded ? 'yes' : '—'}</td>
+                <td className="px-3 py-2 text-right">
+                  {b.status === 'finished' ? (
+                    <button
+                      type="button"
+                      className="text-brand-600 dark:text-brand-400"
+                      disabled={restoreBackup.isPending}
+                      onClick={() => {
+                        void (async () => {
+                          if (
+                            await confirm({
+                              title: 'Restore backup',
+                              message: `Restore volumes from ${b.filename || 'this backup'}?`,
+                              confirmLabel: 'Restore',
+                              danger: true,
+                            })
+                          ) {
+                            restoreBackup.mutate(b.id)
+                          }
+                        })()
+                      }}
+                    >
+                      Restore
+                    </button>
+                  ) : (
+                    '—'
+                  )}
+                </td>
               </tr>
             ))}
             {!executions.data?.backup_executions?.length && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                   No backup runs yet.
                 </td>
               </tr>
@@ -2691,7 +3498,22 @@ function MiniSpark({ values, color }: { values: number[]; color: string }) {
   )
 }
 
-function LiveContainerLogs({ appId, isCompose }: { appId: string; isCompose: boolean }) {
+function LiveContainerLogs({
+  appId,
+  isCompose,
+  includeTimestamps,
+  lineLimit,
+  onSettingsChange,
+}: {
+  appId: string
+  isCompose: boolean
+  includeTimestamps: boolean
+  lineLimit: number
+  onSettingsChange: (patch: {
+    is_include_timestamps?: boolean
+    logs_line_limit?: number
+  }) => void
+}) {
   const [container, setContainer] = useState('')
   const [lines, setLines] = useState<string[]>([])
   const [status, setStatus] = useState<'connecting' | 'live' | 'ended' | 'error'>('connecting')
@@ -2722,7 +3544,8 @@ function LiveContainerLogs({ appId, isCompose }: { appId: string; isCompose: boo
     setLines([])
     setStatus('connecting')
     setError('')
-    const qs = new URLSearchParams({ tail: '200', container: name })
+    const tail = Math.min(Math.max(lineLimit || 200, 50), 5000)
+    const qs = new URLSearchParams({ tail: String(tail), container: name })
     const es = new EventSource(`/api/v1/applications/${appId}/logs/stream?${qs}`, {
       withCredentials: true,
     })
@@ -2746,7 +3569,17 @@ function LiveContainerLogs({ appId, isCompose }: { appId: string; isCompose: boo
       es.close()
     }
     return () => es.close()
-  }, [appId, container, isCompose, nonce])
+  }, [appId, container, isCompose, nonce, lineLimit])
+
+  const downloadLogs = () => {
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${container || appId}-logs.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="space-y-3">
@@ -2777,6 +3610,32 @@ function LiveContainerLogs({ appId, isCompose }: { appId: string; isCompose: boo
               </select>
             </label>
           ) : null}
+          <label className="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+            <input
+              type="checkbox"
+              checked={includeTimestamps}
+              onChange={(e) => onSettingsChange({ is_include_timestamps: e.target.checked })}
+            />
+            Timestamps
+          </label>
+          <label className="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+            <span className="sr-only">Line limit</span>
+            <input
+              type="number"
+              min={50}
+              max={5000}
+              value={lineLimit}
+              onChange={(e) =>
+                onSettingsChange({ logs_line_limit: Number(e.target.value) || 1000 })
+              }
+              className="panel-field w-20 rounded-lg px-2 py-1.5 text-xs"
+              title="Initial tail lines"
+            />
+            <span className="text-xs">lines</span>
+          </label>
+          <Btn type="button" onClick={downloadLogs} disabled={!lines.length}>
+            Download
+          </Btn>
           <span
             className={`text-xs font-medium ${
               status === 'live'

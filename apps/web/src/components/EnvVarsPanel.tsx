@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Eye, EyeOff } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api, type EnvVar } from '../lib/api'
 import { useConfirm } from './ConfirmDialog'
 import { InfoHint } from './ui/forms'
@@ -13,6 +13,8 @@ type Props = {
   subtitle?: string
   /** When true, show Production / Preview tabs (applications with preview deploys). */
   previewTabs?: boolean
+  /** Sort variables alphabetically by key (Coolify is_env_sorting_enabled). */
+  sortByKey?: boolean
 }
 
 type Draft = {
@@ -23,6 +25,7 @@ type Draft = {
   is_buildtime: boolean
   is_multiline: boolean
   is_literal: boolean
+  is_build_secret: boolean
 }
 
 const emptyDraft = (): Draft => ({
@@ -33,6 +36,7 @@ const emptyDraft = (): Draft => ({
   is_buildtime: true,
   is_multiline: false,
   is_literal: false,
+  is_build_secret: false,
 })
 
 function draftFrom(v: EnvVar): Draft {
@@ -44,6 +48,7 @@ function draftFrom(v: EnvVar): Draft {
     is_buildtime: v.is_buildtime,
     is_multiline: !!v.is_multiline,
     is_literal: v.is_literal,
+    is_build_secret: !!v.is_build_secret,
   }
 }
 
@@ -53,6 +58,7 @@ export function EnvVarsPanel({
   title = 'Environment Variables',
   subtitle = 'Environment (secrets) variables for this resource.',
   previewTabs = false,
+  sortByKey = false,
 }: Props) {
   const [scope, setScope] = useState<'production' | 'preview'>('production')
   const isPreview = previewTabs && scope === 'preview'
@@ -64,6 +70,12 @@ export function EnvVarsPanel({
     queryFn: () =>
       api.envVars(resourceType, resourceId, true, previewTabs ? isPreview : undefined),
   })
+
+  const sortedVars = useMemo(() => {
+    const list = vars.data?.environment_variables || []
+    if (!sortByKey) return list
+    return [...list].sort((a, b) => a.key.localeCompare(b.key))
+  }, [vars.data?.environment_variables, sortByKey])
 
   return (
     <div className="space-y-4">
@@ -105,7 +117,7 @@ export function EnvVarsPanel({
       ) : null}
 
       <div className="space-y-3">
-        {(vars.data?.environment_variables || []).map((v) => (
+        {sortedVars.map((v) => (
           <EnvVarCard
             key={v.id}
             variable={v}
@@ -172,6 +184,7 @@ function EnvVarCard({
         is_buildtime: draft.is_buildtime,
         is_multiline: draft.is_multiline,
         is_literal: draft.is_literal || draft.is_multiline,
+        is_build_secret: draft.is_build_secret,
         is_preview: isPreview,
         comment: draft.comment,
       }),
@@ -265,6 +278,13 @@ function EnvVarCard({
           checked={draft.is_buildtime}
           disabled={disabled}
           onChange={(v) => setDraft({ ...draft, is_buildtime: v })}
+        />
+        <Check
+          label="Is Build Secret?"
+          hint="Mount as a Docker build secret instead of a plain build arg."
+          checked={draft.is_build_secret}
+          disabled={disabled || !draft.is_buildtime}
+          onChange={(v) => setDraft({ ...draft, is_build_secret: v })}
         />
         <Check
           label="Available at Runtime"
@@ -370,6 +390,7 @@ function AddEnvVarModal({
         is_buildtime: draft.is_buildtime,
         is_multiline: draft.is_multiline,
         is_literal: draft.is_literal || draft.is_multiline,
+        is_build_secret: draft.is_build_secret,
         is_preview: isPreview,
         comment: draft.comment,
       }),
@@ -441,6 +462,13 @@ function AddEnvVarModal({
             hint="Injected as a build argument / build secret during image build."
             checked={draft.is_buildtime}
             onChange={(v) => setDraft({ ...draft, is_buildtime: v })}
+          />
+          <Check
+            label="Is Build Secret?"
+            hint="Mount as a Docker build secret instead of a plain build arg."
+            checked={draft.is_build_secret}
+            disabled={!draft.is_buildtime}
+            onChange={(v) => setDraft({ ...draft, is_build_secret: v })}
           />
           <Check
             label="Available at Runtime"

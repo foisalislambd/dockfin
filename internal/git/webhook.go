@@ -23,6 +23,9 @@ type PushEvent struct {
 	ChangedFiles   []string // optional; used for watch_paths filtering
 	RepoFullName   string   // normalized owner/repo
 	CommitMessages []string // push commit messages for skip-ci
+	// Coolify-parity PR trust gates (GitHub/Gitea pull_request payloads).
+	IsFork             bool
+	AuthorAssociation  string
 }
 
 // IsClosed reports whether this event should tear down a preview.
@@ -198,20 +201,26 @@ func parseGitHubPush(provider string, body []byte) (*PushEvent, error) {
 
 func parseGitHubPullRequest(provider string, body []byte) (*PushEvent, error) {
 	var p struct {
-		Action      string `json:"action"`
-		Number      int    `json:"number"`
-		Repository  struct {
+		Action     string `json:"action"`
+		Number     int    `json:"number"`
+		Repository struct {
 			FullName string `json:"full_name"`
+			ID       int64  `json:"id"`
 		} `json:"repository"`
 		PullRequest struct {
 			Head struct {
-				Ref string `json:"ref"`
-				Sha string `json:"sha"`
+				Ref  string `json:"ref"`
+				Sha  string `json:"sha"`
+				Repo *struct {
+					ID       int64  `json:"id"`
+					FullName string `json:"full_name"`
+				} `json:"repo"`
 			} `json:"head"`
 			Base struct {
 				Ref string `json:"ref"`
 			} `json:"base"`
-			Title string `json:"title"`
+			Title             string `json:"title"`
+			AuthorAssociation string `json:"author_association"`
 		} `json:"pull_request"`
 	}
 	if err := json.Unmarshal(body, &p); err != nil {
@@ -225,16 +234,26 @@ func parseGitHubPullRequest(provider string, body []byte) (*PushEvent, error) {
 		// labeled, edited, assigned, … — acknowledge without error so hosts do not retry
 		action = "ignored"
 	}
+	isFork := false
+	if p.PullRequest.Head.Repo != nil {
+		if p.PullRequest.Head.Repo.ID != 0 && p.Repository.ID != 0 {
+			isFork = p.PullRequest.Head.Repo.ID != p.Repository.ID
+		} else if p.PullRequest.Head.Repo.FullName != "" && p.Repository.FullName != "" {
+			isFork = !strings.EqualFold(p.PullRequest.Head.Repo.FullName, p.Repository.FullName)
+		}
+	}
 	return &PushEvent{
-		Provider:       provider,
-		Action:         action,
-		Branch:         p.PullRequest.Head.Ref,
-		BaseBranch:     p.PullRequest.Base.Ref,
-		Commit:         p.PullRequest.Head.Sha,
-		Message:        p.PullRequest.Title,
-		PRNumber:       p.Number,
-		RepoFullName:   NormalizeRepoFullName(p.Repository.FullName),
-		CommitMessages: []string{p.PullRequest.Title},
+		Provider:          provider,
+		Action:            action,
+		Branch:            p.PullRequest.Head.Ref,
+		BaseBranch:        p.PullRequest.Base.Ref,
+		Commit:            p.PullRequest.Head.Sha,
+		Message:           p.PullRequest.Title,
+		PRNumber:          p.Number,
+		RepoFullName:      NormalizeRepoFullName(p.Repository.FullName),
+		CommitMessages:    []string{p.PullRequest.Title},
+		IsFork:            isFork,
+		AuthorAssociation: strings.ToUpper(strings.TrimSpace(p.PullRequest.AuthorAssociation)),
 	}, nil
 }
 

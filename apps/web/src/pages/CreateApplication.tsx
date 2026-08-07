@@ -138,6 +138,7 @@ export function CreateApplicationPage() {
     git_source_id: '',
     private_key_id: '',
     docker_compose_location: '',
+    docker_compose_raw: '',
     base_directory: '/',
     compose_prepare: true,
     dockerfile: simpleDockerfile ? DEFAULT_DOCKERFILE : '',
@@ -243,7 +244,10 @@ export function CreateApplicationPage() {
       : '/projects'
   const backLabel = nested ? 'Back to New Resource' : 'Back to projects'
 
-  const needsGit = form.build_pack !== 'dockerimage' && !simpleDockerfile
+  const needsGit =
+    form.build_pack !== 'dockerimage' &&
+    !simpleDockerfile &&
+    !(form.build_pack === 'dockercompose' && form.docker_compose_raw.trim())
 
   const create = useMutation({
     mutationFn: () => {
@@ -257,6 +261,9 @@ export function CreateApplicationPage() {
       if (form.build_pack !== 'dockercompose') {
         delete body.docker_compose_location
         delete body.compose_prepare
+        delete body.docker_compose_raw
+      } else if (!String(form.docker_compose_raw || '').trim()) {
+        delete body.docker_compose_raw
       }
       const base = String(form.base_directory || '').trim() || '/'
       if (base.includes('..')) {
@@ -321,6 +328,14 @@ export function CreateApplicationPage() {
     }
     if (needsGit && sourceType !== 'private-gh-app' && sourceType !== 'private-deploy-key' && !form.git_repository && form.build_pack !== 'dockerimage') {
       setFormError('Git repository is required.')
+      return
+    }
+    if (
+      form.build_pack === 'dockercompose' &&
+      !form.docker_compose_raw.trim() &&
+      !form.git_repository
+    ) {
+      setFormError('Git repository or pasted compose YAML is required.')
       return
     }
     create.mutate()
@@ -708,6 +723,22 @@ export function CreateApplicationPage() {
 
           {form.build_pack === 'dockercompose' ? (
             <div className="space-y-4 rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-gray-800 dark:text-gray-200">
+                  Empty Compose (optional)
+                </span>
+                <span className="mb-2 block text-xs text-gray-500 dark:text-gray-400">
+                  Paste docker-compose YAML here to deploy without Git. When set, repository URL is
+                  optional.
+                </span>
+                <textarea
+                  value={form.docker_compose_raw}
+                  onChange={(e) => setForm({ ...form, docker_compose_raw: e.target.value })}
+                  rows={10}
+                  placeholder={'services:\n  web:\n    image: nginx:alpine\n    ports:\n      - "80:80"'}
+                  className="panel-field w-full rounded-lg px-3 py-2 font-mono text-xs"
+                />
+              </label>
               <div className="space-y-2">
                 <FormInput
                   label="Compose file path"
@@ -717,9 +748,14 @@ export function CreateApplicationPage() {
                     setForm({ ...form, docker_compose_location: v })
                   }}
                   required={false}
-                  placeholder="Auto-detect (recommended)"
-                  hint="Relative to Base Directory. Leave empty to auto-detect."
+                  placeholder={form.docker_compose_raw.trim() ? 'docker-compose.yml' : 'Auto-detect (recommended)'}
+                  hint={
+                    form.docker_compose_raw.trim()
+                      ? 'Path label for the pasted compose (usually docker-compose.yml).'
+                      : 'Relative to Base Directory. Leave empty to auto-detect.'
+                  }
                 />
+                {!form.docker_compose_raw.trim() ? (
                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     type="button"
@@ -753,6 +789,7 @@ export function CreateApplicationPage() {
                     </button>
                   ) : null}
                 </div>
+                ) : null}
                 {detectError ? (
                   <p className="text-xs text-error-500" role="alert">
                     {detectError}
@@ -762,7 +799,7 @@ export function CreateApplicationPage() {
                     Using {form.docker_compose_location}
                   </p>
                 ) : null}
-                {composeCandidates.length > 1 ? (
+                {!form.docker_compose_raw.trim() && composeCandidates.length > 1 ? (
                   <label className="block text-sm">
                     <span className="mb-1 block text-gray-500 dark:text-gray-400">
                       Found {composeCandidates.length} files — pick one

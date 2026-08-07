@@ -211,6 +211,10 @@ func (a *API) Router() http.Handler {
 				r.Delete("/{appID}/volumes/{volumeID}", a.handleDeleteAppVolume)
 				r.Get("/{appID}/backups", a.handleListApplicationBackups)
 				r.Post("/{appID}/backups", a.handleRunApplicationBackup)
+				r.Post("/{appID}/backups/restore", a.handleRestoreApplicationBackup)
+				r.Post("/{appID}/clone", a.handleCloneApplication)
+				r.Post("/{appID}/stop-cleanup", a.handleStopAndCleanupApplication)
+				r.Get("/{appID}/images", a.handleListServerImages)
 				r.Get("/{appID}/additional-destinations", a.handleListAdditionalDestinations)
 				r.Put("/{appID}/additional-destinations", a.handleSetAdditionalDestinations)
 				r.Get("/{appID}/metrics", a.handleApplicationMetrics)
@@ -220,6 +224,7 @@ func (a *API) Router() http.Handler {
 				r.Post("/{appID}/webhook-secret", a.handleSetWebhookSecret)
 				r.Post("/{appID}/rollback", a.handleRollbackApplication)
 				r.Get("/{appID}/previews", a.handleListPreviews)
+				r.Post("/{appID}/previews/deploy", a.handleManualPreviewDeploy)
 				r.With(a.requireAdmin).Delete("/{appID}/previews/{prID}", a.handleDeletePreview)
 			})
 

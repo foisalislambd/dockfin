@@ -95,11 +95,12 @@ func TestParseGitHubPROpen(t *testing.T) {
 	body := []byte(`{
 		"action":"opened",
 		"number":7,
-		"repository":{"full_name":"acme/app"},
+		"repository":{"full_name":"acme/app","id":1},
 		"pull_request":{
-			"head":{"ref":"feat","sha":"aaa"},
+			"head":{"ref":"feat","sha":"aaa","repo":{"id":1,"full_name":"acme/app"}},
 			"base":{"ref":"main"},
-			"title":"Hello"
+			"title":"Hello",
+			"author_association":"MEMBER"
 		}
 	}`)
 	r := &http.Request{Header: http.Header{"X-Github-Event": []string{"pull_request"}}}
@@ -109,6 +110,31 @@ func TestParseGitHubPROpen(t *testing.T) {
 	}
 	if !ev.IsPreviewOpen() || ev.Branch != "feat" || ev.BaseBranch != "main" {
 		t.Fatalf("bad open: %+v", ev)
+	}
+	if ev.IsFork || ev.AuthorAssociation != "MEMBER" {
+		t.Fatalf("expected same-repo MEMBER, got fork=%v assoc=%q", ev.IsFork, ev.AuthorAssociation)
+	}
+}
+
+func TestParseGitHubPRFork(t *testing.T) {
+	body := []byte(`{
+		"action":"opened",
+		"number":8,
+		"repository":{"full_name":"acme/app","id":1},
+		"pull_request":{
+			"head":{"ref":"feat","sha":"bbb","repo":{"id":99,"full_name":"outsider/app"}},
+			"base":{"ref":"main"},
+			"title":"Fork PR",
+			"author_association":"CONTRIBUTOR"
+		}
+	}`)
+	r := &http.Request{Header: http.Header{"X-Github-Event": []string{"pull_request"}}}
+	ev, err := ParseWebhook("github", r, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ev.IsFork || ev.AuthorAssociation != "CONTRIBUTOR" {
+		t.Fatalf("expected fork CONTRIBUTOR, got %+v", ev)
 	}
 }
 

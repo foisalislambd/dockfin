@@ -105,6 +105,29 @@ func (a *API) enqueuePreviewDeploy(ctx context.Context, app *store.Application, 
 		res.Message = "preview deployments disabled"
 		return res
 	}
+	// Coolify: when public PR previews are off, reject forks and untrusted associations.
+	if !app.IsPRDeploymentsPublicEnabled {
+		if event.IsFork {
+			res.Status = "skipped"
+			res.Message = "fork pull request previews disabled"
+			return res
+		}
+		assoc := strings.ToUpper(strings.TrimSpace(event.AuthorAssociation))
+		if assoc != "" {
+			trusted := false
+			for _, t := range []string{"OWNER", "MEMBER", "COLLABORATOR"} {
+				if assoc == t {
+					trusted = true
+					break
+				}
+			}
+			if !trusted {
+				res.Status = "skipped"
+				res.Message = "untrusted pull request author (enable public PR previews to allow)"
+				return res
+			}
+		}
+	}
 	// PR/MR must target the app's configured branch.
 	base := event.BaseBranch
 	if base != "" && app.GitBranch != "" && base != app.GitBranch {
@@ -119,12 +142,7 @@ func (a *API) enqueuePreviewDeploy(ctx context.Context, app *store.Application, 
 	}
 	fqdn := ""
 	if app.FQDN != "" {
-		host := strings.TrimSpace(strings.Split(app.FQDN, ",")[0])
-		// strip scheme if stored as URL
-		host = strings.TrimPrefix(host, "https://")
-		host = strings.TrimPrefix(host, "http://")
-		host = strings.Split(host, "/")[0]
-		fqdn = fmt.Sprintf("pr-%d.%s", event.PRNumber, host)
+		fqdn = previewFQDNFromTemplate(app.PreviewURLTemplate, event.PRNumber, app.FQDN)
 	}
 	preview, err := a.Store.CreatePreview(ctx, app.TeamID, app.ID, event.PRNumber, event.Message, event.Branch, fqdn)
 	if err != nil {

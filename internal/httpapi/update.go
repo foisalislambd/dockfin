@@ -31,9 +31,18 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		Name                    *string `json:"name"`
 		Description             *string `json:"description"`
 		FQDN                    *string `json:"fqdn"`
+		BuildPack               *string `json:"build_pack"`
 		GitRepository           *string `json:"git_repository"`
 		GitBranch               *string `json:"git_branch"`
 		PortsExposes            *string `json:"ports_exposes"`
+		PortsMappings           *string `json:"ports_mappings"`
+		CustomNetworkAliases    *string `json:"custom_network_aliases"`
+		InstallCommand          *string `json:"install_command"`
+		BuildCommand            *string `json:"build_command"`
+		StartCommand            *string `json:"start_command"`
+		PublishDirectory        *string `json:"publish_directory"`
+		CustomNginxConfiguration *string `json:"custom_nginx_configuration"`
+		PreviewURLTemplate      *string `json:"preview_url_template"`
 		DockerRegistryImageName *string `json:"docker_registry_image_name"`
 		DockerRegistryImageTag  *string `json:"docker_registry_image_tag"`
 		DockerfileLocation      *string `json:"dockerfile_location"`
@@ -70,6 +79,12 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		HealthCheckInterval     *int    `json:"health_check_interval"`
 		HealthCheckTimeout      *int    `json:"health_check_timeout"`
 		HealthCheckRetries      *int    `json:"health_check_retries"`
+		HealthCheckHost         *string `json:"health_check_host"`
+		HealthCheckScheme       *string `json:"health_check_scheme"`
+		HealthCheckResponseText *string `json:"health_check_response_text"`
+		HealthCheckStartPeriod  *int    `json:"health_check_start_period"`
+		HealthCheckType         *string `json:"health_check_type"`
+		HealthCheckCommand      *string `json:"health_check_command"`
 		LimitsMemory            *string `json:"limits_memory"`
 		LimitsCpus              *string `json:"limits_cpus"`
 		Redirect                *string `json:"redirect"`
@@ -81,6 +96,31 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		GPUCount                *int    `json:"gpu_count"`
 		CustomDockerStopTimeout *int    `json:"custom_docker_stop_timeout"`
 		CustomDockerRestartPolicy *string `json:"custom_docker_restart_policy"`
+		IsSPA                   *bool   `json:"is_spa"`
+		InjectBuildArgsToDockerfile *bool `json:"inject_build_args_to_dockerfile"`
+		UseBuildSecrets         *bool   `json:"use_build_secrets"`
+		IncludeSourceCommitInBuild *bool `json:"include_source_commit_in_build"`
+		DockerImagesToKeep      *int    `json:"docker_images_to_keep"`
+		IsConsistentContainerNameEnabled *bool `json:"is_consistent_container_name_enabled"`
+		CustomInternalName      *string `json:"custom_internal_name"`
+		IsGzipEnabled           *bool   `json:"is_gzip_enabled"`
+		IsStripPrefixEnabled    *bool   `json:"is_stripprefix_enabled"`
+		IsLogDrainEnabled       *bool   `json:"is_log_drain_enabled"`
+		IsDebugEnabled          *bool   `json:"is_debug_enabled"`
+		IsEnvSortingEnabled     *bool   `json:"is_env_sorting_enabled"`
+		IsPRDeploymentsPublicEnabled *bool `json:"is_pr_deployments_public_enabled"`
+		SkipRebuildIfUnchanged  *bool   `json:"skip_rebuild_if_unchanged"`
+		GPUDriver               *string `json:"gpu_driver"`
+		GPUDeviceIDs            *string `json:"gpu_device_ids"`
+		GPUOptions              *string `json:"gpu_options"`
+		CustomDockerMaxRestartCount *int `json:"custom_docker_max_restart_count"`
+		PreDeploymentCommandContainer *string `json:"pre_deployment_command_container"`
+		PostDeploymentCommandContainer *string `json:"post_deployment_command_container"`
+		IsSwarmOnlyWorkerNodes  *bool   `json:"is_swarm_only_worker_nodes"`
+		IsIncludeTimestamps     *bool   `json:"is_include_timestamps"`
+		LogsLineLimit           *int    `json:"logs_line_limit"`
+		SwarmReplicas           *int    `json:"swarm_replicas"`
+		SwarmPlacementConstraints *string `json:"swarm_placement_constraints"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -107,6 +147,44 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.PortsExposes != nil {
 		app.PortsExposes = *body.PortsExposes
+	}
+	if body.PortsMappings != nil {
+		app.PortsMappings = *body.PortsMappings
+	}
+	if body.CustomNetworkAliases != nil {
+		app.CustomNetworkAliases = *body.CustomNetworkAliases
+	}
+	if body.InstallCommand != nil {
+		app.InstallCommand = *body.InstallCommand
+	}
+	if body.BuildCommand != nil {
+		app.BuildCommand = *body.BuildCommand
+	}
+	if body.StartCommand != nil {
+		app.StartCommand = *body.StartCommand
+	}
+	if body.PublishDirectory != nil {
+		app.PublishDirectory = *body.PublishDirectory
+	}
+	if body.CustomNginxConfiguration != nil {
+		app.CustomNginxConfiguration = *body.CustomNginxConfiguration
+	}
+	if body.PreviewURLTemplate != nil {
+		tpl := strings.TrimSpace(*body.PreviewURLTemplate)
+		if tpl == "" {
+			tpl = "{{pr_id}}.{{domain}}"
+		}
+		app.PreviewURLTemplate = tpl
+	}
+	if body.BuildPack != nil {
+		bp := strings.ToLower(strings.TrimSpace(*body.BuildPack))
+		switch bp {
+		case "dockerfile", "dockercompose", "dockerimage", "static", "railpack":
+			app.BuildPack = bp
+		default:
+			writeError(w, http.StatusBadRequest, "invalid build_pack")
+			return
+		}
 	}
 	if body.DockerRegistryImageName != nil {
 		app.DockerRegistryImageName = *body.DockerRegistryImageName
@@ -266,6 +344,47 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 	if body.HealthCheckRetries != nil {
 		app.HealthCheckRetries = *body.HealthCheckRetries
 	}
+	if body.HealthCheckHost != nil {
+		app.HealthCheckHost = strings.TrimSpace(*body.HealthCheckHost)
+	}
+	if body.HealthCheckScheme != nil {
+		scheme := strings.ToLower(strings.TrimSpace(*body.HealthCheckScheme))
+		if scheme == "" {
+			scheme = "http"
+		}
+		if scheme != "http" && scheme != "https" {
+			writeError(w, http.StatusBadRequest, "health_check_scheme must be http or https")
+			return
+		}
+		app.HealthCheckScheme = scheme
+	}
+	if body.HealthCheckResponseText != nil {
+		app.HealthCheckResponseText = *body.HealthCheckResponseText
+	}
+	if body.HealthCheckStartPeriod != nil {
+		app.HealthCheckStartPeriod = *body.HealthCheckStartPeriod
+	}
+	if body.HealthCheckType != nil {
+		ht := strings.ToLower(strings.TrimSpace(*body.HealthCheckType))
+		if ht != "http" && ht != "cmd" {
+			writeError(w, http.StatusBadRequest, "health_check_type must be http or cmd")
+			return
+		}
+		app.HealthCheckType = ht
+	}
+	if body.HealthCheckCommand != nil {
+		app.HealthCheckCommand = *body.HealthCheckCommand
+	}
+	if body.SwarmReplicas != nil {
+		if *body.SwarmReplicas < 1 {
+			writeError(w, http.StatusBadRequest, "swarm_replicas must be >= 1")
+			return
+		}
+		app.SwarmReplicas = *body.SwarmReplicas
+	}
+	if body.SwarmPlacementConstraints != nil {
+		app.SwarmPlacementConstraints = *body.SwarmPlacementConstraints
+	}
 	if body.LimitsMemory != nil {
 		app.LimitsMemory = *body.LimitsMemory
 	}
@@ -381,16 +500,48 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 	}
 	advTouched := body.IsDisableBuildCache != nil || body.IsGitShallowCloneEnabled != nil ||
 		body.IsGitLFSEnabled != nil || body.IsGPUEnabled != nil || body.GPUCount != nil ||
-		body.CustomDockerStopTimeout != nil || body.CustomDockerRestartPolicy != nil
+		body.CustomDockerStopTimeout != nil || body.CustomDockerRestartPolicy != nil ||
+		body.IsSPA != nil || body.InjectBuildArgsToDockerfile != nil || body.UseBuildSecrets != nil ||
+		body.IncludeSourceCommitInBuild != nil || body.DockerImagesToKeep != nil ||
+		body.IsConsistentContainerNameEnabled != nil || body.CustomInternalName != nil ||
+		body.IsGzipEnabled != nil || body.IsStripPrefixEnabled != nil || body.IsLogDrainEnabled != nil ||
+		body.IsDebugEnabled != nil || body.IsEnvSortingEnabled != nil || body.IsPRDeploymentsPublicEnabled != nil ||
+		body.SkipRebuildIfUnchanged != nil || body.GPUDriver != nil || body.GPUDeviceIDs != nil ||
+		body.GPUOptions != nil || body.CustomDockerMaxRestartCount != nil ||
+		body.PreDeploymentCommandContainer != nil || body.PostDeploymentCommandContainer != nil ||
+		body.IsSwarmOnlyWorkerNodes != nil || body.IsIncludeTimestamps != nil || body.LogsLineLimit != nil
 	if advTouched {
 		adv := store.ApplicationAdvancedSettings{
-			IsDisableBuildCache:       app.IsDisableBuildCache,
-			IsGitShallowCloneEnabled:  app.IsGitShallowCloneEnabled,
-			IsGitLFSEnabled:           app.IsGitLFSEnabled,
-			IsGPUEnabled:              app.IsGPUEnabled,
-			GPUCount:                  app.GPUCount,
-			CustomDockerStopTimeout:   app.CustomDockerStopTimeout,
-			CustomDockerRestartPolicy: app.CustomDockerRestartPolicy,
+			IsDisableBuildCache:              app.IsDisableBuildCache,
+			IsGitShallowCloneEnabled:         app.IsGitShallowCloneEnabled,
+			IsGitLFSEnabled:                  app.IsGitLFSEnabled,
+			IsGPUEnabled:                     app.IsGPUEnabled,
+			GPUCount:                         app.GPUCount,
+			CustomDockerStopTimeout:          app.CustomDockerStopTimeout,
+			CustomDockerRestartPolicy:        app.CustomDockerRestartPolicy,
+			IsSPA:                            app.IsSPA,
+			InjectBuildArgsToDockerfile:      app.InjectBuildArgsToDockerfile,
+			UseBuildSecrets:                  app.UseBuildSecrets,
+			IncludeSourceCommitInBuild:       app.IncludeSourceCommitInBuild,
+			DockerImagesToKeep:               app.DockerImagesToKeep,
+			IsConsistentContainerNameEnabled: app.IsConsistentContainerNameEnabled,
+			CustomInternalName:               app.CustomInternalName,
+			IsGzipEnabled:                    app.IsGzipEnabled,
+			IsStripPrefixEnabled:             app.IsStripPrefixEnabled,
+			IsLogDrainEnabled:                app.IsLogDrainEnabled,
+			IsDebugEnabled:                   app.IsDebugEnabled,
+			IsEnvSortingEnabled:              app.IsEnvSortingEnabled,
+			IsPRDeploymentsPublicEnabled:     app.IsPRDeploymentsPublicEnabled,
+			SkipRebuildIfUnchanged:           app.SkipRebuildIfUnchanged,
+			GPUDriver:                        app.GPUDriver,
+			GPUDeviceIDs:                     app.GPUDeviceIDs,
+			GPUOptions:                       app.GPUOptions,
+			CustomDockerMaxRestartCount:      app.CustomDockerMaxRestartCount,
+			PreDeploymentCommandContainer:    app.PreDeploymentCommandContainer,
+			PostDeploymentCommandContainer:   app.PostDeploymentCommandContainer,
+			IsSwarmOnlyWorkerNodes:           app.IsSwarmOnlyWorkerNodes,
+			IsIncludeTimestamps:              app.IsIncludeTimestamps,
+			LogsLineLimit:                    app.LogsLineLimit,
 		}
 		if body.IsDisableBuildCache != nil {
 			adv.IsDisableBuildCache = *body.IsDisableBuildCache
@@ -412,6 +563,75 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		}
 		if body.CustomDockerRestartPolicy != nil {
 			adv.CustomDockerRestartPolicy = strings.TrimSpace(*body.CustomDockerRestartPolicy)
+		}
+		if body.IsSPA != nil {
+			adv.IsSPA = *body.IsSPA
+		}
+		if body.InjectBuildArgsToDockerfile != nil {
+			adv.InjectBuildArgsToDockerfile = *body.InjectBuildArgsToDockerfile
+		}
+		if body.UseBuildSecrets != nil {
+			adv.UseBuildSecrets = *body.UseBuildSecrets
+		}
+		if body.IncludeSourceCommitInBuild != nil {
+			adv.IncludeSourceCommitInBuild = *body.IncludeSourceCommitInBuild
+		}
+		if body.DockerImagesToKeep != nil {
+			adv.DockerImagesToKeep = *body.DockerImagesToKeep
+		}
+		if body.IsConsistentContainerNameEnabled != nil {
+			adv.IsConsistentContainerNameEnabled = *body.IsConsistentContainerNameEnabled
+		}
+		if body.CustomInternalName != nil {
+			adv.CustomInternalName = strings.TrimSpace(*body.CustomInternalName)
+		}
+		if body.IsGzipEnabled != nil {
+			adv.IsGzipEnabled = *body.IsGzipEnabled
+		}
+		if body.IsStripPrefixEnabled != nil {
+			adv.IsStripPrefixEnabled = *body.IsStripPrefixEnabled
+		}
+		if body.IsLogDrainEnabled != nil {
+			adv.IsLogDrainEnabled = *body.IsLogDrainEnabled
+		}
+		if body.IsDebugEnabled != nil {
+			adv.IsDebugEnabled = *body.IsDebugEnabled
+		}
+		if body.IsEnvSortingEnabled != nil {
+			adv.IsEnvSortingEnabled = *body.IsEnvSortingEnabled
+		}
+		if body.IsPRDeploymentsPublicEnabled != nil {
+			adv.IsPRDeploymentsPublicEnabled = *body.IsPRDeploymentsPublicEnabled
+		}
+		if body.SkipRebuildIfUnchanged != nil {
+			adv.SkipRebuildIfUnchanged = *body.SkipRebuildIfUnchanged
+		}
+		if body.GPUDriver != nil {
+			adv.GPUDriver = strings.TrimSpace(*body.GPUDriver)
+		}
+		if body.GPUDeviceIDs != nil {
+			adv.GPUDeviceIDs = *body.GPUDeviceIDs
+		}
+		if body.GPUOptions != nil {
+			adv.GPUOptions = *body.GPUOptions
+		}
+		if body.CustomDockerMaxRestartCount != nil {
+			adv.CustomDockerMaxRestartCount = *body.CustomDockerMaxRestartCount
+		}
+		if body.PreDeploymentCommandContainer != nil {
+			adv.PreDeploymentCommandContainer = strings.TrimSpace(*body.PreDeploymentCommandContainer)
+		}
+		if body.PostDeploymentCommandContainer != nil {
+			adv.PostDeploymentCommandContainer = strings.TrimSpace(*body.PostDeploymentCommandContainer)
+		}
+		if body.IsSwarmOnlyWorkerNodes != nil {
+			adv.IsSwarmOnlyWorkerNodes = *body.IsSwarmOnlyWorkerNodes
+		}
+		if body.IsIncludeTimestamps != nil {
+			adv.IsIncludeTimestamps = *body.IsIncludeTimestamps
+		}
+		if body.LogsLineLimit != nil {
+			adv.LogsLineLimit = *body.LogsLineLimit
 		}
 		if err := a.Store.SetApplicationAdvancedSettings(r.Context(), teamID, appID, adv); err != nil {
 			mapStoreErr(w, err)

@@ -262,6 +262,12 @@ func (q *Queue) handle(ctx context.Context, job DeployJob) {
 		return
 	}
 	_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "finished", "")
+	if dep.PullRequestID == 0 {
+		sha := strings.TrimSpace(dep.CommitSHA)
+		if sha != "" && !strings.EqualFold(sha, "HEAD") {
+			_ = q.Store.UpdateApplicationGitCommitSHA(ctx, app.ID, sha)
+		}
+	}
 	q.publish(job.DeploymentID, "status", "finished")
 	q.notifyDeploy(ctx, job.TeamID, app.Name, "finished", "")
 }

@@ -37,6 +37,10 @@ type PrepareOpts struct {
 	RestartPolicy string
 	// StopGracePeriodSec sets compose `stop_grace_period` (seconds); 0 leaves default.
 	StopGracePeriodSec int
+	// Swarm deploy block on the primary service (destination kind swarm).
+	SwarmReplicas             int
+	SwarmPlacementConstraints []string
+	SwarmWorkersOnly          bool
 }
 
 var reMagicKey = regexp.MustCompile(`SERVICE_(?:PASSWORD|USER|FQDN|URL|BASE64|HEX)_[A-Z0-9_]+`)
@@ -86,6 +90,7 @@ func PrepareCompose(raw string, opts PrepareOpts) (string, map[string]string, er
 	injectProxyLabels(doc, opts)
 	injectGPU(doc, opts)
 	injectRestartAndStopGrace(doc, opts)
+	injectSwarmDeploy(doc, opts)
 	if !opts.KeepPublishedPorts {
 		stripPublishedPorts(doc)
 	}
@@ -1223,6 +1228,53 @@ func injectRestartAndStopGrace(doc map[string]any, opts PrepareOpts) {
 		}
 		services[name] = svc
 	}
+	doc["services"] = services
+}
+
+// injectSwarmDeploy adds deploy.replicas and placement constraints on the primary service for swarm stacks.
+func injectSwarmDeploy(doc map[string]any, opts PrepareOpts) {
+	if opts.SwarmReplicas <= 0 && len(opts.SwarmPlacementConstraints) == 0 && !opts.SwarmWorkersOnly {
+		return
+	}
+	services, _ := doc["services"].(map[string]any)
+	if services == nil || len(services) == 0 {
+		return
+	}
+	target := pickProxyService(services)
+	if target == "" {
+		return
+	}
+	svc, ok := services[target].(map[string]any)
+	if !ok {
+		return
+	}
+	deploy, _ := svc["deploy"].(map[string]any)
+	if deploy == nil {
+		deploy = map[string]any{}
+	}
+	if opts.SwarmReplicas > 0 {
+		deploy["replicas"] = opts.SwarmReplicas
+	}
+	var constraints []any
+	for _, c := range opts.SwarmPlacementConstraints {
+		c = strings.TrimSpace(c)
+		if c != "" {
+			constraints = append(constraints, c)
+		}
+	}
+	if opts.SwarmWorkersOnly {
+		constraints = append(constraints, "node.role == worker")
+	}
+	if len(constraints) > 0 {
+		placement, _ := deploy["placement"].(map[string]any)
+		if placement == nil {
+			placement = map[string]any{}
+		}
+		placement["constraints"] = constraints
+		deploy["placement"] = placement
+	}
+	svc["deploy"] = deploy
+	services[target] = svc
 	doc["services"] = services
 }
 

@@ -54,6 +54,7 @@ func (a *API) handleUpsertEnvVar(w http.ResponseWriter, r *http.Request) {
 		IsMultiline  bool   `json:"is_multiline"`
 		IsLocked     bool   `json:"is_locked"`
 		IsPreview    bool   `json:"is_preview"`
+		IsBuildSecret *bool `json:"is_build_secret"`
 		Comment      string `json:"comment"`
 		KeepValue    bool   `json:"keep_value"`
 	}
@@ -79,19 +80,24 @@ func (a *API) handleUpsertEnvVar(w http.ResponseWriter, r *http.Request) {
 	if body.IsBuildtime != nil {
 		buildtime = *body.IsBuildtime
 	}
+	buildSecret := false
+	if body.IsBuildSecret != nil {
+		buildSecret = *body.IsBuildSecret
+	}
 	// Multiline implies literal (Coolify).
 	literal := body.IsLiteral || body.IsMultiline
 	v, err := a.Store.UpsertEnvVar(r.Context(), teamID, body.ResourceType, rid, store.UpsertEnvVarInput{
-		Key:       body.Key,
-		Value:     body.Value,
-		Runtime:   runtime,
-		Buildtime: buildtime,
-		Literal:   literal,
-		Multiline: body.IsMultiline,
-		Locked:    body.IsLocked,
-		IsPreview: body.IsPreview,
-		Comment:   body.Comment,
-		KeepValue: body.KeepValue,
+		Key:           body.Key,
+		Value:         body.Value,
+		Runtime:       runtime,
+		Buildtime:     buildtime,
+		Literal:       literal,
+		Multiline:     body.IsMultiline,
+		Locked:        body.IsLocked,
+		IsPreview:     body.IsPreview,
+		IsBuildSecret: buildSecret,
+		Comment:       body.Comment,
+		KeepValue:     body.KeepValue,
 	})
 	if err != nil {
 		mapStoreErr(w, err)

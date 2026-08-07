@@ -169,15 +169,16 @@ func (s *Store) copyResourceExtras(ctx context.Context, teamID uuid.UUID, resour
 	}
 	for _, v := range vars {
 		if _, err := s.UpsertEnvVar(ctx, teamID, resourceType, toID, UpsertEnvVarInput{
-			Key:       v.Key,
-			Value:     v.Value,
-			Runtime:   v.IsRuntime,
-			Buildtime: v.IsBuildtime,
-			Literal:   v.IsLiteral,
-			Multiline: v.IsMultiline,
-			Locked:    v.IsLocked,
-			Comment:   v.Comment,
-			BypassLock: true,
+			Key:           v.Key,
+			Value:         v.Value,
+			Runtime:       v.IsRuntime,
+			Buildtime:     v.IsBuildtime,
+			Literal:       v.IsLiteral,
+			Multiline:     v.IsMultiline,
+			Locked:        v.IsLocked,
+			IsBuildSecret: v.IsBuildSecret,
+			Comment:       v.Comment,
+			BypassLock:    true,
 		}); err != nil {
 			return err
 		}
@@ -204,6 +205,23 @@ func (s *Store) copyResourceExtras(ctx context.Context, teamID uuid.UUID, resour
 	}
 	for _, tag := range tags {
 		_ = s.AttachTag(ctx, teamID, tag.ID, resourceType, toID)
+	}
+
+	if resourceType == "application" || resourceType == "database" || resourceType == "service" {
+		vols, err := s.ListVolumes(ctx, teamID, resourceType, fromID)
+		if err != nil {
+			return err
+		}
+		for _, v := range vols {
+			host := v.HostPath
+			// Avoid sharing the source app's host path; leave blank so deploy recreates under new id.
+			if resourceType == "application" {
+				host = ""
+			}
+			if _, err := s.UpsertVolume(ctx, teamID, resourceType, toID, v.Name, v.MountPath, host, v.IsFile); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

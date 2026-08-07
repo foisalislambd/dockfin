@@ -12,20 +12,21 @@ import (
 )
 
 type EnvVar struct {
-	ID           uuid.UUID `json:"id"`
-	TeamID       uuid.UUID `json:"team_id"`
-	ResourceType string    `json:"resource_type"`
-	ResourceID   uuid.UUID `json:"resource_id"`
-	Key          string    `json:"key"`
-	Value        string    `json:"value,omitempty"`
-	IsPreview    bool      `json:"is_preview"`
-	IsRuntime    bool      `json:"is_runtime"`
-	IsBuildtime  bool      `json:"is_buildtime"`
-	IsLiteral    bool      `json:"is_literal"`
-	IsMultiline  bool      `json:"is_multiline"`
-	IsLocked     bool      `json:"is_locked"` // persisted as is_shown_once (Coolify lock)
-	Comment      string    `json:"comment"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID            uuid.UUID `json:"id"`
+	TeamID        uuid.UUID `json:"team_id"`
+	ResourceType  string    `json:"resource_type"`
+	ResourceID    uuid.UUID `json:"resource_id"`
+	Key           string    `json:"key"`
+	Value         string    `json:"value,omitempty"`
+	IsPreview     bool      `json:"is_preview"`
+	IsRuntime     bool      `json:"is_runtime"`
+	IsBuildtime   bool      `json:"is_buildtime"`
+	IsLiteral     bool      `json:"is_literal"`
+	IsMultiline   bool      `json:"is_multiline"`
+	IsLocked      bool      `json:"is_locked"` // persisted as is_shown_once (Coolify lock)
+	IsBuildSecret bool      `json:"is_build_secret"`
+	Comment       string    `json:"comment"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 type SharedEnvVar struct {
@@ -41,7 +42,8 @@ type SharedEnvVar struct {
 
 func (s *Store) ListEnvVars(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID, reveal bool) ([]EnvVar, error) {
 	rows, err := s.Pool.Query(ctx, `
-		SELECT id, team_id, resource_type, resource_id, key, value_enc, is_preview, is_runtime, is_buildtime, is_literal, is_multiline, is_shown_once, comment, created_at
+		SELECT id, team_id, resource_type, resource_id, key, value_enc, is_preview, is_runtime, is_buildtime, is_literal, is_multiline, is_shown_once,
+			COALESCE(is_build_secret, FALSE), comment, created_at
 		FROM environment_variables
 		WHERE team_id=$1 AND resource_type=$2 AND resource_id=$3
 		ORDER BY sort_order, key
@@ -55,7 +57,7 @@ func (s *Store) ListEnvVars(ctx context.Context, teamID uuid.UUID, resourceType 
 		var v EnvVar
 		var enc string
 		if err := rows.Scan(&v.ID, &v.TeamID, &v.ResourceType, &v.ResourceID, &v.Key, &enc,
-			&v.IsPreview, &v.IsRuntime, &v.IsBuildtime, &v.IsLiteral, &v.IsMultiline, &v.IsLocked, &v.Comment, &v.CreatedAt); err != nil {
+			&v.IsPreview, &v.IsRuntime, &v.IsBuildtime, &v.IsLiteral, &v.IsMultiline, &v.IsLocked, &v.IsBuildSecret, &v.Comment, &v.CreatedAt); err != nil {
 			return nil, err
 		}
 		if reveal {
@@ -71,17 +73,18 @@ func (s *Store) ListEnvVars(ctx context.Context, teamID uuid.UUID, resourceType 
 }
 
 type UpsertEnvVarInput struct {
-	Key         string
-	Value       string
-	Runtime     bool
-	Buildtime   bool
-	Literal     bool
-	Multiline   bool
-	Locked      bool
-	IsPreview   bool
-	Comment     string
-	KeepValue   bool // when true, do not overwrite value_enc on conflict
-	BypassLock  bool // system sync may update even when locked (e.g. SERVICE_URL_*)
+	Key           string
+	Value         string
+	Runtime       bool
+	Buildtime     bool
+	Literal       bool
+	Multiline     bool
+	Locked        bool
+	IsPreview     bool
+	IsBuildSecret bool
+	Comment       string
+	KeepValue     bool // when true, do not overwrite value_enc on conflict
+	BypassLock    bool // system sync may update even when locked (e.g. SERVICE_URL_*)
 }
 
 // ErrEnvLocked is returned when updating a locked environment variable.
@@ -110,23 +113,24 @@ func (s *Store) UpsertEnvVar(ctx context.Context, teamID uuid.UUID, resourceType
 	var v EnvVar
 	var encOut string
 	err = s.Pool.QueryRow(ctx, `
-		INSERT INTO environment_variables (team_id, resource_type, resource_id, key, value_enc, is_preview, is_runtime, is_buildtime, is_literal, is_multiline, is_shown_once, comment)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+		INSERT INTO environment_variables (team_id, resource_type, resource_id, key, value_enc, is_preview, is_runtime, is_buildtime, is_literal, is_multiline, is_shown_once, is_build_secret, comment)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
 		ON CONFLICT (resource_type, resource_id, key, is_preview) DO UPDATE
 		SET value_enc=CASE
-		      WHEN $13 THEN environment_variables.value_enc
-		      WHEN environment_variables.is_shown_once AND NOT $14 THEN environment_variables.value_enc
+		      WHEN $14 THEN environment_variables.value_enc
+		      WHEN environment_variables.is_shown_once AND NOT $15 THEN environment_variables.value_enc
 		      ELSE EXCLUDED.value_enc
 		    END,
-		    is_runtime=CASE WHEN environment_variables.is_shown_once AND NOT $14 THEN environment_variables.is_runtime ELSE EXCLUDED.is_runtime END,
-		    is_buildtime=CASE WHEN environment_variables.is_shown_once AND NOT $14 THEN environment_variables.is_buildtime ELSE EXCLUDED.is_buildtime END,
-		    is_literal=CASE WHEN environment_variables.is_shown_once AND NOT $14 THEN environment_variables.is_literal ELSE EXCLUDED.is_literal END,
-		    is_multiline=CASE WHEN environment_variables.is_shown_once AND NOT $14 THEN environment_variables.is_multiline ELSE EXCLUDED.is_multiline END,
-		    comment=CASE WHEN environment_variables.is_shown_once AND NOT $14 THEN environment_variables.comment ELSE EXCLUDED.comment END,
+		    is_runtime=CASE WHEN environment_variables.is_shown_once AND NOT $15 THEN environment_variables.is_runtime ELSE EXCLUDED.is_runtime END,
+		    is_buildtime=CASE WHEN environment_variables.is_shown_once AND NOT $15 THEN environment_variables.is_buildtime ELSE EXCLUDED.is_buildtime END,
+		    is_literal=CASE WHEN environment_variables.is_shown_once AND NOT $15 THEN environment_variables.is_literal ELSE EXCLUDED.is_literal END,
+		    is_multiline=CASE WHEN environment_variables.is_shown_once AND NOT $15 THEN environment_variables.is_multiline ELSE EXCLUDED.is_multiline END,
+		    is_build_secret=CASE WHEN environment_variables.is_shown_once AND NOT $15 THEN environment_variables.is_build_secret ELSE EXCLUDED.is_build_secret END,
+		    comment=CASE WHEN environment_variables.is_shown_once AND NOT $15 THEN environment_variables.comment ELSE EXCLUDED.comment END,
 		    updated_at=NOW()
-		RETURNING id, team_id, resource_type, resource_id, key, value_enc, is_preview, is_runtime, is_buildtime, is_literal, is_multiline, is_shown_once, comment, created_at
-	`, teamID, resourceType, resourceID, in.Key, enc, in.IsPreview, in.Runtime, in.Buildtime, in.Literal, in.Multiline, in.Locked, in.Comment, in.KeepValue, bypass).Scan(
-		&v.ID, &v.TeamID, &v.ResourceType, &v.ResourceID, &v.Key, &encOut, &v.IsPreview, &v.IsRuntime, &v.IsBuildtime, &v.IsLiteral, &v.IsMultiline, &v.IsLocked, &v.Comment, &v.CreatedAt,
+		RETURNING id, team_id, resource_type, resource_id, key, value_enc, is_preview, is_runtime, is_buildtime, is_literal, is_multiline, is_shown_once, COALESCE(is_build_secret, FALSE), comment, created_at
+	`, teamID, resourceType, resourceID, in.Key, enc, in.IsPreview, in.Runtime, in.Buildtime, in.Literal, in.Multiline, in.Locked, in.IsBuildSecret, in.Comment, in.KeepValue, bypass).Scan(
+		&v.ID, &v.TeamID, &v.ResourceType, &v.ResourceID, &v.Key, &encOut, &v.IsPreview, &v.IsRuntime, &v.IsBuildtime, &v.IsLiteral, &v.IsMultiline, &v.IsLocked, &v.IsBuildSecret, &v.Comment, &v.CreatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -146,9 +150,9 @@ func (s *Store) SetEnvVarLocked(ctx context.Context, teamID, id uuid.UUID, locke
 		UPDATE environment_variables
 		SET is_shown_once=$3, updated_at=NOW()
 		WHERE id=$1 AND team_id=$2
-		RETURNING id, team_id, resource_type, resource_id, key, value_enc, is_preview, is_runtime, is_buildtime, is_literal, is_multiline, is_shown_once, comment, created_at
+		RETURNING id, team_id, resource_type, resource_id, key, value_enc, is_preview, is_runtime, is_buildtime, is_literal, is_multiline, is_shown_once, COALESCE(is_build_secret, FALSE), comment, created_at
 	`, id, teamID, locked).Scan(
-		&v.ID, &v.TeamID, &v.ResourceType, &v.ResourceID, &v.Key, &enc, &v.IsPreview, &v.IsRuntime, &v.IsBuildtime, &v.IsLiteral, &v.IsMultiline, &v.IsLocked, &v.Comment, &v.CreatedAt,
+		&v.ID, &v.TeamID, &v.ResourceType, &v.ResourceID, &v.Key, &enc, &v.IsPreview, &v.IsRuntime, &v.IsBuildtime, &v.IsLiteral, &v.IsMultiline, &v.IsLocked, &v.IsBuildSecret, &v.Comment, &v.CreatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound

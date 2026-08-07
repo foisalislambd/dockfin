@@ -44,6 +44,20 @@
 - [x] Per-container metrics (`docker stats`)
 - [x] Compose multi-service terminal container picker
 - [x] Private Docker registry credentials (`docker login` before pull)
+- [x] Change build pack after create
+- [x] Railpack/Static: install/build/start commands, publish dir, SPA, custom nginx
+- [x] Ports mappings + custom network aliases
+- [x] Healthcheck: CMD type, start period, scheme/host/response text
+- [x] Preview URL template + manual preview deploy + public PR preview toggle
+- [x] Clone application + Stop + Docker cleanup
+- [x] App backup restore (untar volumes)
+- [x] Rollback retention (`docker_images_to_keep`) + list server images
+- [x] Advanced build: inject ARGs, SOURCE_COMMIT, build secrets, skip rebuild if unchanged
+- [x] Consistent container name / custom internal name
+- [x] Gzip / strip-prefix Traefik middlewares; GPU device IDs; max restart count
+- [x] Empty Compose create (paste raw YAML, no Git)
+- [x] Env sort + build-secret marking; logs download / timestamps / line limit
+- [x] Swarm app settings: replicas, placement constraints, worker-only
 - [x] Git webhook + HMAC verify
 - [x] GitHub App webhook events (push + PR auto-deploy / preview / close cleanup)
 - [x] Multi-provider webhooks (GitHub, GitLab MR, Gitea, Bitbucket) + `[skip ci]`/`[skip cd]`

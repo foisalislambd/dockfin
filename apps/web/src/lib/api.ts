@@ -373,6 +373,34 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ force_rebuild, commit_sha: commit_sha || undefined }),
     }),
+  restoreApplicationBackup: (id: string, body: { execution_id?: string; filename?: string }) =>
+    request<{ status: string; filename: string }>(`/api/v1/applications/${id}/backups/restore`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  cloneApplication: (id: string, body: { name?: string; environment_id?: string }) =>
+    request<Application>(`/api/v1/applications/${id}/clone`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  deployPreview: (
+    id: string,
+    body: {
+      pull_request_id: number
+      pull_request_title?: string
+      git_branch?: string
+      commit_sha?: string
+      force_rebuild?: boolean
+    },
+  ) =>
+    request<{ preview: ApplicationPreview; deployment_id: string; status: string }>(
+      `/api/v1/applications/${id}/previews/deploy`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+  stopCleanupApplication: (id: string) =>
+    request<Application>(`/api/v1/applications/${id}/stop-cleanup`, { method: 'POST' }),
+  listApplicationImages: (id: string) =>
+    request<{ images: string[] }>(`/api/v1/applications/${id}/images`),
   resourceTags: (resource_type: string, resource_id: string) =>
     request<{ tags: Tag[] }>(
       `/api/v1/resource-tags?resource_type=${encodeURIComponent(resource_type)}&resource_id=${resource_id}`,
@@ -411,6 +439,7 @@ export const api = {
     is_multiline?: boolean
     is_locked?: boolean
     is_preview?: boolean
+    is_build_secret?: boolean
     comment?: string
     keep_value?: boolean
   }) => request<EnvVar>('/api/v1/env-vars', { method: 'POST', body: JSON.stringify(body) }),
@@ -1013,6 +1042,14 @@ export type Application = {
   git_repository?: string
   git_branch?: string
   ports_exposes?: string
+  ports_mappings?: string
+  custom_network_aliases?: string
+  install_command?: string
+  build_command?: string
+  start_command?: string
+  publish_directory?: string
+  custom_nginx_configuration?: string
+  preview_url_template?: string
   docker_compose_location?: string
   compose_prepare?: boolean
   dockerfile_location?: string
@@ -1059,6 +1096,37 @@ export type Application = {
   health_check_interval?: number
   health_check_timeout?: number
   health_check_retries?: number
+  health_check_host?: string
+  health_check_scheme?: string
+  health_check_response_text?: string
+  health_check_start_period?: number
+  health_check_type?: string
+  health_check_command?: string
+  is_spa?: boolean
+  inject_build_args_to_dockerfile?: boolean
+  use_build_secrets?: boolean
+  include_source_commit_in_build?: boolean
+  docker_images_to_keep?: number
+  is_consistent_container_name_enabled?: boolean
+  custom_internal_name?: string
+  is_gzip_enabled?: boolean
+  is_stripprefix_enabled?: boolean
+  is_log_drain_enabled?: boolean
+  is_debug_enabled?: boolean
+  is_env_sorting_enabled?: boolean
+  is_pr_deployments_public_enabled?: boolean
+  skip_rebuild_if_unchanged?: boolean
+  gpu_driver?: string
+  gpu_device_ids?: string
+  gpu_options?: string
+  custom_docker_max_restart_count?: number
+  pre_deployment_command_container?: string
+  post_deployment_command_container?: string
+  is_swarm_only_worker_nodes?: boolean
+  is_include_timestamps?: boolean
+  logs_line_limit?: number
+  swarm_replicas?: number
+  swarm_placement_constraints?: string
   limits_memory?: string
   limits_cpus?: string
   compose_units?: Array<{
@@ -1123,6 +1191,7 @@ export type EnvVar = {
   is_multiline?: boolean
   is_locked?: boolean
   is_preview?: boolean
+  is_build_secret?: boolean
   comment: string
 }
 export type AppVolume = {

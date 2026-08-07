@@ -271,6 +271,7 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 		DockerRegistryImageTag  string `json:"docker_registry_image_tag"`
 		PortsExposes            string `json:"ports_exposes"`
 		ComposePrepare          *bool  `json:"compose_prepare"`
+		DockerComposeRaw        string `json:"docker_compose_raw"`
 		// When non-nil (including empty), only these env vars are seeded — Dockerfile
 		// ENV auto-parse is skipped so the UI can clear vars intentionally.
 		EnvironmentVariables *[]struct {
@@ -356,6 +357,11 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 		PortsExposes:            body.PortsExposes,
 		BaseDirectory:           body.BaseDirectory,
 		ComposePrepare:          true,
+		DockerComposeRaw:        strings.TrimSpace(body.DockerComposeRaw),
+	}
+	// Empty compose (no Git): pasted raw YAML is enough for dockercompose pack.
+	if app.BuildPack == "dockercompose" && app.DockerComposeRaw != "" {
+		app.GitRepository = strings.TrimSpace(app.GitRepository)
 	}
 	if body.ComposePrepare != nil {
 		app.ComposePrepare = *body.ComposePrepare
@@ -400,6 +406,13 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		mapStoreErr(w, err)
 		return
+	}
+	if raw := strings.TrimSpace(body.DockerComposeRaw); raw != "" {
+		created.DockerComposeRaw = raw
+		if err := a.Store.UpdateApplication(r.Context(), created); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
 	}
 	// Seed env vars. If the client sent environment_variables (even []), honor that
 	// list only. Otherwise auto-parse ENV from inline Dockerfile content.
