@@ -61,6 +61,7 @@ func (a *API) handlePatchInstanceSettings(w http.ResponseWriter, r *http.Request
 	}
 	// When instance Domain (public_url) changes, route it through Traefik → panel.
 	if patch.PublicURL != nil && (prev == nil || prev.PublicURL != st.PublicURL) {
+		a.rememberCORSOrigin(st.PublicURL)
 		if syncErr := a.syncPanelRoute(r.Context(), currentTeamID(r), st.PublicURL); syncErr != nil {
 			if a.Logger != nil {
 				a.Logger.Warn("panel route sync", slog.String("error", syncErr.Error()), slog.String("public_url", st.PublicURL))
@@ -73,6 +74,19 @@ func (a *API) handlePatchInstanceSettings(w http.ResponseWriter, r *http.Request
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"settings": st})
+}
+
+func (a *API) rememberCORSOrigin(publicURL string) {
+	u := strings.TrimRight(strings.TrimSpace(publicURL), "/")
+	if u == "" || a.Cfg == nil {
+		return
+	}
+	for _, o := range a.Cfg.CORSOrigins {
+		if strings.EqualFold(strings.TrimRight(strings.TrimSpace(o), "/"), u) {
+			return
+		}
+	}
+	a.Cfg.CORSOrigins = append(a.Cfg.CORSOrigins, u)
 }
 
 func (a *API) syncPanelRoute(ctx context.Context, teamID uuid.UUID, publicURL string) error {

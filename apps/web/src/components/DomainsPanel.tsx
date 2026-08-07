@@ -415,7 +415,6 @@ export function DomainDNSAlert({
   }, [serverIp, settings.data, servers.data])
 
   const ip = pickUsableIP(resolvedIp)
-  const rows = useMemo(() => buildDnsRows(customHosts, ip), [customHosts, ip])
 
   const check = useQuery({
     queryKey: ['domain-dns-alert', debounced, resolvedIp, serverId, destinationId],
@@ -431,33 +430,17 @@ export function DomainDNSAlert({
     retry: false,
   })
 
+  // Silent while first check runs — only show after a completed mismatch.
   if (customHosts.length === 0) return null
-
-  if (check.isFetching && !check.data) {
-    return <p className="text-xs text-gray-500 dark:text-gray-400">Checking DNS…</p>
-  }
-
-  if (check.isError) {
-    return (
-      <div className="space-y-2 rounded-lg border border-error-500/40 bg-error-500/10 px-3 py-2.5 text-error-700 dark:text-error-400">
-        <p className="text-xs font-medium">DNS check failed</p>
-        {ip ? <DnsRecordsTable rows={rows} /> : null}
-      </div>
-    )
-  }
+  if (!check.data || check.isError) return null
 
   const data = check.data
-  if (!data) return null
-
   if (!data.validation_enabled) {
-    return (
-      <p className="text-xs text-amber-700 dark:text-amber-300">DNS validation is off (Settings → Advanced).</p>
-    )
+    return null
   }
 
   const bad = (data.results || []).filter((r) => !r.matched && !r.skip_validation)
-  if (bad.length === 0 && data.ok) {
-    // Success is silent — no green banner clutter.
+  if (bad.length === 0 || data.ok) {
     return null
   }
 

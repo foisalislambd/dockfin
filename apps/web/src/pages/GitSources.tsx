@@ -376,7 +376,7 @@ export function GitSourceDetailPage() {
               required={false}
             />
             <p className="-mt-2 text-xs text-gray-500 dark:text-gray-400">
-              Leave empty to use DOCKFIN_PUBLIC_URL.
+              Leave empty to use Settings → Domain (or DOCKFIN_PUBLIC_URL).
             </p>
             <label className="flex items-center gap-2 text-sm">
               <input

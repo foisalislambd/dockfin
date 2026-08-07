@@ -3,6 +3,7 @@ package proxy
 import (
 	"encoding/base64"
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/dockfin/dockfin/internal/sshx"
@@ -21,7 +22,7 @@ func SyncPanelRoute(client *ssh.Client, publicURL, panelServiceURL string) error
 		panelServiceURL = "http://dockfin:8000"
 	}
 	host := sanitizePanelHost(PrimaryHost(publicURL))
-	if host == "" || host == "localhost" || host == "127.0.0.1" || IsMagicDomainHost(host) {
+	if host == "" || host == "localhost" || host == "127.0.0.1" || IsMagicDomainHost(host) || net.ParseIP(host) != nil {
 		_, _, _ = sshx.Run(client, "rm -f "+panelDynamicPath)
 		return nil
 	}

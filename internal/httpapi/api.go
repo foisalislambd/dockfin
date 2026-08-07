@@ -52,7 +52,7 @@ func (a *API) Router() http.Handler {
 	r.Use(chimw.RealIP)
 	r.Use(chimw.Recoverer)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   a.Cfg.CORSOrigins,
+		AllowOriginFunc:  a.corsAllowOrigin,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Team-ID"},
 		AllowCredentials: true,
@@ -410,6 +410,31 @@ func (a *API) requireAdmin(next http.Handler) http.Handler {
 	})
 }
 
+func (a *API) corsAllowOrigin(r *http.Request, origin string) bool {
+	origin = strings.TrimRight(strings.TrimSpace(origin), "/")
+	if origin == "" {
+		return true
+	}
+	if a.Cfg != nil {
+		for _, o := range a.Cfg.CORSOrigins {
+			o = strings.TrimRight(strings.TrimSpace(o), "/")
+			if o == "*" || strings.EqualFold(o, origin) {
+				return true
+			}
+		}
+	}
+	// Settings → Domain (custom panel URL) is a valid browser origin.
+	if a.Store != nil {
+		if st, err := a.Store.GetInstanceSettings(r.Context()); err == nil {
+			u := strings.TrimRight(strings.TrimSpace(st.PublicURL), "/")
+			if u != "" && strings.EqualFold(u, origin) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func currentUser(r *http.Request) *store.User {
 	return r.Context().Value(ctxUser).(*store.User)
 }
@@ -433,7 +458,7 @@ func sessionToken(r *http.Request) string {
 	return ""
 }
 
-func setSessionCookie(w http.ResponseWriter, cfg *config.Config, token string, expires time.Time) {
+func setSessionCookie(w http.ResponseWriter, r *http.Request, cfg *config.Config, token string, expires time.Time) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "dockfin_session",
 		Value:    token,
@@ -441,11 +466,11 @@ func setSessionCookie(w http.ResponseWriter, cfg *config.Config, token string, e
 		Expires:  expires,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   cfg.CookieSecure,
+		Secure:   cookieSecureForRequest(r, cfg),
 	})
 }
 
-func clearSessionCookie(w http.ResponseWriter, cfg *config.Config) {
+func clearSessionCookie(w http.ResponseWriter, r *http.Request, cfg *config.Config) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "dockfin_session",
 		Value:    "",
@@ -453,8 +478,23 @@ func clearSessionCookie(w http.ResponseWriter, cfg *config.Config) {
 		MaxAge:   -1,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   cfg.CookieSecure,
+		Secure:   cookieSecureForRequest(r, cfg),
 	})
+}
+
+// cookieSecureForRequest prefers HTTPS (custom domain via Traefik) over the
+// install-time DOCKFIN_PUBLIC_URL scheme (often http://IP:8000).
+func cookieSecureForRequest(r *http.Request, cfg *config.Config) bool {
+	if r != nil {
+		proto := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")))
+		if r.TLS != nil || proto == "https" {
+			return true
+		}
+		if proto == "http" {
+			return false
+		}
+	}
+	return cfg != nil && cfg.CookieSecure
 }
 
 func mapStoreErr(w http.ResponseWriter, err error) {

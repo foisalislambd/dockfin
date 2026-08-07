@@ -59,7 +59,7 @@ func (a *API) handleRegister(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	setSessionCookie(w, a.Cfg, token, expires)
+	setSessionCookie(w, r, a.Cfg, token, expires)
 
 	resp := map[string]any{"user": user, "team": team, "token": token}
 	if usersBefore == 0 {
@@ -125,7 +125,7 @@ func (a *API) handleLogin(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	setSessionCookie(w, a.Cfg, token, expires)
+	setSessionCookie(w, r, a.Cfg, token, expires)
 	writeJSON(w, http.StatusOK, map[string]any{"user": user, "team": teams[0], "teams": teams, "token": token})
 }
 
@@ -133,7 +133,7 @@ func (a *API) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if tok := sessionToken(r); tok != "" {
 		_ = a.Store.DeleteSession(r.Context(), tok)
 	}
-	clearSessionCookie(w, a.Cfg)
+	clearSessionCookie(w, r, a.Cfg)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
