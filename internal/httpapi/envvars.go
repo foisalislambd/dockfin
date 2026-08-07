@@ -278,6 +278,12 @@ func (a *API) verifyWebhookAuth(r *http.Request, appID uuid.UUID, body []byte) e
 		}
 		return nil
 	}
+	if sig := r.Header.Get("X-Hub-Signature"); sig != "" {
+		if !git.VerifyGitHubSignature(secret, body, sig) {
+			return errUnauthorizedWebhook
+		}
+		return nil
+	}
 	if tok := r.Header.Get("X-Gitlab-Token"); tok != "" {
 		if !secureTokenEqual(secret, tok) {
 			return errUnauthorizedWebhook

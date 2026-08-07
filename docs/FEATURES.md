@@ -30,7 +30,10 @@
 - [x] Build packs: dockerfile, compose, image, railpack, static
 - [x] Deploy queue + SSE logs + cancel + queue limits
 - [x] Git webhook + HMAC verify
+- [x] GitHub App webhook events (push + PR auto-deploy / preview / close cleanup)
+- [x] Multi-provider webhooks (GitHub, GitLab MR, Gitea, Bitbucket) + `[skip ci]`/`[skip cd]`
 - [x] PR preview create on webhook
+- [x] PR/MR close auto-cleanup of preview deployments
 - [x] Runtime env injection, limits, healthcheck wait
 - [x] HTTPS Traefik labels
 - [x] HTTPS Caddy labels (caddy-docker-proxy)

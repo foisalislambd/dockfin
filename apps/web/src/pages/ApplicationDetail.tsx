@@ -986,6 +986,9 @@ export function ApplicationDetailPage() {
                     />
                     <span>Auto deploy on git push / webhook</span>
                   </label>
+                  <p className="ml-7 text-xs text-gray-500 dark:text-gray-400">
+                    Skipped when every commit message contains [skip ci] or [skip cd].
+                  </p>
                   <label className="flex items-center gap-3 text-sm">
                     <input
                       type="checkbox"
@@ -1397,8 +1400,12 @@ export function ApplicationDetailPage() {
                     </code>
                   </div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Point GitHub/GitLab webhook here. Generate a secret and configure the same value
-                    on your provider (HMAC).
+                    Point GitHub, GitLab, Gitea, or Bitbucket webhooks here (optional{' '}
+                    <code className="text-xs">?provider=github|gitlab|gitea|bitbucket</code>
+                    ). Use the same secret for HMAC / GitLab token. Commits with{' '}
+                    <code className="text-xs">[skip ci]</code> or{' '}
+                    <code className="text-xs">[skip cd]</code> in every message skip auto-deploy;
+                    PR/MR close events clean up preview deployments.
                   </p>
                   <Btn primary onClick={() => webhook.mutate()}>
                     {webhook.isPending ? 'Generating…' : 'Generate webhook secret'}

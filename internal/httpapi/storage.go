@@ -501,29 +501,9 @@ func (a *API) handleDeletePreview(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	// Best-effort: remove preview container / compose project so Traefik routes disappear.
-	if app.DestinationID != nil {
-		if dest, err := a.Store.GetDestination(r.Context(), teamID, *app.DestinationID); err == nil {
-			if client, err := a.dialServer(r, dest.ServerID); err == nil {
-				cname := fmt.Sprintf("dockfin-%s-pr-%d", appID.String(), prID)
-				_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", cname)
-				project := fmt.Sprintf("dockfin-%s-pr-%d", appID.String()[:8], prID)
-				workdir := fmt.Sprintf("/data/dockfin/applications/%s-pr-%d", appID.String(), prID)
-				composePath := workdir + "/src/docker-compose.yaml"
-				// Try common compose filenames; ignore failures.
-				for _, f := range []string{
-					composePath,
-					workdir + "/src/docker-compose.yml",
-					workdir + "/src/compose.yaml",
-				} {
-					_, _, _ = sshx.RunArgs(client, "docker", "compose", "-p", project, "-f", f, "down", "--remove-orphans", "-v")
-				}
-				_, _, _ = sshx.RunArgs(client, "rm", "-rf", workdir)
-			}
-		}
-	}
-	if err := a.Store.DeletePreview(r.Context(), teamID, appID, prID); err != nil {
-		mapStoreErr(w, err)
+	res := a.cleanupPreview(r.Context(), app, prID)
+	if res.Status == "failed" {
+		writeError(w, http.StatusBadRequest, res.Message)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})

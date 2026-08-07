@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/dockfin/dockfin/internal/git"
 	"github.com/dockfin/dockfin/internal/redact"
 )
 
@@ -1264,6 +1265,41 @@ func (s *Store) GetApplicationByID(ctx context.Context, id uuid.UUID) (*Applicat
 		return nil, ErrNotFound
 	}
 	return a, err
+}
+
+// ListApplicationsForGitWebhook returns apps on a git source whose repository matches
+// repoFullName and whose git_branch matches branch (case-sensitive branch, Coolify-style).
+func (s *Store) ListApplicationsForGitWebhook(ctx context.Context, gitSourceID uuid.UUID, repoFullName, branch string) ([]Application, error) {
+	branch = strings.TrimSpace(branch)
+	if gitSourceID == uuid.Nil || branch == "" {
+		return nil, nil
+	}
+	rows, err := s.Pool.Query(ctx, `SELECT `+applicationSelectCols+`
+		FROM applications a
+		LEFT JOIN application_settings s ON s.application_id = a.id
+		WHERE a.git_source_id=$1 AND a.git_branch=$2
+		ORDER BY a.name`, gitSourceID, branch)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	want := git.NormalizeRepoFullName(repoFullName)
+	if want == "" {
+		// Refuse to match every app on the source when the payload has no repo.
+		return nil, nil
+	}
+	var out []Application
+	for rows.Next() {
+		a, err := scanApplication(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		if !git.RepoNamesMatch(a.GitRepository, want) {
+			continue
+		}
+		out = append(out, *a)
+	}
+	return out, rows.Err()
 }
 
 func (s *Store) GetDatabaseCredentials(ctx context.Context, teamID, id uuid.UUID) (string, error) {

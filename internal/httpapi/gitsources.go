@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/crypto"
+	"github.com/dockfin/dockfin/internal/git"
 	"github.com/dockfin/dockfin/internal/git/githubapp"
 	"github.com/dockfin/dockfin/internal/store"
 )
@@ -532,5 +533,100 @@ func (a *API) handleGitSourceBranches(w http.ResponseWriter, r *http.Request) {
 
 // Placeholder so GitHub App webhook URL from the manifest is reachable.
 func (a *API) handleGitHubAppEvents(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNoContent)
+	body, err := git.ReadBody(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "read body")
+		return
+	}
+	eventName := strings.ToLower(r.Header.Get("X-GitHub-Event"))
+	if eventName == "ping" {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "pong"})
+		return
+	}
+	switch eventName {
+	case "installation", "installation_repositories", "github_app_authorization":
+		w.WriteHeader(http.StatusNoContent)
+		return
+	case "push", "pull_request":
+		// handled below
+	default:
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ignored", "reason": "unsupported event"})
+		return
+	}
+
+	appIDHeader := strings.TrimSpace(r.Header.Get("X-GitHub-Hook-Installation-Target-Id"))
+	if appIDHeader == "" {
+		writeError(w, http.StatusBadRequest, "missing installation target id")
+		return
+	}
+	gs, sec, err := a.Store.GetGitSourceByAppID(r.Context(), appIDHeader)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	whSecret := ""
+	if sec.WebhookSecretEnc != "" {
+		whSecret, err = a.Store.Box.DecryptString(sec.WebhookSecretEnc)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "decrypt webhook secret")
+			return
+		}
+	}
+	sig := r.Header.Get("X-Hub-Signature-256")
+	if sig == "" {
+		sig = r.Header.Get("X-Hub-Signature")
+	}
+	if whSecret == "" {
+		if a.Cfg == nil || !a.Cfg.IsDev() {
+			writeError(w, http.StatusUnauthorized, "webhook secret not configured")
+			return
+		}
+	} else if !git.VerifyGitHubSignature(whSecret, body, sig) {
+		writeError(w, http.StatusUnauthorized, "invalid webhook signature")
+		return
+	}
+
+	event, err := git.ParseWebhook("github", r, body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	matchBranch := event.Branch
+	if event.PRNumber > 0 && event.BaseBranch != "" {
+		matchBranch = event.BaseBranch
+	}
+	apps, err := a.Store.ListApplicationsForGitWebhook(r.Context(), gs.ID, event.RepoFullName, matchBranch)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if len(apps) == 0 {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status":  "ignored",
+			"reason":  "no matching applications",
+			"repo":    event.RepoFullName,
+			"branch":  matchBranch,
+			"results": []any{},
+		})
+		return
+	}
+
+	results := make([]webhookActionResult, 0, len(apps))
+	accepted := false
+	for i := range apps {
+		res := a.processWebhookEvent(r.Context(), &apps[i], event)
+		results = append(results, res)
+		if res.Status == "success" {
+			accepted = true
+		}
+	}
+	status := http.StatusOK
+	if accepted {
+		status = http.StatusAccepted
+	}
+	writeJSON(w, status, map[string]any{
+		"status":  "ok",
+		"results": results,
+	})
 }

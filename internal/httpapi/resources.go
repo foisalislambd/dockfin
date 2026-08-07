@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -632,16 +631,14 @@ func (a *API) handleGitWebhook(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
-	provider := r.URL.Query().Get("provider")
-	if provider == "" {
-		provider = "github"
-		if r.Header.Get("X-Gitlab-Event") != "" {
-			provider = "gitlab"
-		}
-	}
+	provider := detectWebhookProvider(r, r.URL.Query().Get("provider"))
 	event, err := git.ParseWebhook(provider, r, body)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if event.Action == "ping" {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "pong"})
 		return
 	}
 	app, err := a.Store.GetApplicationByID(r.Context(), appID)
@@ -649,72 +646,32 @@ func (a *API) handleGitWebhook(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	// PR preview deployments
-	if event.PRNumber > 0 {
-		if !app.IsPreviewEnabled {
-			writeJSON(w, http.StatusOK, map[string]string{"status": "ignored", "reason": "preview deployments disabled"})
-			return
-		}
-		fqdn := ""
-		if app.FQDN != "" {
-			host := strings.TrimSpace(strings.Split(app.FQDN, ",")[0])
-			fqdn = fmt.Sprintf("pr-%d.%s", event.PRNumber, host)
-		}
-		preview, err := a.Store.CreatePreview(r.Context(), app.TeamID, appID, event.PRNumber, event.Message, event.Branch, fqdn)
-		if err != nil {
-			mapStoreErr(w, err)
-			return
-		}
-		var serverID *uuid.UUID
-		if app.DestinationID != nil {
-			if dest, err := a.Store.GetDestination(r.Context(), app.TeamID, *app.DestinationID); err == nil {
-				serverID = &dest.ServerID
-			}
-		}
-		dep, err := a.Store.CreateDeployment(r.Context(), app.TeamID, appID, serverID, event.Commit, event.Message, false, true, false, event.PRNumber)
-		if err != nil {
-			mapStoreErr(w, err)
-			return
-		}
-		if err := a.Queue.Enqueue(worker.DeployJob{DeploymentID: dep.ID, TeamID: app.TeamID}); err != nil {
-			writeError(w, http.StatusServiceUnavailable, err.Error())
-			return
-		}
-		writeJSON(w, http.StatusAccepted, map[string]any{
-			"deployment_id": dep.ID, "commit": event.Commit, "preview_id": preview.ID, "preview_fqdn": preview.FQDN,
-		})
-		return
-	}
-	if app.GitBranch != "" && event.Branch != "" && event.Branch != app.GitBranch {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ignored", "reason": "branch mismatch"})
-		return
-	}
-	if !app.IsAutoDeployEnabled {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ignored", "reason": "auto deploy disabled"})
-		return
-	}
-	if paths := strings.TrimSpace(app.WatchPaths); paths != "" && len(event.ChangedFiles) > 0 {
-		if !services.WatchPathsMatch(paths, event.ChangedFiles) {
-			writeJSON(w, http.StatusOK, map[string]string{"status": "ignored", "reason": "watch paths mismatch"})
-			return
+	res := a.processWebhookEvent(r.Context(), app, event)
+	status := http.StatusOK
+	switch res.Status {
+	case "success":
+		status = http.StatusAccepted
+	case "failed":
+		// Queue pressure / store errors — 503 so providers may retry transient failures.
+		if strings.Contains(strings.ToLower(res.Message), "queue") {
+			status = http.StatusServiceUnavailable
+		} else {
+			status = http.StatusBadRequest
 		}
 	}
-	var serverID *uuid.UUID
-	if app.DestinationID != nil {
-		if dest, err := a.Store.GetDestination(r.Context(), app.TeamID, *app.DestinationID); err == nil {
-			serverID = &dest.ServerID
-		}
+	out := map[string]any{
+		"status":  res.Status,
+		"message": res.Message,
+		"commit":  res.Commit,
 	}
-	dep, err := a.Store.CreateDeployment(r.Context(), app.TeamID, appID, serverID, event.Commit, event.Message, false, true, false, 0)
-	if err != nil {
-		mapStoreErr(w, err)
-		return
+	if res.DeploymentID != nil {
+		out["deployment_id"] = *res.DeploymentID
 	}
-	if err := a.Queue.Enqueue(worker.DeployJob{DeploymentID: dep.ID, TeamID: app.TeamID}); err != nil {
-		writeError(w, http.StatusServiceUnavailable, err.Error())
-		return
+	if res.PreviewID != nil {
+		out["preview_id"] = *res.PreviewID
+		out["preview_fqdn"] = res.PreviewFQDN
 	}
-	writeJSON(w, http.StatusAccepted, map[string]any{"deployment_id": dep.ID, "commit": event.Commit})
+	writeJSON(w, status, out)
 }
 
 func (a *API) handleListDatabases(w http.ResponseWriter, r *http.Request) {
