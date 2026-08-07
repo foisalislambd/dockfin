@@ -121,14 +121,24 @@ func (p *Pipeline) gitClone(ctx context.Context, client *ssh.Client, req Request
 			return runCheckoutExisting(extraEnv)
 		}
 		args := append([]string{}, extraEnv...)
-		args = append(args, "git", "clone", "--branch", branch, "--depth", "1", repo, destDir)
+		args = append(args, "git", "clone", "--branch", branch)
+		shallow := req.App == nil || req.App.IsGitShallowCloneEnabled
+		if shallow {
+			args = append(args, "--depth", "1")
+		}
+		args = append(args, repo, destDir)
 		_, errOut, err := sshx.RunArgs(client, args...)
 		if err != nil {
 			return fmt.Errorf("git clone: %s", redact.Join(err.Error(), errOut))
 		}
 		if commit != "" {
 			p.log("fetch", "Checking out commit "+commit)
-			_, errOut, err = sshx.RunArgs(client, "git", "-C", destDir, "fetch", "--depth", "1", "origin", commit)
+			fetchArgs := []string{"git", "-C", destDir, "fetch"}
+			if shallow {
+				fetchArgs = append(fetchArgs, "--depth", "1")
+			}
+			fetchArgs = append(fetchArgs, "origin", commit)
+			_, errOut, err = sshx.RunArgs(client, fetchArgs...)
 			if err != nil {
 				// Fall back to unshallow fetch of the SHA (some remotes reject shallow fetch by SHA).
 				_, errOut2, err2 := sshx.RunArgs(client, "git", "-C", destDir, "fetch", "origin", commit)
@@ -181,12 +191,30 @@ func (p *Pipeline) gitClone(ctx context.Context, client *ssh.Client, req Request
 		if err := runClone([]string{"env", "GIT_SSH_COMMAND=" + sshCmd}, repo); err != nil {
 			return fmt.Errorf("git clone (deploy key): %w", err)
 		}
-		return nil
+		return p.gitLFSPull(client, req, destDir)
 	}
 
 	repo, err := p.cloneURL(ctx, req)
 	if err != nil {
 		return err
 	}
-	return runClone(nil, repo)
+	if err := runClone(nil, repo); err != nil {
+		return err
+	}
+	return p.gitLFSPull(client, req, destDir)
+}
+
+func (p *Pipeline) gitLFSPull(client *ssh.Client, req Request, destDir string) error {
+	if req.App == nil || !req.App.IsGitLFSEnabled {
+		return nil
+	}
+	p.log("fetch", "git lfs pull")
+	if _, errOut, err := sshx.RunArgs(client, "git", "-C", destDir, "lfs", "install"); err != nil {
+		p.log("fetch", "Warning: git lfs install failed: "+redact.Join(err.Error(), errOut))
+		return nil
+	}
+	if _, errOut, err := sshx.RunArgs(client, "git", "-C", destDir, "lfs", "pull"); err != nil {
+		p.log("fetch", "Warning: git lfs pull failed: "+redact.Join(err.Error(), errOut))
+	}
+	return nil
 }

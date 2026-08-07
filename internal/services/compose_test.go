@@ -589,3 +589,32 @@ func TestInferContainerPortFromCompose(t *testing.T) {
 		t.Fatalf("got %q want 80 (proxy service container port)", got)
 	}
 }
+
+func TestPrepareComposeGPUAndRestart(t *testing.T) {
+	raw := `services:
+  web:
+    image: nginx
+`
+	out, _, err := PrepareCompose(raw, PrepareOpts{
+		BaseURL:            "http://app.example.com",
+		GPUEnabled:         true,
+		GPUCount:           0,
+		RestartPolicy:      "always",
+		StopGracePeriodSec: 25,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "gpus: all") && !strings.Contains(out, "gpus: \"all\"") {
+		t.Fatalf("expected gpus: all:\n%s", out)
+	}
+	if !strings.Contains(out, "capabilities") || !strings.Contains(out, "gpu") {
+		t.Fatalf("expected deploy.resources GPU reservation:\n%s", out)
+	}
+	if !strings.Contains(out, "restart: always") {
+		t.Fatalf("expected restart policy:\n%s", out)
+	}
+	if !strings.Contains(out, "stop_grace_period: 25s") {
+		t.Fatalf("expected stop_grace_period:\n%s", out)
+	}
+}

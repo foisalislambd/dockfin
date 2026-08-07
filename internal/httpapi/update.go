@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/proxy"
 	"github.com/dockfin/dockfin/internal/services"
+	"github.com/dockfin/dockfin/internal/store"
 	"github.com/dockfin/dockfin/internal/worker"
 )
 
@@ -71,6 +72,15 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		HealthCheckRetries      *int    `json:"health_check_retries"`
 		LimitsMemory            *string `json:"limits_memory"`
 		LimitsCpus              *string `json:"limits_cpus"`
+		Redirect                *string `json:"redirect"`
+		DockerRegistryID        *string `json:"docker_registry_id"`
+		IsDisableBuildCache     *bool   `json:"is_disable_build_cache"`
+		IsGitShallowCloneEnabled *bool  `json:"is_git_shallow_clone_enabled"`
+		IsGitLFSEnabled         *bool   `json:"is_git_lfs_enabled"`
+		IsGPUEnabled            *bool   `json:"is_gpu_enabled"`
+		GPUCount                *int    `json:"gpu_count"`
+		CustomDockerStopTimeout *int    `json:"custom_docker_stop_timeout"`
+		CustomDockerRestartPolicy *string `json:"custom_docker_restart_policy"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -289,6 +299,35 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 	if body.IsForceHTTPS != nil {
 		app.IsForceHTTPS = *body.IsForceHTTPS
 	}
+	if body.Redirect != nil {
+		redir := strings.TrimSpace(*body.Redirect)
+		if redir == "" {
+			redir = "both"
+		}
+		switch redir {
+		case "both", "www", "non-www":
+			app.Redirect = redir
+		default:
+			writeError(w, http.StatusBadRequest, "redirect must be both, www, or non-www")
+			return
+		}
+	}
+	if body.DockerRegistryID != nil {
+		if *body.DockerRegistryID == "" {
+			app.DockerRegistryID = nil
+		} else {
+			rid, err := uuid.Parse(*body.DockerRegistryID)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "invalid docker_registry_id")
+				return
+			}
+			if _, err := a.Store.GetDockerRegistry(r.Context(), teamID, rid); err != nil {
+				mapStoreErr(w, err)
+				return
+			}
+			app.DockerRegistryID = &rid
+		}
+	}
 	if err := a.Store.UpdateApplication(r.Context(), app); err != nil {
 		mapStoreErr(w, err)
 		return
@@ -333,6 +372,45 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.WatchPaths != nil {
 		if err := a.Store.SetApplicationWatchPaths(r.Context(), teamID, appID, *body.WatchPaths); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+	}
+	advTouched := body.IsDisableBuildCache != nil || body.IsGitShallowCloneEnabled != nil ||
+		body.IsGitLFSEnabled != nil || body.IsGPUEnabled != nil || body.GPUCount != nil ||
+		body.CustomDockerStopTimeout != nil || body.CustomDockerRestartPolicy != nil
+	if advTouched {
+		adv := store.ApplicationAdvancedSettings{
+			IsDisableBuildCache:       app.IsDisableBuildCache,
+			IsGitShallowCloneEnabled:  app.IsGitShallowCloneEnabled,
+			IsGitLFSEnabled:           app.IsGitLFSEnabled,
+			IsGPUEnabled:              app.IsGPUEnabled,
+			GPUCount:                  app.GPUCount,
+			CustomDockerStopTimeout:   app.CustomDockerStopTimeout,
+			CustomDockerRestartPolicy: app.CustomDockerRestartPolicy,
+		}
+		if body.IsDisableBuildCache != nil {
+			adv.IsDisableBuildCache = *body.IsDisableBuildCache
+		}
+		if body.IsGitShallowCloneEnabled != nil {
+			adv.IsGitShallowCloneEnabled = *body.IsGitShallowCloneEnabled
+		}
+		if body.IsGitLFSEnabled != nil {
+			adv.IsGitLFSEnabled = *body.IsGitLFSEnabled
+		}
+		if body.IsGPUEnabled != nil {
+			adv.IsGPUEnabled = *body.IsGPUEnabled
+		}
+		if body.GPUCount != nil {
+			adv.GPUCount = *body.GPUCount
+		}
+		if body.CustomDockerStopTimeout != nil {
+			adv.CustomDockerStopTimeout = *body.CustomDockerStopTimeout
+		}
+		if body.CustomDockerRestartPolicy != nil {
+			adv.CustomDockerRestartPolicy = strings.TrimSpace(*body.CustomDockerRestartPolicy)
+		}
+		if err := a.Store.SetApplicationAdvancedSettings(r.Context(), teamID, appID, adv); err != nil {
 			mapStoreErr(w, err)
 			return
 		}

@@ -222,10 +222,20 @@ func (r *Runner) runBackups(ctx context.Context, minute time.Time) {
 			continue
 		}
 		sid := b.ID
+		if b.ResourceType == "application" {
+			filename := backup.DefaultAppBackupFilename(b.ResourceID.String())
+			exec, err := r.Store.CreateBackupExecutionScheduled(ctx, b.TeamID, &sid, "application", b.ResourceID, filename)
+			if err != nil {
+				r.Logger.Error("create app backup execution", "err", err)
+				continue
+			}
+			go r.executeApplicationBackup(context.Background(), b, exec.ID, filename)
+			continue
+		}
 		if b.ResourceType != "database" {
 			exec, err := r.Store.CreateBackupExecutionScheduled(ctx, b.TeamID, &sid, b.ResourceType, b.ResourceID, "skipped")
 			if err == nil {
-				_ = r.Store.FinishBackupExecution(ctx, exec.ID, "failed", 0, "only database resources are supported")
+				_ = r.Store.FinishBackupExecution(ctx, exec.ID, "failed", 0, "unsupported resource_type")
 			}
 			continue
 		}
@@ -286,6 +296,129 @@ func (r *Runner) executeBackup(ctx context.Context, db *store.Database, execID u
 			r.Logger.Error("s3 upload after backup", "db", db.ID, "err", err)
 		}
 	}
+}
+
+func (r *Runner) executeApplicationBackup(ctx context.Context, b store.ScheduledBackupRow, execID uuid.UUID, filename string) {
+	done := false
+	defer func() {
+		if !done {
+			_ = r.Store.FinishBackupExecution(context.Background(), execID, "failed", 0, "interrupted")
+		}
+	}()
+
+	app, err := r.Store.GetApplication(ctx, b.TeamID, b.ResourceID)
+	if err != nil {
+		_ = r.Store.FinishBackupExecution(ctx, execID, "failed", 0, err.Error())
+		done = true
+		return
+	}
+	if app.DestinationID == nil {
+		_ = r.Store.FinishBackupExecution(ctx, execID, "failed", 0, "application has no destination")
+		done = true
+		return
+	}
+	client, err := r.dialDestination(ctx, b.TeamID, *app.DestinationID)
+	if err != nil {
+		_ = r.Store.FinishBackupExecution(ctx, execID, "failed", 0, err.Error())
+		done = true
+		return
+	}
+
+	path := backup.AppVolumeArchivePath(app.ID.String(), filename)
+	var paths []string
+	vols, _ := r.Store.ListVolumes(ctx, b.TeamID, "application", app.ID)
+	if b.VolumeID != nil {
+		for _, v := range vols {
+			if v.ID == *b.VolumeID {
+				host := strings.TrimSpace(v.HostPath)
+				if host == "" {
+					host = "/data/dockfin/applications/" + app.ID.String() + "/volumes/" + v.Name
+				}
+				paths = append(paths, host)
+				break
+			}
+		}
+		if len(paths) == 0 {
+			_ = r.Store.FinishBackupExecution(ctx, execID, "failed", 0, "volume not found")
+			done = true
+			return
+		}
+	} else if len(vols) > 0 {
+		// Prefer the parent volumes dir when present to avoid packing parent+children twice.
+		parent := "/data/dockfin/applications/" + app.ID.String() + "/volumes"
+		allUnderParent := true
+		var leafs []string
+		for _, v := range vols {
+			host := strings.TrimSpace(v.HostPath)
+			if host == "" {
+				host = parent + "/" + v.Name
+			}
+			leafs = append(leafs, host)
+			if !strings.HasPrefix(host, parent+"/") && host != parent {
+				allUnderParent = false
+			}
+		}
+		if allUnderParent {
+			paths = []string{parent}
+		} else {
+			paths = leafs
+		}
+	} else {
+		paths = []string{"/data/dockfin/applications/" + app.ID.String() + "/volumes"}
+	}
+	paths = backup.FilterExistingPaths(client, paths)
+	if len(paths) == 0 {
+		_ = r.Store.FinishBackupExecution(ctx, execID, "failed", 0, "no volume paths found on server — deploy first or add volumes")
+		done = true
+		return
+	}
+	if err := backup.TarHostPaths(client, path, paths); err != nil {
+		_ = r.Store.FinishBackupExecution(ctx, execID, "failed", 0, err.Error())
+		done = true
+		return
+	}
+	size := backup.FileSize(client, path)
+	_ = r.Store.FinishBackupExecution(ctx, execID, "finished", size, "")
+	done = true
+	r.Logger.Info("application backup finished", "app", app.ID, "file", filename, "bytes", size)
+	_ = backup.EnforceAppBackupRetention(client, app.ID.String(), b.Retention)
+
+	if b.S3StorageID != nil {
+		if err := r.uploadAppBackupToS3(ctx, client, app.TeamID, app.ID, execID, filename, path, *b.S3StorageID); err != nil {
+			r.Logger.Error("s3 upload after app backup", "app", app.ID, "err", err)
+		}
+	}
+}
+
+func (r *Runner) uploadAppBackupToS3(ctx context.Context, client *ssh.Client, teamID, appID, execID uuid.UUID, filename, remotePath string, s3ID uuid.UUID) error {
+	st, err := r.Store.GetS3Storage(ctx, teamID, s3ID)
+	if err != nil {
+		return err
+	}
+	akEnc, skEnc, err := r.Store.GetS3StorageSecrets(ctx, teamID, s3ID)
+	if err != nil {
+		return err
+	}
+	accessKey, err := r.Store.Box.DecryptString(akEnc)
+	if err != nil {
+		return fmt.Errorf("decrypt access key: %w", err)
+	}
+	secretKey, err := r.Store.Box.DecryptString(skEnc)
+	if err != nil {
+		return fmt.Errorf("decrypt secret key: %w", err)
+	}
+	objectKey := "backups/applications/" + appID.String() + "/" + filename
+	if err := backup.UploadRemoteToS3(client, remotePath, objectKey, backup.S3Creds{
+		Endpoint:  st.Endpoint,
+		Bucket:    st.Bucket,
+		Region:    st.Region,
+		AccessKey: accessKey,
+		SecretKey: secretKey,
+		PathStyle: st.PathStyle,
+	}); err != nil {
+		return err
+	}
+	return r.Store.MarkBackupS3Uploaded(ctx, execID, objectKey)
 }
 
 func (r *Runner) uploadBackupToS3(ctx context.Context, client *ssh.Client, db *store.Database, execID uuid.UUID, filename, remotePath string, s3ID uuid.UUID) error {

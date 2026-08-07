@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -43,6 +44,8 @@ type Request struct {
 	// PullRequestID > 0 means a preview deploy — separate container + FQDN from production.
 	PullRequestID int
 	PreviewFQDN   string
+	// skipFanOut prevents recursive additional-destination deploys.
+	skipFanOut bool
 }
 
 func (p *Pipeline) log(stage, line string) {
@@ -212,6 +215,84 @@ func (p *Pipeline) transferIfNeeded(buildClient, deployClient *ssh.Client, req R
 	return nil
 }
 
+// fanOutAdditionalDestinations deploys the same image (or compose stack) to extra destinations.
+// Failures after primary success mark the deployment failed.
+func (p *Pipeline) fanOutAdditionalDestinations(ctx context.Context, primaryClient *ssh.Client, req Request, image string) error {
+	if req.skipFanOut || req.PullRequestID != 0 || p.Store == nil || req.App == nil {
+		return nil
+	}
+	ids, err := p.Store.ListAdditionalDestinations(ctx, req.TeamID, req.App.ID)
+	if err != nil {
+		return fmt.Errorf("list additional destinations: %w", err)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	primaryServerID := uuid.Nil
+	if req.Destination != nil {
+		primaryServerID = req.Destination.ServerID
+	}
+	for _, destID := range ids {
+		p.log("transfer", fmt.Sprintf("Fan-out to additional destination %s…", destID))
+		dest, err := p.Store.GetDestination(ctx, req.TeamID, destID)
+		if err != nil {
+			return fmt.Errorf("additional destination %s: %w", destID, err)
+		}
+		if primaryServerID != uuid.Nil && dest.ServerID == primaryServerID {
+			p.log("transfer", fmt.Sprintf("Skipping additional destination %s — same server as primary (would clobber)", destID))
+			continue
+		}
+		srv, err := p.Store.GetServer(ctx, req.TeamID, dest.ServerID)
+		if err != nil {
+			return fmt.Errorf("additional destination server: %w", err)
+		}
+		if srv.PrivateKeyID == nil {
+			return fmt.Errorf("additional destination server %s has no private key", srv.Name)
+		}
+		enc, err := p.Store.GetPrivateKeyMaterial(ctx, req.TeamID, *srv.PrivateKeyID)
+		if err != nil {
+			return fmt.Errorf("additional destination key: %w", err)
+		}
+		plain, err := p.Store.Box.DecryptString(enc)
+		if err != nil {
+			return fmt.Errorf("decrypt additional destination key: %w", err)
+		}
+		client, err := p.dialServer(ctx, srv, []byte(plain))
+		if err != nil {
+			return fmt.Errorf("additional destination ssh: %w", err)
+		}
+		_ = sshx.EnsureDataDirs(client)
+		if err := p.ensureDestinationNetwork(client, dest); err != nil {
+			return fmt.Errorf("additional destination network: %w", err)
+		}
+		alt := req
+		alt.Destination = dest
+		alt.Server = srv
+		alt.PrivateKey = []byte(plain)
+		alt.skipFanOut = true
+		alt.BuildServer = nil
+
+		if req.App.BuildPack == "dockercompose" {
+			if err := p.deployCompose(ctx, client, alt); err != nil {
+				return fmt.Errorf("additional destination %s: %w", destID, err)
+			}
+			continue
+		}
+		if strings.TrimSpace(image) == "" {
+			return fmt.Errorf("additional destination %s: no image to transfer", destID)
+		}
+		if err := TransferImage(primaryClient, client, image); err != nil {
+			return fmt.Errorf("additional destination %s transfer: %w", destID, err)
+		}
+		name := containerNameFor(alt)
+		if err := p.runWithHealthCutover(ctx, client, alt, name, image); err != nil {
+			return fmt.Errorf("additional destination %s: %w", destID, err)
+		}
+	}
+	p.log("transfer", "Additional destinations updated")
+	return nil
+}
+
 func (p *Pipeline) runtimeEnvArgs(ctx context.Context, req Request) []string {
 	if p.Store == nil {
 		return nil
@@ -268,19 +349,48 @@ func (p *Pipeline) proxyLabelArgs(app *store.Application, proxyType string) []st
 				}
 			}
 		}
+		if redir := strings.ToLower(strings.TrimSpace(app.Redirect)); (redir == "www" || redir == "non-www") && !proxy.IsMagicDomainHost(host) {
+			labels = append(labels, proxy.CaddyWWWRedirectLabels(app.Name, host, redir)...)
+		}
 	case "none":
 		return nil
 	default:
 		// Auto Let's Encrypt for custom domains; magic sslip/nip stay HTTP-only.
 		forceHTTPS := proxy.WantAutoHTTPS(app.FQDN)
 		labels = proxy.TraefikLabelsHTTPS(app.Name, app.FQDN, port, forceHTTPS)
+		var middlewares []string
 		if user := strings.TrimSpace(app.HTTPBasicAuthUsername); user != "" && strings.TrimSpace(app.HTTPBasicAuthPasswordEnc) != "" {
 			if p.Store != nil {
 				if plain, err := p.Store.Box.DecryptString(app.HTTPBasicAuthPasswordEnc); err == nil && plain != "" {
 					hash := htpasswdBcrypt(user, plain)
-					labels = append(labels, proxy.TraefikBasicAuthLabels(app.Name, hash)...)
+					authLabels := proxy.TraefikBasicAuthLabels(app.Name, hash)
+					for _, l := range authLabels {
+						if strings.Contains(l, ".middlewares=") {
+							if i := strings.IndexByte(l, '='); i > 0 {
+								middlewares = append(middlewares, l[i+1:])
+							}
+							continue
+						}
+						labels = append(labels, l)
+					}
 				}
 			}
+		}
+		if redir := strings.ToLower(strings.TrimSpace(app.Redirect)); (redir == "www" || redir == "non-www") && !proxy.IsMagicDomainHost(host) {
+			wwwLabels := proxy.TraefikWWWRedirectLabels(app.Name, redir)
+			for _, l := range wwwLabels {
+				if strings.Contains(l, ".middlewares=") {
+					if i := strings.IndexByte(l, '='); i > 0 {
+						middlewares = append(middlewares, l[i+1:])
+					}
+					continue
+				}
+				labels = append(labels, l)
+			}
+		}
+		if len(middlewares) > 0 {
+			router := sanitizeProxyRouter(app.Name)
+			labels = append(labels, fmt.Sprintf("traefik.http.routers.%s.middlewares=%s", router, strings.Join(middlewares, ",")))
 		}
 	}
 	for _, l := range proxy.ParseCustomLabels(app.CustomLabels) {
@@ -291,6 +401,19 @@ func (p *Pipeline) proxyLabelArgs(app *store.Application, proxyType string) []st
 		args = append(args, "-l", l)
 	}
 	return args
+}
+
+func sanitizeProxyRouter(s string) string {
+	s = strings.ToLower(s)
+	var b strings.Builder
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('-')
+		}
+	}
+	return b.String()
 }
 
 // proxyLabelArgsReq uses preview FQDN / unique router name when PullRequestID > 0
@@ -457,6 +580,10 @@ func (p *Pipeline) deployImage(ctx context.Context, client *ssh.Client, req Requ
 		workdir = fmt.Sprintf("/data/dockfin/applications/%s-pr-%d", req.App.ID.String(), req.PullRequestID)
 	}
 
+	if err := p.dockerLoginIfNeeded(ctx, client, req); err != nil {
+		return err
+	}
+
 	p.log("fetch", "Pulling image "+full)
 	_, errOut, err := sshx.RunArgs(client, "docker", "pull", full)
 	if err != nil {
@@ -467,6 +594,39 @@ func (p *Pipeline) deployImage(ctx context.Context, client *ssh.Client, req Requ
 	}
 
 	return p.runWithHealthCutover(ctx, client, req, name, full)
+}
+
+func (p *Pipeline) dockerLoginIfNeeded(ctx context.Context, client *ssh.Client, req Request) error {
+	if req.App == nil || req.App.DockerRegistryID == nil || p.Store == nil {
+		return nil
+	}
+	reg, err := p.Store.GetDockerRegistry(ctx, req.TeamID, *req.App.DockerRegistryID)
+	if err != nil {
+		return fmt.Errorf("docker registry: %w", err)
+	}
+	if strings.TrimSpace(reg.Username) == "" || strings.TrimSpace(reg.PasswordEnc) == "" {
+		p.log("fetch", "Registry credentials incomplete — skipping docker login")
+		return nil
+	}
+	plain, err := p.Store.Box.DecryptString(reg.PasswordEnc)
+	if err != nil {
+		return fmt.Errorf("decrypt registry password: %w", err)
+	}
+	server := strings.TrimSpace(reg.URL)
+	if server == "" || server == "docker.io" || server == "https://index.docker.io/v1/" {
+		server = ""
+	}
+	p.log("fetch", "docker login "+reg.Name)
+	loginCmd := fmt.Sprintf("printf '%%s' %s | docker login -u %s --password-stdin",
+		shellSingleQuote(plain), shellSingleQuote(reg.Username))
+	if server != "" {
+		loginCmd += " " + shellSingleQuote(server)
+	}
+	_, errOut, err := sshx.Run(client, loginCmd)
+	if err != nil {
+		return fmt.Errorf("docker login: %v %s", err, errOut)
+	}
+	return nil
 }
 
 func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClient *ssh.Client, req Request) error {
@@ -482,6 +642,10 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 	_, errOut, err := sshx.RunArgs(buildClient, "mkdir", "-p", workdir+"/src")
 	if err != nil {
 		return fmt.Errorf("mkdir: %v %s", err, errOut)
+	}
+
+	if err := p.dockerLoginIfNeeded(ctx, buildClient, req); err != nil {
+		return err
 	}
 
 	buildKeys, buildVals := p.dockerBuildtimeEnv(ctx, req)
@@ -543,7 +707,7 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 	if target := strings.TrimSpace(req.App.DockerfileTargetBuild); target != "" {
 		buildArgs = append(buildArgs, "--target", target)
 	}
-	if req.ForceRebuild {
+	if req.ForceRebuild || (req.App != nil && req.App.IsDisableBuildCache) {
 		buildArgs = append(buildArgs, "--no-cache")
 	}
 	for _, k := range buildKeys {
@@ -618,10 +782,12 @@ func (p *Pipeline) runWithHealthCutover(ctx context.Context, client *ssh.Client,
 	args := []string{
 		"docker", "run", "-d",
 		"--name", candidate,
-		"--restart", "unless-stopped",
+		"--restart", restartPolicy(req.App),
 		"--network", req.Destination.Network,
 	}
 	args = append(args, p.limitArgs(req.App)...)
+	args = append(args, p.gpuArgs(req.App)...)
+	args = append(args, p.stopTimeoutArgs(req.App)...)
 	args = append(args, p.volumeArgs(ctx, client, req)...)
 	args = append(args, p.runtimeEnvArgs(ctx, req)...)
 	args = append(args, p.customDockerRunArgs(req.App)...)
@@ -647,10 +813,12 @@ func (p *Pipeline) runWithHealthCutover(ctx context.Context, client *ssh.Client,
 	finalArgs := []string{
 		"docker", "run", "-d",
 		"--name", name + "-cutover",
-		"--restart", "unless-stopped",
+		"--restart", restartPolicy(req.App),
 		"--network", req.Destination.Network,
 	}
 	finalArgs = append(finalArgs, p.limitArgs(req.App)...)
+	finalArgs = append(finalArgs, p.gpuArgs(req.App)...)
+	finalArgs = append(finalArgs, p.stopTimeoutArgs(req.App)...)
 	finalArgs = append(finalArgs, p.volumeArgs(ctx, client, req)...)
 	finalArgs = append(finalArgs, p.runtimeEnvArgs(ctx, req)...)
 	finalArgs = append(finalArgs, p.customDockerRunArgs(req.App)...)
@@ -682,7 +850,38 @@ func (p *Pipeline) runWithHealthCutover(ctx context.Context, client *ssh.Client,
 	if p.Store != nil && req.PullRequestID > 0 {
 		_ = p.Store.UpdatePreviewStatus(context.Background(), req.TeamID, req.App.ID, req.PullRequestID, "running")
 	}
+	if err := p.fanOutAdditionalDestinations(ctx, client, req, image); err != nil {
+		return err
+	}
 	return nil
+}
+
+func restartPolicy(app *store.Application) string {
+	if app == nil {
+		return "unless-stopped"
+	}
+	p := strings.TrimSpace(app.CustomDockerRestartPolicy)
+	if p == "" {
+		return "unless-stopped"
+	}
+	return p
+}
+
+func (p *Pipeline) gpuArgs(app *store.Application) []string {
+	if app == nil || !app.IsGPUEnabled {
+		return nil
+	}
+	if app.GPUCount > 0 {
+		return []string{"--gpus", strconv.Itoa(app.GPUCount)}
+	}
+	return []string{"--gpus", "all"}
+}
+
+func (p *Pipeline) stopTimeoutArgs(app *store.Application) []string {
+	if app == nil || app.CustomDockerStopTimeout <= 0 {
+		return nil
+	}
+	return []string{"--stop-timeout", strconv.Itoa(app.CustomDockerStopTimeout)}
 }
 
 func (p *Pipeline) deployStatic(ctx context.Context, buildClient, deployClient *ssh.Client, req Request) error {
@@ -722,7 +921,7 @@ EXPOSE 80
 
 	p.log("build", "Building static image "+imageTag)
 	buildArgs := []string{"docker", "build", "-t", imageTag, "-f", dfPath}
-	if req.ForceRebuild {
+	if req.ForceRebuild || (req.App != nil && req.App.IsDisableBuildCache) {
 		buildArgs = append(buildArgs, "--no-cache")
 	}
 	buildArgs = append(buildArgs, workdir+"/src")
@@ -783,7 +982,7 @@ func (p *Pipeline) deployRailpack(ctx context.Context, buildClient, deployClient
 	p.log("build", "Building with railpack CLI")
 	envFlags := p.railpackEnvFlags(ctx, req)
 	noCache := ""
-	if req.ForceRebuild {
+	if req.ForceRebuild || (req.App != nil && req.App.IsDisableBuildCache) {
 		noCache = " --no-cache"
 	}
 	buildCmd := fmt.Sprintf(
@@ -861,7 +1060,6 @@ func (p *Pipeline) railpackEnvFlags(ctx context.Context, req Request) string {
 }
 
 func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Request) error {
-	_ = ctx
 	if req.App.GitRepository == "" {
 		return fmt.Errorf("git repository is required for dockercompose")
 	}
@@ -909,6 +1107,10 @@ func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Re
 		p.log("prepare", "Warning: could not write env file: "+envErr.Error())
 	}
 
+	if err := p.dockerLoginIfNeeded(ctx, client, req); err != nil {
+		return err
+	}
+
 	if req.Destination.Kind == "swarm" {
 		p.log("run", "docker stack deploy")
 		// swarm stack deploy has no --env-file; vars should already be baked via prepare when enabled.
@@ -917,12 +1119,27 @@ func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Re
 		p.log("run", "docker compose up -d")
 		buildCmd := strings.TrimSpace(req.App.DockerComposeCustomBuildCommand)
 		startCmd := strings.TrimSpace(req.App.DockerComposeCustomStartCommand)
+		noCache := req.ForceRebuild || req.App.IsDisableBuildCache
 		if buildCmd != "" || startCmd != "" {
 			if buildCmd != "" {
+				if noCache && !strings.Contains(buildCmd, "--no-cache") {
+					p.log("run", "warning: disable build cache is on but custom build command may still use cache — add --no-cache to the command")
+				}
 				p.log("run", "custom compose build")
 				_, errOut, err = sshx.Run(client, fmt.Sprintf("cd %s && %s", shellQuotePath(workdir), buildCmd))
 				if err != nil {
 					return fmt.Errorf("custom build: %v %s", err, errOut)
+				}
+			} else if noCache {
+				buildArgs := []string{"docker", "compose", "-p", project}
+				if envFile != "" {
+					buildArgs = append(buildArgs, "--env-file", envFile)
+				}
+				buildArgs = append(buildArgs, "-f", deployPath, "build", "--no-cache")
+				p.log("run", "docker compose build --no-cache (before custom start)")
+				_, errOut, err = sshx.RunArgs(client, buildArgs...)
+				if err != nil {
+					return fmt.Errorf("compose build: %v %s", err, errOut)
 				}
 			}
 			if startCmd != "" {
@@ -936,6 +1153,23 @@ func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Re
 				args = append(args, "-f", deployPath, "up", "-d", "--remove-orphans")
 				_, errOut, err = sshx.RunArgs(client, args...)
 			}
+		} else if noCache {
+			buildArgs := []string{"docker", "compose", "-p", project}
+			if envFile != "" {
+				buildArgs = append(buildArgs, "--env-file", envFile)
+			}
+			buildArgs = append(buildArgs, "-f", deployPath, "build", "--no-cache")
+			p.log("run", "docker compose build --no-cache")
+			_, errOut, err = sshx.RunArgs(client, buildArgs...)
+			if err != nil {
+				return fmt.Errorf("compose build: %v %s", err, errOut)
+			}
+			args := []string{"docker", "compose", "-p", project}
+			if envFile != "" {
+				args = append(args, "--env-file", envFile)
+			}
+			args = append(args, "-f", deployPath, "up", "-d", "--remove-orphans")
+			_, errOut, err = sshx.RunArgs(client, args...)
 		} else {
 			args := []string{"docker", "compose", "-p", project}
 			if envFile != "" {
@@ -957,6 +1191,9 @@ func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Re
 	}
 	if p.Store != nil && req.PullRequestID > 0 {
 		_ = p.Store.UpdatePreviewStatus(context.Background(), req.TeamID, req.App.ID, req.PullRequestID, "running")
+	}
+	if err := p.fanOutAdditionalDestinations(ctx, client, req, ""); err != nil {
+		return err
 	}
 	return nil
 }
@@ -1083,6 +1320,7 @@ func (p *Pipeline) adaptComposeForDockfin(ctx context.Context, client *ssh.Clien
 		FQDN:       domainList,
 		RouterName: routerName,
 		Port:       port,
+		Redirect:   req.App.Redirect,
 	}
 	if req.Destination != nil {
 		opts.Network = req.Destination.Network
@@ -1096,6 +1334,17 @@ func (p *Pipeline) adaptComposeForDockfin(ctx context.Context, client *ssh.Clien
 		}
 	}
 	opts.ExtraLabels = proxy.ParseCustomLabels(req.App.CustomLabels)
+	if req.App.IsGPUEnabled {
+		opts.GPUEnabled = true
+		opts.GPUCount = req.App.GPUCount
+		p.log("prepare", "GPU enabled — injecting gpus + deploy.resources device reservation (compose)")
+	}
+	if rp := strings.TrimSpace(req.App.CustomDockerRestartPolicy); rp != "" {
+		opts.RestartPolicy = rp
+	}
+	if req.App.CustomDockerStopTimeout > 0 {
+		opts.StopGracePeriodSec = req.App.CustomDockerStopTimeout
+	}
 
 	prepared, magicEnv, err := services.PrepareCompose(raw, opts)
 	if err != nil {

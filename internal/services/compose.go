@@ -28,6 +28,15 @@ type PrepareOpts struct {
 	ExtraLabels []string
 	// BasicAuthUsers is Traefik basicauth users= value (user:hash); empty disables.
 	BasicAuthUsers string
+	// Redirect is both|www|non-www (Coolify Direction). Magic domains should stay "both".
+	Redirect string
+	// GPUEnabled injects NVIDIA device reservations on the primary service (compose).
+	GPUEnabled bool
+	GPUCount   int
+	// RestartPolicy sets compose `restart:` on services (unless-stopped, always, on-failure, no).
+	RestartPolicy string
+	// StopGracePeriodSec sets compose `stop_grace_period` (seconds); 0 leaves default.
+	StopGracePeriodSec int
 }
 
 var reMagicKey = regexp.MustCompile(`SERVICE_(?:PASSWORD|USER|FQDN|URL|BASE64|HEX)_[A-Z0-9_]+`)
@@ -75,6 +84,8 @@ func PrepareCompose(raw string, opts PrepareOpts) (string, map[string]string, er
 	injectCompatEnv(doc, env)
 	opts.Port = DetectProxyPort(raw, opts.Port)
 	injectProxyLabels(doc, opts)
+	injectGPU(doc, opts)
+	injectRestartAndStopGrace(doc, opts)
 	if !opts.KeepPublishedPorts {
 		stripPublishedPorts(doc)
 	}
@@ -1090,6 +1101,28 @@ func injectProxyLabels(doc map[string]any, opts PrepareOpts) {
 			labels[key] = mw
 		}
 	}
+	redir := strings.ToLower(strings.TrimSpace(opts.Redirect))
+	if (redir == "www" || redir == "non-www") && !proxy.IsMagicDomainHost(primary) {
+		var mw, regex, replacement string
+		if redir == "www" {
+			mw = router + "-to-www"
+			regex = `^(http|https)://(?:www\.)?(.+)`
+			replacement = `${1}://www.${2}`
+		} else {
+			mw = router + "-to-non-www"
+			regex = `^(http|https)://www\.(.+)`
+			replacement = `${1}://${2}`
+		}
+		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectregex.regex", mw)] = regex
+		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectregex.replacement", mw)] = replacement
+		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectregex.permanent", mw)] = "false"
+		key := fmt.Sprintf("traefik.http.routers.%s.middlewares", router)
+		if existing := labels[key]; existing != "" && !strings.Contains(existing, mw) {
+			labels[key] = existing + "," + mw
+		} else if labels[key] == "" {
+			labels[key] = mw
+		}
+	}
 	for _, raw := range opts.ExtraLabels {
 		raw = strings.TrimSpace(raw)
 		if raw == "" || !strings.Contains(raw, "=") {
@@ -1104,6 +1137,92 @@ func injectProxyLabels(doc map[string]any, opts PrepareOpts) {
 	}
 	mergeLabels(svc, labels)
 	services[target] = svc
+	doc["services"] = services
+}
+
+// injectGPU adds NVIDIA GPU access on the primary web service when GPUEnabled.
+// Sets both Compose Spec `gpus:` (plain `docker compose up`) and Swarm-style
+// deploy.resources.reservations.devices (Coolify-compatible / swarm).
+func injectGPU(doc map[string]any, opts PrepareOpts) {
+	if !opts.GPUEnabled {
+		return
+	}
+	services, _ := doc["services"].(map[string]any)
+	if services == nil || len(services) == 0 {
+		return
+	}
+	target := pickProxyService(services)
+	if target == "" {
+		return
+	}
+	svc, ok := services[target].(map[string]any)
+	if !ok {
+		return
+	}
+	count := opts.GPUCount
+	if count <= 0 {
+		count = 1
+	}
+	// Non-swarm compose shortcut.
+	if opts.GPUCount <= 0 {
+		svc["gpus"] = "all"
+	} else {
+		svc["gpus"] = count
+	}
+	device := map[string]any{
+		"driver":       "nvidia",
+		"capabilities": []any{"gpu"},
+		"count":        count,
+	}
+	if opts.GPUCount <= 0 {
+		device["count"] = "all"
+	}
+	deploy, _ := svc["deploy"].(map[string]any)
+	if deploy == nil {
+		deploy = map[string]any{}
+	}
+	resources, _ := deploy["resources"].(map[string]any)
+	if resources == nil {
+		resources = map[string]any{}
+	}
+	reservations, _ := resources["reservations"].(map[string]any)
+	if reservations == nil {
+		reservations = map[string]any{}
+	}
+	devices, _ := reservations["devices"].([]any)
+	devices = append(devices, device)
+	reservations["devices"] = devices
+	resources["reservations"] = reservations
+	deploy["resources"] = resources
+	svc["deploy"] = deploy
+	services[target] = svc
+	doc["services"] = services
+}
+
+// injectRestartAndStopGrace applies restart policy and stop_grace_period to all services.
+func injectRestartAndStopGrace(doc map[string]any, opts PrepareOpts) {
+	policy := strings.TrimSpace(opts.RestartPolicy)
+	grace := opts.StopGracePeriodSec
+	if policy == "" && grace <= 0 {
+		return
+	}
+	services, _ := doc["services"].(map[string]any)
+	if services == nil {
+		return
+	}
+	for name, raw := range services {
+		svc, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if policy != "" {
+			svc["restart"] = policy
+		}
+		if grace > 0 {
+			svc["stop_grace_period"] = fmt.Sprintf("%ds", grace)
+		}
+		services[name] = svc
+	}
 	doc["services"] = services
 }
 

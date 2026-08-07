@@ -107,6 +107,7 @@ func (a *API) handleCreateScheduledBackup(w http.ResponseWriter, r *http.Request
 		ResourceType string `json:"resource_type"`
 		ResourceID   string `json:"resource_id"`
 		S3StorageID  string `json:"s3_storage_id"`
+		VolumeID     string `json:"volume_id"`
 		Frequency    string `json:"frequency"`
 		Retention    int    `json:"retention"`
 	}
@@ -148,7 +149,25 @@ func (a *API) handleCreateScheduledBackup(w http.ResponseWriter, r *http.Request
 		}
 		s3ID = &id
 	}
-	b, err := a.Store.CreateScheduledBackup(r.Context(), teamID, body.ResourceType, rid, s3ID, body.Frequency, body.Retention)
+	var volumeID *uuid.UUID
+	if body.VolumeID != "" {
+		vid, err := uuid.Parse(body.VolumeID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid volume_id")
+			return
+		}
+		v, err := a.Store.GetVolume(r.Context(), teamID, vid)
+		if err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+		if v.ResourceType != "application" || v.ResourceID != rid {
+			writeError(w, http.StatusBadRequest, "volume does not belong to application")
+			return
+		}
+		volumeID = &vid
+	}
+	b, err := a.Store.CreateScheduledBackup(r.Context(), teamID, body.ResourceType, rid, s3ID, volumeID, body.Frequency, body.Retention)
 	if err != nil {
 		mapStoreErr(w, err)
 		return

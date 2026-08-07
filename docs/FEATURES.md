@@ -37,6 +37,13 @@
 - [x] Custom docker run / compose build+start / preserve repository
 - [x] Preview environment variables (prod/preview tabs + deploy merge)
 - [x] Deploy key selector on Git Source panel
+- [x] Application Backups top tab (volume/dir → S3)
+- [x] WWW redirect (`both` / `www` / `non-www`)
+- [x] Advanced: disable build cache, shallow clone, Git LFS, GPU, stop timeout, restart policy
+- [x] Additional destinations (multi-server fan-out via image transfer)
+- [x] Per-container metrics (`docker stats`)
+- [x] Compose multi-service terminal container picker
+- [x] Private Docker registry credentials (`docker login` before pull)
 - [x] Git webhook + HMAC verify
 - [x] GitHub App webhook events (push + PR auto-deploy / preview / close cleanup)
 - [x] Multi-provider webhooks (GitHub, GitLab MR, Gitea, Bitbucket) + `[skip ci]`/`[skip cd]`

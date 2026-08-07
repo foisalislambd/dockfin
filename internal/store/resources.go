@@ -90,6 +90,15 @@ type Application struct {
 	IsGitSubmodulesEnabled            bool            `json:"is_git_submodules_enabled"`
 	IsPreserveRepositoryEnabled       bool            `json:"is_preserve_repository_enabled"`
 	WatchPaths                        string          `json:"watch_paths,omitempty"`
+	Redirect                          string          `json:"redirect"`
+	DockerRegistryID                  *uuid.UUID      `json:"docker_registry_id,omitempty"`
+	IsDisableBuildCache               bool            `json:"is_disable_build_cache"`
+	IsGitShallowCloneEnabled          bool            `json:"is_git_shallow_clone_enabled"`
+	IsGitLFSEnabled                   bool            `json:"is_git_lfs_enabled"`
+	IsGPUEnabled                      bool            `json:"is_gpu_enabled"`
+	GPUCount                          int             `json:"gpu_count"`
+	CustomDockerStopTimeout           int             `json:"custom_docker_stop_timeout"`
+	CustomDockerRestartPolicy         string          `json:"custom_docker_restart_policy"`
 	CreatedAt                         time.Time       `json:"created_at"`
 }
 
@@ -131,6 +140,15 @@ const applicationSelectCols = `
 	COALESCE(s.is_git_submodules_enabled, FALSE),
 	COALESCE(s.is_preserve_repository_enabled, FALSE),
 	COALESCE(s.watch_paths, ''),
+	COALESCE(NULLIF(a.redirect, ''), 'both'),
+	a.docker_registry_id,
+	COALESCE(s.is_disable_build_cache, FALSE),
+	COALESCE(s.is_git_shallow_clone_enabled, TRUE),
+	COALESCE(s.is_git_lfs_enabled, FALSE),
+	COALESCE(s.is_gpu_enabled, FALSE),
+	COALESCE(s.gpu_count, 0),
+	COALESCE(s.custom_docker_stop_timeout, 0),
+	COALESCE(NULLIF(s.custom_docker_restart_policy, ''), 'unless-stopped'),
 	a.created_at`
 
 func scanApplication(scan func(dest ...any) error) (*Application, error) {
@@ -150,6 +168,9 @@ func scanApplication(scan func(dest ...any) error) (*Application, error) {
 		&a.PreDeploymentCommand, &a.PostDeploymentCommand, &a.CustomLabels, &a.HTTPBasicAuthUsername, &a.HTTPBasicAuthPasswordEnc,
 		&a.GitSourceID, &a.PrivateKeyID, &a.IsBuildServerEnabled, &a.IsForceHTTPS, &a.IsPreviewEnabled,
 		&a.IsAutoDeployEnabled, &a.IsGitSubmodulesEnabled, &a.IsPreserveRepositoryEnabled, &a.WatchPaths,
+		&a.Redirect, &a.DockerRegistryID,
+		&a.IsDisableBuildCache, &a.IsGitShallowCloneEnabled, &a.IsGitLFSEnabled,
+		&a.IsGPUEnabled, &a.GPUCount, &a.CustomDockerStopTimeout, &a.CustomDockerRestartPolicy,
 		&a.CreatedAt,
 	)
 	if err != nil {
@@ -157,6 +178,12 @@ func scanApplication(scan func(dest ...any) error) (*Application, error) {
 	}
 	if len(a.DockerComposeDomains) == 0 {
 		a.DockerComposeDomains = json.RawMessage(`{}`)
+	}
+	if a.Redirect == "" {
+		a.Redirect = "both"
+	}
+	if a.CustomDockerRestartPolicy == "" {
+		a.CustomDockerRestartPolicy = "unless-stopped"
 	}
 	a.HasHTTPBasicAuth = strings.TrimSpace(a.HTTPBasicAuthPasswordEnc) != "" && strings.TrimSpace(a.HTTPBasicAuthUsername) != ""
 	return &a, nil
@@ -649,8 +676,9 @@ func (s *Store) UpdateApplication(ctx context.Context, app *Application) error {
 			limits_memory=$33, limits_cpus=$34, is_force_https=$35,
 			pre_deployment_command=$36, post_deployment_command=$37, custom_labels=$38,
 			http_basic_auth_username=$39, http_basic_auth_password_enc=$40,
+			redirect=$41, docker_registry_id=$42,
 			updated_at=NOW()
-		WHERE id=$1 AND team_id=$41
+		WHERE id=$1 AND team_id=$43
 	`, app.ID, app.Name, app.Description, app.FQDN, app.GitRepository, app.GitBranch,
 		app.PortsExposes, app.DockerRegistryImageName, app.DockerRegistryImageTag,
 		app.DockerfileLocation, app.Dockerfile, app.DockerComposeLocation, app.DestinationID, app.GitSourceID, app.PrivateKeyID,
@@ -664,6 +692,7 @@ func (s *Store) UpdateApplication(ctx context.Context, app *Application) error {
 		app.LimitsMemory, app.LimitsCpus, app.IsForceHTTPS,
 		app.PreDeploymentCommand, app.PostDeploymentCommand, app.CustomLabels,
 		app.HTTPBasicAuthUsername, app.HTTPBasicAuthPasswordEnc,
+		app.Redirect, app.DockerRegistryID,
 		app.TeamID)
 	return err
 }
@@ -769,6 +798,45 @@ func (s *Store) SetApplicationForceHTTPS(ctx context.Context, teamID, appID uuid
 		WHERE application_id=$1
 	`, appID, enabled)
 	return err
+}
+
+// SetApplicationAdvancedSettings updates Coolify-style advanced deploy flags on application_settings.
+func (s *Store) SetApplicationAdvancedSettings(ctx context.Context, teamID, appID uuid.UUID, in ApplicationAdvancedSettings) error {
+	policy := strings.TrimSpace(in.CustomDockerRestartPolicy)
+	if policy == "" {
+		policy = "unless-stopped"
+	}
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE application_settings SET
+			is_disable_build_cache=$3,
+			is_git_shallow_clone_enabled=$4,
+			is_git_lfs_enabled=$5,
+			is_gpu_enabled=$6,
+			gpu_count=$7,
+			custom_docker_stop_timeout=$8,
+			custom_docker_restart_policy=$9,
+			updated_at=NOW()
+		WHERE application_id=$1 AND EXISTS (SELECT 1 FROM applications WHERE id=$1 AND team_id=$2)
+	`, appID, teamID,
+		in.IsDisableBuildCache, in.IsGitShallowCloneEnabled, in.IsGitLFSEnabled,
+		in.IsGPUEnabled, in.GPUCount, in.CustomDockerStopTimeout, policy)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+type ApplicationAdvancedSettings struct {
+	IsDisableBuildCache       bool
+	IsGitShallowCloneEnabled  bool
+	IsGitLFSEnabled           bool
+	IsGPUEnabled              bool
+	GPUCount                  int
+	CustomDockerStopTimeout   int
+	CustomDockerRestartPolicy string
 }
 
 // MoveResource relocates an application, database, or service to another environment.
@@ -1402,15 +1470,16 @@ type S3Storage struct {
 }
 
 type ScheduledBackup struct {
-	ID          uuid.UUID  `json:"id"`
-	TeamID      uuid.UUID  `json:"team_id"`
-	ResourceType string    `json:"resource_type"`
-	ResourceID  uuid.UUID  `json:"resource_id"`
-	S3StorageID *uuid.UUID `json:"s3_storage_id,omitempty"`
-	Frequency   string     `json:"frequency"`
-	Enabled     bool       `json:"enabled"`
-	Retention   int        `json:"retention"`
-	CreatedAt   time.Time  `json:"created_at"`
+	ID           uuid.UUID  `json:"id"`
+	TeamID       uuid.UUID  `json:"team_id"`
+	ResourceType string     `json:"resource_type"`
+	ResourceID   uuid.UUID  `json:"resource_id"`
+	S3StorageID  *uuid.UUID `json:"s3_storage_id,omitempty"`
+	VolumeID     *uuid.UUID `json:"volume_id,omitempty"`
+	Frequency    string     `json:"frequency"`
+	Enabled      bool       `json:"enabled"`
+	Retention    int        `json:"retention"`
+	CreatedAt    time.Time  `json:"created_at"`
 }
 
 func (s *Store) CreateS3Storage(ctx context.Context, teamID uuid.UUID, name, endpoint, bucket, region, accessKeyEnc, secretKeyEnc string, pathStyle bool) (*S3Storage, error) {
@@ -1481,7 +1550,7 @@ func (s *Store) DeleteS3Storage(ctx context.Context, teamID, id uuid.UUID) error
 	return nil
 }
 
-func (s *Store) CreateScheduledBackup(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID, s3ID *uuid.UUID, frequency string, retention int) (*ScheduledBackup, error) {
+func (s *Store) CreateScheduledBackup(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID, s3ID, volumeID *uuid.UUID, frequency string, retention int) (*ScheduledBackup, error) {
 	if frequency == "" {
 		frequency = "0 0 * * *"
 	}
@@ -1490,11 +1559,11 @@ func (s *Store) CreateScheduledBackup(ctx context.Context, teamID uuid.UUID, res
 	}
 	var b ScheduledBackup
 	err := s.Pool.QueryRow(ctx, `
-		INSERT INTO scheduled_backups (team_id, resource_type, resource_id, s3_storage_id, frequency, retention)
-		VALUES ($1,$2,$3,$4,$5,$6)
-		RETURNING id, team_id, resource_type, resource_id, s3_storage_id, frequency, enabled, retention, created_at
-	`, teamID, resourceType, resourceID, s3ID, frequency, retention).Scan(
-		&b.ID, &b.TeamID, &b.ResourceType, &b.ResourceID, &b.S3StorageID, &b.Frequency, &b.Enabled, &b.Retention, &b.CreatedAt,
+		INSERT INTO scheduled_backups (team_id, resource_type, resource_id, s3_storage_id, volume_id, frequency, retention)
+		VALUES ($1,$2,$3,$4,$5,$6,$7)
+		RETURNING id, team_id, resource_type, resource_id, s3_storage_id, volume_id, frequency, enabled, retention, created_at
+	`, teamID, resourceType, resourceID, s3ID, volumeID, frequency, retention).Scan(
+		&b.ID, &b.TeamID, &b.ResourceType, &b.ResourceID, &b.S3StorageID, &b.VolumeID, &b.Frequency, &b.Enabled, &b.Retention, &b.CreatedAt,
 	)
 	return &b, err
 }
@@ -1556,9 +1625,9 @@ func (s *Store) DeleteScheduledBackup(ctx context.Context, teamID, id uuid.UUID)
 func (s *Store) GetScheduledBackup(ctx context.Context, teamID, id uuid.UUID) (*ScheduledBackup, error) {
 	var b ScheduledBackup
 	err := s.Pool.QueryRow(ctx, `
-		SELECT id, team_id, resource_type, resource_id, s3_storage_id, frequency, enabled, retention, created_at
+		SELECT id, team_id, resource_type, resource_id, s3_storage_id, volume_id, frequency, enabled, retention, created_at
 		FROM scheduled_backups WHERE id=$1 AND team_id=$2
-	`, id, teamID).Scan(&b.ID, &b.TeamID, &b.ResourceType, &b.ResourceID, &b.S3StorageID, &b.Frequency, &b.Enabled, &b.Retention, &b.CreatedAt)
+	`, id, teamID).Scan(&b.ID, &b.TeamID, &b.ResourceType, &b.ResourceID, &b.S3StorageID, &b.VolumeID, &b.Frequency, &b.Enabled, &b.Retention, &b.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -1567,7 +1636,7 @@ func (s *Store) GetScheduledBackup(ctx context.Context, teamID, id uuid.UUID) (*
 
 func (s *Store) ListScheduledBackups(ctx context.Context, teamID uuid.UUID) ([]ScheduledBackup, error) {
 	rows, err := s.Pool.Query(ctx, `
-		SELECT id, team_id, resource_type, resource_id, s3_storage_id, frequency, enabled, retention, created_at
+		SELECT id, team_id, resource_type, resource_id, s3_storage_id, volume_id, frequency, enabled, retention, created_at
 		FROM scheduled_backups WHERE team_id=$1 ORDER BY created_at DESC
 	`, teamID)
 	if err != nil {
@@ -1577,7 +1646,7 @@ func (s *Store) ListScheduledBackups(ctx context.Context, teamID uuid.UUID) ([]S
 	var out []ScheduledBackup
 	for rows.Next() {
 		var b ScheduledBackup
-		if err := rows.Scan(&b.ID, &b.TeamID, &b.ResourceType, &b.ResourceID, &b.S3StorageID, &b.Frequency, &b.Enabled, &b.Retention, &b.CreatedAt); err != nil {
+		if err := rows.Scan(&b.ID, &b.TeamID, &b.ResourceType, &b.ResourceID, &b.S3StorageID, &b.VolumeID, &b.Frequency, &b.Enabled, &b.Retention, &b.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, b)
@@ -1769,6 +1838,7 @@ type ScheduledBackupRow struct {
 	ResourceType string
 	ResourceID   uuid.UUID
 	S3StorageID  *uuid.UUID
+	VolumeID     *uuid.UUID
 	Frequency    string
 	Enabled      bool
 	Retention    int
@@ -1776,7 +1846,7 @@ type ScheduledBackupRow struct {
 
 func (s *Store) ListEnabledScheduledBackups(ctx context.Context) ([]ScheduledBackupRow, error) {
 	rows, err := s.Pool.Query(ctx, `
-		SELECT id, team_id, resource_type, resource_id, s3_storage_id, frequency, enabled, retention
+		SELECT id, team_id, resource_type, resource_id, s3_storage_id, volume_id, frequency, enabled, retention
 		FROM scheduled_backups WHERE enabled=TRUE
 	`)
 	if err != nil {
@@ -1786,7 +1856,7 @@ func (s *Store) ListEnabledScheduledBackups(ctx context.Context) ([]ScheduledBac
 	var out []ScheduledBackupRow
 	for rows.Next() {
 		var b ScheduledBackupRow
-		if err := rows.Scan(&b.ID, &b.TeamID, &b.ResourceType, &b.ResourceID, &b.S3StorageID, &b.Frequency, &b.Enabled, &b.Retention); err != nil {
+		if err := rows.Scan(&b.ID, &b.TeamID, &b.ResourceType, &b.ResourceID, &b.S3StorageID, &b.VolumeID, &b.Frequency, &b.Enabled, &b.Retention); err != nil {
 			return nil, err
 		}
 		out = append(out, b)

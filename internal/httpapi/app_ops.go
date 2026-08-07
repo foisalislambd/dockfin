@@ -61,7 +61,11 @@ func (a *API) runApplicationAction(w http.ResponseWriter, r *http.Request, actio
 		errOut, err = a.runAppComposeAction(client, app, action)
 	} else {
 		cname := "dockfin-" + app.ID.String()
-		_, errOut, err = sshx.RunArgs(client, "docker", action, cname)
+		if action == "stop" && app.CustomDockerStopTimeout > 0 {
+			_, errOut, err = sshx.RunArgs(client, "docker", "stop", "-t", strconv.Itoa(app.CustomDockerStopTimeout), cname)
+		} else {
+			_, errOut, err = sshx.RunArgs(client, "docker", action, cname)
+		}
 		if err != nil && action == "start" {
 			// Container may not exist yet.
 			writeError(w, http.StatusBadRequest, "container not found — deploy first")
@@ -79,6 +83,34 @@ func (a *API) runApplicationAction(w http.ResponseWriter, r *http.Request, actio
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("%v %s", err, strings.TrimSpace(errOut)))
 		return
 	}
+
+	// Mirror lifecycle to additional destinations (best-effort; primary already succeeded).
+	if extras, e := a.Store.ListAdditionalDestinations(r.Context(), teamID, app.ID); e == nil {
+		for _, destID := range extras {
+			extraDest, e := a.Store.GetDestination(r.Context(), teamID, destID)
+			if e != nil {
+				continue
+			}
+			if extraDest.ServerID == dest.ServerID {
+				continue
+			}
+			extraClient, e := a.dialServer(r, extraDest.ServerID)
+			if e != nil {
+				continue
+			}
+			if app.BuildPack == "dockercompose" {
+				_, _ = a.runAppComposeAction(extraClient, app, action)
+			} else {
+				cname := "dockfin-" + app.ID.String()
+				if action == "stop" && app.CustomDockerStopTimeout > 0 {
+					_, _, _ = sshx.RunArgs(extraClient, "docker", "stop", "-t", strconv.Itoa(app.CustomDockerStopTimeout), cname)
+				} else {
+					_, _, _ = sshx.RunArgs(extraClient, "docker", action, cname)
+				}
+			}
+		}
+	}
+
 	_ = a.Store.UpdateApplicationStatus(r.Context(), app.ID, statusOnOK)
 	app.Status = statusOnOK
 	writeJSON(w, http.StatusOK, appWithLinks(app))
@@ -91,14 +123,14 @@ func (a *API) runAppComposeAction(client *ssh.Client, app *store.Application, ac
 
 	if composePath == "" {
 		if action == "stop" {
-			return a.runAppComposeContainers(client, project, "stop")
+			return a.runAppComposeContainers(client, project, "stop", app.CustomDockerStopTimeout)
 		}
 		if action == "restart" {
-			return a.runAppComposeContainers(client, project, "restart")
+			return a.runAppComposeContainers(client, project, "restart", 0)
 		}
 		if action == "start" {
 			// Prefer starting existing containers; otherwise require a prior deploy.
-			if errOut, err := a.runAppComposeContainers(client, project, "start"); err == nil {
+			if errOut, err := a.runAppComposeContainers(client, project, "start", 0); err == nil {
 				return errOut, nil
 			}
 			return "", fmt.Errorf("compose file missing — deploy first")
@@ -106,7 +138,11 @@ func (a *API) runAppComposeAction(client *ssh.Client, app *store.Application, ac
 		return "", fmt.Errorf("compose file missing — deploy first")
 	}
 
-	_, errOut, err := sshx.RunArgs(client, "docker", "compose", "-p", project, "-f", composePath, action)
+	args := []string{"docker", "compose", "-p", project, "-f", composePath, action}
+	if action == "stop" && app.CustomDockerStopTimeout > 0 {
+		args = []string{"docker", "compose", "-p", project, "-f", composePath, "stop", "-t", strconv.Itoa(app.CustomDockerStopTimeout)}
+	}
+	_, errOut, err := sshx.RunArgs(client, args...)
 	if err != nil && action == "start" {
 		// compose start fails when no containers exist yet — fall back to up -d.
 		_, errOut2, err2 := sshx.RunArgs(client, "docker", "compose", "-p", project, "-f", composePath, "up", "-d", "--remove-orphans")
@@ -154,7 +190,7 @@ func resolveAppComposeFile(client *ssh.Client, app *store.Application, workdir s
 	return ""
 }
 
-func (a *API) runAppComposeContainers(client *ssh.Client, project, action string) (string, error) {
+func (a *API) runAppComposeContainers(client *ssh.Client, project, action string, stopTimeout int) (string, error) {
 	out, errOut, err := sshx.RunArgs(client, "docker", "ps", "-a", "--filter", "label=com.docker.compose.project="+project, "--format", "{{.Names}}")
 	if err != nil {
 		return errOut, err
@@ -169,7 +205,11 @@ func (a *API) runAppComposeContainers(client *ssh.Client, project, action string
 	if len(names) == 0 {
 		return "", fmt.Errorf("no containers for project %s", project)
 	}
-	args := append([]string{"docker", action}, names...)
+	args := []string{"docker", action}
+	if action == "stop" && stopTimeout > 0 {
+		args = append(args, "-t", strconv.Itoa(stopTimeout))
+	}
+	args = append(args, names...)
 	_, errOut, err = sshx.RunArgs(client, args...)
 	return errOut, err
 }

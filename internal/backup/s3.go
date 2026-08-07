@@ -35,10 +35,15 @@ func UploadRemoteToS3(client *ssh.Client, remotePath, objectKey string, c S3Cred
 		rest = strings.TrimPrefix(endpoint, "https://")
 	}
 	mcHost := fmt.Sprintf("%s://%s:%s@%s", scheme, url.PathEscape(c.AccessKey), url.PathEscape(c.SecretKey), rest)
-	base := path.Base(remotePath)
+	// remotePath is under /data/dockfin/backups/…; the container mounts that dir at /backups.
+	rel := strings.TrimPrefix(remotePath, "/data/dockfin/backups/")
+	rel = strings.TrimPrefix(rel, "/")
+	if rel == "" || rel == remotePath {
+		rel = path.Base(remotePath)
+	}
 	cmd := fmt.Sprintf(
 		`docker run --rm -v /data/dockfin/backups:/backups:ro -e MC_HOST_dockfin=%s minio/mc:RELEASE.2024-11-17T19-35-25Z cp /backups/%s dockfin/%s/%s`,
-		shellQuote(mcHost), shellQuote(base), shellQuote(c.Bucket), shellQuote(objectKey),
+		shellQuote(mcHost), shellQuote(rel), shellQuote(c.Bucket), shellQuote(objectKey),
 	)
 	_, errOut, err := sshx.Run(client, cmd)
 	if err != nil {

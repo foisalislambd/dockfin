@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import {
   Archive,
   CalendarClock,
+  Container,
   Eye,
   EyeOff,
   KeyRound,
@@ -26,7 +27,7 @@ import { useAuth } from '../lib/auth'
 import { Btn, Header } from './Servers'
 
 type TopTab = 'configuration' | 'backup' | 'email' | 'oauth' | 'scheduled' | 'profile'
-type ConfigSub = 'general' | 'advanced' | 'updates'
+type ConfigSub = 'general' | 'advanced' | 'updates' | 'registries'
 
 const TIMEZONES =
   typeof Intl !== 'undefined' && 'supportedValuesOf' in Intl
@@ -418,6 +419,7 @@ export function SettingsPage() {
     { id: 'general' as const, label: 'General', icon: Settings2 },
     { id: 'advanced' as const, label: 'Advanced', icon: SlidersHorizontal },
     { id: 'updates' as const, label: 'Updates', icon: RefreshCw },
+    { id: 'registries' as const, label: 'Docker Registries', icon: Container },
   ]
 
   return (
@@ -778,6 +780,8 @@ export function SettingsPage() {
                 </div>
               </form>
             )}
+
+            {sub === 'registries' && <DockerRegistriesPanel canEdit={canEdit} />}
           </div>
         </div>
       )}
@@ -1238,6 +1242,125 @@ function OauthCard({
       >
         Save {row.provider}
       </Btn>
+    </div>
+  )
+}
+
+function DockerRegistriesPanel({ canEdit }: { canEdit: boolean }) {
+  const qc = useQueryClient()
+  const registries = useQuery({ queryKey: ['docker-registries'], queryFn: api.dockerRegistries })
+  const [form, setForm] = useState({ name: '', url: 'docker.io', username: '', password: '' })
+  const [showForm, setShowForm] = useState(false)
+  const create = useMutation({
+    mutationFn: () =>
+      api.createDockerRegistry({
+        name: form.name,
+        url: form.url || undefined,
+        username: form.username || undefined,
+        password: form.password || undefined,
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['docker-registries'] })
+      setForm({ name: '', url: 'docker.io', username: '', password: '' })
+      setShowForm(false)
+    },
+  })
+  const remove = useMutation({
+    mutationFn: (id: string) => api.deleteDockerRegistry(id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['docker-registries'] }),
+  })
+
+  return (
+    <div className="space-y-4">
+      <SectionHead
+        title="Docker Registries"
+        actions={
+          canEdit ? (
+            <Btn primary type="button" onClick={() => setShowForm((v) => !v)}>
+              {showForm ? 'Cancel' : '+ Add'}
+            </Btn>
+          ) : undefined
+        }
+      />
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        Private registry credentials for pulling application images (Docker Image pack). Separate
+        from the Dockfin update registry under Updates.
+      </p>
+
+      {showForm && (
+        <form
+          className="panel-card grid gap-3 p-5 sm:grid-cols-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            create.mutate()
+          }}
+        >
+          <TextField
+            label="Name"
+            value={form.name}
+            onChange={(v) => setForm({ ...form, name: v })}
+          />
+          <TextField
+            label="Registry URL"
+            helper="e.g. docker.io, ghcr.io, or registry.example.com"
+            value={form.url}
+            onChange={(v) => setForm({ ...form, url: v })}
+            required={false}
+          />
+          <TextField
+            label="Username"
+            value={form.username}
+            onChange={(v) => setForm({ ...form, username: v })}
+            required={false}
+          />
+          <SecretField
+            label="Password / token"
+            value={form.password}
+            onChange={(v) => setForm({ ...form, password: v })}
+          />
+          {create.error && (
+            <p className="text-sm text-error-500 sm:col-span-2">{create.error.message}</p>
+          )}
+          <div className="sm:col-span-2">
+            <Btn primary type="submit" disabled={!canEdit || create.isPending || !form.name.trim()}>
+              {create.isPending ? 'Saving…' : 'Save registry'}
+            </Btn>
+          </div>
+        </form>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {(registries.data?.docker_registries || []).map((r) => (
+          <div key={r.id} className="panel-card p-5">
+            <div className="font-medium text-gray-900 dark:text-white">{r.name}</div>
+            <div className="mt-1 truncate font-mono text-xs text-gray-500 dark:text-gray-400">
+              {r.url}
+            </div>
+            <div className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+              {r.username || 'anonymous'}
+              {r.has_password ? ' · password set' : ''}
+            </div>
+            {canEdit ? (
+              <div className="mt-4">
+                <Btn
+                  onClick={() => {
+                    if (confirm(`Delete registry ${r.name}?`)) remove.mutate(r.id)
+                  }}
+                  disabled={remove.isPending}
+                >
+                  Delete
+                </Btn>
+              </div>
+            ) : null}
+          </div>
+        ))}
+        {!registries.data?.docker_registries?.length && (
+          <div className="panel-card col-span-full p-8 text-center text-sm text-gray-500 dark:text-gray-400">
+            No Docker registries yet.
+          </div>
+        )}
+      </div>
+      {remove.error && <p className="text-sm text-error-500">{remove.error.message}</p>}
     </div>
   )
 }

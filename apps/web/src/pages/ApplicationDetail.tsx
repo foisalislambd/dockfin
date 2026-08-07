@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import {
   Activity,
   AlertTriangle,
+  Archive,
   CalendarClock,
   Gauge,
   GitBranch,
@@ -42,10 +43,189 @@ import { Btn, Input } from './Servers'
 const TOP_TABS = [
   { id: 'configuration', label: 'Configuration', icon: Settings2 },
   { id: 'deployments', label: 'Deployments', icon: History },
+  { id: 'backups', label: 'Backups', icon: Archive },
   { id: 'logs', label: 'Logs', icon: ScrollText },
   { id: 'terminal', label: 'Terminal', icon: Terminal },
   { id: 'links', label: 'Links', icon: Link2 },
 ] as const
+
+type AppCfg = {
+  name: string
+  description: string
+  fqdn: string
+  git_repository: string
+  git_branch: string
+  ports_exposes: string
+  docker_compose_location: string
+  compose_prepare: boolean
+  base_directory: string
+  docker_compose_custom_build_command: string
+  docker_compose_custom_start_command: string
+  custom_docker_run_options: string
+  dockerfile_location: string
+  dockerfile: string
+  dockerfile_target_build: string
+  docker_registry_image_name: string
+  docker_registry_image_tag: string
+  docker_registry_id: string
+  destination_id: string
+  git_source_id: string
+  private_key_id: string
+  is_build_server_enabled: boolean
+  is_force_https: boolean
+  is_preview_enabled: boolean
+  is_auto_deploy_enabled: boolean
+  is_git_submodules_enabled: boolean
+  is_preserve_repository_enabled: boolean
+  is_disable_build_cache: boolean
+  is_git_shallow_clone_enabled: boolean
+  is_git_lfs_enabled: boolean
+  is_gpu_enabled: boolean
+  gpu_count: number
+  custom_docker_stop_timeout: number
+  custom_docker_restart_policy: string
+  redirect: string
+  watch_paths: string
+  pre_deployment_command: string
+  post_deployment_command: string
+  custom_labels: string
+  http_basic_auth_username: string
+}
+
+function emptyAppCfg(): AppCfg {
+  return {
+    name: '',
+    description: '',
+    fqdn: '',
+    git_repository: '',
+    git_branch: '',
+    ports_exposes: '',
+    docker_compose_location: '',
+    compose_prepare: true,
+    base_directory: '/',
+    docker_compose_custom_build_command: '',
+    docker_compose_custom_start_command: '',
+    custom_docker_run_options: '',
+    dockerfile_location: '/Dockerfile',
+    dockerfile: '',
+    dockerfile_target_build: '',
+    docker_registry_image_name: '',
+    docker_registry_image_tag: '',
+    docker_registry_id: '',
+    destination_id: '',
+    git_source_id: '',
+    private_key_id: '',
+    is_build_server_enabled: false,
+    is_force_https: true,
+    is_preview_enabled: false,
+    is_auto_deploy_enabled: true,
+    is_git_submodules_enabled: false,
+    is_preserve_repository_enabled: false,
+    is_disable_build_cache: false,
+    is_git_shallow_clone_enabled: true,
+    is_git_lfs_enabled: false,
+    is_gpu_enabled: false,
+    gpu_count: 0,
+    custom_docker_stop_timeout: 0,
+    custom_docker_restart_policy: 'unless-stopped',
+    redirect: 'both',
+    watch_paths: '',
+    pre_deployment_command: '',
+    post_deployment_command: '',
+    custom_labels: '',
+    http_basic_auth_username: '',
+  }
+}
+
+function appCfgFromData(updated: {
+  name?: string
+  description?: string
+  fqdn?: string
+  git_repository?: string
+  git_branch?: string
+  ports_exposes?: string
+  build_pack?: string
+  docker_compose_location?: string
+  compose_prepare?: boolean
+  base_directory?: string
+  docker_compose_custom_build_command?: string
+  docker_compose_custom_start_command?: string
+  custom_docker_run_options?: string
+  dockerfile_location?: string
+  dockerfile?: string
+  dockerfile_target_build?: string
+  docker_registry_image_name?: string
+  docker_registry_image_tag?: string
+  docker_registry_id?: string | null
+  destination_id?: string | null
+  git_source_id?: string | null
+  private_key_id?: string | null
+  is_build_server_enabled?: boolean
+  is_force_https?: boolean
+  is_preview_enabled?: boolean
+  is_auto_deploy_enabled?: boolean
+  is_git_submodules_enabled?: boolean
+  is_preserve_repository_enabled?: boolean
+  is_disable_build_cache?: boolean
+  is_git_shallow_clone_enabled?: boolean
+  is_git_lfs_enabled?: boolean
+  is_gpu_enabled?: boolean
+  gpu_count?: number
+  custom_docker_stop_timeout?: number
+  custom_docker_restart_policy?: string
+  redirect?: string
+  watch_paths?: string
+  pre_deployment_command?: string
+  post_deployment_command?: string
+  custom_labels?: string
+  http_basic_auth_username?: string
+}): AppCfg {
+  return {
+    name: updated.name || '',
+    description: updated.description || '',
+    fqdn: updated.fqdn || '',
+    git_repository: updated.git_repository || '',
+    git_branch: updated.git_branch || 'main',
+    ports_exposes:
+      updated.build_pack === 'dockercompose'
+        ? updated.ports_exposes || ''
+        : updated.ports_exposes || '80',
+    docker_compose_location: updated.docker_compose_location || '',
+    compose_prepare: updated.compose_prepare !== false,
+    base_directory: updated.base_directory || '/',
+    docker_compose_custom_build_command: updated.docker_compose_custom_build_command || '',
+    docker_compose_custom_start_command: updated.docker_compose_custom_start_command || '',
+    custom_docker_run_options: updated.custom_docker_run_options || '',
+    dockerfile_location: updated.dockerfile_location || '/Dockerfile',
+    dockerfile: updated.dockerfile || '',
+    dockerfile_target_build: updated.dockerfile_target_build || '',
+    docker_registry_image_name: updated.docker_registry_image_name || '',
+    docker_registry_image_tag: updated.docker_registry_image_tag || '',
+    docker_registry_id: updated.docker_registry_id || '',
+    destination_id: updated.destination_id || '',
+    git_source_id: updated.git_source_id || '',
+    private_key_id: updated.private_key_id || '',
+    is_build_server_enabled: Boolean(updated.is_build_server_enabled),
+    is_force_https: updated.is_force_https !== false,
+    is_preview_enabled: Boolean(updated.is_preview_enabled),
+    is_auto_deploy_enabled: updated.is_auto_deploy_enabled !== false,
+    is_git_submodules_enabled: Boolean(updated.is_git_submodules_enabled),
+    is_preserve_repository_enabled: Boolean(updated.is_preserve_repository_enabled),
+    is_disable_build_cache: Boolean(updated.is_disable_build_cache),
+    is_git_shallow_clone_enabled: updated.is_git_shallow_clone_enabled !== false,
+    is_git_lfs_enabled: Boolean(updated.is_git_lfs_enabled),
+    is_gpu_enabled: Boolean(updated.is_gpu_enabled),
+    gpu_count: updated.gpu_count ?? 0,
+    custom_docker_stop_timeout: updated.custom_docker_stop_timeout ?? 0,
+    custom_docker_restart_policy: updated.custom_docker_restart_policy || 'unless-stopped',
+    redirect: updated.redirect || 'both',
+    watch_paths: updated.watch_paths || '',
+    pre_deployment_command: updated.pre_deployment_command || '',
+    post_deployment_command: updated.post_deployment_command || '',
+    custom_labels: updated.custom_labels || '',
+    http_basic_auth_username: updated.http_basic_auth_username || '',
+  }
+}
 
 /** Coolify-style configuration sidebar (Dockfin design tokens). */
 const SIDE_ITEMS = [
@@ -121,39 +301,8 @@ export function ApplicationDetailPage() {
   const [topTab, setTopTab] = useState<(typeof TOP_TABS)[number]['id']>('configuration')
   const [side, setSide] = useState<(typeof SIDE_ITEMS)[number]['id']>('general')
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [cfg, setCfg] = useState({
-    name: '',
-    description: '',
-    fqdn: '',
-    git_repository: '',
-    git_branch: '',
-    ports_exposes: '',
-    docker_compose_location: '',
-    compose_prepare: true,
-    base_directory: '/',
-    docker_compose_custom_build_command: '',
-    docker_compose_custom_start_command: '',
-    custom_docker_run_options: '',
-    dockerfile_location: '/Dockerfile',
-    dockerfile: '',
-    dockerfile_target_build: '',
-    docker_registry_image_name: '',
-    docker_registry_image_tag: '',
-    destination_id: '',
-    git_source_id: '',
-    private_key_id: '',
-    is_build_server_enabled: false,
-    is_force_https: true,
-    is_preview_enabled: false,
-    is_auto_deploy_enabled: true,
-    is_git_submodules_enabled: false,
-    is_preserve_repository_enabled: false,
-    watch_paths: '',
-    pre_deployment_command: '',
-    post_deployment_command: '',
-    custom_labels: '',
-    http_basic_auth_username: '',
-  })
+  const [cfg, setCfg] = useState<AppCfg>(emptyAppCfg)
+  const [extraDestIds, setExtraDestIds] = useState<string[]>([])
   const [httpBasicAuthPassword, setHttpBasicAuthPassword] = useState('')
   const [clearHttpBasicAuth, setClearHttpBasicAuth] = useState(false)
   const [serviceDomains, setServiceDomains] = useState<Record<string, string>>({})
@@ -172,45 +321,26 @@ export function ApplicationDetailPage() {
   const [limits, setLimits] = useState({ limits_memory: '', limits_cpus: '' })
   const [webhookSecret, setWebhookSecret] = useState<string | null>(null)
 
+  const registries = useQuery({ queryKey: ['docker-registries'], queryFn: api.dockerRegistries })
+  const extraDests = useQuery({
+    queryKey: ['app-additional-destinations', appId],
+    queryFn: () => api.additionalDestinations(appId),
+    enabled: Boolean(appId),
+  })
+  const appContainers = useQuery({
+    queryKey: ['app-containers', appId],
+    queryFn: () => api.applicationContainers(appId),
+    enabled: Boolean(appId) && topTab === 'terminal',
+  })
+
   useEffect(() => {
     setTopTab('configuration')
     setSide('general')
     setWebhookSecret(null)
     setHttpBasicAuthPassword('')
     setClearHttpBasicAuth(false)
-    setCfg({
-      name: '',
-      description: '',
-      fqdn: '',
-      git_repository: '',
-      git_branch: '',
-      ports_exposes: '',
-      docker_compose_location: '',
-      compose_prepare: true,
-      base_directory: '/',
-      docker_compose_custom_build_command: '',
-      docker_compose_custom_start_command: '',
-      custom_docker_run_options: '',
-      dockerfile_location: '/Dockerfile',
-      dockerfile: '',
-      dockerfile_target_build: '',
-      docker_registry_image_name: '',
-      docker_registry_image_tag: '',
-      destination_id: '',
-      git_source_id: '',
-      private_key_id: '',
-      is_build_server_enabled: false,
-      is_force_https: true,
-      is_preview_enabled: false,
-      is_auto_deploy_enabled: true,
-      is_git_submodules_enabled: false,
-      is_preserve_repository_enabled: false,
-      watch_paths: '',
-      pre_deployment_command: '',
-      post_deployment_command: '',
-      custom_labels: '',
-      http_basic_auth_username: '',
-    })
+    setCfg(emptyAppCfg())
+    setExtraDestIds([])
     setServiceDomains({})
     setShowRawCompose(true)
     setHealth({
@@ -227,44 +357,15 @@ export function ApplicationDetailPage() {
   }, [appId])
 
   useEffect(() => {
+    if (extraDests.data?.destination_ids) {
+      setExtraDestIds(extraDests.data.destination_ids.map(String))
+    }
+  }, [extraDests.data])
+
+  useEffect(() => {
     if (!app.data || app.data.id !== appId) return
     const updated = app.data
-    setCfg({
-      name: updated.name || '',
-      description: updated.description || '',
-      fqdn: updated.fqdn || '',
-      git_repository: updated.git_repository || '',
-      git_branch: updated.git_branch || 'main',
-      ports_exposes:
-        updated.build_pack === 'dockercompose'
-          ? updated.ports_exposes || ''
-          : updated.ports_exposes || '80',
-      docker_compose_location: updated.docker_compose_location || '',
-      compose_prepare: updated.compose_prepare !== false,
-      base_directory: updated.base_directory || '/',
-      docker_compose_custom_build_command: updated.docker_compose_custom_build_command || '',
-      docker_compose_custom_start_command: updated.docker_compose_custom_start_command || '',
-      custom_docker_run_options: updated.custom_docker_run_options || '',
-      dockerfile_location: (updated as { dockerfile_location?: string }).dockerfile_location || '/Dockerfile',
-      dockerfile: updated.dockerfile || '',
-      dockerfile_target_build: updated.dockerfile_target_build || '',
-      docker_registry_image_name: updated.docker_registry_image_name || '',
-      docker_registry_image_tag: updated.docker_registry_image_tag || '',
-      destination_id: updated.destination_id || '',
-      git_source_id: updated.git_source_id || '',
-      private_key_id: updated.private_key_id || '',
-      is_build_server_enabled: Boolean(updated.is_build_server_enabled),
-      is_force_https: updated.is_force_https !== false,
-      is_preview_enabled: Boolean(updated.is_preview_enabled),
-      is_auto_deploy_enabled: updated.is_auto_deploy_enabled !== false,
-      is_git_submodules_enabled: Boolean(updated.is_git_submodules_enabled),
-      is_preserve_repository_enabled: Boolean(updated.is_preserve_repository_enabled),
-      watch_paths: updated.watch_paths || '',
-      pre_deployment_command: updated.pre_deployment_command || '',
-      post_deployment_command: updated.post_deployment_command || '',
-      custom_labels: updated.custom_labels || '',
-      http_basic_auth_username: updated.http_basic_auth_username || '',
-    })
+    setCfg(appCfgFromData(updated))
     setHttpBasicAuthPassword('')
     setClearHttpBasicAuth(false)
     const domains: Record<string, string> = {}
@@ -312,42 +413,7 @@ export function ApplicationDetailPage() {
   }, [app.data?.dockerfile, cfg.dockerfile])
 
   const applyAppToForm = (updated: NonNullable<typeof app.data>) => {
-    setCfg({
-      name: updated.name || '',
-      description: updated.description || '',
-      fqdn: updated.fqdn || '',
-      git_repository: updated.git_repository || '',
-      git_branch: updated.git_branch || 'main',
-      ports_exposes:
-        updated.build_pack === 'dockercompose'
-          ? updated.ports_exposes || ''
-          : updated.ports_exposes || '80',
-      docker_compose_location: updated.docker_compose_location || '',
-      compose_prepare: updated.compose_prepare !== false,
-      base_directory: updated.base_directory || '/',
-      docker_compose_custom_build_command: updated.docker_compose_custom_build_command || '',
-      docker_compose_custom_start_command: updated.docker_compose_custom_start_command || '',
-      custom_docker_run_options: updated.custom_docker_run_options || '',
-      dockerfile_location: (updated as { dockerfile_location?: string }).dockerfile_location || '/Dockerfile',
-      dockerfile: updated.dockerfile || '',
-      dockerfile_target_build: updated.dockerfile_target_build || '',
-      docker_registry_image_name: updated.docker_registry_image_name || '',
-      docker_registry_image_tag: updated.docker_registry_image_tag || '',
-      destination_id: updated.destination_id || '',
-      git_source_id: updated.git_source_id || '',
-      private_key_id: updated.private_key_id || '',
-      is_build_server_enabled: Boolean(updated.is_build_server_enabled),
-      is_force_https: updated.is_force_https !== false,
-      is_preview_enabled: Boolean(updated.is_preview_enabled),
-      is_auto_deploy_enabled: updated.is_auto_deploy_enabled !== false,
-      is_git_submodules_enabled: Boolean(updated.is_git_submodules_enabled),
-      is_preserve_repository_enabled: Boolean(updated.is_preserve_repository_enabled),
-      watch_paths: updated.watch_paths || '',
-      pre_deployment_command: updated.pre_deployment_command || '',
-      post_deployment_command: updated.post_deployment_command || '',
-      custom_labels: updated.custom_labels || '',
-      http_basic_auth_username: updated.http_basic_auth_username || '',
-    })
+    setCfg(appCfgFromData(updated))
     setHttpBasicAuthPassword('')
     setClearHttpBasicAuth(false)
     const domains: Record<string, string> = {}
@@ -381,7 +447,7 @@ export function ApplicationDetailPage() {
   }
 
   const save = useMutation({
-    mutationFn: (patch?: Partial<typeof cfg> & Record<string, unknown>) => {
+    mutationFn: (patch?: Partial<AppCfg> & Record<string, unknown>) => {
       const docker_compose_domains = Object.fromEntries(
         Object.entries(serviceDomains).map(([k, v]) => [k, { domain: v }]),
       )
@@ -403,6 +469,15 @@ export function ApplicationDetailPage() {
       toast.success('Saved')
     },
     onError: (e: Error) => toast.error(e.message || 'Save failed'),
+  })
+
+  const saveExtraDests = useMutation({
+    mutationFn: (ids: string[]) => api.setAdditionalDestinations(appId, ids),
+    onSuccess: (res) => {
+      setExtraDestIds(res.destination_ids.map(String))
+      void qc.invalidateQueries({ queryKey: ['app-additional-destinations', appId] })
+    },
+    onError: (e: Error) => toast.error(e.message || 'Failed to save additional destinations'),
   })
 
   const loadCompose = async () => {
@@ -857,6 +932,20 @@ export function ApplicationDetailPage() {
                           </Btn>
                         </div>
                       ))}
+                    <label className="block text-sm">
+                      <span className="mb-1 block text-gray-500 dark:text-gray-400">
+                        WWW redirect
+                      </span>
+                      <select
+                        value={cfg.redirect}
+                        onChange={(e) => setCfg({ ...cfg, redirect: e.target.value })}
+                        className="panel-field w-full max-w-xs rounded-lg px-3 py-2 text-sm"
+                      >
+                        <option value="both">Both www & non-www</option>
+                        <option value="www">Redirect to www</option>
+                        <option value="non-www">Redirect to non-www</option>
+                      </select>
+                    </label>
                   </div>
                 ) : (
                   <div className="panel-card space-y-4 p-5">
@@ -874,6 +963,20 @@ export function ApplicationDetailPage() {
                       resourceId={a.id}
                       resourceName={cfg.name || a.name}
                     />
+                    <label className="block text-sm">
+                      <span className="mb-1 block text-gray-500 dark:text-gray-400">
+                        WWW redirect
+                      </span>
+                      <select
+                        value={cfg.redirect}
+                        onChange={(e) => setCfg({ ...cfg, redirect: e.target.value })}
+                        className="panel-field w-full max-w-xs rounded-lg px-3 py-2 text-sm"
+                      >
+                        <option value="both">Both www & non-www</option>
+                        <option value="www">Redirect to www</option>
+                        <option value="non-www">Redirect to non-www</option>
+                      </select>
+                    </label>
                   </div>
                 )}
 
@@ -1000,6 +1103,28 @@ export function ApplicationDetailPage() {
                   )}
                   {a.build_pack === 'dockerimage' || (a.build_pack === 'dockerfile' && !cfg.dockerfile) ? (
                     <>
+                      {a.build_pack === 'dockerimage' ? (
+                        <label className="block text-sm sm:col-span-2">
+                          <span className="mb-1 block text-gray-500 dark:text-gray-400">
+                            Docker registry
+                          </span>
+                          <select
+                            value={cfg.docker_registry_id}
+                            onChange={(e) => setCfg({ ...cfg, docker_registry_id: e.target.value })}
+                            className="panel-field w-full rounded-lg px-3 py-2 text-sm"
+                          >
+                            <option value="">Public / none</option>
+                            {(registries.data?.docker_registries || []).map((r) => (
+                              <option key={r.id} value={r.id}>
+                                {r.name} ({r.url})
+                              </option>
+                            ))}
+                          </select>
+                          <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                            Manage registries under Settings → Docker Registries.
+                          </span>
+                        </label>
+                      ) : null}
                       <Input
                         label="Registry image"
                         value={cfg.docker_registry_image_name}
@@ -1170,6 +1295,94 @@ export function ApplicationDetailPage() {
                       <span>Build on dedicated build server</span>
                     </label>
                   ) : null}
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.is_disable_build_cache}
+                      onChange={(e) => setCfg({ ...cfg, is_disable_build_cache: e.target.checked })}
+                    />
+                    <span>Disable build cache</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.is_git_shallow_clone_enabled}
+                      onChange={(e) =>
+                        setCfg({ ...cfg, is_git_shallow_clone_enabled: e.target.checked })
+                      }
+                    />
+                    <span>Shallow clone (recommended)</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.is_git_lfs_enabled}
+                      onChange={(e) => setCfg({ ...cfg, is_git_lfs_enabled: e.target.checked })}
+                    />
+                    <span>Git LFS</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.is_gpu_enabled}
+                      onChange={(e) => setCfg({ ...cfg, is_gpu_enabled: e.target.checked })}
+                    />
+                    <span>GPU support</span>
+                  </label>
+                  {cfg.is_gpu_enabled ? (
+                    <label className="block text-sm sm:max-w-xs">
+                      <span className="mb-1 block text-gray-500 dark:text-gray-400">GPU count</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={cfg.gpu_count}
+                        onChange={(e) =>
+                          setCfg({ ...cfg, gpu_count: Number(e.target.value) || 0 })
+                        }
+                        className="panel-field w-full rounded-lg px-3 py-2 text-sm"
+                      />
+                    </label>
+                  ) : null}
+                  <label className="block text-sm sm:max-w-xs">
+                    <span className="mb-1 block text-gray-500 dark:text-gray-400">
+                      Docker stop timeout (seconds)
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={cfg.custom_docker_stop_timeout}
+                      onChange={(e) =>
+                        setCfg({
+                          ...cfg,
+                          custom_docker_stop_timeout: Number(e.target.value) || 0,
+                        })
+                      }
+                      className="panel-field w-full rounded-lg px-3 py-2 text-sm"
+                    />
+                    <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                      0 uses Docker default.
+                    </span>
+                  </label>
+                  <label className="block text-sm sm:max-w-xs">
+                    <span className="mb-1 block text-gray-500 dark:text-gray-400">
+                      Restart policy
+                    </span>
+                    <select
+                      value={cfg.custom_docker_restart_policy}
+                      onChange={(e) =>
+                        setCfg({ ...cfg, custom_docker_restart_policy: e.target.value })
+                      }
+                      className="panel-field w-full rounded-lg px-3 py-2 text-sm"
+                    >
+                      <option value="no">no</option>
+                      <option value="always">always</option>
+                      <option value="unless-stopped">unless-stopped</option>
+                      <option value="on-failure">on-failure</option>
+                    </select>
+                  </label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Build arguments belong under Environment Variables (mark as build-time).
+                  </p>
                   <Btn primary type="submit" disabled={save.isPending}>
                     {save.isPending ? 'Saving…' : 'Save'}
                   </Btn>
@@ -1435,6 +1648,7 @@ export function ApplicationDetailPage() {
                 onSubmit={(e) => {
                   e.preventDefault()
                   save.mutate({})
+                  saveExtraDests.mutate(extraDestIds)
                 }}
               >
                 <div>
@@ -1471,9 +1685,54 @@ export function ApplicationDetailPage() {
                       </Link>
                     </p>
                   ) : null}
+                  <div className="border-t border-gray-200 pt-4 dark:border-gray-800">
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                      Additional destinations
+                    </h3>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Deploy to extra destinations besides the primary (multi-server).
+                    </p>
+                    <div className="mt-3 space-y-2">
+                      {(dests.data?.destinations || [])
+                        .filter((d) => d.id !== cfg.destination_id)
+                        .map((d) => {
+                          const checked = extraDestIds.includes(d.id)
+                          return (
+                            <label key={d.id} className="flex items-center gap-3 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  setExtraDestIds((ids) =>
+                                    e.target.checked
+                                      ? [...ids, d.id]
+                                      : ids.filter((id) => id !== d.id),
+                                  )
+                                }}
+                              />
+                              <span>
+                                {d.name}{' '}
+                                <span className="text-xs text-gray-500">({d.network})</span>
+                              </span>
+                            </label>
+                          )
+                        })}
+                      {!(dests.data?.destinations || []).filter((d) => d.id !== cfg.destination_id)
+                        .length && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          No other destinations available.
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
+                {(save.error || saveExtraDests.error) && (
+                  <p className="text-sm text-error-500">
+                    {save.error?.message || saveExtraDests.error?.message}
+                  </p>
+                )}
                 <Btn primary type="submit">
-                  {save.isPending ? 'Saving…' : 'Save'}
+                  {save.isPending || saveExtraDests.isPending ? 'Saving…' : 'Save'}
                 </Btn>
               </form>
             )}
@@ -1502,7 +1761,7 @@ export function ApplicationDetailPage() {
             )}
 
             {side === 'metrics' && (
-              <AppMetricsSection serverId={serverId} />
+              <AppMetricsSection appId={appId} serverId={serverId} />
             )}
 
             {side === 'tags' && (
@@ -1899,6 +2158,8 @@ export function ApplicationDetailPage() {
         </div>
       )}
 
+      {topTab === 'backups' && <ApplicationBackupsPanel appId={appId} />}
+
       {topTab === 'logs' && (
         <div className="space-y-6">
           <LiveContainerLogs appId={appId} isCompose={a.build_pack === 'dockercompose'} />
@@ -1943,12 +2204,18 @@ export function ApplicationDetailPage() {
       {topTab === 'terminal' && (
         <div>
           {serverId ? (
-            <ServerTerminal
-              serverId={serverId}
-              defaultContainer={`dockfin-${appId}`}
-              containerOptions={[`dockfin-${appId}`]}
-              hideHostShell
-            />
+            (appContainers.data?.containers || []).length > 0 ? (
+              <ServerTerminal
+                serverId={serverId}
+                defaultContainer={(appContainers.data?.containers || [])[0]}
+                containerOptions={appContainers.data!.containers}
+                hideHostShell
+              />
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                No running containers yet — deploy the application first, then open Terminal.
+              </p>
+            )
           ) : (
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Assign a destination so the application container terminal can connect.
@@ -1962,7 +2229,241 @@ export function ApplicationDetailPage() {
   )
 }
 
-function AppMetricsSection({ serverId }: { serverId: string }) {
+function ApplicationBackupsPanel({ appId }: { appId: string }) {
+  const qc = useQueryClient()
+  const backups = useQuery({ queryKey: ['scheduled-backups'], queryFn: api.scheduledBackups })
+  const executions = useQuery({
+    queryKey: ['app-backups', appId],
+    queryFn: () => api.applicationBackups(appId),
+    refetchInterval: (q) => {
+      const list = q.state.data?.backup_executions || []
+      return list.some((b) => b.status === 'running') ? 2000 : false
+    },
+  })
+  const storages = useQuery({ queryKey: ['s3-storages'], queryFn: api.s3Storages })
+  const volumes = useQuery({
+    queryKey: ['app-volumes', appId],
+    queryFn: () => api.listAppVolumes(appId),
+  })
+  const [s3Id, setS3Id] = useState('')
+  const [volumeId, setVolumeId] = useState('')
+  const [frequency, setFrequency] = useState('0 0 * * *')
+  const [retention, setRetention] = useState('7')
+  const mine = (backups.data?.scheduled_backups || []).filter(
+    (b) => b.resource_type === 'application' && b.resource_id === appId,
+  )
+  const create = useMutation({
+    mutationFn: () =>
+      api.createScheduledBackup({
+        resource_type: 'application',
+        resource_id: appId,
+        s3_storage_id: s3Id || undefined,
+        volume_id: volumeId || undefined,
+        frequency,
+        retention: Number(retention) || 7,
+      }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['scheduled-backups'] }),
+  })
+  const removeSchedule = useMutation({
+    mutationFn: (id: string) => api.deleteScheduledBackup(id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['scheduled-backups'] }),
+  })
+  const toggleSchedule = useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      api.updateScheduledBackup(id, { enabled }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['scheduled-backups'] }),
+  })
+  const runNow = useMutation({
+    mutationFn: () => api.runApplicationBackup(appId),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['app-backups', appId] }),
+  })
+  useEffect(() => {
+    runNow.reset()
+  }, [appId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const formatBytes = (n: number) => {
+    if (!n) return '—'
+    if (n < 1024) return `${n} B`
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Archives application volumes to `/data/dockfin/backups` on the server.
+        </p>
+        <Btn primary onClick={() => runNow.mutate()}>
+          {runNow.isPending ? 'Archiving…' : 'Run backup now'}
+        </Btn>
+      </div>
+      {runNow.error && <p className="text-sm text-error-500">{runNow.error.message}</p>}
+
+      <div className="panel-card overflow-hidden">
+        <div className="border-b border-gray-200 px-3 py-2 text-sm font-medium dark:border-gray-800">
+          Backup history
+        </div>
+        <table className="w-full text-left text-sm">
+          <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+            <tr>
+              <th className="px-3 py-2">Started</th>
+              <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2">Size</th>
+              <th className="px-3 py-2">File</th>
+              <th className="px-3 py-2">S3</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(executions.data?.backup_executions || []).map((b) => (
+              <tr key={b.id} className="border-t border-gray-200 dark:border-gray-800">
+                <td className="px-3 py-2 font-mono text-xs">
+                  {new Date(b.started_at).toLocaleString()}
+                </td>
+                <td className="px-3 py-2">
+                  {b.status}
+                  {b.error_message ? (
+                    <span className="ml-2 text-xs text-error-500">{b.error_message}</span>
+                  ) : null}
+                </td>
+                <td className="px-3 py-2">{formatBytes(b.size_bytes)}</td>
+                <td className="px-3 py-2 font-mono text-xs">{b.filename || '—'}</td>
+                <td className="px-3 py-2 text-xs">{b.s3_uploaded ? 'yes' : '—'}</td>
+              </tr>
+            ))}
+            {!executions.data?.backup_executions?.length && (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  No backup runs yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="panel-card overflow-hidden">
+        <div className="border-b border-gray-200 px-3 py-2 text-sm font-medium dark:border-gray-800">
+          Schedules
+        </div>
+        <table className="w-full text-left text-sm">
+          <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+            <tr>
+              <th className="px-3 py-2">Frequency</th>
+              <th className="px-3 py-2">Retention</th>
+              <th className="px-3 py-2">Volume</th>
+              <th className="px-3 py-2">S3</th>
+              <th className="px-3 py-2">Enabled</th>
+              <th className="px-3 py-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {mine.map((b) => (
+              <tr key={b.id} className="border-t border-gray-200 dark:border-gray-800">
+                <td className="px-3 py-2 font-mono text-xs">{b.frequency}</td>
+                <td className="px-3 py-2">{b.retention}</td>
+                <td className="px-3 py-2 font-mono text-xs">{b.volume_id?.slice(0, 8) || 'all'}</td>
+                <td className="px-3 py-2 font-mono text-xs">{b.s3_storage_id?.slice(0, 8) || '—'}</td>
+                <td className="px-3 py-2">{b.enabled ? 'yes' : 'no'}</td>
+                <td className="space-x-3 px-3 py-2">
+                  <button
+                    type="button"
+                    className="text-brand-600 dark:text-brand-400"
+                    onClick={() => toggleSchedule.mutate({ id: b.id, enabled: !b.enabled })}
+                  >
+                    {b.enabled ? 'Disable' : 'Enable'}
+                  </button>
+                  <button
+                    type="button"
+                    className="text-error-500"
+                    onClick={() => removeSchedule.mutate(b.id)}
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {!mine.length && (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  No scheduled backups for this application.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <form
+        className="panel-card grid gap-3 p-4 sm:grid-cols-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          create.mutate()
+        }}
+      >
+        <label className="block text-sm">
+          <span className="mb-1 block text-gray-500 dark:text-gray-400">Cron frequency</span>
+          <input
+            value={frequency}
+            onChange={(e) => setFrequency(e.target.value)}
+            className="panel-field w-full rounded-lg px-3 py-2 font-mono text-sm"
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block text-gray-500 dark:text-gray-400">Retention (days)</span>
+          <input
+            value={retention}
+            onChange={(e) => setRetention(e.target.value)}
+            className="panel-field w-full rounded-lg px-3 py-2 text-sm"
+          />
+        </label>
+        <label className="block text-sm sm:col-span-2">
+          <span className="mb-1 block text-gray-500 dark:text-gray-400">Volume (optional)</span>
+          <select
+            value={volumeId}
+            onChange={(e) => setVolumeId(e.target.value)}
+            className="panel-field w-full rounded-lg px-3 py-2 text-sm"
+          >
+            <option value="">All volumes</option>
+            {(volumes.data?.volumes || []).map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name} → {v.mount_path}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm sm:col-span-2">
+          <span className="mb-1 block text-gray-500 dark:text-gray-400">S3 storage (optional)</span>
+          <select
+            value={s3Id}
+            onChange={(e) => setS3Id(e.target.value)}
+            className="panel-field w-full rounded-lg px-3 py-2 text-sm"
+          >
+            <option value="">None</option>
+            {(storages.data?.s3_storages || []).map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.bucket})
+              </option>
+            ))}
+          </select>
+        </label>
+        {create.error && <p className="text-sm text-error-500 sm:col-span-2">{create.error.message}</p>}
+        <div className="sm:col-span-2">
+          <Btn primary type="submit">
+            {create.isPending ? 'Saving…' : 'Add schedule'}
+          </Btn>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+function AppMetricsSection({ appId, serverId }: { appId: string; serverId: string }) {
+  const appMetrics = useQuery({
+    queryKey: ['app-metrics', appId],
+    queryFn: () => api.applicationMetrics(appId),
+    enabled: Boolean(appId),
+    refetchInterval: 15000,
+  })
   const metrics = useQuery({
     queryKey: ['server-metrics', serverId],
     queryFn: () => api.serverMetrics(serverId, 60),
@@ -1979,15 +2480,60 @@ function AppMetricsSection({ serverId }: { serverId: string }) {
     m.disk_total_bytes > 0 ? (m.disk_used_bytes / m.disk_total_bytes) * 100 : 0,
   )
   const fmtGiB = (n: number) => `${(n / 1024 ** 3).toFixed(1)} GiB`
+  const containers = appMetrics.data?.containers || []
 
   return (
     <div className="space-y-4">
       <div>
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Metrics</h2>
         <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-          Host metrics for the server running this application.
+          Live container stats and host metrics for this application.
         </p>
       </div>
+
+      <div className="panel-card overflow-hidden">
+        <div className="border-b border-gray-200 px-3 py-2 text-sm font-medium dark:border-gray-800">
+          Containers
+        </div>
+        <table className="w-full text-left text-sm">
+          <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+            <tr>
+              <th className="px-3 py-2">Name</th>
+              <th className="px-3 py-2">CPU %</th>
+              <th className="px-3 py-2">Memory</th>
+              <th className="px-3 py-2">Mem %</th>
+              <th className="px-3 py-2">Net I/O</th>
+              <th className="px-3 py-2">Block I/O</th>
+            </tr>
+          </thead>
+          <tbody>
+            {containers.map((c) => (
+              <tr key={c.name} className="border-t border-gray-200 dark:border-gray-800">
+                <td className="px-3 py-2 font-mono text-xs">{c.name}</td>
+                <td className="px-3 py-2 tabular-nums">{c.cpu_percent || '—'}</td>
+                <td className="px-3 py-2 font-mono text-xs">{c.mem_usage || '—'}</td>
+                <td className="px-3 py-2 tabular-nums">{c.mem_percent || '—'}</td>
+                <td className="px-3 py-2 font-mono text-xs">{c.net_io || '—'}</td>
+                <td className="px-3 py-2 font-mono text-xs">{c.block_io || '—'}</td>
+              </tr>
+            ))}
+            {!containers.length && (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  {appMetrics.isLoading ? 'Loading…' : 'No container stats yet.'}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        {appMetrics.error && (
+          <p className="border-t border-gray-200 px-3 py-2 text-sm text-error-500 dark:border-gray-800">
+            {appMetrics.error.message}
+          </p>
+        )}
+      </div>
+
+      <h3 className="text-sm font-medium text-gray-900 dark:text-white">Host metrics</h3>
       {!serverId ? (
         <div className="panel-card p-5 text-sm text-gray-500 dark:text-gray-400">
           Select a destination under Servers first.
@@ -2087,8 +2633,9 @@ function LiveContainerLogs({ appId, isCompose }: { appId: string; isCompose: boo
   }, [isCompose, appId, containers.data, container])
 
   useEffect(() => {
-    if (!container && isCompose) return
-    const name = container || `dockfin-${appId}`
+    if (isCompose && !container) return
+    const name = !isCompose ? `dockfin-${appId}` : container
+    if (!name) return
     setLines([])
     setStatus('connecting')
     setError('')

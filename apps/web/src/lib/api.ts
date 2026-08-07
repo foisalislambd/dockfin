@@ -303,6 +303,19 @@ export const api = {
     request<Application>(`/api/v1/applications/${id}/restart`, { method: 'POST' }),
   applicationContainers: (id: string) =>
     request<{ containers: string[] }>(`/api/v1/applications/${id}/containers`),
+  applicationBackups: (id: string) =>
+    request<{ backup_executions: BackupExecution[] }>(`/api/v1/applications/${id}/backups`),
+  runApplicationBackup: (id: string) =>
+    request<BackupExecution>(`/api/v1/applications/${id}/backups`, { method: 'POST' }),
+  additionalDestinations: (id: string) =>
+    request<{ destination_ids: string[] }>(`/api/v1/applications/${id}/additional-destinations`),
+  setAdditionalDestinations: (id: string, destination_ids: string[]) =>
+    request<{ destination_ids: string[] }>(`/api/v1/applications/${id}/additional-destinations`, {
+      method: 'PUT',
+      body: JSON.stringify({ destination_ids }),
+    }),
+  applicationMetrics: (id: string) =>
+    request<{ containers: AppContainerMetric[] }>(`/api/v1/applications/${id}/metrics`),
   listAppVolumes: (id: string) =>
     request<{ volumes: AppVolume[] }>(`/api/v1/applications/${id}/volumes`),
   upsertAppVolume: (
@@ -564,6 +577,29 @@ export const api = {
   deleteS3Storage: (id: string) =>
     request<{ status: string }>(`/api/v1/s3-storages/${id}`, { method: 'DELETE' }),
 
+  dockerRegistries: () =>
+    request<{ docker_registries: DockerRegistry[] }>('/api/v1/docker-registries'),
+  createDockerRegistry: (body: {
+    name: string
+    url?: string
+    username?: string
+    password?: string
+  }) =>
+    request<DockerRegistry>('/api/v1/docker-registries', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateDockerRegistry: (
+    id: string,
+    body: { name?: string; url?: string; username?: string; password?: string },
+  ) =>
+    request<DockerRegistry>(`/api/v1/docker-registries/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteDockerRegistry: (id: string) =>
+    request<{ status: string }>(`/api/v1/docker-registries/${id}`, { method: 'DELETE' }),
+
   notifications: () => request<{ notifications: NotificationSetting[] }>('/api/v1/notifications'),
   upsertNotification: (channel: string, body: { enabled: boolean; config: unknown; events?: string[] }) =>
     request<{ status: string }>(`/api/v1/notifications/${channel}`, {
@@ -645,6 +681,7 @@ export const api = {
     resource_type: string
     resource_id: string
     s3_storage_id?: string
+    volume_id?: string
     frequency?: string
     retention?: number
   }) =>
@@ -990,6 +1027,7 @@ export type Application = {
   dockerfile_target_build?: string
   docker_registry_image_name?: string
   docker_registry_image_tag?: string
+  docker_registry_id?: string | null
   destination_id?: string | null
   git_source_id?: string | null
   private_key_id?: string | null
@@ -999,6 +1037,14 @@ export type Application = {
   is_auto_deploy_enabled?: boolean
   is_git_submodules_enabled?: boolean
   is_preserve_repository_enabled?: boolean
+  is_disable_build_cache?: boolean
+  is_git_shallow_clone_enabled?: boolean
+  is_git_lfs_enabled?: boolean
+  is_gpu_enabled?: boolean
+  gpu_count?: number
+  custom_docker_stop_timeout?: number
+  custom_docker_restart_policy?: string
+  redirect?: string
   watch_paths?: string
   pre_deployment_command?: string
   post_deployment_command?: string
@@ -1029,6 +1075,23 @@ export type Application = {
     type: string
   }>
   links?: { label: string; url: string }[]
+}
+export type AppContainerMetric = {
+  name: string
+  cpu_percent: string
+  mem_usage: string
+  mem_percent: string
+  net_io: string
+  block_io: string
+}
+export type DockerRegistry = {
+  id: string
+  team_id: string
+  name: string
+  url: string
+  username: string
+  has_password: boolean
+  created_at: string
 }
 export type ApplicationPreview = {
   id: string
@@ -1152,6 +1215,7 @@ export type ScheduledBackup = {
   resource_type: string
   resource_id: string
   s3_storage_id?: string | null
+  volume_id?: string | null
   frequency: string
   enabled: boolean
   retention: number

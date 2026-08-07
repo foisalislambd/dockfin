@@ -74,6 +74,41 @@ func CaddyLabels(appName, fqdn, port string, forceHTTPS bool) []string {
 	}
 }
 
+// CaddyWWWRedirectLabels builds Coolify-style caddy.redir labels for www ↔ non-www.
+// mode is "www" or "non-www". Callers should skip magic domains.
+func CaddyWWWRedirectLabels(appName, host, mode string) []string {
+	_ = appName
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	host = strings.TrimSpace(host)
+	host = strings.TrimPrefix(strings.TrimPrefix(host, "http://"), "https://")
+	host = strings.Split(host, "/")[0]
+	if host == "" || !safeCaddyHost(host) || (mode != "www" && mode != "non-www") {
+		return nil
+	}
+	schema := "http"
+	if WantAutoHTTPS(host) {
+		schema = "https"
+	}
+	switch mode {
+	case "www":
+		if strings.HasPrefix(strings.ToLower(host), "www.") {
+			return nil
+		}
+		return []string{fmt.Sprintf("caddy.redir=%s://www.%s{uri}", schema, host)}
+	case "non-www":
+		if !strings.HasPrefix(strings.ToLower(host), "www.") {
+			return nil
+		}
+		bare := host[4:] // trim "www."
+		if bare == "" || !safeCaddyHost(bare) {
+			return nil
+		}
+		return []string{fmt.Sprintf("caddy.redir=%s://%s{uri}", schema, bare)}
+	default:
+		return nil
+	}
+}
+
 func safeCaddyHost(host string) bool {
 	// Allow hostname or http(s)://hostname — reject shell/label metacharacters.
 	h := strings.TrimPrefix(strings.TrimPrefix(host, "http://"), "https://")

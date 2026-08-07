@@ -209,6 +209,11 @@ func (a *API) Router() http.Handler {
 				r.Get("/{appID}/volumes", a.handleListAppVolumes)
 				r.Post("/{appID}/volumes", a.handleUpsertAppVolume)
 				r.Delete("/{appID}/volumes/{volumeID}", a.handleDeleteAppVolume)
+				r.Get("/{appID}/backups", a.handleListApplicationBackups)
+				r.Post("/{appID}/backups", a.handleRunApplicationBackup)
+				r.Get("/{appID}/additional-destinations", a.handleListAdditionalDestinations)
+				r.Put("/{appID}/additional-destinations", a.handleSetAdditionalDestinations)
+				r.Get("/{appID}/metrics", a.handleApplicationMetrics)
 				r.Post("/{appID}/detect-compose", a.handleDetectComposeForApp)
 				r.Post("/{appID}/load-compose", a.handleLoadComposeForApp)
 				r.Get("/{appID}/deployments", a.handleListDeployments)
@@ -266,6 +271,13 @@ func (a *API) Router() http.Handler {
 				r.Post("/", a.handleCreateS3Storage)
 				r.Get("/{storageID}", a.handleGetS3Storage)
 				r.Delete("/{storageID}", a.handleDeleteS3Storage)
+			})
+
+			r.Route("/docker-registries", func(r chi.Router) {
+				r.Get("/", a.handleListDockerRegistries)
+				r.Post("/", a.handleCreateDockerRegistry)
+				r.Patch("/{registryID}", a.handleUpdateDockerRegistry)
+				r.Delete("/{registryID}", a.handleDeleteDockerRegistry)
 			})
 
 			r.Route("/scheduled-backups", func(r chi.Router) {
