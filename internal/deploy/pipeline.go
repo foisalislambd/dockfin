@@ -746,7 +746,15 @@ func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Re
 // Tries the configured location first; if missing (or empty/auto), scans common names.
 // Returns absolute remote path and repo-relative location ("/docker-compose.yml").
 func (p *Pipeline) resolveComposePath(client *ssh.Client, req Request, srcDir string) (absPath, location string, err error) {
-	preferred := services.NormalizeComposeLocation(req.App.DockerComposeLocation)
+	// Coolify: base_directory + docker_compose_location → effective path.
+	joined := services.JoinBaseAndComposePath(req.App.BaseDirectory, req.App.DockerComposeLocation)
+	preferred := services.NormalizeComposeLocation(joined)
+	if preferred == "" && strings.TrimSpace(req.App.DockerComposeLocation) != "" &&
+		strings.TrimSpace(req.App.DockerComposeLocation) != "auto" &&
+		strings.TrimSpace(req.App.DockerComposeLocation) != "auto-detect" {
+		// Fall back to location alone when join produced nothing useful.
+		preferred = services.NormalizeComposeLocation(req.App.DockerComposeLocation)
+	}
 	if req.App.DockerComposeLocation != "" && preferred == "" &&
 		strings.TrimSpace(req.App.DockerComposeLocation) != "auto" &&
 		strings.TrimSpace(req.App.DockerComposeLocation) != "auto-detect" {
@@ -932,6 +940,15 @@ func (p *Pipeline) syncApplicationComposeEnv(ctx context.Context, req Request, r
 	if p.Store == nil || req.App == nil {
 		return
 	}
+	// Persist compose preview for the General page (raw + deployable).
+	preparedStore := prepared
+	if !req.App.ComposePrepare {
+		preparedStore = raw
+	}
+	if err := p.Store.UpdateApplicationComposePreview(ctx, req.TeamID, req.App.ID, raw, preparedStore); err != nil {
+		p.log("prepare", "Warning: could not persist compose preview: "+err.Error())
+	}
+
 	ui := services.CoolifyEnvForUI(raw, fullEnv)
 	if len(ui) == 0 {
 		ui = services.CoolifyEnvForUI(raw, services.ExtractMagicEnv(prepared))

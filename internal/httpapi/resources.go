@@ -414,15 +414,8 @@ func (a *API) handleGetApplication(w http.ResponseWriter, r *http.Request) {
 }
 
 func appWithLinks(app *store.Application) map[string]any {
-	links := proxy.CollectLinks(app.FQDN, "")
-	// Encode full app then overlay links — keep all existing fields.
-	b, _ := json.Marshal(app)
-	var out map[string]any
-	_ = json.Unmarshal(b, &out)
-	if out == nil {
-		out = map[string]any{}
-	}
-	out["links"] = links
+	out := enrichApplicationCompose(app)
+	out["links"] = proxy.CollectLinks(app.FQDN, "")
 	return out
 }
 
@@ -629,6 +622,16 @@ func (a *API) handleGitWebhook(w http.ResponseWriter, r *http.Request) {
 	if app.GitBranch != "" && event.Branch != "" && event.Branch != app.GitBranch {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ignored", "reason": "branch mismatch"})
 		return
+	}
+	if !app.IsAutoDeployEnabled {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ignored", "reason": "auto deploy disabled"})
+		return
+	}
+	if paths := strings.TrimSpace(app.WatchPaths); paths != "" && len(event.ChangedFiles) > 0 {
+		if !services.WatchPathsMatch(paths, event.ChangedFiles) {
+			writeJSON(w, http.StatusOK, map[string]string{"status": "ignored", "reason": "watch paths mismatch"})
+			return
+		}
 	}
 	var serverID *uuid.UUID
 	if app.DestinationID != nil {

@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -36,12 +37,22 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		DockerfileLocation      *string `json:"dockerfile_location"`
 		DockerComposeLocation   *string `json:"docker_compose_location"`
 		ComposePrepare          *bool   `json:"compose_prepare"`
+		BaseDirectory           *string `json:"base_directory"`
+		DockerComposeCustomBuildCommand *string `json:"docker_compose_custom_build_command"`
+		DockerComposeCustomStartCommand *string `json:"docker_compose_custom_start_command"`
+		CustomDockerRunOptions  *string `json:"custom_docker_run_options"`
+		DockerfileTargetBuild   *string `json:"dockerfile_target_build"`
+		DockerComposeDomains    map[string]composeServiceDomain `json:"docker_compose_domains"`
 		DestinationID           *string `json:"destination_id"`
 		GitSourceID             *string `json:"git_source_id"`
 		PrivateKeyID            *string `json:"private_key_id"`
 		IsBuildServerEnabled    *bool   `json:"is_build_server_enabled"`
 		IsForceHTTPS            *bool   `json:"is_force_https"`
 		IsPreviewEnabled        *bool   `json:"is_preview_enabled"`
+		IsAutoDeployEnabled     *bool   `json:"is_auto_deploy_enabled"`
+		IsGitSubmodulesEnabled  *bool   `json:"is_git_submodules_enabled"`
+		IsPreserveRepositoryEnabled *bool `json:"is_preserve_repository_enabled"`
+		WatchPaths              *string `json:"watch_paths"`
 		HealthCheckEnabled      *bool   `json:"health_check_enabled"`
 		HealthCheckPath         *string `json:"health_check_path"`
 		HealthCheckPort         *int    `json:"health_check_port"`
@@ -115,6 +126,45 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 	if body.ComposePrepare != nil {
 		app.ComposePrepare = *body.ComposePrepare
 	}
+	if body.BaseDirectory != nil {
+		base := strings.TrimSpace(*body.BaseDirectory)
+		if base == "" {
+			base = "/"
+		}
+		if strings.Contains(base, "..") {
+			writeError(w, http.StatusBadRequest, "invalid base_directory")
+			return
+		}
+		app.BaseDirectory = base
+	}
+	if body.DockerComposeCustomBuildCommand != nil {
+		app.DockerComposeCustomBuildCommand = *body.DockerComposeCustomBuildCommand
+	}
+	if body.DockerComposeCustomStartCommand != nil {
+		app.DockerComposeCustomStartCommand = *body.DockerComposeCustomStartCommand
+	}
+	if body.CustomDockerRunOptions != nil {
+		app.CustomDockerRunOptions = *body.CustomDockerRunOptions
+	}
+	if body.DockerfileTargetBuild != nil {
+		app.DockerfileTargetBuild = *body.DockerfileTargetBuild
+	}
+	if body.DockerComposeDomains != nil {
+		b, err := json.Marshal(body.DockerComposeDomains)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid docker_compose_domains")
+			return
+		}
+		app.DockerComposeDomains = b
+		// Keep top-level fqdn in sync with aggregated per-service domains.
+		if agg := aggregateComposeDomains(body.DockerComposeDomains); agg != "" {
+			if !isValidHostnameList(agg) {
+				writeError(w, http.StatusBadRequest, "invalid fqdn in docker_compose_domains")
+				return
+			}
+			app.FQDN = proxy.NormalizeDomains(agg)
+		}
+	}
 	if body.DestinationID != nil && *body.DestinationID != "" {
 		id, err := uuid.Parse(*body.DestinationID)
 		if err != nil {
@@ -168,6 +218,9 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 	if body.HealthCheckPort != nil {
 		if *body.HealthCheckPort <= 0 {
 			app.HealthCheckPort = nil
+		} else if *body.HealthCheckPort > 65535 {
+			writeError(w, http.StatusBadRequest, "health_check_port must be between 1 and 65535")
+			return
 		} else {
 			app.HealthCheckPort = body.HealthCheckPort
 		}
@@ -220,13 +273,37 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		}
 		app.IsPreviewEnabled = *body.IsPreviewEnabled
 	}
+	if body.IsAutoDeployEnabled != nil {
+		if err := a.Store.SetApplicationAutoDeployEnabled(r.Context(), teamID, appID, *body.IsAutoDeployEnabled); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+	}
+	if body.IsGitSubmodulesEnabled != nil {
+		if err := a.Store.SetApplicationGitSubmodulesEnabled(r.Context(), teamID, appID, *body.IsGitSubmodulesEnabled); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+	}
+	if body.IsPreserveRepositoryEnabled != nil {
+		if err := a.Store.SetApplicationPreserveRepositoryEnabled(r.Context(), teamID, appID, *body.IsPreserveRepositoryEnabled); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+	}
+	if body.WatchPaths != nil {
+		if err := a.Store.SetApplicationWatchPaths(r.Context(), teamID, appID, *body.WatchPaths); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+	}
 	// Re-fetch so response includes settings COALESCE fields.
 	fresh, err := a.Store.GetApplication(r.Context(), teamID, appID)
 	if err != nil {
 		mapStoreErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, fresh)
+	writeJSON(w, http.StatusOK, appWithLinks(fresh))
 }
 
 func (a *API) handleRollbackApplication(w http.ResponseWriter, r *http.Request) {
@@ -255,9 +332,10 @@ func (a *API) handleRollbackApplication(w http.ResponseWriter, r *http.Request) 
 			break
 		}
 	}
-	// Rollback = redeploy previous finished commit (or force image redeploy)
+	// Rollback = redeploy a chosen finished commit (default: previous finished).
 	var body struct {
-		ForceRebuild bool `json:"force_rebuild"`
+		ForceRebuild bool   `json:"force_rebuild"`
+		CommitSHA    string `json:"commit_sha"`
 	}
 	_ = decodeJSON(r, &body)
 	app, err := a.Store.GetApplication(r.Context(), teamID, appID)
@@ -274,12 +352,27 @@ func (a *API) handleRollbackApplication(w http.ResponseWriter, r *http.Request) 
 		mapStoreErr(w, err)
 		return
 	}
-	commit := ""
-	if prev != nil {
-		commit = *prev
+	commit := strings.TrimSpace(body.CommitSHA)
+	if commit == "" {
+		if prev != nil {
+			commit = *prev
+		} else {
+			writeError(w, http.StatusBadRequest, "no previous finished deployment to roll back to")
+			return
+		}
 	} else {
-		writeError(w, http.StatusBadRequest, "no previous finished deployment to roll back to")
-		return
+		// Ensure the SHA was a finished deployment for this app.
+		ok := false
+		for _, d := range deps {
+			if d.Status == "finished" && d.CommitSHA == commit {
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			writeError(w, http.StatusBadRequest, "commit_sha is not a finished deployment for this application")
+			return
+		}
 	}
 	dep, err := a.Store.CreateDeployment(r.Context(), teamID, appID, &dest.ServerID, commit, "rollback", true, false, true, 0)
 	if err != nil {

@@ -7,6 +7,7 @@ import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { LinksMenu, LinksPanel } from '../components/LinksMenu'
 import { MoveResourcePanel } from '../components/MoveResourcePanel'
 import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
+import { ResourceTagsPanel } from '../components/ResourceTagsPanel'
 import { ScheduledTasksPanel } from '../components/ScheduledTasksPanel'
 import { ServerTerminal } from '../components/Terminal'
 import { PageSkeleton } from '../components/ui/Skeleton'
@@ -104,6 +105,12 @@ export function ApplicationDetailPage() {
     ports_exposes: '',
     docker_compose_location: '',
     compose_prepare: true,
+    base_directory: '/',
+    docker_compose_custom_build_command: '',
+    docker_compose_custom_start_command: '',
+    custom_docker_run_options: '',
+    dockerfile_location: '/Dockerfile',
+    dockerfile_target_build: '',
     docker_registry_image_name: '',
     docker_registry_image_tag: '',
     destination_id: '',
@@ -111,7 +118,14 @@ export function ApplicationDetailPage() {
     is_build_server_enabled: false,
     is_force_https: true,
     is_preview_enabled: false,
+    is_auto_deploy_enabled: true,
+    is_git_submodules_enabled: false,
+    is_preserve_repository_enabled: false,
+    watch_paths: '',
   })
+  const [serviceDomains, setServiceDomains] = useState<Record<string, string>>({})
+  const [showRawCompose, setShowRawCompose] = useState(true)
+  const [loadComposeBusy, setLoadComposeBusy] = useState(false)
   const [health, setHealth] = useState({
     health_check_enabled: false,
     health_check_path: '/',
@@ -138,6 +152,12 @@ export function ApplicationDetailPage() {
       ports_exposes: '',
       docker_compose_location: '',
       compose_prepare: true,
+      base_directory: '/',
+      docker_compose_custom_build_command: '',
+      docker_compose_custom_start_command: '',
+      custom_docker_run_options: '',
+      dockerfile_location: '/Dockerfile',
+      dockerfile_target_build: '',
       docker_registry_image_name: '',
       docker_registry_image_tag: '',
       destination_id: '',
@@ -145,7 +165,13 @@ export function ApplicationDetailPage() {
       is_build_server_enabled: false,
       is_force_https: true,
       is_preview_enabled: false,
+      is_auto_deploy_enabled: true,
+      is_git_submodules_enabled: false,
+      is_preserve_repository_enabled: false,
+      watch_paths: '',
     })
+    setServiceDomains({})
+    setShowRawCompose(true)
     setHealth({
       health_check_enabled: false,
       health_check_path: '/',
@@ -161,40 +187,60 @@ export function ApplicationDetailPage() {
 
   useEffect(() => {
     if (!app.data || app.data.id !== appId) return
+    const updated = app.data
     setCfg({
-      name: app.data.name || '',
-      description: app.data.description || '',
-      fqdn: app.data.fqdn || '',
-      git_repository: app.data.git_repository || '',
-      git_branch: app.data.git_branch || 'main',
+      name: updated.name || '',
+      description: updated.description || '',
+      fqdn: updated.fqdn || '',
+      git_repository: updated.git_repository || '',
+      git_branch: updated.git_branch || 'main',
       ports_exposes:
-        app.data.build_pack === 'dockercompose'
-          ? app.data.ports_exposes || ''
-          : app.data.ports_exposes || '80',
-      docker_compose_location: app.data.docker_compose_location || '',
-      compose_prepare: app.data.compose_prepare !== false,
-      docker_registry_image_name: app.data.docker_registry_image_name || '',
-      docker_registry_image_tag: app.data.docker_registry_image_tag || '',
-      destination_id: app.data.destination_id || '',
-      git_source_id: app.data.git_source_id || '',
-      is_build_server_enabled: Boolean(app.data.is_build_server_enabled),
-      is_force_https: app.data.is_force_https !== false,
-      is_preview_enabled: Boolean(app.data.is_preview_enabled),
+        updated.build_pack === 'dockercompose'
+          ? updated.ports_exposes || ''
+          : updated.ports_exposes || '80',
+      docker_compose_location: updated.docker_compose_location || '',
+      compose_prepare: updated.compose_prepare !== false,
+      base_directory: updated.base_directory || '/',
+      docker_compose_custom_build_command: updated.docker_compose_custom_build_command || '',
+      docker_compose_custom_start_command: updated.docker_compose_custom_start_command || '',
+      custom_docker_run_options: updated.custom_docker_run_options || '',
+      dockerfile_location: (updated as { dockerfile_location?: string }).dockerfile_location || '/Dockerfile',
+      dockerfile_target_build: updated.dockerfile_target_build || '',
+      docker_registry_image_name: updated.docker_registry_image_name || '',
+      docker_registry_image_tag: updated.docker_registry_image_tag || '',
+      destination_id: updated.destination_id || '',
+      git_source_id: updated.git_source_id || '',
+      is_build_server_enabled: Boolean(updated.is_build_server_enabled),
+      is_force_https: updated.is_force_https !== false,
+      is_preview_enabled: Boolean(updated.is_preview_enabled),
+      is_auto_deploy_enabled: updated.is_auto_deploy_enabled !== false,
+      is_git_submodules_enabled: Boolean(updated.is_git_submodules_enabled),
+      is_preserve_repository_enabled: Boolean(updated.is_preserve_repository_enabled),
+      watch_paths: updated.watch_paths || '',
     })
+    const domains: Record<string, string> = {}
+    const rawDomains = updated.docker_compose_domains || {}
+    for (const [k, v] of Object.entries(rawDomains)) {
+      domains[k] = typeof v === 'string' ? v : v?.domain || ''
+    }
+    for (const u of updated.compose_units || []) {
+      if (u.domain && !domains[u.name]) domains[u.name] = u.domain
+      if (!(u.name in domains) && !u.is_database) domains[u.name] = ''
+    }
+    setServiceDomains(domains)
     setHealth({
-      health_check_enabled: Boolean(app.data.health_check_enabled),
-      health_check_path: app.data.health_check_path || '/',
-      health_check_port:
-        app.data.health_check_port != null ? String(app.data.health_check_port) : '',
-      health_check_method: app.data.health_check_method || 'GET',
-      health_check_return_code: app.data.health_check_return_code ?? 200,
-      health_check_interval: app.data.health_check_interval ?? 5,
-      health_check_timeout: app.data.health_check_timeout ?? 5,
-      health_check_retries: app.data.health_check_retries ?? 10,
+      health_check_enabled: Boolean(updated.health_check_enabled),
+      health_check_path: updated.health_check_path || '/',
+      health_check_port: updated.health_check_port != null ? String(updated.health_check_port) : '',
+      health_check_method: updated.health_check_method || 'GET',
+      health_check_return_code: updated.health_check_return_code ?? 200,
+      health_check_interval: updated.health_check_interval ?? 5,
+      health_check_timeout: updated.health_check_timeout ?? 5,
+      health_check_retries: updated.health_check_retries ?? 10,
     })
     setLimits({
-      limits_memory: app.data.limits_memory || '',
-      limits_cpus: app.data.limits_cpus || '',
+      limits_memory: updated.limits_memory || '',
+      limits_cpus: updated.limits_cpus || '',
     })
   }, [app.data, appId])
 
@@ -208,7 +254,7 @@ export function ApplicationDetailPage() {
     return (dests.data?.destinations || []).find((d) => d.id === destID)?.server_id || ''
   }, [cfg.destination_id, app.data?.destination_id, dests.data])
 
-  const syncFromApp = (updated: NonNullable<typeof app.data>) => {
+  const applyAppToForm = (updated: NonNullable<typeof app.data>) => {
     setCfg({
       name: updated.name || '',
       description: updated.description || '',
@@ -221,6 +267,12 @@ export function ApplicationDetailPage() {
           : updated.ports_exposes || '80',
       docker_compose_location: updated.docker_compose_location || '',
       compose_prepare: updated.compose_prepare !== false,
+      base_directory: updated.base_directory || '/',
+      docker_compose_custom_build_command: updated.docker_compose_custom_build_command || '',
+      docker_compose_custom_start_command: updated.docker_compose_custom_start_command || '',
+      custom_docker_run_options: updated.custom_docker_run_options || '',
+      dockerfile_location: (updated as { dockerfile_location?: string }).dockerfile_location || '/Dockerfile',
+      dockerfile_target_build: updated.dockerfile_target_build || '',
       docker_registry_image_name: updated.docker_registry_image_name || '',
       docker_registry_image_tag: updated.docker_registry_image_tag || '',
       destination_id: updated.destination_id || '',
@@ -228,7 +280,21 @@ export function ApplicationDetailPage() {
       is_build_server_enabled: Boolean(updated.is_build_server_enabled),
       is_force_https: updated.is_force_https !== false,
       is_preview_enabled: Boolean(updated.is_preview_enabled),
+      is_auto_deploy_enabled: updated.is_auto_deploy_enabled !== false,
+      is_git_submodules_enabled: Boolean(updated.is_git_submodules_enabled),
+      is_preserve_repository_enabled: Boolean(updated.is_preserve_repository_enabled),
+      watch_paths: updated.watch_paths || '',
     })
+    const domains: Record<string, string> = {}
+    const rawDomains = updated.docker_compose_domains || {}
+    for (const [k, v] of Object.entries(rawDomains)) {
+      domains[k] = typeof v === 'string' ? v : v?.domain || ''
+    }
+    for (const u of updated.compose_units || []) {
+      if (u.domain && !domains[u.name]) domains[u.name] = u.domain
+      if (!(u.name in domains) && !u.is_database) domains[u.name] = ''
+    }
+    setServiceDomains(domains)
     setHealth({
       health_check_enabled: Boolean(updated.health_check_enabled),
       health_check_path: updated.health_check_path || '/',
@@ -245,13 +311,62 @@ export function ApplicationDetailPage() {
     })
   }
 
+  const syncFromApp = (updated: NonNullable<typeof app.data>) => {
+    applyAppToForm(updated)
+  }
+
   const save = useMutation({
-    mutationFn: (patch?: Partial<typeof cfg>) => api.updateApplication(appId, { ...cfg, ...patch }),
+    mutationFn: (patch?: Partial<typeof cfg> & Record<string, unknown>) => {
+      const docker_compose_domains = Object.fromEntries(
+        Object.entries(serviceDomains).map(([k, v]) => [k, { domain: v }]),
+      )
+      return api.updateApplication(appId, {
+        ...cfg,
+        docker_compose_domains,
+        ...patch,
+      })
+    },
     onSuccess: (updated) => {
       void qc.invalidateQueries({ queryKey: ['application', appId] })
       syncFromApp(updated)
+      toast.success('Saved')
     },
+    onError: (e: Error) => toast.error(e.message || 'Save failed'),
   })
+
+  const loadCompose = async () => {
+    setLoadComposeBusy(true)
+    try {
+      const res = await api.loadComposeForApp(appId, {
+        base_directory: cfg.base_directory,
+        docker_compose_location: cfg.docker_compose_location,
+      })
+      const merged = {
+        ...(res.application || ({} as NonNullable<typeof app.data>)),
+        docker_compose_raw: res.docker_compose_raw,
+        docker_compose: res.docker_compose,
+        docker_compose_location: res.location,
+        base_directory: res.base_directory,
+        docker_compose_domains: res.docker_compose_domains,
+        compose_units: (res.units || []).map((u) => ({
+          name: u.name,
+          image: u.image,
+          is_database: /(?:^|\/)(postgres|postgresql|mysql|mariadb|mongo|mongodb|redis|memcached|rabbitmq|valkey)(?=[:@\/]|$)/i.test(
+            u.image || '',
+          ),
+          domain: res.docker_compose_domains?.[u.name]?.domain || '',
+        })),
+        compose_volumes: res.volumes || [],
+      } as NonNullable<typeof app.data>
+      syncFromApp(merged)
+      void qc.invalidateQueries({ queryKey: ['application', appId] })
+      toast.success('Compose file loaded')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Load compose failed')
+    } finally {
+      setLoadComposeBusy(false)
+    }
+  }
 
   const saveHealth = useMutation({
     mutationFn: () =>
@@ -318,7 +433,7 @@ export function ApplicationDetailPage() {
   })
 
   const rollback = useMutation({
-    mutationFn: () => api.rollbackApplication(appId),
+    mutationFn: (commit_sha?: string) => api.rollbackApplication(appId, true, commit_sha),
     onSuccess: (dep) => {
       void qc.invalidateQueries({ queryKey: ['deployments', appId] })
       if (nested && projectId && envId) {
@@ -507,20 +622,12 @@ export function ApplicationDetailPage() {
                         {save.isPending ? 'Saving…' : 'Save'}
                       </Btn>
                       {a.build_pack === 'dockercompose' ? (
-                        <Btn
-                          type="button"
-                          onClick={() => {
-                            void api
-                              .detectComposeForApp(appId, true)
-                              .then((d) => {
-                                setCfg((c) => ({ ...c, docker_compose_location: d.location }))
-                                void qc.invalidateQueries({ queryKey: ['application', appId] })
-                                toast.success('Compose file reloaded')
-                              })
-                              .catch((err: Error) => toast.error(err.message || 'Detect failed'))
-                          }}
-                        >
-                          Reload Compose File
+                        <Btn type="button" disabled={loadComposeBusy} onClick={() => void loadCompose()}>
+                          {loadComposeBusy
+                            ? 'Loading…'
+                            : a.docker_compose_raw
+                              ? 'Reload Compose File'
+                              : 'Load Compose File'}
                         </Btn>
                       ) : null}
                     </div>
@@ -544,22 +651,71 @@ export function ApplicationDetailPage() {
                   </div>
                 </div>
 
-                <div className="panel-card space-y-4 p-5">
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Domains</h3>
-                  <DomainsPanel
-                    value={cfg.fqdn}
-                    onChange={(v) => setCfg({ ...cfg, fqdn: v })}
-                    onSave={(next) => {
-                      setCfg((c) => ({ ...c, fqdn: next }))
-                      save.mutate({ fqdn: next })
-                    }}
-                    saveBusy={save.isPending}
-                    serverId={serverId || undefined}
-                    destinationId={cfg.destination_id || a.destination_id || undefined}
-                    resourceId={a.id}
-                    resourceName={cfg.name || a.name}
-                  />
-                </div>
+                {a.build_pack === 'dockercompose' &&
+                (a.compose_units || []).some((u) => !u.is_database) &&
+                cfg.compose_prepare ? (
+                  <div className="panel-card space-y-4 p-5">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Domains</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      One domain (or comma-separated list) per compose service. Use Generate Domain for
+                      magic sslip/nip URLs.
+                    </p>
+                    {(a.compose_units || [])
+                      .filter((u) => !u.is_database)
+                      .map((u) => (
+                        <div key={u.name} className="flex flex-wrap items-end gap-2">
+                          <div className="min-w-0 flex-1">
+                            <Input
+                              label={`Domains for ${u.name}`}
+                              value={serviceDomains[u.name] || ''}
+                              onChange={(v) =>
+                                setServiceDomains((d) => ({ ...d, [u.name]: v }))
+                              }
+                              required={false}
+                            />
+                          </div>
+                          <Btn
+                            type="button"
+                            onClick={() => {
+                              void api
+                                .generateDomain({
+                                  name: `${cfg.name || a.name}-${u.name}`,
+                                  server_id: serverId || undefined,
+                                  destination_id: cfg.destination_id || a.destination_id || undefined,
+                                  resource_id: a.id,
+                                })
+                                .then((res) => {
+                                  const url = res.fqdn || res.url || ''
+                                  if (!url) throw new Error('No domain returned')
+                                  setServiceDomains((d) => ({ ...d, [u.name]: url }))
+                                  toast.success(`Domain for ${u.name}`)
+                                })
+                                .catch((err: Error) => toast.error(err.message || 'Generate failed'))
+                            }}
+                          >
+                            Generate Domain
+                          </Btn>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="panel-card space-y-4 p-5">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Domains</h3>
+                    <DomainsPanel
+                      value={cfg.fqdn}
+                      onChange={(v) => setCfg({ ...cfg, fqdn: v })}
+                      onSave={(next) => {
+                        setCfg((c) => ({ ...c, fqdn: next }))
+                        save.mutate({ fqdn: next })
+                      }}
+                      saveBusy={save.isPending}
+                      serverId={serverId || undefined}
+                      destinationId={cfg.destination_id || a.destination_id || undefined}
+                      resourceId={a.id}
+                      resourceName={cfg.name || a.name}
+                    />
+                  </div>
+                )}
 
                 <div className="panel-card grid gap-4 p-5 sm:grid-cols-2">
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-white sm:col-span-2">
@@ -568,9 +724,45 @@ export function ApplicationDetailPage() {
                   {a.build_pack === 'dockercompose' ? (
                     <>
                       <Input
+                        label="Base Directory"
+                        value={cfg.base_directory}
+                        onChange={(v) => setCfg({ ...cfg, base_directory: v })}
+                        required={false}
+                      />
+                      <Input
                         label="Docker Compose Location"
                         value={cfg.docker_compose_location}
                         onChange={(v) => setCfg({ ...cfg, docker_compose_location: v })}
+                        required={false}
+                      />
+                      <label className="flex items-center gap-3 text-sm sm:col-span-2">
+                        <input
+                          type="checkbox"
+                          checked={cfg.is_preserve_repository_enabled}
+                          onChange={(e) =>
+                            setCfg({ ...cfg, is_preserve_repository_enabled: e.target.checked })
+                          }
+                        />
+                        <span>Preserve Repository During Deployment</span>
+                      </label>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 sm:col-span-2">
+                        The following commands are for advanced use cases. Only modify them if you know
+                        what you are doing.
+                      </p>
+                      <Input
+                        label="Custom Build Command"
+                        value={cfg.docker_compose_custom_build_command}
+                        onChange={(v) =>
+                          setCfg({ ...cfg, docker_compose_custom_build_command: v })
+                        }
+                        required={false}
+                      />
+                      <Input
+                        label="Custom Start Command"
+                        value={cfg.docker_compose_custom_start_command}
+                        onChange={(v) =>
+                          setCfg({ ...cfg, docker_compose_custom_start_command: v })
+                        }
                         required={false}
                       />
                       <Input
@@ -579,17 +771,64 @@ export function ApplicationDetailPage() {
                         onChange={(v) => setCfg({ ...cfg, ports_exposes: v })}
                         required={false}
                       />
-                      <p className="text-xs text-gray-500 dark:text-gray-400 sm:col-span-2">
-                        Empty compose path = auto-find on deploy. Empty port = detect from compose.
-                      </p>
+                      <label className="block text-sm sm:col-span-2">
+                        <span className="mb-1 block text-gray-500 dark:text-gray-400">Watch Paths</span>
+                        <textarea
+                          value={cfg.watch_paths}
+                          onChange={(e) => setCfg({ ...cfg, watch_paths: e.target.value })}
+                          rows={3}
+                          placeholder="services/api/**"
+                          className="panel-field w-full rounded-lg px-3 py-2 font-mono text-xs"
+                        />
+                      </label>
                     </>
                   ) : (
-                    <Input
-                      label="Ports exposes"
-                      value={cfg.ports_exposes}
-                      onChange={(v) => setCfg({ ...cfg, ports_exposes: v })}
-                      required={false}
-                    />
+                    <>
+                      <Input
+                        label="Base Directory"
+                        value={cfg.base_directory}
+                        onChange={(v) => setCfg({ ...cfg, base_directory: v })}
+                        required={false}
+                      />
+                      {a.build_pack === 'dockerfile' ? (
+                        <>
+                          <Input
+                            label="Dockerfile Location"
+                            value={cfg.dockerfile_location}
+                            onChange={(v) => setCfg({ ...cfg, dockerfile_location: v })}
+                            required={false}
+                          />
+                          <Input
+                            label="Docker Build Stage Target"
+                            value={cfg.dockerfile_target_build}
+                            onChange={(v) => setCfg({ ...cfg, dockerfile_target_build: v })}
+                            required={false}
+                          />
+                        </>
+                      ) : null}
+                      <Input
+                        label="Ports exposes"
+                        value={cfg.ports_exposes}
+                        onChange={(v) => setCfg({ ...cfg, ports_exposes: v })}
+                        required={false}
+                      />
+                      <Input
+                        label="Custom Docker Options"
+                        value={cfg.custom_docker_run_options}
+                        onChange={(v) => setCfg({ ...cfg, custom_docker_run_options: v })}
+                        required={false}
+                      />
+                      <label className="block text-sm sm:col-span-2">
+                        <span className="mb-1 block text-gray-500 dark:text-gray-400">Watch Paths</span>
+                        <textarea
+                          value={cfg.watch_paths}
+                          onChange={(e) => setCfg({ ...cfg, watch_paths: e.target.value })}
+                          rows={3}
+                          placeholder="src/**"
+                          className="panel-field w-full rounded-lg px-3 py-2 font-mono text-xs"
+                        />
+                      </label>
+                    </>
                   )}
                   {a.build_pack === 'dockerimage' || a.build_pack === 'dockerfile' ? (
                     <>
@@ -608,6 +847,46 @@ export function ApplicationDetailPage() {
                     </>
                   ) : null}
                 </div>
+
+                {a.build_pack === 'dockercompose' ? (
+                  <div className="panel-card space-y-3 p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                        Docker Compose
+                      </h3>
+                      {cfg.compose_prepare ? (
+                        <Btn type="button" onClick={() => setShowRawCompose((v) => !v)}>
+                          {showRawCompose ? 'Show Deployable Compose' : 'Show Raw Compose'}
+                        </Btn>
+                      ) : null}
+                    </div>
+                    {!a.docker_compose_raw && !a.docker_compose ? (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Click <strong>Load Compose File</strong> to fetch YAML from git and preview it
+                        here.
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {showRawCompose || !cfg.compose_prepare
+                            ? 'Raw compose from the repository (edit in git).'
+                            : 'Deployable compose after Dockfin adaptation (Traefik, network, ports).'}
+                        </p>
+                        <textarea
+                          readOnly
+                          rows={16}
+                          value={
+                            showRawCompose || !cfg.compose_prepare
+                              ? a.docker_compose_raw || ''
+                              : a.docker_compose || a.docker_compose_raw || ''
+                          }
+                          className="panel-field w-full rounded-lg px-3 py-2 font-mono text-xs leading-relaxed"
+                        />
+                      </>
+                    )}
+                  </div>
+                ) : null}
+
                 {save.error && <p className="text-sm text-error-500">{save.error.message}</p>}
               </form>
             )}
@@ -663,6 +942,22 @@ export function ApplicationDetailPage() {
                   <label className="flex items-center gap-3 text-sm">
                     <input
                       type="checkbox"
+                      checked={cfg.is_auto_deploy_enabled}
+                      onChange={(e) => setCfg({ ...cfg, is_auto_deploy_enabled: e.target.checked })}
+                    />
+                    <span>Auto deploy on git push / webhook</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.is_git_submodules_enabled}
+                      onChange={(e) => setCfg({ ...cfg, is_git_submodules_enabled: e.target.checked })}
+                    />
+                    <span>Include Git submodules</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
                       checked={cfg.is_force_https}
                       onChange={(e) => setCfg({ ...cfg, is_force_https: e.target.checked })}
                     />
@@ -676,18 +971,21 @@ export function ApplicationDetailPage() {
                     />
                     <span>Enable preview deployments</span>
                   </label>
-                  <label className="flex items-center gap-3 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={cfg.is_build_server_enabled}
-                      onChange={(e) => setCfg({ ...cfg, is_build_server_enabled: e.target.checked })}
-                    />
-                    <span>Build on dedicated build server</span>
-                  </label>
+                  {a.build_pack !== 'dockercompose' ? (
+                    <label className="flex items-center gap-3 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={cfg.is_build_server_enabled}
+                        onChange={(e) => setCfg({ ...cfg, is_build_server_enabled: e.target.checked })}
+                      />
+                      <span>Build on dedicated build server</span>
+                    </label>
+                  ) : null}
                   <Btn primary type="submit" disabled={save.isPending}>
                     {save.isPending ? 'Saving…' : 'Save'}
                   </Btn>
                 </form>
+                {a.build_pack !== 'dockercompose' ? (
                 <form
                   className="panel-card space-y-4 p-5"
                   onSubmit={(e) => {
@@ -767,6 +1065,12 @@ export function ApplicationDetailPage() {
                     {saveHealth.isPending ? 'Saving…' : 'Save health checks'}
                   </Btn>
                 </form>
+                ) : (
+                  <div className="panel-card p-5 text-sm text-gray-500 dark:text-gray-400">
+                    Health checks for Docker Compose apps are defined in the compose file (or leave
+                    adaptation mode to Dockfin Traefik routing).
+                  </div>
+                )}
               </div>
             )}
 
@@ -883,12 +1187,16 @@ export function ApplicationDetailPage() {
                   </p>
                 </div>
                 {a.build_pack === 'dockercompose' ? (
-                  <PersistentStoragesPanel compose="" volumes={[]} />
+                  <PersistentStoragesPanel
+                    compose={a.docker_compose_raw || a.docker_compose || ''}
+                    volumes={a.compose_volumes || []}
+                  />
                 ) : (
                   <div className="panel-card p-5 text-sm text-gray-500 dark:text-gray-400">
                     Persistent volumes for non-compose apps are managed on the destination server
                     under{' '}
                     <code className="font-mono text-xs">/data/dockfin/applications/{'{id}'}</code>.
+                    Load paths via Custom Docker Options / Dockerfile volumes on the next deploy.
                   </div>
                 )}
                 <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -898,29 +1206,7 @@ export function ApplicationDetailPage() {
             )}
 
             {side === 'metrics' && (
-              <div className="space-y-4">
-                <div>
-                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Metrics</h2>
-                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                    Host metrics for the server running this application.
-                  </p>
-                </div>
-                <div className="panel-card space-y-3 p-5">
-                  {serverId ? (
-                    <Link
-                      to="/servers/$serverId"
-                      params={{ serverId }}
-                      className="text-sm font-medium text-brand-600 hover:underline dark:text-brand-400"
-                    >
-                      Open server metrics →
-                    </Link>
-                  ) : (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Select a destination under Servers first.
-                    </p>
-                  )}
-                </div>
-              </div>
+              <AppMetricsSection serverId={serverId} />
             )}
 
             {side === 'tags' && (
@@ -928,13 +1214,10 @@ export function ApplicationDetailPage() {
                 <div>
                   <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Tags</h2>
                   <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                    Organize resources with tags from the environment overview.
+                    Organize this application with tags.
                   </p>
                 </div>
-                <div className="panel-card p-5 text-sm text-gray-500 dark:text-gray-400">
-                  Manage tags on the environment resources page. Application-level tag attach UI is
-                  coming next.
-                </div>
+                <ResourceTagsPanel resourceType="application" resourceId={appId} />
               </div>
             )}
 
@@ -1126,15 +1409,59 @@ export function ApplicationDetailPage() {
             )}
 
             {side === 'rollback' && (
-              <div className="panel-card space-y-4 p-5">
-                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Rollback</h2>
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Redeploy the last finished commit (or force an image rebuild). This queues a new
-                  deployment.
-                </p>
-                <Btn primary onClick={() => rollback.mutate()}>
-                  {rollback.isPending ? 'Queuing…' : 'Rollback / redeploy'}
-                </Btn>
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Rollback</h2>
+                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                    Redeploy a previous finished commit. This queues a new deployment with force rebuild.
+                  </p>
+                </div>
+                <div className="panel-card overflow-hidden">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+                      <tr>
+                        <th className="px-3 py-2">Commit</th>
+                        <th className="px-3 py-2">Message</th>
+                        <th className="px-3 py-2">When</th>
+                        <th className="px-3 py-2" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(deps.data?.deployments || [])
+                        .filter((d) => d.status === 'finished' && d.commit_sha)
+                        .slice(0, 15)
+                        .map((d, idx) => (
+                          <tr key={d.id} className="border-t border-gray-200 dark:border-gray-800">
+                            <td className="px-3 py-2 font-mono text-xs">{(d.commit_sha || '').slice(0, 8)}</td>
+                            <td className="px-3 py-2">{d.commit_message || (idx === 0 ? 'Latest' : '—')}</td>
+                            <td className="px-3 py-2 text-xs text-gray-500">
+                              {d.created_at || ''}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              {idx === 0 ? (
+                                <span className="text-xs text-gray-400">current</span>
+                              ) : (
+                                <Btn
+                                  type="button"
+                                  onClick={() => rollback.mutate(d.commit_sha)}
+                                  disabled={rollback.isPending || !d.commit_sha}
+                                >
+                                  Rollback
+                                </Btn>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      {!((deps.data?.deployments || []).filter((d) => d.status === 'finished' && d.commit_sha).length) && (
+                        <tr>
+                          <td colSpan={4} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                            No finished deployments yet.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
                 {rollback.error && <p className="text-sm text-error-500">{rollback.error.message}</p>}
               </div>
             )}
@@ -1309,5 +1636,105 @@ export function ApplicationDetailPage() {
 
       {topTab === 'links' && <LinksPanel links={a.links || []} />}
     </div>
+  )
+}
+
+function AppMetricsSection({ serverId }: { serverId: string }) {
+  const metrics = useQuery({
+    queryKey: ['server-metrics', serverId],
+    queryFn: () => api.serverMetrics(serverId, 60),
+    enabled: Boolean(serverId),
+    refetchInterval: 15000,
+  })
+  const list = metrics.data?.metrics || []
+  const latest = list[list.length - 1]
+  const cpu = list.map((m) => m.cpu_percent)
+  const memPct = list.map((m) =>
+    m.memory_total_bytes > 0 ? (m.memory_used_bytes / m.memory_total_bytes) * 100 : 0,
+  )
+  const diskPct = list.map((m) =>
+    m.disk_total_bytes > 0 ? (m.disk_used_bytes / m.disk_total_bytes) * 100 : 0,
+  )
+  const fmtGiB = (n: number) => `${(n / 1024 ** 3).toFixed(1)} GiB`
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Metrics</h2>
+        <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+          Host metrics for the server running this application.
+        </p>
+      </div>
+      {!serverId ? (
+        <div className="panel-card p-5 text-sm text-gray-500 dark:text-gray-400">
+          Select a destination under Servers first.
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="panel-card p-4">
+              <div className="text-xs text-gray-500 dark:text-gray-400">CPU</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-gray-900 dark:text-white">
+                {latest ? `${latest.cpu_percent.toFixed(1)}%` : '—'}
+              </div>
+              <MiniSpark values={cpu} color="#0d9488" />
+            </div>
+            <div className="panel-card p-4">
+              <div className="text-xs text-gray-500 dark:text-gray-400">Memory</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-gray-900 dark:text-white">
+                {latest && latest.memory_total_bytes
+                  ? `${((latest.memory_used_bytes / latest.memory_total_bytes) * 100).toFixed(0)}%`
+                  : '—'}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {latest ? `${fmtGiB(latest.memory_used_bytes)} / ${fmtGiB(latest.memory_total_bytes)}` : ''}
+              </div>
+              <MiniSpark values={memPct} color="#2563eb" />
+            </div>
+            <div className="panel-card p-4">
+              <div className="text-xs text-gray-500 dark:text-gray-400">Disk</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-gray-900 dark:text-white">
+                {latest && latest.disk_total_bytes
+                  ? `${((latest.disk_used_bytes / latest.disk_total_bytes) * 100).toFixed(0)}%`
+                  : '—'}
+              </div>
+              <MiniSpark values={diskPct} color="#d97706" />
+            </div>
+          </div>
+          <Link
+            to="/servers/$serverId"
+            params={{ serverId }}
+            className="text-sm font-medium text-brand-600 hover:underline dark:text-brand-400"
+          >
+            Open server page →
+          </Link>
+          {metrics.error && <p className="text-sm text-error-500">{metrics.error.message}</p>}
+          {!metrics.isLoading && !list.length && (
+            <div className="panel-card p-6 text-center text-sm text-gray-500 dark:text-gray-400">
+              No metrics yet. Ensure Sentinel is posting to the ingest endpoint.
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function MiniSpark({ values, color }: { values: number[]; color: string }) {
+  if (!values.length) return <div className="mt-2 h-12" />
+  const w = 280
+  const h = 48
+  const max = Math.max(100, ...values, 1)
+  const pts = values
+    .map((v, i) => {
+      const x = values.length === 1 ? 0 : (i / (values.length - 1)) * w
+      const y = h - (v / max) * (h - 4) - 2
+      return `${x},${y}`
+    })
+    .join(' ')
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="mt-2 h-12 w-full" preserveAspectRatio="none">
+      <polyline fill="none" stroke={color} strokeWidth="2" points={pts} />
+    </svg>
   )
 }

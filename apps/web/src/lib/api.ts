@@ -310,11 +310,38 @@ export const api = {
       `/api/v1/applications/${id}/detect-compose`,
       { method: 'POST', body: JSON.stringify({ save }) },
     ),
-  rollbackApplication: (id: string, force_rebuild = true) =>
+  loadComposeForApp: (
+    id: string,
+    body?: { base_directory?: string; docker_compose_location?: string },
+  ) =>
+    request<{
+      location: string
+      base_directory: string
+      docker_compose_raw: string
+      docker_compose: string
+      docker_compose_domains: Record<string, { domain: string }>
+      units: Array<{ name: string; image: string }>
+      volumes: Array<{
+        service: string
+        name: string
+        mount_path: string
+        host_path?: string
+        type: string
+      }>
+      application: Application
+    }>(`/api/v1/applications/${id}/load-compose`, {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+    }),
+  rollbackApplication: (id: string, force_rebuild = true, commit_sha?: string) =>
     request<Deployment>(`/api/v1/applications/${id}/rollback`, {
       method: 'POST',
-      body: JSON.stringify({ force_rebuild }),
+      body: JSON.stringify({ force_rebuild, commit_sha: commit_sha || undefined }),
     }),
+  resourceTags: (resource_type: string, resource_id: string) =>
+    request<{ tags: Tag[] }>(
+      `/api/v1/resource-tags?resource_type=${encodeURIComponent(resource_type)}&resource_id=${resource_id}`,
+    ),
   listPreviews: (appId: string) =>
     request<{ previews: ApplicationPreview[] }>(`/api/v1/applications/${appId}/previews`),
   deletePreview: (appId: string, prId: number) =>
@@ -926,6 +953,15 @@ export type Application = {
   ports_exposes?: string
   docker_compose_location?: string
   compose_prepare?: boolean
+  dockerfile_location?: string
+  docker_compose_raw?: string
+  docker_compose?: string
+  docker_compose_domains?: Record<string, { domain: string }>
+  base_directory?: string
+  docker_compose_custom_build_command?: string
+  docker_compose_custom_start_command?: string
+  custom_docker_run_options?: string
+  dockerfile_target_build?: string
   docker_registry_image_name?: string
   docker_registry_image_tag?: string
   destination_id?: string | null
@@ -934,6 +970,10 @@ export type Application = {
   is_build_server_enabled?: boolean
   is_force_https?: boolean
   is_preview_enabled?: boolean
+  is_auto_deploy_enabled?: boolean
+  is_git_submodules_enabled?: boolean
+  is_preserve_repository_enabled?: boolean
+  watch_paths?: string
   health_check_enabled?: boolean
   health_check_path?: string
   health_check_port?: number | null
@@ -944,6 +984,19 @@ export type Application = {
   health_check_retries?: number
   limits_memory?: string
   limits_cpus?: string
+  compose_units?: Array<{
+    name: string
+    image: string
+    is_database?: boolean
+    domain?: string
+  }>
+  compose_volumes?: Array<{
+    service: string
+    name: string
+    mount_path: string
+    host_path?: string
+    type: string
+  }>
   links?: { label: string; url: string }[]
 }
 export type ApplicationPreview = {

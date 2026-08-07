@@ -99,6 +99,13 @@ func (p *Pipeline) gitClone(ctx context.Context, client *ssh.Client, req Request
 				return fmt.Errorf("git checkout: %s", redact.Join(err.Error(), errOut))
 			}
 		}
+		if req.App.IsGitSubmodulesEnabled {
+			p.log("fetch", "Updating git submodules")
+			_, errOut, err = sshx.RunArgs(client, "git", "-C", destDir, "submodule", "update", "--init", "--recursive")
+			if err != nil {
+				return fmt.Errorf("git submodule: %s", redact.Join(err.Error(), errOut))
+			}
+		}
 		return nil
 	}
 

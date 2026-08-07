@@ -52,23 +52,36 @@ type Application struct {
 	PortsExposes            string     `json:"ports_exposes"`
 	// ComposePrepare adapts Git compose for Dockfin (Traefik, network, strip host ports).
 	// False = deploy the repository compose file unchanged.
-	ComposePrepare          bool       `json:"compose_prepare"`
-	HealthCheckEnabled      bool       `json:"health_check_enabled"`
-	HealthCheckPath         string     `json:"health_check_path"`
-	HealthCheckPort         *int       `json:"health_check_port,omitempty"`
-	HealthCheckMethod       string     `json:"health_check_method"`
-	HealthCheckReturnCode   int        `json:"health_check_return_code"`
-	HealthCheckInterval     int        `json:"health_check_interval"`
-	HealthCheckTimeout      int        `json:"health_check_timeout"`
-	HealthCheckRetries      int        `json:"health_check_retries"`
-	LimitsMemory            string     `json:"limits_memory"`
-	LimitsCpus              string     `json:"limits_cpus"`
-	IsForceHTTPS            bool       `json:"is_force_https"`
-	IsPreviewEnabled        bool       `json:"is_preview_enabled"`
-	GitSourceID             *uuid.UUID `json:"git_source_id,omitempty"`
-	PrivateKeyID            *uuid.UUID `json:"private_key_id,omitempty"`
-	IsBuildServerEnabled    bool       `json:"is_build_server_enabled"`
-	CreatedAt               time.Time  `json:"created_at"`
+	ComposePrepare bool `json:"compose_prepare"`
+	// Coolify-parity compose preview + build options.
+	DockerComposeRaw                  string          `json:"docker_compose_raw,omitempty"`
+	DockerCompose                     string          `json:"docker_compose,omitempty"`
+	DockerComposeDomains              json.RawMessage `json:"docker_compose_domains,omitempty"`
+	BaseDirectory                     string          `json:"base_directory"`
+	DockerComposeCustomBuildCommand   string          `json:"docker_compose_custom_build_command,omitempty"`
+	DockerComposeCustomStartCommand   string          `json:"docker_compose_custom_start_command,omitempty"`
+	CustomDockerRunOptions            string          `json:"custom_docker_run_options,omitempty"`
+	DockerfileTargetBuild             string          `json:"dockerfile_target_build,omitempty"`
+	HealthCheckEnabled                bool            `json:"health_check_enabled"`
+	HealthCheckPath                   string          `json:"health_check_path"`
+	HealthCheckPort                   *int            `json:"health_check_port,omitempty"`
+	HealthCheckMethod                 string          `json:"health_check_method"`
+	HealthCheckReturnCode             int             `json:"health_check_return_code"`
+	HealthCheckInterval               int             `json:"health_check_interval"`
+	HealthCheckTimeout                int             `json:"health_check_timeout"`
+	HealthCheckRetries                int             `json:"health_check_retries"`
+	LimitsMemory                      string          `json:"limits_memory"`
+	LimitsCpus                        string          `json:"limits_cpus"`
+	IsForceHTTPS                      bool            `json:"is_force_https"`
+	IsPreviewEnabled                  bool            `json:"is_preview_enabled"`
+	GitSourceID                       *uuid.UUID      `json:"git_source_id,omitempty"`
+	PrivateKeyID                      *uuid.UUID      `json:"private_key_id,omitempty"`
+	IsBuildServerEnabled              bool            `json:"is_build_server_enabled"`
+	IsAutoDeployEnabled               bool            `json:"is_auto_deploy_enabled"`
+	IsGitSubmodulesEnabled            bool            `json:"is_git_submodules_enabled"`
+	IsPreserveRepositoryEnabled       bool            `json:"is_preserve_repository_enabled"`
+	WatchPaths                        string          `json:"watch_paths,omitempty"`
+	CreatedAt                         time.Time       `json:"created_at"`
 }
 
 type ApplicationPreview struct {
@@ -88,6 +101,13 @@ const applicationSelectCols = `
 	a.git_repository, a.git_branch, a.git_commit_sha, a.dockerfile_location, a.docker_compose_location,
 	a.docker_registry_image_name, a.docker_registry_image_tag, a.ports_exposes,
 	COALESCE(a.compose_prepare, TRUE),
+	COALESCE(a.docker_compose_raw, ''), COALESCE(a.docker_compose, ''),
+	COALESCE(a.docker_compose_domains, '{}'::jsonb),
+	COALESCE(NULLIF(a.base_directory, ''), '/'),
+	COALESCE(a.docker_compose_custom_build_command, ''),
+	COALESCE(a.docker_compose_custom_start_command, ''),
+	COALESCE(a.custom_docker_run_options, ''),
+	COALESCE(a.dockerfile_target_build, ''),
 	a.health_check_enabled, a.health_check_path, a.health_check_port, a.health_check_method,
 	a.health_check_return_code, a.health_check_interval, a.health_check_timeout, a.health_check_retries,
 	a.limits_memory, a.limits_cpus,
@@ -95,6 +115,10 @@ const applicationSelectCols = `
 	COALESCE(s.is_build_server_enabled, FALSE),
 	COALESCE(a.is_force_https, s.is_force_https_enabled, TRUE),
 	COALESCE(s.is_preview_enabled, FALSE),
+	COALESCE(s.is_auto_deploy_enabled, TRUE),
+	COALESCE(s.is_git_submodules_enabled, FALSE),
+	COALESCE(s.is_preserve_repository_enabled, FALSE),
+	COALESCE(s.watch_paths, ''),
 	a.created_at`
 
 func scanApplication(scan func(dest ...any) error) (*Application, error) {
@@ -104,11 +128,23 @@ func scanApplication(scan func(dest ...any) error) (*Application, error) {
 		&a.GitRepository, &a.GitBranch, &a.GitCommitSHA, &a.DockerfileLocation, &a.DockerComposeLocation,
 		&a.DockerRegistryImageName, &a.DockerRegistryImageTag, &a.PortsExposes,
 		&a.ComposePrepare,
+		&a.DockerComposeRaw, &a.DockerCompose, &a.DockerComposeDomains,
+		&a.BaseDirectory,
+		&a.DockerComposeCustomBuildCommand, &a.DockerComposeCustomStartCommand,
+		&a.CustomDockerRunOptions, &a.DockerfileTargetBuild,
 		&a.HealthCheckEnabled, &a.HealthCheckPath, &a.HealthCheckPort, &a.HealthCheckMethod,
 		&a.HealthCheckReturnCode, &a.HealthCheckInterval, &a.HealthCheckTimeout, &a.HealthCheckRetries,
-		&a.LimitsMemory, &a.LimitsCpus, &a.GitSourceID, &a.PrivateKeyID, &a.IsBuildServerEnabled, &a.IsForceHTTPS, &a.IsPreviewEnabled, &a.CreatedAt,
+		&a.LimitsMemory, &a.LimitsCpus, &a.GitSourceID, &a.PrivateKeyID, &a.IsBuildServerEnabled, &a.IsForceHTTPS, &a.IsPreviewEnabled,
+		&a.IsAutoDeployEnabled, &a.IsGitSubmodulesEnabled, &a.IsPreserveRepositoryEnabled, &a.WatchPaths,
+		&a.CreatedAt,
 	)
-	return &a, err
+	if err != nil {
+		return nil, err
+	}
+	if len(a.DockerComposeDomains) == 0 {
+		a.DockerComposeDomains = json.RawMessage(`{}`)
+	}
+	return &a, nil
 }
 
 type Deployment struct {
@@ -548,26 +584,56 @@ func (s *Store) DeleteApplication(ctx context.Context, teamID, id uuid.UUID) err
 	return tx.Commit(ctx)
 }
 
+func (s *Store) UpdateApplicationComposePreview(ctx context.Context, teamID, id uuid.UUID, raw, prepared string) error {
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE applications SET docker_compose_raw=$3, docker_compose=$4, updated_at=NOW()
+		WHERE id=$1 AND team_id=$2
+	`, id, teamID, raw, prepared)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (s *Store) UpdateApplicationStatus(ctx context.Context, id uuid.UUID, status string) error {
 	_, err := s.Pool.Exec(ctx, `UPDATE applications SET status=$2, updated_at=NOW() WHERE id=$1`, id, status)
 	return err
 }
 
 func (s *Store) UpdateApplication(ctx context.Context, app *Application) error {
+	domains := app.DockerComposeDomains
+	if len(domains) == 0 {
+		domains = json.RawMessage(`{}`)
+	}
+	base := strings.TrimSpace(app.BaseDirectory)
+	if base == "" {
+		base = "/"
+	}
 	_, err := s.Pool.Exec(ctx, `
 		UPDATE applications SET
 			name=$2, description=$3, fqdn=$4, git_repository=$5, git_branch=$6,
 			ports_exposes=$7, docker_registry_image_name=$8, docker_registry_image_tag=$9,
 			dockerfile_location=$10, docker_compose_location=$11, destination_id=$12, git_source_id=$13, private_key_id=$14,
 			compose_prepare=$15,
-			health_check_enabled=$16, health_check_path=$17, health_check_port=$18, health_check_method=$19,
-			health_check_return_code=$20, health_check_interval=$21, health_check_timeout=$22, health_check_retries=$23,
-			limits_memory=$24, limits_cpus=$25, is_force_https=$26, updated_at=NOW()
-		WHERE id=$1 AND team_id=$27
+			docker_compose_raw=$16, docker_compose=$17, docker_compose_domains=$18,
+			base_directory=$19,
+			docker_compose_custom_build_command=$20, docker_compose_custom_start_command=$21,
+			custom_docker_run_options=$22, dockerfile_target_build=$23,
+			health_check_enabled=$24, health_check_path=$25, health_check_port=$26, health_check_method=$27,
+			health_check_return_code=$28, health_check_interval=$29, health_check_timeout=$30, health_check_retries=$31,
+			limits_memory=$32, limits_cpus=$33, is_force_https=$34, updated_at=NOW()
+		WHERE id=$1 AND team_id=$35
 	`, app.ID, app.Name, app.Description, app.FQDN, app.GitRepository, app.GitBranch,
 		app.PortsExposes, app.DockerRegistryImageName, app.DockerRegistryImageTag,
 		app.DockerfileLocation, app.DockerComposeLocation, app.DestinationID, app.GitSourceID, app.PrivateKeyID,
 		app.ComposePrepare,
+		app.DockerComposeRaw, app.DockerCompose, domains,
+		base,
+		app.DockerComposeCustomBuildCommand, app.DockerComposeCustomStartCommand,
+		app.CustomDockerRunOptions, app.DockerfileTargetBuild,
 		app.HealthCheckEnabled, app.HealthCheckPath, app.HealthCheckPort, app.HealthCheckMethod,
 		app.HealthCheckReturnCode, app.HealthCheckInterval, app.HealthCheckTimeout, app.HealthCheckRetries,
 		app.LimitsMemory, app.LimitsCpus, app.IsForceHTTPS, app.TeamID)
@@ -593,6 +659,62 @@ func (s *Store) SetApplicationPreviewEnabled(ctx context.Context, teamID, appID 
 		UPDATE application_settings SET is_preview_enabled=$3, updated_at=NOW()
 		WHERE application_id=$1 AND EXISTS (SELECT 1 FROM applications WHERE id=$1 AND team_id=$2)
 	`, appID, teamID, enabled)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) SetApplicationAutoDeployEnabled(ctx context.Context, teamID, appID uuid.UUID, enabled bool) error {
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE application_settings SET is_auto_deploy_enabled=$3, updated_at=NOW()
+		WHERE application_id=$1 AND EXISTS (SELECT 1 FROM applications WHERE id=$1 AND team_id=$2)
+	`, appID, teamID, enabled)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) SetApplicationGitSubmodulesEnabled(ctx context.Context, teamID, appID uuid.UUID, enabled bool) error {
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE application_settings SET is_git_submodules_enabled=$3, updated_at=NOW()
+		WHERE application_id=$1 AND EXISTS (SELECT 1 FROM applications WHERE id=$1 AND team_id=$2)
+	`, appID, teamID, enabled)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) SetApplicationPreserveRepositoryEnabled(ctx context.Context, teamID, appID uuid.UUID, enabled bool) error {
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE application_settings SET is_preserve_repository_enabled=$3, updated_at=NOW()
+		WHERE application_id=$1 AND EXISTS (SELECT 1 FROM applications WHERE id=$1 AND team_id=$2)
+	`, appID, teamID, enabled)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) SetApplicationWatchPaths(ctx context.Context, teamID, appID uuid.UUID, paths string) error {
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE application_settings SET watch_paths=$3, updated_at=NOW()
+		WHERE application_id=$1 AND EXISTS (SELECT 1 FROM applications WHERE id=$1 AND team_id=$2)
+	`, appID, teamID, paths)
 	if err != nil {
 		return err
 	}
