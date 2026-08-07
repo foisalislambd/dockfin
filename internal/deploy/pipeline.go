@@ -1435,9 +1435,6 @@ func (p *Pipeline) syncApplicationComposeEnv(ctx context.Context, req Request, r
 	if len(ui) == 0 {
 		ui = services.CoolifyEnvForUI(raw, services.ExtractMagicEnv(prepared))
 	}
-	if len(ui) == 0 {
-		return
-	}
 	for key, val := range ui {
 		preserve := strings.HasPrefix(key, "SERVICE_PASSWORD_") ||
 			strings.HasPrefix(key, "SERVICE_BASE64_") ||
@@ -1455,6 +1452,21 @@ func (p *Pipeline) syncApplicationComposeEnv(ctx context.Context, req Request, r
 		})
 		if err != nil {
 			p.log("prepare", "Warning: could not sync env "+key+": "+err.Error())
+		}
+	}
+	// Always sync ${VAR}/:- /:? refs even when there are no SERVICE_* magic keys.
+	for _, ref := range services.ComposeEnvForUI(raw) {
+		_, err := p.Store.UpsertEnvVar(ctx, req.TeamID, "application", req.App.ID, store.UpsertEnvVarInput{
+			Key:       ref.Key,
+			Value:     ref.Value,
+			Runtime:   true,
+			Buildtime: true,
+			Literal:   true,
+			Comment:   ref.Comment,
+			KeepValue: true,
+		})
+		if err != nil {
+			p.log("prepare", "Warning: could not sync compose env "+ref.Key+": "+err.Error())
 		}
 	}
 }

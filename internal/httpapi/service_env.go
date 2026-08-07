@@ -127,3 +127,23 @@ func (a *API) rewriteResourceDomainEnv(ctx context.Context, teamID uuid.UUID, re
 func (a *API) rewriteServiceDomainEnv(ctx context.Context, teamID, serviceID uuid.UUID, domains string) {
 	a.rewriteResourceDomainEnv(ctx, teamID, "service", serviceID, domains)
 }
+
+// syncResourceComposeEnvRefs creates Coolify-style UI env vars from ${VAR} / :- / :?
+// references in compose environment and build.args. Existing values are preserved.
+func (a *API) syncResourceComposeEnvRefs(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID, raw string) {
+	refs := services.ComposeEnvForUI(raw)
+	if len(refs) == 0 {
+		return
+	}
+	for _, ref := range refs {
+		_, _ = a.Store.UpsertEnvVar(ctx, teamID, resourceType, resourceID, store.UpsertEnvVarInput{
+			Key:       ref.Key,
+			Value:     ref.Value,
+			Runtime:   true,
+			Buildtime: true,
+			Literal:   true,
+			Comment:   ref.Comment,
+			KeepValue: true, // firstOrCreate semantics
+		})
+	}
+}

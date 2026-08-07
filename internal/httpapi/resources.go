@@ -432,6 +432,16 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 	}
+	// Coolify: dockercompose apps load compose on create so Environment Variables
+	// populate from ${VAR} / SERVICE_* without a separate Load click.
+	if created.BuildPack == "dockercompose" && strings.TrimSpace(created.GitRepository) != "" {
+		if _, err := a.loadApplicationCompose(r, teamID, created); err == nil {
+			if fresh, err := a.Store.GetApplication(r.Context(), teamID, created.ID); err == nil {
+				created = fresh
+			}
+		}
+		// Non-fatal if clone/load fails (private repo / wrong branch) — user can Load Compose later.
+	}
 	// Always mint a webhook secret so production webhooks are never open by default.
 	webhookSecret := ""
 	if secret, err := crypto.RandomToken(24); err == nil {

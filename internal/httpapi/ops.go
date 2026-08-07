@@ -150,6 +150,7 @@ func (a *API) handleCreateService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.syncServiceCoolifyEnv(r.Context(), teamID, created.ID, compose, prepared, fullEnv)
+	a.syncResourceComposeEnvRefs(r.Context(), teamID, "service", created.ID, compose)
 	writeJSON(w, http.StatusCreated, serviceWithLinks(created))
 }
 

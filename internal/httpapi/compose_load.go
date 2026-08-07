@@ -248,6 +248,7 @@ func (a *API) loadApplicationCompose(r *http.Request, teamID uuid.UUID, app *sto
 		return nil, err
 	}
 	a.syncResourceCoolifyEnv(ctx, teamID, "application", app.ID, raw, out, fullEnv)
+	a.syncResourceComposeEnvRefs(ctx, teamID, "application", app.ID, raw)
 	fresh, err := a.Store.GetApplication(ctx, teamID, app.ID)
 	if err != nil {
 		return nil, err
@@ -348,8 +349,8 @@ func enrichApplicationCompose(app *store.Application) map[string]any {
 	return m
 }
 
-// ensureApplicationComposeEnv generates Coolify SERVICE_* env vars from an already-loaded
-// compose file when none exist yet (so Environment Variables fills without re-clicking Load).
+// ensureApplicationComposeEnv generates Coolify SERVICE_* and ${VAR} env vars from an
+// already-loaded compose file so Environment Variables fills without re-clicking Load.
 func (a *API) ensureApplicationComposeEnv(ctx context.Context, teamID, appID uuid.UUID) {
 	app, err := a.Store.GetApplication(ctx, teamID, appID)
 	if err != nil || app.BuildPack != "dockercompose" {
@@ -362,15 +363,24 @@ func (a *API) ensureApplicationComposeEnv(ctx context.Context, teamID, appID uui
 	if raw == "" {
 		return
 	}
+	// Always sync ${VAR:-default} style refs (idempotent via KeepValue).
+	a.syncResourceComposeEnvRefs(ctx, teamID, "application", appID, raw)
+
 	vars, err := a.Store.ListEnvVars(ctx, teamID, "application", appID, false)
 	if err != nil {
 		return
 	}
+	hasService := false
 	for _, v := range vars {
 		if strings.HasPrefix(v.Key, "SERVICE_") {
-			return
+			hasService = true
+			break
 		}
 	}
+	if hasService {
+		return
+	}
+	// Only run full PrepareCompose when no SERVICE_* magic env exists yet.
 	domains := parseComposeDomains(app.DockerComposeDomains)
 	fqdn := aggregateComposeDomains(domains)
 	if fqdn == "" {

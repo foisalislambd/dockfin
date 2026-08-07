@@ -1908,7 +1908,7 @@ export function ApplicationDetailPage() {
                   </h2>
                   <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
                     {a.build_pack === 'dockercompose'
-                      ? 'Coolify-style SERVICE_* secrets and URLs are generated from your Docker Compose file (Load Compose or after domains change).'
+                      ? 'Variables are auto-created from your Docker Compose file (${VAR}, defaults, and SERVICE_*). Click Load Compose under General if the list is empty.'
                       : 'Environment (secrets) variables for this application.'}
                   </p>
                 </div>
