@@ -292,6 +292,10 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 	if body.BuildPack == "" {
 		body.BuildPack = "dockerfile"
 	}
+	// Nixpacks was removed; map legacy clients to Railpack.
+	if body.BuildPack == "nixpacks" {
+		body.BuildPack = "railpack"
+	}
 	if body.GitBranch == "" {
 		body.GitBranch = "main"
 	}

@@ -30,7 +30,7 @@ Stages (conceptually):
 
 1. **prepare** — SSH dial, host key, data dirs, Docker network  
 2. **fetch** — git clone or image pull  
-3. **build** — `docker build`, compose build, nixpacks, or static Dockerfile  
+3. **build** — `docker build`, compose build, railpack, or static Dockerfile  
 4. **run** — replace container, Traefik labels, env injection, limits  
 5. **health** — optional wait until container running / healthy  
 6. **finalize** — status, notifications  

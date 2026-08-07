@@ -72,7 +72,7 @@ Everything important lives in `/data/dockfin`. You don’t need to edit `.env` b
 
 ## What you can deploy
 
-- Apps — Dockerfile, Compose, image, Nixpacks, static  
+- Apps — Dockerfile, Compose, image, Railpack, static  
 - Databases — Postgres, MySQL, MongoDB, Redis, and more  
 - ~360 one-click service templates  
 - Git webhooks, env vars, live deploy logs  

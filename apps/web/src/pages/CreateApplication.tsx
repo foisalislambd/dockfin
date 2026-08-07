@@ -19,7 +19,7 @@ const BUILD_PACKS = [
   { id: 'dockerimage', title: 'Docker Image', description: 'Pull and run a public or private image.' },
   { id: 'dockerfile', title: 'Dockerfile', description: 'Build from a Git repo Dockerfile.' },
   { id: 'dockercompose', title: 'Compose', description: 'Deploy a docker-compose stack from Git.' },
-  { id: 'nixpacks', title: 'Nixpacks', description: 'Auto-detect and build from source.' },
+  { id: 'railpack', title: 'Railpack', description: 'Auto-detect and build from source.' },
   { id: 'static', title: 'Static', description: 'Static site / SPA build output.' },
 ]
 
@@ -183,7 +183,7 @@ export function CreateApplicationPage() {
       ...f,
       environment_id: envTouched.current ? f.environment_id : f.environment_id || prefillEnv || pick,
       destination_id: f.destination_id || dests.data?.destinations?.[0]?.id || '',
-      build_pack: prefillPack || f.build_pack || (sourceType ? 'nixpacks' : f.build_pack),
+      build_pack: prefillPack || f.build_pack || (sourceType ? 'railpack' : f.build_pack),
     }))
   }, [envs.data, dests.data, prefillEnv, prefillPack, sourceType])
 

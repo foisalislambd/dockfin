@@ -157,8 +157,8 @@ func (p *Pipeline) Run(ctx context.Context, req Request) error {
 		return p.deployCompose(ctx, deployClient, req)
 	case "static":
 		return p.deployStatic(ctx, buildClient, deployClient, req)
-	case "nixpacks", "railpack":
-		return p.deployNixpacks(ctx, buildClient, deployClient, req)
+	case "railpack":
+		return p.deployRailpack(ctx, buildClient, deployClient, req)
 	default:
 		return fmt.Errorf("unsupported build pack: %s", req.App.BuildPack)
 	}
@@ -682,9 +682,9 @@ EXPOSE 80
 	return p.runBuiltImage(ctx, deployClient, req, name, imageTag)
 }
 
-func (p *Pipeline) deployNixpacks(ctx context.Context, buildClient, deployClient *ssh.Client, req Request) error {
+func (p *Pipeline) deployRailpack(ctx context.Context, buildClient, deployClient *ssh.Client, req Request) error {
 	if req.App.GitRepository == "" {
-		return fmt.Errorf("git repository is required for nixpacks builds")
+		return fmt.Errorf("git repository is required for railpack builds")
 	}
 	name := containerNameFor(req)
 	workdir := "/data/dockfin/applications/" + req.App.ID.String()
@@ -694,7 +694,7 @@ func (p *Pipeline) deployNixpacks(ctx context.Context, buildClient, deployClient
 		imageTag = fmt.Sprintf("dockfin/%s-pr-%d:latest", req.App.ID.String(), req.PullRequestID)
 	}
 
-	p.log("prepare", "Preparing nixpacks workdir "+workdir)
+	p.log("prepare", "Preparing railpack workdir "+workdir)
 	_, errOut, err := sshx.RunArgs(buildClient, "mkdir", "-p", workdir)
 	if err != nil {
 		return fmt.Errorf("mkdir: %v %s", err, errOut)
@@ -714,18 +714,17 @@ func (p *Pipeline) deployNixpacks(ctx context.Context, buildClient, deployClient
 		}
 	}
 
-	pack := req.App.BuildPack
-	if pack == "railpack" {
-		if err := p.ensureRemoteCLI(buildClient, "railpack", "https://railpack.com/install.sh"); err != nil {
-			return err
-		}
-		p.log("build", "Building with railpack CLI")
-		noCache := ""
-		if req.ForceRebuild {
-			noCache = " --no-cache"
-		}
-		buildCmd := fmt.Sprintf(
-			`set -euo pipefail
+	if err := p.ensureRemoteCLI(buildClient, "railpack", "https://railpack.com/install.sh"); err != nil {
+		return err
+	}
+	p.log("build", "Building with railpack CLI")
+	envFlags := p.railpackEnvFlags(ctx, req)
+	noCache := ""
+	if req.ForceRebuild {
+		noCache = " --no-cache"
+	}
+	buildCmd := fmt.Sprintf(
+		`set -euo pipefail
 export PATH="/usr/local/bin:/usr/bin:$HOME/.local/bin:$PATH"
 # Railpack needs a BuildKit backend (same approach as local railpack docs).
 if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -qx dockfin-buildkit; then
@@ -734,41 +733,13 @@ if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -qx dockfin-buildkit; th
 fi
 export BUILDKIT_HOST='docker-container://dockfin-buildkit'
 cd %s
-railpack build . --name %s%s
+railpack build . --name %s%s%s
 `,
-			shellSingleQuote(srcDir), shellSingleQuote(imageTag), noCache,
-		)
-		_, errOut, err = sshx.Run(buildClient, buildCmd)
-		if err != nil {
-			return fmt.Errorf("railpack build failed: %v %s", err, errOut)
-		}
-	} else {
-		// nixpacks: ghcr.io/railwayapp/nixpacks:latest is a Debian *base* image, NOT the CLI.
-		// Coolify installs the nixpacks binary on the build host and runs it against the Docker daemon.
-		if err := p.ensureRemoteCLI(buildClient, "nixpacks", "https://nixpacks.com/install.sh"); err != nil {
-			return err
-		}
-		p.log("build", "Building with nixpacks CLI")
-		envFlags := p.nixpacksEnvFlags(ctx, req)
-		noCache := ""
-		if req.ForceRebuild {
-			noCache = " --no-cache"
-		}
-		buildCmd := fmt.Sprintf(
-			`set -euo pipefail
-export PATH="/usr/local/bin:/usr/bin:$HOME/.local/bin:$PATH"
-cd %s
-nixpacks build . -n %s --no-error-without-start%s%s
-`,
-			shellSingleQuote(srcDir),
-			shellSingleQuote(imageTag),
-			noCache,
-			envFlags,
-		)
-		_, errOut, err = sshx.Run(buildClient, buildCmd)
-		if err != nil {
-			return fmt.Errorf("nixpacks build failed: %v %s", err, errOut)
-		}
+		shellSingleQuote(srcDir), shellSingleQuote(imageTag), noCache, envFlags,
+	)
+	_, errOut, err = sshx.Run(buildClient, buildCmd)
+	if err != nil {
+		return fmt.Errorf("railpack build failed: %v %s", err, errOut)
 	}
 
 	if err := p.transferIfNeeded(buildClient, deployClient, req, imageTag); err != nil {
@@ -803,7 +774,7 @@ command -v %s >/dev/null
 	return nil
 }
 
-func (p *Pipeline) nixpacksEnvFlags(ctx context.Context, req Request) string {
+func (p *Pipeline) railpackEnvFlags(ctx context.Context, req Request) string {
 	envMap := p.composeExistingEnv(ctx, req)
 	if len(envMap) == 0 {
 		return ""

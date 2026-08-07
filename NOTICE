@@ -10,6 +10,6 @@ See the LICENSE file for details.
 
 - Product inspiration: [Coolify](https://github.com/coollabsio/coolify) by Coolify / coollabsio (separate project, separate license)
 - One-click service templates under `templates/compose/` are adapted from Coolify’s public compose catalog ([coollabsio/coolify](https://github.com/coollabsio/coolify)); see Coolify’s license for upstream terms
-- Traefik, Docker, nixpacks, and other runtime images are trademarks of their respective owners
+- Traefik, Docker, Railpack, and other runtime images are trademarks of their respective owners
 
 This product is not affiliated with or endorsed by Coolify or coollabsio.

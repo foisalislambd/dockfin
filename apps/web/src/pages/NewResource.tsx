@@ -24,7 +24,7 @@ const GIT_BASED: AppOption[] = [
     description:
       'You can deploy any kind of public repositories from the supported git providers.',
     logo: '/svgs/git.svg',
-    buildPack: 'nixpacks',
+    buildPack: 'railpack',
     sourceType: 'public',
   },
   {
@@ -32,7 +32,7 @@ const GIT_BASED: AppOption[] = [
     title: 'Private Repository (with GitHub App)',
     description: 'You can deploy public & private repositories through your GitHub Apps.',
     logo: '/svgs/github.svg',
-    buildPack: 'nixpacks',
+    buildPack: 'railpack',
     sourceType: 'private-gh-app',
   },
   {
@@ -40,7 +40,7 @@ const GIT_BASED: AppOption[] = [
     title: 'Private Repository (with Deploy Key)',
     description: 'You can deploy private repositories with a deploy key.',
     logo: '/svgs/git.svg',
-    buildPack: 'nixpacks',
+    buildPack: 'railpack',
     sourceType: 'private-deploy-key',
   },
   {
@@ -79,7 +79,7 @@ const DOCKER_BASED: AppOption[] = [
   {
     id: 'static',
     title: 'Static Site',
-    description: 'Build a static site (HTML/JS/CSS) with Nixpacks or a Dockerfile and serve it.',
+    description: 'Build a static site (HTML/JS/CSS) with Railpack or a Dockerfile and serve it.',
     logo: '/svgs/docker.svg',
     buildPack: 'static',
     sourceType: 'public',

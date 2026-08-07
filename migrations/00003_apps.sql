@@ -50,7 +50,7 @@ CREATE TABLE applications (
     fqdn                TEXT NOT NULL DEFAULT '',
     status              TEXT NOT NULL DEFAULT 'exited',
     build_pack          TEXT NOT NULL DEFAULT 'dockerfile'
-                        CHECK (build_pack IN ('dockerfile', 'dockercompose', 'dockerimage', 'nixpacks', 'static', 'railpack')),
+                        CHECK (build_pack IN ('dockerfile', 'dockercompose', 'dockerimage', 'static', 'railpack')),
     git_repository      TEXT NOT NULL DEFAULT '',
     git_branch          TEXT NOT NULL DEFAULT 'main',
     git_commit_sha      TEXT NOT NULL DEFAULT 'HEAD',

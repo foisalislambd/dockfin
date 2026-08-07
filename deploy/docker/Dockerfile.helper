@@ -1,5 +1,5 @@
 FROM docker:27-cli
 RUN apk add --no-cache git curl bash
-# Placeholder helper image for remote builds (nixpacks can be added later)
+# Placeholder helper image for remote builds (railpack CLI installs on the host)
 WORKDIR /workdir
 CMD ["sh"]

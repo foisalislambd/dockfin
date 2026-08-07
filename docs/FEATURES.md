@@ -27,7 +27,7 @@
 
 ## Applications
 - [x] CRUD + update + rollback
-- [x] Build packs: dockerfile, compose, image, nixpacks, static
+- [x] Build packs: dockerfile, compose, image, railpack, static
 - [x] Deploy queue + SSE logs + cancel + queue limits
 - [x] Git webhook + HMAC verify
 - [x] PR preview create on webhook

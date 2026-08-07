@@ -18,7 +18,7 @@ Git tag, GitHub Release, and Docker image tags always share the same `X.Y.Z` (vi
 - React + Vite dashboard (auth, servers, projects, apps, databases, services)
 - PostgreSQL schema via Goose migrations (embedded)
 - SSH pool with host-key TOFU / fingerprint persistence
-- Deploy pipeline: dockerfile, dockercompose, dockerimage, nixpacks, static
+- Deploy pipeline: dockerfile, dockercompose, dockerimage, railpack, static
 - Deployment queue with cancel, concurrency limits, SSE logs, rollback
 - Env vars + shared env resolution at deploy time
 - Git webhooks with HMAC verification and PR preview hooks
