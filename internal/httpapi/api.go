@@ -4,21 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	chimw "github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/cors"
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/config"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/dockfin/dockfin/internal/terminal"
 	"github.com/dockfin/dockfin/internal/version"
 	"github.com/dockfin/dockfin/internal/worker"
 	"github.com/dockfin/dockfin/internal/ws"
+	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
+	"github.com/google/uuid"
 )
 
 type ctxKey string
@@ -63,9 +64,7 @@ func (a *API) Router() http.Handler {
 		MaxAge:           300,
 	}))
 
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "service": "dockfin"})
-	})
+	r.Get("/health", a.handleHealth)
 	r.Get("/api/v1/version", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"version": version.Version,
@@ -386,6 +385,31 @@ func timeoutExceptSSE(d time.Duration) func(http.Handler) http.Handler {
 	}
 }
 
+const maxJSONBody = 1 << 20 // 1 MiB
+
+func handleHealthStatus(a *API, ctx context.Context) (int, map[string]any) {
+	body := map[string]any{"status": "ok", "service": "dockfin"}
+	if a == nil || a.Store == nil || a.Store.Pool == nil {
+		return http.StatusOK, body
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	if err := a.Store.Pool.Ping(pingCtx); err != nil {
+		body["status"] = "unhealthy"
+		body["error"] = "database unavailable"
+		return http.StatusServiceUnavailable, body
+	}
+	return http.StatusOK, body
+}
+
+func (a *API) handleHealth(w http.ResponseWriter, r *http.Request) {
+	code, body := handleHealthStatus(a, r.Context())
+	writeJSON(w, code, body)
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -398,9 +422,22 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 
 func decodeJSON(r *http.Request, v any) error {
 	defer r.Body.Close()
-	dec := json.NewDecoder(r.Body)
+	if r.Body == nil {
+		return io.EOF
+	}
+	limited := http.MaxBytesReader(nil, r.Body, maxJSONBody)
+	dec := json.NewDecoder(limited)
 	dec.DisallowUnknownFields()
 	return dec.Decode(v)
+}
+
+// decodeJSONOptional treats an empty body as success; malformed JSON is still an error.
+func decodeJSONOptional(r *http.Request, v any) error {
+	err := decodeJSON(r, v)
+	if err == nil || errors.Is(err, io.EOF) {
+		return nil
+	}
+	return err
 }
 
 func (a *API) requireAuth(next http.Handler) http.Handler {
@@ -473,11 +510,15 @@ func (a *API) requireTeam(next http.Handler) http.Handler {
 	})
 }
 
+func isTeamAdmin(r *http.Request) bool {
+	role, _ := r.Context().Value(ctxRole).(string)
+	return role == "owner" || role == "admin"
+}
+
 // requireAdmin restricts the route to team owners and admins.
 func (a *API) requireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		role, _ := r.Context().Value(ctxRole).(string)
-		if role != "owner" && role != "admin" {
+		if !isTeamAdmin(r) {
 			writeError(w, http.StatusForbidden, "admin or owner role required")
 			return
 		}

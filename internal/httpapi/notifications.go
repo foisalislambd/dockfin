@@ -123,7 +123,10 @@ func (a *API) handleTestNotification(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Email string `json:"email"`
 	}
-	_ = decodeJSON(r, &body)
+	if err := decodeJSONOptional(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
 
 	teamID := currentTeamID(r)
 	n, err := a.Store.GetNotificationSetting(r.Context(), teamID, channel)

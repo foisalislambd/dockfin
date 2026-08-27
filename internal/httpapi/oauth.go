@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/dockfin/dockfin/internal/config"
 	"github.com/dockfin/dockfin/internal/crypto"
 	"github.com/dockfin/dockfin/internal/store"
+	"github.com/go-chi/chi/v5"
 	"golang.org/x/oauth2"
 )
 
@@ -97,7 +97,7 @@ func (a *API) handleOauthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cookie, err := r.Cookie(oauthStateCookie)
-	if err != nil || cookie.Value == "" || cookie.Value != state {
+	if err != nil || cookie.Value == "" || !secureTokenEqual(cookie.Value, state) {
 		writeError(w, http.StatusBadRequest, "invalid or expired state")
 		return
 	}
@@ -156,8 +156,16 @@ func (a *API) handleOauthCallback(w http.ResponseWriter, r *http.Request) {
 		existing, _, existErr := a.Store.GetUserByEmail(r.Context(), profile.Email)
 		switch {
 		case existErr == nil:
+			if !profile.EmailVerified {
+				writeError(w, http.StatusForbidden, "provider email is not verified; cannot link to an existing account")
+				return
+			}
 			user = existing
 		case existErr == store.ErrNotFound:
+			if !profile.EmailVerified {
+				writeError(w, http.StatusForbidden, "provider email is not verified")
+				return
+			}
 			enabled, regErr := a.Store.RegistrationEnabled(r.Context())
 			if regErr != nil {
 				mapStoreErr(w, regErr)
@@ -297,9 +305,10 @@ func oauthRedirectURI(cfg *config.Config, m *store.OauthMaterial, provider strin
 // --- profile fetching ---
 
 type oauthProfile struct {
-	ID    string
-	Email string
-	Name  string
+	ID            string
+	Email         string
+	Name          string
+	EmailVerified bool
 }
 
 func fetchOauthProfile(ctx context.Context, conf *oauth2.Config, tok *oauth2.Token, userInfoURL, provider string) (*oauthProfile, error) {
@@ -314,29 +323,30 @@ func fetchOauthProfile(ctx context.Context, conf *oauth2.Config, tok *oauth2.Tok
 	case "github":
 		profile.ID = rawOauthStr(raw, "id")
 		profile.Name = rawOauthStr(raw, "name")
-		profile.Email = rawOauthStr(raw, "email")
 		if profile.Name == "" {
 			profile.Name = rawOauthStr(raw, "login")
 		}
-		if profile.Email == "" {
-			profile.Email = fetchGithubPrimaryEmail(ctx, client)
-		}
+		profile.Email = fetchGithubPrimaryEmail(ctx, client)
+		profile.EmailVerified = profile.Email != ""
 	case "gitlab":
 		profile.ID = rawOauthStr(raw, "id")
 		profile.Email = rawOauthStr(raw, "email")
 		profile.Name = rawOauthStr(raw, "name")
+		profile.EmailVerified = rawOauthStr(raw, "confirmed_at") != "" || rawOauthBool(raw, "email_verified")
 	case "bitbucket":
 		profile.ID = rawOauthStr(raw, "uuid")
 		profile.Name = rawOauthStr(raw, "display_name")
-		profile.Email = fetchBitbucketPrimaryEmail(ctx, client)
+		profile.Email, profile.EmailVerified = fetchBitbucketPrimaryEmail(ctx, client)
 	case "discord":
 		profile.ID = rawOauthStr(raw, "id")
 		profile.Email = rawOauthStr(raw, "email")
 		profile.Name = rawOauthStr(raw, "username")
+		profile.EmailVerified = rawOauthBool(raw, "verified")
 	case "google":
 		profile.ID = rawOauthStr(raw, "sub")
 		profile.Email = rawOauthStr(raw, "email")
 		profile.Name = rawOauthStr(raw, "name")
+		profile.EmailVerified = rawOauthBool(raw, "email_verified")
 	case "azure":
 		profile.ID = rawOauthStr(raw, "id")
 		profile.Email = rawOauthStr(raw, "mail")
@@ -344,10 +354,12 @@ func fetchOauthProfile(ctx context.Context, conf *oauth2.Config, tok *oauth2.Tok
 			profile.Email = rawOauthStr(raw, "userPrincipalName")
 		}
 		profile.Name = rawOauthStr(raw, "displayName")
+		profile.EmailVerified = profile.Email != ""
 	default: // generic OIDC-style userinfo (authentik, clerk, infomaniak, zitadel, ...)
 		profile.ID = rawOauthStr(raw, "sub")
 		profile.Email = rawOauthStr(raw, "email")
 		profile.Name = rawOauthStr(raw, "name")
+		profile.EmailVerified = rawOauthBool(raw, "email_verified")
 	}
 	return profile, nil
 }
@@ -394,6 +406,21 @@ func rawOauthStr(m map[string]any, key string) string {
 	}
 }
 
+func rawOauthBool(m map[string]any, key string) bool {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return false
+	}
+	switch t := v.(type) {
+	case bool:
+		return t
+	case string:
+		return strings.EqualFold(t, "true") || t == "1"
+	default:
+		return false
+	}
+}
+
 func fetchGithubPrimaryEmail(ctx context.Context, client *http.Client) string {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user/emails", nil)
 	if err != nil {
@@ -426,24 +453,21 @@ func fetchGithubPrimaryEmail(ctx context.Context, client *http.Client) string {
 			return e.Email
 		}
 	}
-	if len(emails) > 0 {
-		return emails[0].Email
-	}
 	return ""
 }
 
-func fetchBitbucketPrimaryEmail(ctx context.Context, client *http.Client) string {
+func fetchBitbucketPrimaryEmail(ctx context.Context, client *http.Client) (string, bool) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.bitbucket.org/2.0/user/emails", nil)
 	if err != nil {
-		return ""
+		return "", false
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		return ""
+		return "", false
 	}
 	defer res.Body.Close()
 	if res.StatusCode >= 300 {
-		return ""
+		return "", false
 	}
 	var payload struct {
 		Values []struct {
@@ -453,20 +477,17 @@ func fetchBitbucketPrimaryEmail(ctx context.Context, client *http.Client) string
 		} `json:"values"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
-		return ""
+		return "", false
 	}
 	for _, e := range payload.Values {
 		if e.IsPrimary && e.IsConfirmed {
-			return e.Email
+			return e.Email, true
 		}
 	}
 	for _, e := range payload.Values {
 		if e.IsConfirmed {
-			return e.Email
+			return e.Email, true
 		}
 	}
-	if len(payload.Values) > 0 {
-		return payload.Values[0].Email
-	}
-	return ""
+	return "", false
 }

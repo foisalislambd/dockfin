@@ -5,12 +5,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/crypto"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -169,6 +168,11 @@ func (s *Store) DeleteSession(ctx context.Context, token string) error {
 	return err
 }
 
+func (s *Store) DeleteSessionsForUser(ctx context.Context, userID uuid.UUID) error {
+	_, err := s.Pool.Exec(ctx, `DELETE FROM sessions WHERE user_id = $1`, userID)
+	return err
+}
+
 func (s *Store) SetCurrentTeam(ctx context.Context, sessionID, teamID uuid.UUID) error {
 	_, err := s.Pool.Exec(ctx, `UPDATE sessions SET current_team_id = $1 WHERE id = $2`, teamID, sessionID)
 	return err
@@ -220,11 +224,3 @@ func (s *Store) EnsureMembership(ctx context.Context, userID, teamID uuid.UUID) 
 }
 
 func MustUUID() uuid.UUID { return uuid.New() }
-
-func ParseUUID(s string) (uuid.UUID, error) {
-	id, err := uuid.Parse(s)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("invalid uuid: %w", err)
-	}
-	return id, nil
-}

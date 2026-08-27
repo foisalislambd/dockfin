@@ -41,7 +41,7 @@ func newTestStore(t *testing.T) (*store.Store, context.Context) {
 		t.Fatal(err)
 	}
 	if err := db.Migrate(dsn); err != nil {
-		t.Logf("migrate warning: %v", err)
+		t.Fatalf("migrate: %v", err)
 	}
 	return store.New(pool, box), ctx
 }
@@ -229,5 +229,34 @@ func TestPasswordResetTokenLifecycle(t *testing.T) {
 	_, storedHash, err := st.GetUserByEmail(ctx, user.Email)
 	if err != nil || !crypto.VerifyPassword(storedHash, "brandnewpassword1") {
 		t.Fatalf("password update did not take effect: err=%v", err)
+	}
+}
+
+func TestDeleteSessionsForUser(t *testing.T) {
+	st, ctx := newTestStore(t)
+	email := "session-user-" + mustRandomSuffix(t) + "@example.com"
+	hash, err := crypto.HashPassword("supersecret1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	user, team, err := st.CreateUserWithPersonalTeam(ctx, email, "Session User", hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok, err := crypto.RandomToken(16)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.CreateSession(ctx, user.ID, team.ID, tok, time.Now().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.GetSession(ctx, tok); err != nil {
+		t.Fatalf("session should exist: %v", err)
+	}
+	if err := st.DeleteSessionsForUser(ctx, user.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.GetSession(ctx, tok); err != store.ErrNotFound {
+		t.Fatalf("expected session revoked, got %v", err)
 	}
 }

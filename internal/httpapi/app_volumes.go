@@ -1,7 +1,9 @@
 package httpapi
 
 import (
+	"fmt"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -62,6 +64,10 @@ func (a *API) handleUpsertAppVolume(w http.ResponseWriter, r *http.Request) {
 		}, body.Name)
 		body.HostPath = "/data/dockfin/applications/" + appID.String() + "/volumes/" + safe
 	}
+	if err := validateVolumeHostPath(body.HostPath, isTeamAdmin(r)); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	v, err := a.Store.UpsertVolume(r.Context(), teamID, "application", appID, body.Name, body.MountPath, body.HostPath, body.IsFile)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -100,4 +106,35 @@ func (a *API) handleDeleteAppVolume(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+// validateVolumeHostPath blocks path traversal, docker.sock, and (for members)
+// bind-mounts outside /data/dockfin.
+func validateVolumeHostPath(hostPath string, admin bool) error {
+	p := strings.TrimSpace(hostPath)
+	if p == "" {
+		return fmt.Errorf("host_path required")
+	}
+	if strings.Contains(p, "..") {
+		return fmt.Errorf("host_path must not contain ..")
+	}
+	cleaned := filepath.Clean(p)
+	if !filepath.IsAbs(cleaned) {
+		return fmt.Errorf("host_path must be an absolute path")
+	}
+	lower := strings.ToLower(cleaned)
+	if lower == "/var/run/docker.sock" || strings.HasSuffix(lower, "/docker.sock") {
+		return fmt.Errorf("docker.sock bind mounts are not allowed")
+	}
+	for _, prefix := range []string{"/etc", "/root", "/proc", "/sys", "/boot"} {
+		if cleaned == prefix || strings.HasPrefix(cleaned, prefix+"/") {
+			if !admin {
+				return fmt.Errorf("host path %s requires admin or owner role", cleaned)
+			}
+		}
+	}
+	if !admin && cleaned != "/data/dockfin" && !strings.HasPrefix(cleaned, "/data/dockfin/") {
+		return fmt.Errorf("custom host paths outside /data/dockfin require admin or owner role")
+	}
+	return nil
 }

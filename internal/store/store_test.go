@@ -48,7 +48,7 @@ func TestCryptoEnvResolveCancelDeployment(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := db.Migrate(dsn); err != nil {
-		t.Logf("migrate warning: %v", err)
+		t.Fatalf("migrate: %v", err)
 	}
 
 	st := store.New(pool, box)

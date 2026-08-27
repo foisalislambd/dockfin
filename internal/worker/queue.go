@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/deploy"
 	"github.com/dockfin/dockfin/internal/notify"
 	"github.com/dockfin/dockfin/internal/redact"
@@ -15,6 +14,7 @@ import (
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/dockfin/dockfin/internal/ws"
+	"github.com/google/uuid"
 )
 
 type DeployJob struct {
@@ -41,7 +41,7 @@ func NewQueue(st *store.Store, sshPool *sshx.Pool, hub *ws.Hub, workers int) *Qu
 		Store: st,
 		SSH:   sshPool,
 		Hub:   hub,
-		jobs:  make(chan DeployJob, 256),
+		jobs:  make(chan DeployJob, workers*64),
 	}
 }
 

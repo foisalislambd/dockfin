@@ -12,12 +12,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/backup"
 	"github.com/dockfin/dockfin/internal/database"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -385,13 +385,7 @@ func (a *API) handleRestoreDatabaseBackup(w http.ResponseWriter, r *http.Request
 	}
 	container := database.ContainerName(id.String())
 	dumpPath := backup.DumpPath(filename)
-	var restoreErr error
-	switch db.Engine {
-	case "postgresql":
-		restoreErr = backup.RestorePostgres(client, container, password, dumpPath)
-	case "mysql", "mariadb":
-		restoreErr = backup.RestoreMySQL(client, container, password, dumpPath)
-	}
+	restoreErr := backup.RestoreDatabase(client, db.Engine, container, password, dumpPath)
 	if restoreErr != nil {
 		writeError(w, http.StatusInternalServerError, restoreErr.Error())
 		return
@@ -481,13 +475,7 @@ func (a *API) handleImportDatabaseBackup(w http.ResponseWriter, r *http.Request)
 	resp := map[string]any{"status": "imported", "filename": filename, "size_bytes": len(data)}
 	if restore {
 		container := database.ContainerName(id.String())
-		var restoreErr error
-		switch db.Engine {
-		case "postgresql":
-			restoreErr = backup.RestorePostgres(client, container, password, dumpPath)
-		case "mysql", "mariadb":
-			restoreErr = backup.RestoreMySQL(client, container, password, dumpPath)
-		}
+		restoreErr := backup.RestoreDatabase(client, db.Engine, container, password, dumpPath)
 		if restoreErr != nil {
 			writeError(w, http.StatusInternalServerError, restoreErr.Error())
 			return

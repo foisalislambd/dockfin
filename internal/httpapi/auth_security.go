@@ -306,5 +306,6 @@ func (a *API) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
+	_ = a.Store.DeleteSessionsForUser(r.Context(), user.ID)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

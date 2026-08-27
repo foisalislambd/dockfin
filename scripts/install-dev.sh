@@ -99,11 +99,6 @@ else
       echo "POSTGRES_PASSWORD=${DBPASS}" >> "${ENV_FILE}"
     fi
   fi
-  if grep -q '^DOCKFIN_ENV=' "${ENV_FILE}"; then
-    sed -i 's/^DOCKFIN_ENV=.*/DOCKFIN_ENV=development/' "${ENV_FILE}"
-  else
-    echo "DOCKFIN_ENV=development" >> "${ENV_FILE}"
-  fi
   echo "==> Using existing ${ENV_FILE}"
 fi
 

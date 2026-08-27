@@ -232,7 +232,10 @@ func (a *API) handleSetServiceWebhookSecret(w http.ResponseWriter, r *http.Reque
 	var body struct {
 		Secret string `json:"secret"`
 	}
-	_ = decodeJSON(r, &body)
+	if err := decodeJSONOptional(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
 	if body.Secret == "" {
 		body.Secret, _ = crypto.RandomToken(32)
 	}

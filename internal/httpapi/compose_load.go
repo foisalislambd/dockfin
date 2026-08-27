@@ -49,7 +49,10 @@ func (a *API) handleLoadComposeForApp(w http.ResponseWriter, r *http.Request) {
 		BaseDirectory         *string `json:"base_directory"`
 		DockerComposeLocation *string `json:"docker_compose_location"`
 	}
-	_ = decodeJSON(r, &body)
+	if err := decodeJSONOptional(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
 	if body.BaseDirectory != nil {
 		app.BaseDirectory = strings.TrimSpace(*body.BaseDirectory)
 		if app.BaseDirectory == "" {

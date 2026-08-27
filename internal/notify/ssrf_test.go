@@ -19,3 +19,10 @@ func TestURLPolicyBlocksPrivate(t *testing.T) {
 		t.Fatalf("allowlisted CIDR: %v", err)
 	}
 }
+
+func TestURLPolicyRejectsUnresolvedHost(t *testing.T) {
+	p := URLPolicy{}
+	if err := p.ValidateHTTPURL("http://this-host-should-not-resolve.invalid/hook"); err == nil {
+		t.Fatal("expected unresolved host to be rejected")
+	}
+}

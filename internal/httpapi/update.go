@@ -7,12 +7,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/proxy"
 	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/dockfin/dockfin/internal/worker"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
@@ -28,103 +28,117 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Name                    *string `json:"name"`
-		Description             *string `json:"description"`
-		FQDN                    *string `json:"fqdn"`
-		BuildPack               *string `json:"build_pack"`
-		GitRepository           *string `json:"git_repository"`
-		GitBranch               *string `json:"git_branch"`
-		PortsExposes            *string `json:"ports_exposes"`
-		PortsMappings           *string `json:"ports_mappings"`
-		CustomNetworkAliases    *string `json:"custom_network_aliases"`
-		InstallCommand          *string `json:"install_command"`
-		BuildCommand            *string `json:"build_command"`
-		StartCommand            *string `json:"start_command"`
-		PublishDirectory        *string `json:"publish_directory"`
-		CustomNginxConfiguration *string `json:"custom_nginx_configuration"`
-		PreviewURLTemplate      *string `json:"preview_url_template"`
-		DockerRegistryImageName *string `json:"docker_registry_image_name"`
-		DockerRegistryImageTag  *string `json:"docker_registry_image_tag"`
-		DockerfileLocation      *string `json:"dockerfile_location"`
-		Dockerfile              *string `json:"dockerfile"`
-		DockerComposeLocation   *string `json:"docker_compose_location"`
-		ComposePrepare          *bool   `json:"compose_prepare"`
-		BaseDirectory           *string `json:"base_directory"`
-		DockerComposeCustomBuildCommand *string `json:"docker_compose_custom_build_command"`
-		DockerComposeCustomStartCommand *string `json:"docker_compose_custom_start_command"`
-		CustomDockerRunOptions  *string `json:"custom_docker_run_options"`
-		DockerfileTargetBuild   *string `json:"dockerfile_target_build"`
-		DockerComposeDomains    map[string]composeServiceDomain `json:"docker_compose_domains"`
-		DestinationID           *string `json:"destination_id"`
-		GitSourceID             *string `json:"git_source_id"`
-		PrivateKeyID            *string `json:"private_key_id"`
-		IsBuildServerEnabled    *bool   `json:"is_build_server_enabled"`
-		IsForceHTTPS            *bool   `json:"is_force_https"`
-		IsPreviewEnabled        *bool   `json:"is_preview_enabled"`
-		IsAutoDeployEnabled     *bool   `json:"is_auto_deploy_enabled"`
-		IsGitSubmodulesEnabled  *bool   `json:"is_git_submodules_enabled"`
-		IsPreserveRepositoryEnabled *bool `json:"is_preserve_repository_enabled"`
-		WatchPaths              *string `json:"watch_paths"`
-		PreDeploymentCommand    *string `json:"pre_deployment_command"`
-		PostDeploymentCommand   *string `json:"post_deployment_command"`
-		CustomLabels            *string `json:"custom_labels"`
-		HTTPBasicAuthUsername   *string `json:"http_basic_auth_username"`
-		HTTPBasicAuthPassword   *string `json:"http_basic_auth_password"`
-		ClearHTTPBasicAuth      *bool   `json:"clear_http_basic_auth"`
-		HealthCheckEnabled      *bool   `json:"health_check_enabled"`
-		HealthCheckPath         *string `json:"health_check_path"`
-		HealthCheckPort         *int    `json:"health_check_port"`
-		HealthCheckMethod       *string `json:"health_check_method"`
-		HealthCheckReturnCode   *int    `json:"health_check_return_code"`
-		HealthCheckInterval     *int    `json:"health_check_interval"`
-		HealthCheckTimeout      *int    `json:"health_check_timeout"`
-		HealthCheckRetries      *int    `json:"health_check_retries"`
-		HealthCheckHost         *string `json:"health_check_host"`
-		HealthCheckScheme       *string `json:"health_check_scheme"`
-		HealthCheckResponseText *string `json:"health_check_response_text"`
-		HealthCheckStartPeriod  *int    `json:"health_check_start_period"`
-		HealthCheckType         *string `json:"health_check_type"`
-		HealthCheckCommand      *string `json:"health_check_command"`
-		LimitsMemory            *string `json:"limits_memory"`
-		LimitsCpus              *string `json:"limits_cpus"`
-		Redirect                *string `json:"redirect"`
-		DockerRegistryID        *string `json:"docker_registry_id"`
-		IsDisableBuildCache     *bool   `json:"is_disable_build_cache"`
-		IsGitShallowCloneEnabled *bool  `json:"is_git_shallow_clone_enabled"`
-		IsGitLFSEnabled         *bool   `json:"is_git_lfs_enabled"`
-		IsGPUEnabled            *bool   `json:"is_gpu_enabled"`
-		GPUCount                *int    `json:"gpu_count"`
-		CustomDockerStopTimeout *int    `json:"custom_docker_stop_timeout"`
-		CustomDockerRestartPolicy *string `json:"custom_docker_restart_policy"`
-		IsSPA                   *bool   `json:"is_spa"`
-		InjectBuildArgsToDockerfile *bool `json:"inject_build_args_to_dockerfile"`
-		UseBuildSecrets         *bool   `json:"use_build_secrets"`
-		IncludeSourceCommitInBuild *bool `json:"include_source_commit_in_build"`
-		DockerImagesToKeep      *int    `json:"docker_images_to_keep"`
-		IsConsistentContainerNameEnabled *bool `json:"is_consistent_container_name_enabled"`
-		CustomInternalName      *string `json:"custom_internal_name"`
-		IsGzipEnabled           *bool   `json:"is_gzip_enabled"`
-		IsStripPrefixEnabled    *bool   `json:"is_stripprefix_enabled"`
-		IsLogDrainEnabled       *bool   `json:"is_log_drain_enabled"`
-		IsDebugEnabled          *bool   `json:"is_debug_enabled"`
-		IsEnvSortingEnabled     *bool   `json:"is_env_sorting_enabled"`
-		IsPRDeploymentsPublicEnabled *bool `json:"is_pr_deployments_public_enabled"`
-		SkipRebuildIfUnchanged  *bool   `json:"skip_rebuild_if_unchanged"`
-		GPUDriver               *string `json:"gpu_driver"`
-		GPUDeviceIDs            *string `json:"gpu_device_ids"`
-		GPUOptions              *string `json:"gpu_options"`
-		CustomDockerMaxRestartCount *int `json:"custom_docker_max_restart_count"`
-		PreDeploymentCommandContainer *string `json:"pre_deployment_command_container"`
-		PostDeploymentCommandContainer *string `json:"post_deployment_command_container"`
-		IsSwarmOnlyWorkerNodes  *bool   `json:"is_swarm_only_worker_nodes"`
-		IsIncludeTimestamps     *bool   `json:"is_include_timestamps"`
-		LogsLineLimit           *int    `json:"logs_line_limit"`
-		SwarmReplicas           *int    `json:"swarm_replicas"`
-		SwarmPlacementConstraints *string `json:"swarm_placement_constraints"`
+		Name                             *string                         `json:"name"`
+		Description                      *string                         `json:"description"`
+		FQDN                             *string                         `json:"fqdn"`
+		BuildPack                        *string                         `json:"build_pack"`
+		GitRepository                    *string                         `json:"git_repository"`
+		GitBranch                        *string                         `json:"git_branch"`
+		PortsExposes                     *string                         `json:"ports_exposes"`
+		PortsMappings                    *string                         `json:"ports_mappings"`
+		CustomNetworkAliases             *string                         `json:"custom_network_aliases"`
+		InstallCommand                   *string                         `json:"install_command"`
+		BuildCommand                     *string                         `json:"build_command"`
+		StartCommand                     *string                         `json:"start_command"`
+		PublishDirectory                 *string                         `json:"publish_directory"`
+		CustomNginxConfiguration         *string                         `json:"custom_nginx_configuration"`
+		PreviewURLTemplate               *string                         `json:"preview_url_template"`
+		DockerRegistryImageName          *string                         `json:"docker_registry_image_name"`
+		DockerRegistryImageTag           *string                         `json:"docker_registry_image_tag"`
+		DockerfileLocation               *string                         `json:"dockerfile_location"`
+		Dockerfile                       *string                         `json:"dockerfile"`
+		DockerComposeLocation            *string                         `json:"docker_compose_location"`
+		ComposePrepare                   *bool                           `json:"compose_prepare"`
+		BaseDirectory                    *string                         `json:"base_directory"`
+		DockerComposeCustomBuildCommand  *string                         `json:"docker_compose_custom_build_command"`
+		DockerComposeCustomStartCommand  *string                         `json:"docker_compose_custom_start_command"`
+		CustomDockerRunOptions           *string                         `json:"custom_docker_run_options"`
+		DockerfileTargetBuild            *string                         `json:"dockerfile_target_build"`
+		DockerComposeDomains             map[string]composeServiceDomain `json:"docker_compose_domains"`
+		DestinationID                    *string                         `json:"destination_id"`
+		GitSourceID                      *string                         `json:"git_source_id"`
+		PrivateKeyID                     *string                         `json:"private_key_id"`
+		IsBuildServerEnabled             *bool                           `json:"is_build_server_enabled"`
+		IsForceHTTPS                     *bool                           `json:"is_force_https"`
+		IsPreviewEnabled                 *bool                           `json:"is_preview_enabled"`
+		IsAutoDeployEnabled              *bool                           `json:"is_auto_deploy_enabled"`
+		IsGitSubmodulesEnabled           *bool                           `json:"is_git_submodules_enabled"`
+		IsPreserveRepositoryEnabled      *bool                           `json:"is_preserve_repository_enabled"`
+		WatchPaths                       *string                         `json:"watch_paths"`
+		PreDeploymentCommand             *string                         `json:"pre_deployment_command"`
+		PostDeploymentCommand            *string                         `json:"post_deployment_command"`
+		CustomLabels                     *string                         `json:"custom_labels"`
+		HTTPBasicAuthUsername            *string                         `json:"http_basic_auth_username"`
+		HTTPBasicAuthPassword            *string                         `json:"http_basic_auth_password"`
+		ClearHTTPBasicAuth               *bool                           `json:"clear_http_basic_auth"`
+		HealthCheckEnabled               *bool                           `json:"health_check_enabled"`
+		HealthCheckPath                  *string                         `json:"health_check_path"`
+		HealthCheckPort                  *int                            `json:"health_check_port"`
+		HealthCheckMethod                *string                         `json:"health_check_method"`
+		HealthCheckReturnCode            *int                            `json:"health_check_return_code"`
+		HealthCheckInterval              *int                            `json:"health_check_interval"`
+		HealthCheckTimeout               *int                            `json:"health_check_timeout"`
+		HealthCheckRetries               *int                            `json:"health_check_retries"`
+		HealthCheckHost                  *string                         `json:"health_check_host"`
+		HealthCheckScheme                *string                         `json:"health_check_scheme"`
+		HealthCheckResponseText          *string                         `json:"health_check_response_text"`
+		HealthCheckStartPeriod           *int                            `json:"health_check_start_period"`
+		HealthCheckType                  *string                         `json:"health_check_type"`
+		HealthCheckCommand               *string                         `json:"health_check_command"`
+		LimitsMemory                     *string                         `json:"limits_memory"`
+		LimitsCpus                       *string                         `json:"limits_cpus"`
+		Redirect                         *string                         `json:"redirect"`
+		DockerRegistryID                 *string                         `json:"docker_registry_id"`
+		IsDisableBuildCache              *bool                           `json:"is_disable_build_cache"`
+		IsGitShallowCloneEnabled         *bool                           `json:"is_git_shallow_clone_enabled"`
+		IsGitLFSEnabled                  *bool                           `json:"is_git_lfs_enabled"`
+		IsGPUEnabled                     *bool                           `json:"is_gpu_enabled"`
+		GPUCount                         *int                            `json:"gpu_count"`
+		CustomDockerStopTimeout          *int                            `json:"custom_docker_stop_timeout"`
+		CustomDockerRestartPolicy        *string                         `json:"custom_docker_restart_policy"`
+		IsSPA                            *bool                           `json:"is_spa"`
+		InjectBuildArgsToDockerfile      *bool                           `json:"inject_build_args_to_dockerfile"`
+		UseBuildSecrets                  *bool                           `json:"use_build_secrets"`
+		IncludeSourceCommitInBuild       *bool                           `json:"include_source_commit_in_build"`
+		DockerImagesToKeep               *int                            `json:"docker_images_to_keep"`
+		IsConsistentContainerNameEnabled *bool                           `json:"is_consistent_container_name_enabled"`
+		CustomInternalName               *string                         `json:"custom_internal_name"`
+		IsGzipEnabled                    *bool                           `json:"is_gzip_enabled"`
+		IsStripPrefixEnabled             *bool                           `json:"is_stripprefix_enabled"`
+		IsLogDrainEnabled                *bool                           `json:"is_log_drain_enabled"`
+		IsDebugEnabled                   *bool                           `json:"is_debug_enabled"`
+		IsEnvSortingEnabled              *bool                           `json:"is_env_sorting_enabled"`
+		IsPRDeploymentsPublicEnabled     *bool                           `json:"is_pr_deployments_public_enabled"`
+		SkipRebuildIfUnchanged           *bool                           `json:"skip_rebuild_if_unchanged"`
+		GPUDriver                        *string                         `json:"gpu_driver"`
+		GPUDeviceIDs                     *string                         `json:"gpu_device_ids"`
+		GPUOptions                       *string                         `json:"gpu_options"`
+		CustomDockerMaxRestartCount      *int                            `json:"custom_docker_max_restart_count"`
+		PreDeploymentCommandContainer    *string                         `json:"pre_deployment_command_container"`
+		PostDeploymentCommandContainer   *string                         `json:"post_deployment_command_container"`
+		IsSwarmOnlyWorkerNodes           *bool                           `json:"is_swarm_only_worker_nodes"`
+		IsIncludeTimestamps              *bool                           `json:"is_include_timestamps"`
+		LogsLineLimit                    *int                            `json:"logs_line_limit"`
+		SwarmReplicas                    *int                            `json:"swarm_replicas"`
+		SwarmPlacementConstraints        *string                         `json:"swarm_placement_constraints"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
 		return
+	}
+	// The dashboard PATCHes the full form. Members may echo existing host-command
+	// fields; they must not change them.
+	if !isTeamAdmin(r) {
+		if stringPtrChanged(body.PreDeploymentCommand, app.PreDeploymentCommand) ||
+			stringPtrChanged(body.PostDeploymentCommand, app.PostDeploymentCommand) ||
+			stringPtrChanged(body.PreDeploymentCommandContainer, app.PreDeploymentCommandContainer) ||
+			stringPtrChanged(body.PostDeploymentCommandContainer, app.PostDeploymentCommandContainer) ||
+			stringPtrChanged(body.CustomDockerRunOptions, app.CustomDockerRunOptions) ||
+			stringPtrChanged(body.DockerComposeCustomBuildCommand, app.DockerComposeCustomBuildCommand) ||
+			stringPtrChanged(body.DockerComposeCustomStartCommand, app.DockerComposeCustomStartCommand) {
+			writeError(w, http.StatusForbidden, "host-impacting deploy commands require admin or owner role")
+			return
+		}
 	}
 	if body.Name != nil {
 		app.Name = *body.Name
@@ -678,7 +692,10 @@ func (a *API) handleRollbackApplication(w http.ResponseWriter, r *http.Request) 
 		ForceRebuild bool   `json:"force_rebuild"`
 		CommitSHA    string `json:"commit_sha"`
 	}
-	_ = decodeJSON(r, &body)
+	if err := decodeJSONOptional(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
 	app, err := a.Store.GetApplication(r.Context(), teamID, appID)
 	if err != nil {
 		mapStoreErr(w, err)
@@ -725,4 +742,11 @@ func (a *API) handleRollbackApplication(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusAccepted, dep)
+}
+
+func stringPtrChanged(newVal *string, current string) bool {
+	if newVal == nil {
+		return false
+	}
+	return strings.TrimSpace(*newVal) != strings.TrimSpace(current)
 }

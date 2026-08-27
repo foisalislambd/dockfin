@@ -34,7 +34,10 @@ func (a *API) handleCloudflareTunnelAction(w http.ResponseWriter, r *http.Reques
 	var body struct {
 		Token string `json:"cloudflare_tunnel_token"`
 	}
-	_ = decodeJSON(r, &body)
+	if err := decodeJSONOptional(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
 	if tok := strings.TrimSpace(body.Token); tok != "" && !strings.Contains(tok, "…") {
 		ops.CloudflareTunnelToken = tok
 	}

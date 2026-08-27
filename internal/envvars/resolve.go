@@ -2,7 +2,6 @@ package envvars
 
 import (
 	"regexp"
-	"strings"
 )
 
 var refPattern = regexp.MustCompile(`\{\{(team|project|environment|server)\.([A-Za-z0-9_]+)\}\}`)
@@ -22,8 +21,4 @@ func Resolve(value string, scopes map[string]map[string]string) string {
 		}
 		return m
 	})
-}
-
-func IsLiteral(value string) bool {
-	return strings.HasPrefix(value, "\\") || !strings.Contains(value, "{{")
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { safeExternalHref } from '../lib/url'
 
 export type ResourceLink = {
   label: string
@@ -54,23 +55,38 @@ export function LinksMenu({ links, className = '' }: { links: ResourceLink[]; cl
           {items.length === 0 ? (
             <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">No links available</div>
           ) : (
-            items.map((l) => (
-              <a
-                key={l.url}
-                role="menuitem"
-                href={l.url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-start gap-2 px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
-                onClick={() => setOpen(false)}
-              >
+            items.map((l) => {
+              const href = safeExternalHref(l.url)
+              const inner = (
+                <>
                 <ExternalIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-600 dark:text-brand-400" />
                 <span className="min-w-0">
                   <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">{l.label}</span>
                   <span className="block truncate font-mono text-xs">{l.url}</span>
                 </span>
+                </>
+              )
+              if (!href) {
+                return (
+                  <div key={l.url} role="menuitem" className="flex items-start gap-2 px-3 py-2 text-sm text-gray-800 dark:text-gray-100">
+                    {inner}
+                  </div>
+                )
+              }
+              return (
+              <a
+                key={l.url}
+                role="menuitem"
+                href={href}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-start gap-2 px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                onClick={() => setOpen(false)}
+              >
+                {inner}
               </a>
-            ))
+              )
+            })
           )}
         </div>
       )}
@@ -128,8 +144,9 @@ export function LinksPanel({ links }: { links: ResourceLink[] }) {
               </div>
               <div className="mt-0.5 truncate font-mono text-sm text-gray-900 dark:text-white">{l.url}</div>
             </div>
+            {safeExternalHref(l.url) ? (
             <a
-              href={l.url}
+              href={safeExternalHref(l.url)}
               target="_blank"
               rel="noreferrer"
               className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-brand-600 px-2.5 text-xs font-medium text-white hover:bg-brand-500"
@@ -137,6 +154,7 @@ export function LinksPanel({ links }: { links: ResourceLink[] }) {
               Visit
               <ExternalIcon className="h-3.5 w-3.5" />
             </a>
+            ) : null}
           </li>
         ))}
       </ul>

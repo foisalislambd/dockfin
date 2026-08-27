@@ -35,6 +35,9 @@ func (a *API) handleGetInstanceSettings(w http.ResponseWriter, r *http.Request) 
 	if st.PublicURL == "" && a.Cfg != nil && a.Cfg.PublicURL != "" {
 		st.PublicURL = a.Cfg.PublicURL
 	}
+	if !isTeamAdmin(r) {
+		st.SMTPUsername = ""
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"settings": st})
 }
 

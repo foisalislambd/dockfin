@@ -113,7 +113,10 @@ func (a *API) handleCloneApplication(w http.ResponseWriter, r *http.Request) {
 		Name          string `json:"name"`
 		EnvironmentID string `json:"environment_id"`
 	}
-	_ = decodeJSON(r, &body)
+	if err := decodeJSONOptional(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
 	teamID := currentTeamID(r)
 	var envID *uuid.UUID
 	if strings.TrimSpace(body.EnvironmentID) != "" {

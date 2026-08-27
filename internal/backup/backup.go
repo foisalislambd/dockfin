@@ -99,6 +99,40 @@ func RestoreMySQL(client *ssh.Client, container, password, dumpPath string) erro
 	return nil
 }
 
+// RestoreRedis copies an RDB/AOF dump into the container data dir and restarts Redis/KeyDB.
+func RestoreRedis(client *ssh.Client, container, dumpPath string) error {
+	c := shellQuote(container)
+	dump := shellQuote(dumpPath)
+	dest := "/data/dump.rdb"
+	if strings.HasSuffix(strings.ToLower(dumpPath), ".aof") {
+		dest = "/data/appendonly.aof"
+	}
+	cmd := fmt.Sprintf(
+		`if [ ! -f %s ]; then echo 'dump not found' >&2; exit 1; fi; `+
+			`docker stop %s >/dev/null; docker cp %s %s:%s; docker start %s >/dev/null`,
+		dump, c, dump, c, dest, c,
+	)
+	_, errOut, err := sshx.Run(client, cmd)
+	if err != nil {
+		return fmt.Errorf("redis restore: %v %s", err, errOut)
+	}
+	return nil
+}
+
+// RestoreDatabase dispatches to the engine-specific restore implementation.
+func RestoreDatabase(client *ssh.Client, engine, container, password, dumpPath string) error {
+	switch engine {
+	case "postgresql":
+		return RestorePostgres(client, container, password, dumpPath)
+	case "mysql", "mariadb":
+		return RestoreMySQL(client, container, password, dumpPath)
+	case "redis", "keydb":
+		return RestoreRedis(client, container, dumpPath)
+	default:
+		return fmt.Errorf("restore not supported for engine %q", engine)
+	}
+}
+
 // FileSize returns remote file size in bytes (best-effort).
 func FileSize(client *ssh.Client, path string) int64 {
 	out, _, err := sshx.Run(client, fmt.Sprintf(`stat -c %%s %s 2>/dev/null || wc -c < %s`, shellQuote(path), shellQuote(path)))

@@ -88,7 +88,10 @@ func (a *API) handleGenerateKey(w http.ResponseWriter, r *http.Request) {
 		Name        string `json:"name"`
 		Description string `json:"description"`
 	}
-	_ = decodeJSON(r, &body)
+	if err := decodeJSONOptional(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
 	typ := strings.ToLower(strings.TrimSpace(body.Type))
 	if typ == "" {
 		typ = "ed25519"

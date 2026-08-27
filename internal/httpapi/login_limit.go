@@ -32,8 +32,31 @@ func (l *loginLimiter) allow(ip string) bool {
 			kept = append(kept, t)
 		}
 	}
+	if len(kept) == 0 {
+		delete(l.attempts, ip)
+		return true
+	}
 	l.attempts[ip] = kept
+	if len(l.attempts) > 10000 {
+		l.gcLocked(cut)
+	}
 	return len(kept) < loginMaxFails
+}
+
+func (l *loginLimiter) gcLocked(cut time.Time) {
+	for ip, times := range l.attempts {
+		alive := times[:0]
+		for _, t := range times {
+			if t.After(cut) {
+				alive = append(alive, t)
+			}
+		}
+		if len(alive) == 0 {
+			delete(l.attempts, ip)
+		} else {
+			l.attempts[ip] = alive
+		}
+	}
 }
 
 func (l *loginLimiter) fail(ip string) {

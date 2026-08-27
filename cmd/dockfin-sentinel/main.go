@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"runtime"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -20,22 +21,27 @@ func main() {
 		os.Exit(1)
 	}
 	interval := 30 * time.Second
+	if n, err := strconv.Atoi(env("DOCKFIN_INTERVAL_SEC", "30")); err == nil && n > 0 {
+		interval = time.Duration(n) * time.Second
+	}
+	client := &http.Client{Timeout: 15 * time.Second}
 	for {
+		cpu, memUsed, memTotal, diskUsed, diskTotal := sampleHostMetrics()
 		payload := map[string]any{
 			"server_id":          serverID,
 			"token":              token,
-			"cpu_percent":        float64(runtime.NumCPU()),
-			"memory_used_bytes":  0,
-			"memory_total_bytes": 0,
-			"disk_used_bytes":    0,
-			"disk_total_bytes":   0,
+			"cpu_percent":        cpu,
+			"memory_used_bytes":  memUsed,
+			"memory_total_bytes": memTotal,
+			"disk_used_bytes":    diskUsed,
+			"disk_total_bytes":   diskTotal,
 		}
 		b, _ := json.Marshal(payload)
 		req, err := http.NewRequest(http.MethodPost, stringsTrim(url)+"/api/v1/sentinel/metrics", bytes.NewReader(b))
 		if err == nil {
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", "Bearer "+token)
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := client.Do(req)
 			if err == nil {
 				_ = resp.Body.Close()
 			}
@@ -52,8 +58,5 @@ func env(k, d string) string {
 }
 
 func stringsTrim(s string) string {
-	for len(s) > 0 && s[len(s)-1] == '/' {
-		s = s[:len(s)-1]
-	}
-	return s
+	return strings.TrimRight(s, "/")
 }

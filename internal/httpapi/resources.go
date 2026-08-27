@@ -563,7 +563,10 @@ func (a *API) handleDeployApplication(w http.ResponseWriter, r *http.Request) {
 		ForceRebuild bool   `json:"force_rebuild"`
 		CommitSHA    string `json:"commit_sha"`
 	}
-	_ = decodeJSON(r, &body)
+	if err := decodeJSONOptional(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
 	teamID := currentTeamID(r)
 	app, err := a.Store.GetApplication(r.Context(), teamID, appID)
 	if err != nil {

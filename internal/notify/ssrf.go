@@ -48,11 +48,10 @@ func (p URLPolicy) ValidateHTTPURL(raw string) error {
 	}
 	ips, err := net.LookupIP(host)
 	if err != nil {
-		// Allow DNS failures to surface at request time; still block obvious literals.
 		if ip := net.ParseIP(host); ip != nil {
 			return p.checkIP(ip, host)
 		}
-		return nil
+		return fmt.Errorf("url host could not be resolved")
 	}
 	for _, ip := range ips {
 		if err := p.checkIP(ip, host); err != nil {

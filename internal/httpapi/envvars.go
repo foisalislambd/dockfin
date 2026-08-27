@@ -4,11 +4,11 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/crypto"
 	"github.com/dockfin/dockfin/internal/git"
 	"github.com/dockfin/dockfin/internal/store"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 func (a *API) handleListEnvVars(w http.ResponseWriter, r *http.Request) {
@@ -19,6 +19,10 @@ func (a *API) handleListEnvVars(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	teamID := currentTeamID(r)
+	if err := a.assertEnvVarResource(r, teamID, resourceType, rid); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
 	// Coolify: once compose is loaded, Environment Variables auto-fill SERVICE_* keys.
 	if resourceType == "application" {
 		a.ensureApplicationComposeEnv(r.Context(), teamID, rid)
@@ -44,19 +48,19 @@ func (a *API) handleListEnvVars(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) handleUpsertEnvVar(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		ResourceType string `json:"resource_type"`
-		ResourceID   string `json:"resource_id"`
-		Key          string `json:"key"`
-		Value        string `json:"value"`
-		IsRuntime    *bool  `json:"is_runtime"`
-		IsBuildtime  *bool  `json:"is_buildtime"`
-		IsLiteral    bool   `json:"is_literal"`
-		IsMultiline  bool   `json:"is_multiline"`
-		IsLocked     bool   `json:"is_locked"`
-		IsPreview    bool   `json:"is_preview"`
-		IsBuildSecret *bool `json:"is_build_secret"`
-		Comment      string `json:"comment"`
-		KeepValue    bool   `json:"keep_value"`
+		ResourceType  string `json:"resource_type"`
+		ResourceID    string `json:"resource_id"`
+		Key           string `json:"key"`
+		Value         string `json:"value"`
+		IsRuntime     *bool  `json:"is_runtime"`
+		IsBuildtime   *bool  `json:"is_buildtime"`
+		IsLiteral     bool   `json:"is_literal"`
+		IsMultiline   bool   `json:"is_multiline"`
+		IsLocked      bool   `json:"is_locked"`
+		IsPreview     bool   `json:"is_preview"`
+		IsBuildSecret *bool  `json:"is_build_secret"`
+		Comment       string `json:"comment"`
+		KeepValue     bool   `json:"keep_value"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -282,15 +286,15 @@ func (a *API) assertEnvVarResource(r *http.Request, teamID uuid.UUID, resourceTy
 	}
 }
 
-// verifyWebhookAuth requires a configured webhook secret except in development,
-// where an empty secret is allowed for local testing.
+// verifyWebhookAuth requires a configured webhook secret unless unsigned
+// webhooks are explicitly allowed (DOCKFIN_ALLOW_UNSIGNED_WEBHOOKS=1).
 func (a *API) verifyWebhookAuth(r *http.Request, appID uuid.UUID, body []byte) error {
 	secret, err := a.Store.GetWebhookSecret(r.Context(), appID)
 	if err != nil && !errors.Is(err, store.ErrNotFound) {
 		return errUnauthorizedWebhook
 	}
 	if secret == "" {
-		if a.Cfg != nil && a.Cfg.IsDev() {
+		if a.Cfg != nil && a.Cfg.AllowUnsignedWebhooks {
 			return nil
 		}
 		return errUnauthorizedWebhook

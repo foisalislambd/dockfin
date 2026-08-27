@@ -61,27 +61,6 @@ func (a *API) syncServiceCoolifyEnv(ctx context.Context, teamID, serviceID uuid.
 	a.syncResourceCoolifyEnv(ctx, teamID, "service", serviceID, raw, prepared, fullEnv)
 }
 
-func (a *API) loadServiceMagicEnv(ctx context.Context, teamID, serviceID uuid.UUID) map[string]string {
-	out := map[string]string{}
-	vars, err := a.Store.ListEnvVars(ctx, teamID, "service", serviceID, true)
-	if err != nil {
-		return out
-	}
-	for _, v := range vars {
-		if strings.HasPrefix(v.Key, "SERVICE_") && strings.TrimSpace(v.Value) != "" {
-			out[v.Key] = strings.TrimSpace(v.Value)
-		}
-	}
-	return out
-}
-
-// preferURLFromMagicEnv picks SERVICE_URL_* (Coolify pair) as public base URL.
-// Skips unusable magic hosts (e.g. *.127.0.0.1.sslip.io) so a repaired FQDN
-// cannot be overwritten by a stale env value.
-func preferURLFromMagicEnv(env map[string]string) (baseURL, fqdn string) {
-	return services.PreferURLFromMagicEnv(env)
-}
-
 // rewriteResourceDomainEnv updates SERVICE_URL_* / SERVICE_FQDN_* pairs to match
 // the resource domains field (Coolify: changing Domains rewrites magic env).
 func (a *API) rewriteResourceDomainEnv(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID, domains string) {

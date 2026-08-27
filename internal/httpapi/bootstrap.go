@@ -273,7 +273,10 @@ func (a *API) handleBootstrapSelf(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		StartProxy *bool `json:"start_proxy"`
 	}
-	_ = decodeJSON(r, &body)
+	if err := decodeJSONOptional(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
 	startProxy := true
 	if body.StartProxy != nil {
 		startProxy = *body.StartProxy

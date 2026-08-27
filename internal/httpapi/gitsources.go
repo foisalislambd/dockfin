@@ -577,7 +577,7 @@ func (a *API) handleGitHubAppEvents(w http.ResponseWriter, r *http.Request) {
 		sig = r.Header.Get("X-Hub-Signature")
 	}
 	if whSecret == "" {
-		if a.Cfg == nil || !a.Cfg.IsDev() {
+		if a.Cfg == nil || !a.Cfg.AllowUnsignedWebhooks {
 			writeError(w, http.StatusUnauthorized, "webhook secret not configured")
 			return
 		}

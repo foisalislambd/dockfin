@@ -28,6 +28,9 @@ type Config struct {
 	BootstrapSSHUser string
 	BootstrapSSHPort int
 	TrustProxy       bool // honor X-Forwarded-* / RealIP only when true
+	// AllowUnsignedWebhooks skips HMAC when no webhook secret is configured.
+	// Never enable on an internet-exposed panel.
+	AllowUnsignedWebhooks bool
 }
 
 func Load() (*Config, error) {
@@ -51,6 +54,7 @@ func Load() (*Config, error) {
 	}
 	cfg.BootstrapSelf = parseBool(getenv("DOCKFIN_BOOTSTRAP_SELF", "1"), true)
 	cfg.TrustProxy = parseBool(getenv("DOCKFIN_TRUST_PROXY", "0"), false)
+	cfg.AllowUnsignedWebhooks = parseBool(getenv("DOCKFIN_ALLOW_UNSIGNED_WEBHOOKS", "0"), false)
 	if p := getenv("DOCKFIN_BOOTSTRAP_SSH_PORT", ""); p != "" {
 		if n, err := fmt.Sscanf(p, "%d", &cfg.BootstrapSSHPort); n != 1 || err != nil || cfg.BootstrapSSHPort <= 0 {
 			cfg.BootstrapSSHPort = 22
@@ -81,7 +85,20 @@ func Load() (*Config, error) {
 	if len(cfg.MasterKey) < 32 {
 		return nil, fmt.Errorf("DOCKFIN_MASTER_KEY must be at least 32 characters")
 	}
+	if !cfg.IsDev() && isInsecureMasterKey(cfg.MasterKey) {
+		return nil, fmt.Errorf("DOCKFIN_MASTER_KEY is a documented example value; set a unique secret in production")
+	}
 	return cfg, nil
+}
+
+func isInsecureMasterKey(key string) bool {
+	switch strings.TrimSpace(key) {
+	case "change-me-to-a-32-byte-secret-key!!",
+		"this-is-a-32-byte-test-master-key!":
+		return true
+	default:
+		return false
+	}
 }
 
 func getenv(k, def string) string {

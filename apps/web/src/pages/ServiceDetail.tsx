@@ -30,6 +30,7 @@ import { DetailPageSkeleton } from '../components/ui/Skeleton'
 import { useConfirm } from '../components/ConfirmDialog'
 import { useToast } from '../components/Toast'
 import { api, type Service, type ServiceUnit } from '../lib/api'
+import { safeExternalHref } from '../lib/url'
 import { Btn, Input } from './Servers'
 
 const TOP_TABS = [
@@ -774,9 +775,9 @@ function UnitCard({
               <span className="font-normal text-gray-500 dark:text-gray-400"> ({unit.image})</span>
             ) : null}
           </div>
-          {link ? (
+          {link && safeExternalHref(link.url) ? (
             <a
-              href={link.url}
+              href={safeExternalHref(link.url)}
               target="_blank"
               rel="noreferrer"
               className="mt-1 inline-flex max-w-full items-center gap-1 truncate text-sm text-brand-600 hover:underline dark:text-brand-400"

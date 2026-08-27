@@ -23,7 +23,10 @@ func (a *API) handleCreateTerminal(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Container string `json:"container"`
 	}
-	_ = decodeJSON(r, &body)
+	if err := decodeJSONOptional(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
 	body.Container = strings.TrimSpace(body.Container)
 	role, _ := r.Context().Value(ctxRole).(string)
 	isAdmin := role == "owner" || role == "admin"

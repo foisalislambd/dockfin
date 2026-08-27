@@ -9,17 +9,34 @@ on:
 jobs:
   go:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: dockfin
+          POSTGRES_PASSWORD: dockfin
+          POSTGRES_DB: dockfin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dockfin"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26.x"
       - name: Test
+        env:
+          DOCKFIN_DATABASE_URL: postgres://dockfin:dockfin@localhost:5432/dockfin?sslmode=disable
         run: go test ./...
       - name: Build
         run: |
           go build -o /tmp/dockfin ./cmd/dockfin
           go build -o /tmp/dfin ./cmd/dfin
+          go build -o /tmp/dockfin-sentinel ./cmd/dockfin-sentinel
 
   web:
     runs-on: ubuntu-latest
