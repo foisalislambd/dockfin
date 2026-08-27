@@ -220,6 +220,7 @@ func (a *API) handleValidateServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = sshx.EnsureNetwork(client, "dockfin")
+	_ = proxy.EnsureProxyJoinedResourceNetworks(client)
 	proxyStatus := proxy.ProxyStatus(client)
 
 	publicIP := strings.TrimSpace(srv.PublicIP)
@@ -293,6 +294,7 @@ func (a *API) handleStartProxy(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, msg)
 		return
 	}
+	_ = proxy.EnsureProxyJoinedResourceNetworks(client)
 	_ = a.Store.UpdateServerProxyStatus(r.Context(), id, "running")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "running", "proxy_type": srv.ProxyType})
 }

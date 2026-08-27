@@ -10,50 +10,53 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dockfin/dockfin/internal/oidc"
+	"github.com/dockfin/dockfin/internal/proxy"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/dockfin/dockfin/internal/proxy"
 )
 
 // InstanceSettings is the singleton instance-wide configuration (Coolify parity).
 type InstanceSettings struct {
-	ID                         int16     `json:"id"`
-	PublicURL                  string    `json:"public_url"`
-	InstanceName               string    `json:"instance_name"`
-	InstanceTimezone           string    `json:"instance_timezone"`
-	PublicIPv4                 string    `json:"public_ipv4"`
-	PublicIPv6                 string    `json:"public_ipv6"`
-	IsRegistrationEnabled      bool      `json:"is_registration_enabled"`
-	DoNotTrack                 bool      `json:"do_not_track"`
-	IsDNSValidationEnabled     bool      `json:"is_dns_validation_enabled"`
-	CustomDNSServers           string    `json:"custom_dns_servers"`
-	IsAPIEnabled               bool      `json:"is_api_enabled"`
-	AllowedIPs                 string    `json:"allowed_ips"`
-	WebhookAllowedInternalHosts string   `json:"webhook_allowed_internal_hosts"`
-	WebhookAllowLocalhost      bool      `json:"webhook_allow_localhost"`
-	IsMCPServerEnabled         bool      `json:"is_mcp_server_enabled"`
-	DisableTwoStepConfirmation bool      `json:"disable_two_step_confirmation"`
-	IsSponsorshipPopupEnabled  bool      `json:"is_sponsorship_popup_enabled"`
-	UpdateChannel              string    `json:"update_channel"`
-	IsAutoUpdateEnabled        bool      `json:"is_auto_update_enabled"`
-	AutoUpdateFrequency        string    `json:"auto_update_frequency"`
-	UpdateCheckFrequency       string    `json:"update_check_frequency"`
-	DockerRegistryURL          string    `json:"docker_registry_url"`
-	SMTPEnabled                bool      `json:"smtp_enabled"`
-	SMTPFromName               string    `json:"smtp_from_name"`
-	SMTPFromAddress            string    `json:"smtp_from_address"`
-	SMTPHost                   string    `json:"smtp_host"`
-	SMTPPort                   int       `json:"smtp_port"`
-	SMTPEncryption             string    `json:"smtp_encryption"`
-	SMTPUsername               string    `json:"smtp_username,omitempty"`
-	SMTPPasswordSet            bool      `json:"smtp_password_set"`
-	SMTPTimeout                *int      `json:"smtp_timeout"`
-	ResendEnabled              bool      `json:"resend_enabled"`
-	ResendAPIKeySet            bool      `json:"resend_api_key_set"`
-	AutoUpdateLastAt           *time.Time `json:"auto_update_last_at"`
-	AutoUpdateLastStatus       string     `json:"auto_update_last_status"`
-	AutoUpdateLastMessage      string     `json:"auto_update_last_message"`
-	UpdatedAt                  time.Time `json:"updated_at"`
+	ID                          int16      `json:"id"`
+	PublicURL                   string     `json:"public_url"`
+	InstanceName                string     `json:"instance_name"`
+	InstanceTimezone            string     `json:"instance_timezone"`
+	PublicIPv4                  string     `json:"public_ipv4"`
+	PublicIPv6                  string     `json:"public_ipv6"`
+	IsRegistrationEnabled       bool       `json:"is_registration_enabled"`
+	DoNotTrack                  bool       `json:"do_not_track"`
+	IsDNSValidationEnabled      bool       `json:"is_dns_validation_enabled"`
+	CustomDNSServers            string     `json:"custom_dns_servers"`
+	IsAPIEnabled                bool       `json:"is_api_enabled"`
+	AllowedIPs                  string     `json:"allowed_ips"`
+	WebhookAllowedInternalHosts string     `json:"webhook_allowed_internal_hosts"`
+	WebhookAllowLocalhost       bool       `json:"webhook_allow_localhost"`
+	IsMCPServerEnabled          bool       `json:"is_mcp_server_enabled"`
+	DisableTwoStepConfirmation  bool       `json:"disable_two_step_confirmation"`
+	IsSponsorshipPopupEnabled   bool       `json:"is_sponsorship_popup_enabled"`
+	UpdateChannel               string     `json:"update_channel"`
+	IsAutoUpdateEnabled         bool       `json:"is_auto_update_enabled"`
+	AutoUpdateFrequency         string     `json:"auto_update_frequency"`
+	UpdateCheckFrequency        string     `json:"update_check_frequency"`
+	DockerRegistryURL           string     `json:"docker_registry_url"`
+	SMTPEnabled                 bool       `json:"smtp_enabled"`
+	SMTPFromName                string     `json:"smtp_from_name"`
+	SMTPFromAddress             string     `json:"smtp_from_address"`
+	SMTPHost                    string     `json:"smtp_host"`
+	SMTPPort                    int        `json:"smtp_port"`
+	SMTPEncryption              string     `json:"smtp_encryption"`
+	SMTPUsername                string     `json:"smtp_username,omitempty"`
+	SMTPPasswordSet             bool       `json:"smtp_password_set"`
+	SMTPTimeout                 *int       `json:"smtp_timeout"`
+	ResendEnabled               bool       `json:"resend_enabled"`
+	ResendAPIKeySet             bool       `json:"resend_api_key_set"`
+	AutoUpdateLastAt            *time.Time `json:"auto_update_last_at"`
+	AutoUpdateLastStatus        string     `json:"auto_update_last_status"`
+	AutoUpdateLastMessage       string     `json:"auto_update_last_message"`
+	OIDCAllowRegister           bool       `json:"oidc_allow_register"`
+	OIDCAutoJoinRoot            bool       `json:"oidc_auto_join_root"`
+	UpdatedAt                   time.Time  `json:"updated_at"`
 }
 
 // InstanceSettingsPatch is a partial update for instance settings.
@@ -90,6 +93,8 @@ type InstanceSettingsPatch struct {
 	SMTPTimeout                 *int    `json:"smtp_timeout"`
 	ResendEnabled               *bool   `json:"resend_enabled"`
 	ResendAPIKey                *string `json:"resend_api_key"`
+	OIDCAllowRegister           *bool   `json:"oidc_allow_register"`
+	OIDCAutoJoinRoot            *bool   `json:"oidc_auto_join_root"`
 }
 
 type OauthSetting struct {
@@ -121,14 +126,15 @@ const instanceSettingsCols = `
 	update_channel, is_auto_update_enabled, auto_update_frequency, update_check_frequency,
 	docker_registry_url, smtp_enabled, smtp_from_name, smtp_from_address, smtp_host, smtp_port,
 	smtp_encryption, smtp_username_enc, smtp_password_enc, smtp_timeout, resend_enabled,
-	resend_api_key_enc, auto_update_last_at, auto_update_last_status, auto_update_last_message, updated_at`
+	resend_api_key_enc, auto_update_last_at, auto_update_last_status, auto_update_last_message,
+	COALESCE(oidc_allow_register, FALSE), COALESCE(oidc_auto_join_root, FALSE), updated_at`
 
 func (s *Store) GetInstanceSettings(ctx context.Context) (*InstanceSettings, error) {
 	var (
-		st             InstanceSettings
-		smtpUserEnc    string
-		smtpPassEnc    string
-		resendKeyEnc   string
+		st           InstanceSettings
+		smtpUserEnc  string
+		smtpPassEnc  string
+		resendKeyEnc string
 	)
 	err := s.Pool.QueryRow(ctx, `
 		SELECT `+instanceSettingsCols+`
@@ -141,7 +147,8 @@ func (s *Store) GetInstanceSettings(ctx context.Context) (*InstanceSettings, err
 		&st.UpdateChannel, &st.IsAutoUpdateEnabled, &st.AutoUpdateFrequency, &st.UpdateCheckFrequency,
 		&st.DockerRegistryURL, &st.SMTPEnabled, &st.SMTPFromName, &st.SMTPFromAddress, &st.SMTPHost, &st.SMTPPort,
 		&st.SMTPEncryption, &smtpUserEnc, &smtpPassEnc, &st.SMTPTimeout, &st.ResendEnabled,
-		&resendKeyEnc, &st.AutoUpdateLastAt, &st.AutoUpdateLastStatus, &st.AutoUpdateLastMessage, &st.UpdatedAt,
+		&resendKeyEnc, &st.AutoUpdateLastAt, &st.AutoUpdateLastStatus, &st.AutoUpdateLastMessage,
+		&st.OIDCAllowRegister, &st.OIDCAutoJoinRoot, &st.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -229,7 +236,8 @@ func (s *Store) UpdateInstanceSettings(ctx context.Context, patch InstanceSettin
 			update_channel=$17, is_auto_update_enabled=$18, auto_update_frequency=$19, update_check_frequency=$20,
 			docker_registry_url=$21, smtp_enabled=$22, smtp_from_name=$23, smtp_from_address=$24, smtp_host=$25,
 			smtp_port=$26, smtp_encryption=$27, smtp_username_enc=$28, smtp_password_enc=$29, smtp_timeout=$30,
-			resend_enabled=$31, resend_api_key_enc=$32, updated_at=NOW()
+			resend_enabled=$31, resend_api_key_enc=$32,
+			oidc_allow_register=$33, oidc_auto_join_root=$34, updated_at=NOW()
 		WHERE id = 1
 	`,
 		cur.PublicURL, cur.InstanceName, cur.InstanceTimezone, cur.PublicIPv4, cur.PublicIPv6,
@@ -239,7 +247,7 @@ func (s *Store) UpdateInstanceSettings(ctx context.Context, patch InstanceSettin
 		cur.UpdateChannel, cur.IsAutoUpdateEnabled, cur.AutoUpdateFrequency, cur.UpdateCheckFrequency,
 		cur.DockerRegistryURL, cur.SMTPEnabled, cur.SMTPFromName, cur.SMTPFromAddress, cur.SMTPHost,
 		cur.SMTPPort, cur.SMTPEncryption, smtpUserEnc, smtpPassEnc, cur.SMTPTimeout,
-		cur.ResendEnabled, resendKeyEnc,
+		cur.ResendEnabled, resendKeyEnc, cur.OIDCAllowRegister, cur.OIDCAutoJoinRoot,
 	)
 	if err != nil {
 		return nil, err
@@ -379,6 +387,8 @@ func applyInstanceSettingsPatch(cur *InstanceSettings, patch *InstanceSettingsPa
 		cur.SMTPTimeout = patch.SMTPTimeout
 	}
 	setBool(&cur.ResendEnabled, patch.ResendEnabled)
+	setBool(&cur.OIDCAllowRegister, patch.OIDCAllowRegister)
+	setBool(&cur.OIDCAutoJoinRoot, patch.OIDCAutoJoinRoot)
 	// SMTP and Resend are mutually exclusive.
 	if cur.SMTPEnabled && cur.ResendEnabled {
 		if patch.ResendEnabled != nil && *patch.ResendEnabled {
@@ -455,14 +465,14 @@ func (s *Store) ListOauthSettings(ctx context.Context) ([]OauthSetting, error) {
 func (s *Store) UpdateOauthSetting(ctx context.Context, provider string, patch OauthSettingPatch) (*OauthSetting, error) {
 	provider = strings.ToLower(strings.TrimSpace(provider))
 	var (
-		id         uuid.UUID
-		enabled    bool
-		clientID   string
-		secretEnc  string
-		redirect   string
-		tenant     string
-		baseURL    string
-		updatedAt  time.Time
+		id        uuid.UUID
+		enabled   bool
+		clientID  string
+		secretEnc string
+		redirect  string
+		tenant    string
+		baseURL   string
+		updatedAt time.Time
 	)
 	err := s.Pool.QueryRow(ctx, `
 		SELECT id, enabled, client_id, client_secret_enc, redirect_uri, tenant, base_url, updated_at
@@ -510,9 +520,14 @@ func (s *Store) UpdateOauthSetting(ctx context.Context, provider string, patch O
 			if tenant == "" {
 				return nil, fmt.Errorf("%w: tenant required for azure", ErrConflict)
 			}
-		case "authentik", "clerk":
+		case "authentik", "clerk", "zitadel", "infomaniak", "oidc":
 			if baseURL == "" {
 				return nil, fmt.Errorf("%w: base_url required for %s", ErrConflict, provider)
+			}
+			if provider == "oidc" {
+				if err := oidc.ValidateIssuerURL(baseURL); err != nil {
+					return nil, fmt.Errorf("%w: %s", ErrConflict, err.Error())
+				}
 			}
 		}
 	}

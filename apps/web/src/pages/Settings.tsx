@@ -204,6 +204,8 @@ function emptyForm(): InstanceSettings {
     smtp_timeout: null,
     resend_enabled: false,
     resend_api_key_set: false,
+    oidc_allow_register: false,
+    oidc_auto_join_root: false,
     updated_at: '',
   }
 }
@@ -395,6 +397,8 @@ export function SettingsPage() {
       is_mcp_server_enabled: form.is_mcp_server_enabled,
       disable_two_step_confirmation: form.disable_two_step_confirmation,
       is_sponsorship_popup_enabled: form.is_sponsorship_popup_enabled,
+      oidc_allow_register: form.oidc_allow_register,
+      oidc_auto_join_root: form.oidc_auto_join_root,
     })
   }
 
@@ -637,6 +641,20 @@ export function SettingsPage() {
                   helper="Allow users to self-register. Turned off automatically after the first admin account; re-enable here to invite more people."
                   checked={form.is_registration_enabled}
                   onChange={(v) => set('is_registration_enabled', v)}
+                  disabled={!canEdit}
+                />
+                <Toggle
+                  label="OIDC can register when signup is off"
+                  helper="Let OpenID Connect users create an account even if Registration Allowed is off."
+                  checked={form.oidc_allow_register}
+                  onChange={(v) => set('oidc_allow_register', v)}
+                  disabled={!canEdit}
+                />
+                <Toggle
+                  label="OIDC auto-join oldest team"
+                  helper="Add new OpenID Connect users as members of the oldest non-personal team."
+                  checked={form.oidc_auto_join_root}
+                  onChange={(v) => set('oidc_auto_join_root', v)}
                   disabled={!canEdit}
                 />
                 <Toggle
@@ -1443,12 +1461,19 @@ function OauthCard({
   }, [row])
 
   const needsTenant = row.provider === 'azure'
-  const needsBase = row.provider === 'authentik' || row.provider === 'clerk' || row.provider === 'zitadel' || row.provider === 'gitlab'
+  const needsBase =
+    row.provider === 'authentik' ||
+    row.provider === 'clerk' ||
+    row.provider === 'zitadel' ||
+    row.provider === 'gitlab' ||
+    row.provider === 'infomaniak' ||
+    row.provider === 'oidc'
+  const title = row.provider === 'oidc' ? 'OpenID Connect' : row.provider
 
   return (
     <div className="panel-card space-y-3 p-5">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="font-medium capitalize text-gray-900 dark:text-white">{row.provider}</h3>
+        <h3 className={`font-medium text-gray-900 dark:text-white${row.provider === 'oidc' ? '' : ' capitalize'}`}>{title}</h3>
         <Toggle label="Enabled" checked={enabled} onChange={setEnabled} disabled={!canEdit} />
       </div>
       <TextField label="Client ID" value={clientId} onChange={setClientId} required={false} />
@@ -1460,7 +1485,19 @@ function OauthCard({
       />
       <TextField label="Redirect URI" value={redirect} onChange={setRedirect} required={false} />
       {needsTenant && <TextField label="Tenant" value={tenant} onChange={setTenant} required={false} />}
-      {needsBase && <TextField label="Base URL" value={baseUrl} onChange={setBaseUrl} required={false} />}
+      {needsBase && (
+        <TextField
+          label={row.provider === 'oidc' ? 'Issuer URL' : 'Base URL'}
+          helper={
+            row.provider === 'oidc'
+              ? 'OIDC issuer. Dockfin fetches /.well-known/openid-configuration and uses PKCE.'
+              : undefined
+          }
+          value={baseUrl}
+          onChange={setBaseUrl}
+          required={false}
+        />
+      )}
       <Btn
         primary
         disabled={!canEdit || busy}

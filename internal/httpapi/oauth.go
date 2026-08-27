@@ -11,12 +11,14 @@ import (
 
 	"github.com/dockfin/dockfin/internal/config"
 	"github.com/dockfin/dockfin/internal/crypto"
+	"github.com/dockfin/dockfin/internal/oidc"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/go-chi/chi/v5"
 	"golang.org/x/oauth2"
 )
 
 const oauthStateCookie = "dockfin_oauth_state"
+const oauthPKCECookie = "dockfin_oauth_pkce"
 
 func (a *API) handleCreateTeam(w http.ResponseWriter, r *http.Request) {
 	var body struct {
@@ -59,7 +61,7 @@ func (a *API) handleOauthStart(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "provider not enabled")
 		return
 	}
-	spec, err := buildOauthProviderSpec(provider, m)
+	spec, err := buildOauthProviderSpec(r.Context(), provider, m)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -76,6 +78,7 @@ func (a *API) handleOauthStart(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
+	secure := cookieSecureForRequest(r, a.Cfg)
 	http.SetCookie(w, &http.Cookie{
 		Name:     oauthStateCookie,
 		Value:    state,
@@ -83,9 +86,34 @@ func (a *API) handleOauthStart(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   600,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   cookieSecureForRequest(r, a.Cfg),
+		Secure:   secure,
 	})
-	http.Redirect(w, r, conf.AuthCodeURL(state), http.StatusFound)
+	var authOpts []oauth2.AuthCodeOption
+	if provider == "oidc" {
+		verifier := oauth2.GenerateVerifier()
+		http.SetCookie(w, &http.Cookie{
+			Name:     oauthPKCECookie,
+			Value:    verifier,
+			Path:     "/",
+			MaxAge:   600,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+			Secure:   secure,
+		})
+		authOpts = append(authOpts, oauth2.S256ChallengeOption(verifier))
+	} else {
+		// Never send a leftover OIDC verifier to GitHub/GitLab/etc. token endpoints.
+		http.SetCookie(w, &http.Cookie{
+			Name:     oauthPKCECookie,
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+			Secure:   secure,
+		})
+	}
+	http.Redirect(w, r, conf.AuthCodeURL(state, authOpts...), http.StatusFound)
 }
 
 func (a *API) handleOauthCallback(w http.ResponseWriter, r *http.Request) {
@@ -101,6 +129,7 @@ func (a *API) handleOauthCallback(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid or expired state")
 		return
 	}
+	secure := cookieSecureForRequest(r, a.Cfg)
 	http.SetCookie(w, &http.Cookie{
 		Name:     oauthStateCookie,
 		Value:    "",
@@ -108,7 +137,20 @@ func (a *API) handleOauthCallback(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   -1,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   cookieSecureForRequest(r, a.Cfg),
+		Secure:   secure,
+	})
+	var pkce string
+	if c, err := r.Cookie(oauthPKCECookie); err == nil {
+		pkce = c.Value
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     oauthPKCECookie,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   secure,
 	})
 
 	m, err := a.Store.GetOauthSettingMaterial(r.Context(), provider)
@@ -116,7 +158,7 @@ func (a *API) handleOauthCallback(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "provider not enabled")
 		return
 	}
-	spec, err := buildOauthProviderSpec(provider, m)
+	spec, err := buildOauthProviderSpec(r.Context(), provider, m)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -128,7 +170,12 @@ func (a *API) handleOauthCallback(w http.ResponseWriter, r *http.Request) {
 		RedirectURL:  oauthRedirectURI(a.Cfg, m, provider),
 		Scopes:       spec.Scopes,
 	}
-	tok, err := conf.Exchange(r.Context(), code)
+	exchOpts, exchErr := oauthPKCEExchangeOptions(provider, pkce)
+	if exchErr != nil {
+		writeError(w, http.StatusBadRequest, exchErr.Error())
+		return
+	}
+	tok, err := conf.Exchange(r.Context(), code, exchOpts...)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "oauth exchange failed: "+err.Error())
 		return
@@ -171,9 +218,16 @@ func (a *API) handleOauthCallback(w http.ResponseWriter, r *http.Request) {
 				mapStoreErr(w, regErr)
 				return
 			}
-			if !enabled {
-				writeError(w, http.StatusForbidden, "registration disabled")
+			st, stErr := a.Store.GetInstanceSettings(r.Context())
+			if stErr != nil {
+				mapStoreErr(w, stErr)
 				return
+			}
+			if !enabled {
+				if provider != "oidc" || !st.OIDCAllowRegister {
+					writeError(w, http.StatusForbidden, "registration disabled")
+					return
+				}
 			}
 			name := profile.Name
 			if name == "" {
@@ -185,6 +239,12 @@ func (a *API) handleOauthCallback(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			user = newUser
+			if provider == "oidc" && st.OIDCAutoJoinRoot {
+				if joinErr := a.Store.AddUserToOldestNonPersonalTeam(r.Context(), user.ID); joinErr != nil {
+					mapStoreErr(w, joinErr)
+					return
+				}
+			}
 		default:
 			mapStoreErr(w, existErr)
 			return
@@ -221,7 +281,7 @@ type oauthProviderSpec struct {
 	Scopes      []string
 }
 
-func buildOauthProviderSpec(provider string, m *store.OauthMaterial) (*oauthProviderSpec, error) {
+func buildOauthProviderSpec(ctx context.Context, provider string, m *store.OauthMaterial) (*oauthProviderSpec, error) {
 	switch provider {
 	case "github":
 		return &oauthProviderSpec{
@@ -278,17 +338,40 @@ func buildOauthProviderSpec(provider string, m *store.OauthMaterial) (*oauthProv
 		if base == "" {
 			return nil, fmt.Errorf("base_url is not configured for %s", provider)
 		}
-		// Generic OIDC-style endpoints; providers exposing a discovery document
-		// at this base_url are expected to follow this convention.
+		// Keep hardcoded /oauth/* paths — these vendors often do not serve
+		// discovery at the configured base URL.
 		return &oauthProviderSpec{
 			AuthURL:     base + "/oauth/authorize",
 			TokenURL:    base + "/oauth/token",
 			UserInfoURL: base + "/oauth/userinfo",
 			Scopes:      []string{"openid", "email", "profile"},
 		}, nil
+	case "oidc":
+		doc, err := oidc.Fetch(ctx, m.BaseURL)
+		if err != nil {
+			return nil, err
+		}
+		return &oauthProviderSpec{
+			AuthURL:     doc.AuthorizationEndpoint,
+			TokenURL:    doc.TokenEndpoint,
+			UserInfoURL: doc.UserinfoEndpoint,
+			Scopes:      []string{"openid", "email", "profile"},
+		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported oauth provider %q", provider)
 	}
+}
+
+// oauthPKCEExchangeOptions applies PKCE only for the generic OIDC provider.
+// Other providers must not send code_verifier (leftover cookies would break GitHub/GitLab).
+func oauthPKCEExchangeOptions(provider, pkce string) ([]oauth2.AuthCodeOption, error) {
+	if provider != "oidc" {
+		return nil, nil
+	}
+	if pkce == "" {
+		return nil, fmt.Errorf("missing PKCE verifier")
+	}
+	return []oauth2.AuthCodeOption{oauth2.VerifierOption(pkce)}, nil
 }
 
 func oauthRedirectURI(cfg *config.Config, m *store.OauthMaterial, provider string) string {
@@ -355,6 +438,16 @@ func fetchOauthProfile(ctx context.Context, conf *oauth2.Config, tok *oauth2.Tok
 		}
 		profile.Name = rawOauthStr(raw, "displayName")
 		profile.EmailVerified = profile.Email != ""
+	case "oidc":
+		profile.ID = rawOauthStr(raw, "sub")
+		profile.Email = rawOauthStr(raw, "email")
+		profile.Name = rawOauthStr(raw, "name")
+		if _, ok := raw["email_verified"]; !ok {
+			// Enterprise IdPs often omit the claim; an issued email is enough.
+			profile.EmailVerified = profile.Email != ""
+		} else {
+			profile.EmailVerified = rawOauthBool(raw, "email_verified")
+		}
 	default: // generic OIDC-style userinfo (authentik, clerk, infomaniak, zitadel, ...)
 		profile.ID = rawOauthStr(raw, "sub")
 		profile.Email = rawOauthStr(raw, "email")

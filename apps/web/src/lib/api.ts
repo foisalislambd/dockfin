@@ -1589,6 +1589,8 @@ export type InstanceSettings = {
   auto_update_last_at?: string | null
   auto_update_last_status?: string
   auto_update_last_message?: string
+  oidc_allow_register: boolean
+  oidc_auto_join_root: boolean
   updated_at: string
 }
 export type InstanceSettingsPatch = {
@@ -1624,6 +1626,8 @@ export type InstanceSettingsPatch = {
   smtp_timeout?: number | null
   resend_enabled?: boolean
   resend_api_key?: string
+  oidc_allow_register?: boolean
+  oidc_auto_join_root?: boolean
 }
 export type OauthSetting = {
   id: string

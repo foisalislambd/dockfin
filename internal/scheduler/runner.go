@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/backup"
+	"github.com/dockfin/dockfin/internal/proxy"
 	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
@@ -72,6 +73,7 @@ func (r *Runner) tick(ctx context.Context) {
 	r.runInstanceBackup(ctx, minute)
 	r.runDockerCleanups(ctx, minute)
 	r.runAutoUpdate(ctx, minute)
+	r.repairProxyNetworks(ctx)
 }
 
 func (r *Runner) runTasks(ctx context.Context, minute time.Time) {
@@ -589,6 +591,25 @@ func (r *Runner) dialServer(ctx context.Context, teamID, serverID uuid.UUID) (*s
 		return nil, err
 	}
 	return res.Client, nil
+}
+
+func (r *Runner) repairProxyNetworks(ctx context.Context) {
+	servers, err := r.Store.ListServersForProxyRepair(ctx)
+	if err != nil {
+		r.Logger.Error("list servers for proxy repair", "err", err)
+		return
+	}
+	for i := range servers {
+		srv := servers[i]
+		client, err := r.dialServer(ctx, srv.TeamID, srv.ID)
+		if err != nil {
+			r.Logger.Debug("proxy repair dial", "server", srv.ID, "err", err)
+			continue
+		}
+		if err := proxy.EnsureProxyJoinedResourceNetworks(client); err != nil {
+			r.Logger.Warn("proxy network repair", "server", srv.ID, "err", err)
+		}
+	}
 }
 
 func (r *Runner) runDockerCleanups(ctx context.Context, minute time.Time) {

@@ -253,6 +253,7 @@ func (a *API) validateAndMaybeProxy(ctx context.Context, teamID, serverID uuid.U
 		if err := proxy.StartProxy(client, srv.ProxyType, a.Cfg.TraefikImage, a.Cfg.CaddyImage, network, a.Cfg.AcmeEmail); err != nil {
 			return validated, false, fmt.Errorf("start proxy: %w", err)
 		}
+		_ = proxy.EnsureProxyJoinedResourceNetworks(client)
 		_ = a.Store.UpdateServerProxyStatus(ctx, serverID, "running")
 		proxyStarted = true
 	}

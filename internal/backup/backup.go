@@ -9,10 +9,10 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// DumpPostgres runs pg_dump inside a database container and writes to a remote path.
+// DumpPostgres runs pg_dump -Fc (custom format) inside a database container.
 func DumpPostgres(client *ssh.Client, container, password, outPath string) error {
 	cmd := fmt.Sprintf(
-		`mkdir -p /data/dockfin/backups && docker exec -e PGPASSWORD=%s %s pg_dump -U dockfin dockfin > %s`,
+		`mkdir -p /data/dockfin/backups && docker exec -e PGPASSWORD=%s %s pg_dump -Fc -U dockfin dockfin > %s`,
 		shellQuote(password), shellQuote(container), shellQuote(outPath),
 	)
 	_, errOut, err := sshx.Run(client, cmd)
@@ -73,17 +73,35 @@ func DumpDatabase(client *ssh.Client, engine, container, password, outPath strin
 	}
 }
 
-// RestorePostgres pipes a SQL dump into the database container.
+// RestorePostgres restores a dump into the database container.
+// Custom-format files (.dump / .backup / .pgdump) use pg_restore; everything else uses psql.
 func RestorePostgres(client *ssh.Client, container, password, dumpPath string) error {
-	cmd := fmt.Sprintf(
-		`docker exec -i -e PGPASSWORD=%s %s psql -U dockfin dockfin < %s`,
-		shellQuote(password), shellQuote(container), shellQuote(dumpPath),
-	)
+	var cmd string
+	if PostgresCustomFormat(dumpPath) {
+		cmd = fmt.Sprintf(
+			`docker exec -i -e PGPASSWORD=%s %s pg_restore -U dockfin -d dockfin --no-owner --no-acl --clean --if-exists < %s`,
+			shellQuote(password), shellQuote(container), shellQuote(dumpPath),
+		)
+	} else {
+		cmd = fmt.Sprintf(
+			`docker exec -i -e PGPASSWORD=%s %s psql -U dockfin dockfin < %s`,
+			shellQuote(password), shellQuote(container), shellQuote(dumpPath),
+		)
+	}
 	_, errOut, err := sshx.Run(client, cmd)
 	if err != nil {
+		if PostgresCustomFormat(dumpPath) {
+			return fmt.Errorf("pg_restore: %v %s", err, errOut)
+		}
 		return fmt.Errorf("psql restore: %v %s", err, errOut)
 	}
 	return nil
+}
+
+// PostgresCustomFormat reports whether dumpPath is a pg_dump custom-format archive.
+func PostgresCustomFormat(dumpPath string) bool {
+	lower := strings.ToLower(strings.TrimSpace(dumpPath))
+	return strings.HasSuffix(lower, ".dump") || strings.HasSuffix(lower, ".backup") || strings.HasSuffix(lower, ".pgdump")
 }
 
 // RestoreMySQL pipes a SQL dump into MySQL/MariaDB.
@@ -147,6 +165,8 @@ func FileSize(client *ssh.Client, path string) int64 {
 func DefaultFilename(engine, id string) string {
 	ext := "sql"
 	switch engine {
+	case "postgresql":
+		ext = "dump"
 	case "redis", "keydb", "dragonfly":
 		ext = "rdb"
 	}

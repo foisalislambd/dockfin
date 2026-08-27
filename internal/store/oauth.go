@@ -37,6 +37,7 @@ var oauthProviderDisplayNames = map[string]string{
 	"clerk":      "Clerk",
 	"infomaniak": "Infomaniak",
 	"zitadel":    "Zitadel",
+	"oidc":       "OpenID Connect",
 }
 
 // OauthProviderDisplayName returns a human-friendly label for a provider slug.

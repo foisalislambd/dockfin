@@ -238,8 +238,8 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
       <div className="panel-card space-y-3 p-4">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Import backup</h3>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Upload a `.sql` dump (PostgreSQL / MySQL / MariaDB) to store it under `/data/dockfin/backups`
-          and optionally restore it immediately.
+          Upload a `.sql` dump (MySQL / MariaDB) or a PostgreSQL custom-format `.dump` / `.backup` (pg_restore) or `.sql` (psql). Files are stored under `/data/dockfin/backups`
+          and can be restored immediately.
         </p>
         <div className="flex flex-wrap items-end gap-3">
           <label className="block min-w-[220px] flex-1 text-sm">

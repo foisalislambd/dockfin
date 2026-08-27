@@ -350,3 +350,16 @@ func (s *Store) AcceptInvitation(ctx context.Context, token string, userID uuid.
 	}
 	return &t, nil
 }
+
+// AddUserToOldestNonPersonalTeam adds userID as a member of the oldest shared team (OIDC auto-join).
+func (s *Store) AddUserToOldestNonPersonalTeam(ctx context.Context, userID uuid.UUID) error {
+	_, err := s.Pool.Exec(ctx, `
+		INSERT INTO team_members (team_id, user_id, role)
+		SELECT id, $1, 'member' FROM teams
+		WHERE personal = FALSE
+		ORDER BY created_at ASC
+		LIMIT 1
+		ON CONFLICT (team_id, user_id) DO NOTHING
+	`, userID)
+	return err
+}

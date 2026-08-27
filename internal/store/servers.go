@@ -438,3 +438,26 @@ func (s *Store) ListBuildServers(ctx context.Context, teamID uuid.UUID) ([]Serve
 	}
 	return out, rows.Err()
 }
+
+// ListServersForProxyRepair returns usable servers that run a shared reverse proxy.
+func (s *Store) ListServersForProxyRepair(ctx context.Context) ([]Server, error) {
+	rows, err := s.Pool.Query(ctx, `
+		SELECT `+serverCols+` FROM servers
+		WHERE COALESCE(is_usable, TRUE)
+		  AND lower(COALESCE(NULLIF(proxy_type, ''), 'traefik')) <> 'none'
+		ORDER BY created_at
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Server
+	for rows.Next() {
+		srv, err := scanServer(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *srv)
+	}
+	return out, rows.Err()
+}
