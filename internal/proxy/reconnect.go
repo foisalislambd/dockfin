@@ -39,7 +39,7 @@ docker ps -q | while read -r id; do
   esac
   en=$(docker inspect -f '{{index .Config.Labels "traefik.enable"}}' "$id" 2>/dev/null || true)
   keep=0
-  [ "$en" = "true" ] && keep=1
+  if [ "$en" = "true" ] || [ "$en" = "True" ] || [ "$en" = "TRUE" ]; then keep=1; fi
   case "$name" in
     /dockfin-*|/dockfin-svc-*) keep=1 ;;
   esac
@@ -54,7 +54,7 @@ done | sort -u | while read -r net; do
 done
 exit 0
 `
-	_, errOut, err := sshx.Run(client, script)
+	_, errOut, err := sshx.RunArgs(client, "sh", "-c", script)
 	if err != nil {
 		return fmt.Errorf("proxy network reconnect: %v %s", err, strings.TrimSpace(errOut))
 	}

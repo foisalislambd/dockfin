@@ -81,7 +81,7 @@ func (a *API) handleOauthStart(w http.ResponseWriter, r *http.Request) {
 	secure := cookieSecureForRequest(r, a.Cfg)
 	http.SetCookie(w, &http.Cookie{
 		Name:     oauthStateCookie,
-		Value:    state,
+		Value:    oauthStateCookieValue(provider, state),
 		Path:     "/",
 		MaxAge:   600,
 		HttpOnly: true,
@@ -125,7 +125,7 @@ func (a *API) handleOauthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cookie, err := r.Cookie(oauthStateCookie)
-	if err != nil || cookie.Value == "" || !secureTokenEqual(cookie.Value, state) {
+	if err != nil || cookie.Value == "" || !secureTokenEqual(cookie.Value, oauthStateCookieValue(provider, state)) {
 		writeError(w, http.StatusBadRequest, "invalid or expired state")
 		return
 	}
@@ -201,6 +201,7 @@ func (a *API) handleOauthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	if user == nil {
 		existing, _, existErr := a.Store.GetUserByEmail(r.Context(), profile.Email)
+		autoJoinRoot := false
 		switch {
 		case existErr == nil:
 			if !profile.EmailVerified {
@@ -239,12 +240,7 @@ func (a *API) handleOauthCallback(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			user = newUser
-			if provider == "oidc" && st.OIDCAutoJoinRoot {
-				if joinErr := a.Store.AddUserToOldestNonPersonalTeam(r.Context(), user.ID); joinErr != nil {
-					mapStoreErr(w, joinErr)
-					return
-				}
-			}
+			autoJoinRoot = provider == "oidc" && st.OIDCAutoJoinRoot
 		default:
 			mapStoreErr(w, existErr)
 			return
@@ -252,6 +248,9 @@ func (a *API) handleOauthCallback(w http.ResponseWriter, r *http.Request) {
 		if linkErr := a.Store.LinkOauthAccount(r.Context(), user.ID, provider, profile.ID, profile.Email); linkErr != nil {
 			mapStoreErr(w, linkErr)
 			return
+		}
+		if autoJoinRoot {
+			_ = a.Store.AddUserToOldestNonPersonalTeam(r.Context(), user.ID)
 		}
 	}
 
@@ -372,6 +371,10 @@ func oauthPKCEExchangeOptions(provider, pkce string) ([]oauth2.AuthCodeOption, e
 		return nil, fmt.Errorf("missing PKCE verifier")
 	}
 	return []oauth2.AuthCodeOption{oauth2.VerifierOption(pkce)}, nil
+}
+
+func oauthStateCookieValue(provider, state string) string {
+	return provider + ":" + state
 }
 
 func oauthRedirectURI(cfg *config.Config, m *store.OauthMaterial, provider string) string {

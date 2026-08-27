@@ -21,7 +21,15 @@ type Document struct {
 	JwksURI               string `json:"jwks_uri"`
 }
 
-var httpClient = &http.Client{Timeout: 8 * time.Second}
+var httpClient = &http.Client{
+	Timeout: 8 * time.Second,
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 5 {
+			return fmt.Errorf("too many redirects")
+		}
+		return ValidateIssuerURL(req.URL.String())
+	},
+}
 
 // DiscoveryURL returns the well-known configuration URL for an issuer.
 func DiscoveryURL(issuer string) string {
@@ -47,6 +55,9 @@ func ValidateIssuerURL(raw string) error {
 	}
 	switch strings.ToLower(u.Scheme) {
 	case "https":
+		if isCloudMetadataHost(u.Hostname()) {
+			return fmt.Errorf("issuer URL must not point at cloud metadata")
+		}
 		return nil
 	case "http":
 		host := u.Hostname()
@@ -60,6 +71,32 @@ func ValidateIssuerURL(raw string) error {
 	default:
 		return fmt.Errorf("issuer URL scheme must be https")
 	}
+}
+
+func isCloudMetadataHost(host string) bool {
+	h := strings.ToLower(strings.TrimSpace(host))
+	if h == "169.254.169.254" || h == "metadata.google.internal" || h == "metadata.goog" {
+		return true
+	}
+	if ip := net.ParseIP(h); ip != nil {
+		return ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
+	}
+	return false
+}
+
+func validateOIDCEndpoint(raw, name string) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fmt.Errorf("oidc discovery missing %s", name)
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return fmt.Errorf("oidc %s is not an absolute URL", name)
+	}
+	if err := ValidateIssuerURL(u.Scheme + "://" + u.Host); err != nil {
+		return fmt.Errorf("oidc %s: %w", name, err)
+	}
+	return nil
 }
 
 // Fetch loads and validates the OpenID Provider configuration.
@@ -99,14 +136,14 @@ func (d *Document) Validate() error {
 	if d == nil {
 		return fmt.Errorf("empty oidc discovery document")
 	}
-	if strings.TrimSpace(d.AuthorizationEndpoint) == "" {
-		return fmt.Errorf("oidc discovery missing authorization_endpoint")
+	if err := validateOIDCEndpoint(d.AuthorizationEndpoint, "authorization_endpoint"); err != nil {
+		return err
 	}
-	if strings.TrimSpace(d.TokenEndpoint) == "" {
-		return fmt.Errorf("oidc discovery missing token_endpoint")
+	if err := validateOIDCEndpoint(d.TokenEndpoint, "token_endpoint"); err != nil {
+		return err
 	}
-	if strings.TrimSpace(d.UserinfoEndpoint) == "" {
-		return fmt.Errorf("oidc discovery missing userinfo_endpoint")
+	if err := validateOIDCEndpoint(d.UserinfoEndpoint, "userinfo_endpoint"); err != nil {
+		return err
 	}
 	return nil
 }

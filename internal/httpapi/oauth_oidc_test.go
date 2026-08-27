@@ -57,3 +57,9 @@ func TestOauthPKCEExchangeOptions(t *testing.T) {
 		t.Fatalf("oidc PKCE: opts=%v err=%v", opts, err)
 	}
 }
+
+func TestOauthStateCookieBindsProvider(t *testing.T) {
+	if oauthStateCookieValue("oidc", "abc") == oauthStateCookieValue("github", "abc") {
+		t.Fatal("state must be provider-scoped")
+	}
+}

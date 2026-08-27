@@ -12,8 +12,8 @@ import (
 // DumpPostgres runs pg_dump -Fc (custom format) inside a database container.
 func DumpPostgres(client *ssh.Client, container, password, outPath string) error {
 	cmd := fmt.Sprintf(
-		`mkdir -p /data/dockfin/backups && docker exec -e PGPASSWORD=%s %s pg_dump -Fc -U dockfin dockfin > %s`,
-		shellQuote(password), shellQuote(container), shellQuote(outPath),
+		`mkdir -p /data/dockfin/backups && docker exec -e PGPASSWORD=%s %s pg_dump -Fc -U dockfin dockfin > %s && test -s %s`,
+		shellQuote(password), shellQuote(container), shellQuote(outPath), shellQuote(outPath),
 	)
 	_, errOut, err := sshx.Run(client, cmd)
 	if err != nil {

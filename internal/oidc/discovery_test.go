@@ -69,4 +69,16 @@ func TestDocumentValidate(t *testing.T) {
 	if err := d.Validate(); err == nil {
 		t.Fatal("expected missing userinfo")
 	}
+	d = &Document{
+		AuthorizationEndpoint: "https://idp.example.com/auth",
+		TokenEndpoint:         "https://idp.example.com/token",
+		UserinfoEndpoint:      "http://idp.example.com/userinfo",
+	}
+	if err := d.Validate(); err == nil {
+		t.Fatal("expected http userinfo rejection")
+	}
+	d.UserinfoEndpoint = "https://169.254.169.254/userinfo"
+	if err := d.Validate(); err == nil {
+		t.Fatal("expected metadata rejection")
+	}
 }
