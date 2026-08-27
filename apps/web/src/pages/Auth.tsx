@@ -121,6 +121,17 @@ export function LoginPage() {
 
   const completeLogin = async () => {
     await refresh()
+    let next = '/dashboard'
+    try {
+      const redir = new URLSearchParams(window.location.search).get('redirect') || ''
+      if (redir.startsWith('/') && !redir.startsWith('//')) next = redir
+    } catch {
+      /* ignore */
+    }
+    if (next !== '/dashboard') {
+      window.location.assign(next)
+      return
+    }
     void nav({ to: '/dashboard' })
   }
 
@@ -158,7 +169,20 @@ export function LoginPage() {
       </AuthShell>
     )
   }
-  if (user) return <Navigate to="/dashboard" />
+  if (user) {
+    let next = '/dashboard'
+    try {
+      const redir = new URLSearchParams(window.location.search).get('redirect') || ''
+      if (redir.startsWith('/') && !redir.startsWith('//')) next = redir
+    } catch {
+      /* ignore */
+    }
+    if (next !== '/dashboard') {
+      window.location.assign(next)
+      return null
+    }
+    return <Navigate to="/dashboard" />
+  }
 
   return (
     <AuthShell>

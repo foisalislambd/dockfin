@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -114,6 +115,26 @@ func CheckDomainDNS(ctx context.Context, host, expectedIP string, resolvers []st
 		res.Error = "expected IP is not a valid IPv4 address"
 	}
 	return res
+}
+
+// CheckDomainsDNS validates many hosts concurrently (Coolify-style async DNS).
+// Each lookup is still bounded by CheckDomainDNS (~5s); the parent context should
+// also have a short overall deadline so a large list cannot stall the API.
+func CheckDomainsDNS(ctx context.Context, hosts []string, expectedIP string, resolvers []string) []DNSCheckResult {
+	results := make([]DNSCheckResult, len(hosts))
+	if len(hosts) == 0 {
+		return results
+	}
+	var wg sync.WaitGroup
+	for i, h := range hosts {
+		wg.Add(1)
+		go func(i int, h string) {
+			defer wg.Done()
+			results[i] = CheckDomainDNS(ctx, h, expectedIP, resolvers)
+		}(i, h)
+	}
+	wg.Wait()
+	return results
 }
 
 func lookupAWithResolvers(ctx context.Context, host string, resolvers []string) ([]net.IP, error) {

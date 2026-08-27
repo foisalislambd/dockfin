@@ -2,12 +2,14 @@ package httpapi
 
 import (
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/crypto"
 	"github.com/dockfin/dockfin/internal/store"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 func (a *API) handleListApiTokens(w http.ResponseWriter, r *http.Request) {
@@ -136,7 +138,11 @@ func (a *API) handleCreateInvitation(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, inv)
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"invitation": inv,
+		"token":      inv.Token,
+		"invite_url": strings.TrimRight(a.publicBaseURL(r), "/") + "/invite?token=" + url.QueryEscape(inv.Token),
+	})
 }
 
 func (a *API) handleDeleteInvitation(w http.ResponseWriter, r *http.Request) {
@@ -155,6 +161,23 @@ func (a *API) handleDeleteInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+func (a *API) handlePreviewInvitation(w http.ResponseWriter, r *http.Request) {
+	token := strings.TrimSpace(r.URL.Query().Get("token"))
+	if token == "" {
+		writeError(w, http.StatusBadRequest, "token required")
+		return
+	}
+	p, err := a.Store.PreviewInvitation(r.Context(), token)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"invitation": p,
+		"status":     "pending",
+	})
 }
 
 func (a *API) handleAcceptInvitation(w http.ResponseWriter, r *http.Request) {

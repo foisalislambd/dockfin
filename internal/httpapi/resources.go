@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/crypto"
 	"github.com/dockfin/dockfin/internal/database"
 	"github.com/dockfin/dockfin/internal/git"
@@ -17,6 +15,8 @@ import (
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/dockfin/dockfin/internal/worker"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 func (a *API) handleListProjects(w http.ResponseWriter, r *http.Request) {
@@ -530,12 +530,12 @@ func (a *API) handleDeleteApplication(w http.ResponseWriter, r *http.Request) {
 			if client, err := a.dialServer(r, dest.ServerID); err == nil {
 				cname := "dockfin-" + id.String()
 				if opts.volumes() {
-					_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", "-v", cname)
+					runArgsRetry(client, 2, "docker", "rm", "-f", "-v", cname)
 				} else {
-					_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", cname)
+					runArgsRetry(client, 2, "docker", "rm", "-f", cname)
 				}
 				if opts.configurations() {
-					_, _, _ = sshx.RunArgs(client, "rm", "-rf", "/data/dockfin/applications/"+id.String())
+					runArgsRetry(client, 2, "rm", "-rf", "/data/dockfin/applications/"+id.String())
 				}
 				if opts.networks() {
 					removeResourceScopedNetwork(client, id.String())

@@ -11,11 +11,11 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/proxy"
 	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 )
@@ -356,7 +356,7 @@ func (p *Pipeline) proxyLabelArgs(app *store.Application, proxyType string) []st
 		return nil
 	default:
 		// Auto Let's Encrypt for custom domains; magic sslip/nip stay HTTP-only.
-		forceHTTPS := proxy.WantAutoHTTPS(app.FQDN)
+		forceHTTPS := app.IsForceHTTPS
 		labels = proxy.TraefikLabelsHTTPS(app.Name, app.FQDN, port, forceHTTPS)
 		var middlewares []string
 		if user := strings.TrimSpace(app.HTTPBasicAuthUsername); user != "" && strings.TrimSpace(app.HTTPBasicAuthPasswordEnc) != "" {

@@ -30,6 +30,7 @@ import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { LinksMenu, LinksPanel } from '../components/LinksMenu'
 import { MoveResourcePanel } from '../components/MoveResourcePanel'
 import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
+import { ResourceSwitcher } from '../components/ResourceSwitcher'
 import { ResourceTagsPanel } from '../components/ResourceTagsPanel'
 import { ScheduledTasksPanel } from '../components/ScheduledTasksPanel'
 import { ServerTerminal } from '../components/Terminal'
@@ -1002,8 +1003,14 @@ export function ApplicationDetailPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           {crumbs}
-          <h1 className="mt-2 text-xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
+          <h1 className="mt-2 flex flex-wrap items-center gap-2 text-xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
             {a.name}
+            <ResourceSwitcher
+              kind="application"
+              currentId={appId}
+              environmentId={a.environment_id || envId}
+              projectId={resolvedProjectId}
+            />
           </h1>
           <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
             <span className="capitalize">{a.build_pack}</span>
@@ -1664,6 +1671,10 @@ export function ApplicationDetailPage() {
                     />
                     <span>Force HTTPS redirects</span>
                   </label>
+                  <p className="ml-7 text-xs text-gray-500 dark:text-gray-400">
+                    Custom domains keep Let&apos;s Encrypt. Off leaves HTTP reachable without bouncing to HTTPS.
+                    Magic domains stay HTTP.
+                  </p>
                   <label className="flex items-center gap-3 text-sm">
                     <input
                       type="checkbox"

@@ -16,6 +16,19 @@ func TestParseDNSResolvers(t *testing.T) {
 	}
 }
 
+func TestCheckDomainsDNSParallelMagic(t *testing.T) {
+	hosts := []string{"a.1.2.3.4.sslip.io", "b.10.0.0.1.nip.io"}
+	got := CheckDomainsDNS(t.Context(), hosts, "9.9.9.9", nil)
+	if len(got) != 2 {
+		t.Fatalf("len %d", len(got))
+	}
+	for _, r := range got {
+		if !r.Matched || !r.SkipValidation {
+			t.Fatalf("expected skip: %+v", r)
+		}
+	}
+}
+
 func TestCheckDomainDNSMagicSkipped(t *testing.T) {
 	r := CheckDomainDNS(t.Context(), "app.1.2.3.4.sslip.io", "9.9.9.9", nil)
 	if !r.Matched || !r.SkipValidation {

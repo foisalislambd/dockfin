@@ -15,11 +15,11 @@ import (
 
 type PrepareOpts struct {
 	ServiceID   string
-	Network     string // optional Docker network to attach (external)
-	BaseURL     string // e.g. http://app.example.com — used for SERVICE_URL_*
-	FQDN        string // hostname for Traefik labels (derived from BaseURL if empty)
-	RouterName  string // Traefik router name (defaults to ServiceID or "svc")
-	Port        string // container port for Traefik (default: from SERVICE_URL_*_PORT or "80")
+	Network     string            // optional Docker network to attach (external)
+	BaseURL     string            // e.g. http://app.example.com — used for SERVICE_URL_*
+	FQDN        string            // hostname for Traefik labels (derived from BaseURL if empty)
+	RouterName  string            // Traefik router name (defaults to ServiceID or "svc")
+	Port        string            // container port for Traefik (default: from SERVICE_URL_*_PORT or "80")
 	ExistingEnv map[string]string // reuse passwords/users when re-preparing
 	// KeepPublishedPorts leaves host port mappings intact. Default false: Dockfin
 	// strips published ports so Traefik owns 80/443 and stacks avoid port conflicts.
@@ -41,6 +41,8 @@ type PrepareOpts struct {
 	SwarmReplicas             int
 	SwarmPlacementConstraints []string
 	SwarmWorkersOnly          bool
+	// SkipHTTPSRedirect keeps Let's Encrypt TLS but does not bounce HTTP→HTTPS.
+	SkipHTTPSRedirect bool
 }
 
 var reMagicKey = regexp.MustCompile(`SERVICE_(?:PASSWORD|USER|FQDN|URL|BASE64|HEX)_[A-Z0-9_]+`)
@@ -135,7 +137,7 @@ func collectAndGenerateMagic(raw string, opts PrepareOpts) map[string]string {
 		}
 		switch {
 		case strings.HasPrefix(key, "SERVICE_PASSWORD_"):
-			env[key] = randomAlnum(24)
+			env[key] = randomAlnum(passwordMagicLength(key))
 		case strings.HasPrefix(key, "SERVICE_USER_"):
 			suffix := strings.ToLower(strings.TrimPrefix(key, "SERVICE_USER_"))
 			suffix = strings.ReplaceAll(suffix, "_", "")
@@ -1086,9 +1088,11 @@ func injectProxyLabels(doc map[string]any, opts PrepareOpts) {
 		labels[fmt.Sprintf("traefik.http.routers.%s.tls.certresolver", router)] = "letsencrypt"
 		labels[fmt.Sprintf("traefik.http.routers.%s-http.rule", router)] = rule
 		labels[fmt.Sprintf("traefik.http.routers.%s-http.entrypoints", router)] = "http"
-		labels[fmt.Sprintf("traefik.http.routers.%s-http.middlewares", router)] = router + "-redirect"
-		labels[fmt.Sprintf("traefik.http.middlewares.%s-redirect.redirectscheme.scheme", router)] = "https"
-		labels[fmt.Sprintf("traefik.http.middlewares.%s-redirect.redirectscheme.permanent", router)] = "true"
+		if !opts.SkipHTTPSRedirect {
+			labels[fmt.Sprintf("traefik.http.routers.%s-http.middlewares", router)] = router + "-redirect"
+			labels[fmt.Sprintf("traefik.http.middlewares.%s-redirect.redirectscheme.scheme", router)] = "https"
+			labels[fmt.Sprintf("traefik.http.middlewares.%s-redirect.redirectscheme.permanent", router)] = "true"
+		}
 	} else {
 		labels[fmt.Sprintf("traefik.http.routers.%s.rule", router)] = rule
 		labels[fmt.Sprintf("traefik.http.routers.%s.entrypoints", router)] = "http"
@@ -1383,6 +1387,18 @@ func FormatEnvFile(env map[string]string) string {
 		}
 	}
 	return b.String()
+}
+
+func passwordMagicLength(key string) int {
+	rest := strings.TrimPrefix(key, "SERVICE_PASSWORD_")
+	switch {
+	case rest == "64" || strings.HasPrefix(rest, "64_"):
+		return 64
+	case rest == "32" || strings.HasPrefix(rest, "32_"):
+		return 32
+	default:
+		return 24
+	}
 }
 
 func randomAlnum(n int) string {

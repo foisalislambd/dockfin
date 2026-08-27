@@ -4,7 +4,23 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/dockfin/dockfin/internal/config"
 )
+
+func TestRateLimitIPCloudflare(t *testing.T) {
+	a := &API{Cfg: &config.Config{TrustProxy: true}}
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+	r.RemoteAddr = "10.0.0.1:1234"
+	r.Header.Set("CF-Connecting-IP", "203.0.113.88")
+	if got := a.rateLimitIP(r); got != "203.0.113.88" {
+		t.Fatalf("got %q", got)
+	}
+	a.Cfg.TrustProxy = false
+	if got := a.rateLimitIP(r); got == "203.0.113.88" {
+		t.Fatalf("must not trust CF header without TrustProxy, got %q", got)
+	}
+}
 
 func TestAPITokenAllows(t *testing.T) {
 	if !apiTokenAllows([]string{"read"}, http.MethodGet, "/api/v1/applications") {

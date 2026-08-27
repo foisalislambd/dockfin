@@ -7,12 +7,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/git"
 	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/dockfin/dockfin/internal/worker"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -207,7 +207,7 @@ func (a *API) cleanupPreviewRemote(ctx context.Context, app *store.Application, 
 	}
 	appID := app.ID
 	cname := fmt.Sprintf("dockfin-%s-pr-%d", appID.String(), prID)
-	_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", cname)
+	runArgsRetry(client, 2, "docker", "rm", "-f", cname)
 	project := fmt.Sprintf("dockfin-%s-pr-%d", appID.String()[:8], prID)
 	workdir := fmt.Sprintf("/data/dockfin/applications/%s-pr-%d", appID.String(), prID)
 	for _, f := range []string{
@@ -215,9 +215,10 @@ func (a *API) cleanupPreviewRemote(ctx context.Context, app *store.Application, 
 		workdir + "/src/docker-compose.yml",
 		workdir + "/src/compose.yaml",
 	} {
-		_, _, _ = sshx.RunArgs(client, "docker", "compose", "-p", project, "-f", f, "down", "--remove-orphans", "-v")
+		runArgsRetry(client, 2, "docker", "compose", "-p", project, "-f", f, "down", "--remove-orphans", "-v")
 	}
-	_, _, _ = sshx.RunArgs(client, "rm", "-rf", workdir)
+	runArgsRetry(client, 2, "docker", "volume", "prune", "-f", "--filter", "label=com.docker.compose.project="+project)
+	runArgsRetry(client, 2, "rm", "-rf", workdir)
 }
 
 func (a *API) dialServerForTeam(ctx context.Context, teamID, serverID uuid.UUID) (*ssh.Client, error) {

@@ -30,6 +30,18 @@ func TestDeleteOptionsDefaults(t *testing.T) {
 	}
 }
 
+func TestDockerMissingOK(t *testing.T) {
+	if !dockerMissingOK("Error: No such container: foo") {
+		t.Fatal("container")
+	}
+	if !dockerMissingOK("No such file or directory") {
+		t.Fatal("file")
+	}
+	if dockerMissingOK("permission denied") {
+		t.Fatal("real errors must not be ignored")
+	}
+}
+
 func TestProtectedNetworks(t *testing.T) {
 	for _, name := range []string{"bridge", "host", "none", "dockfin", "coolify"} {
 		if _, ok := protectedNetworks[name]; !ok {

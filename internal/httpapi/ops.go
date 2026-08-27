@@ -9,14 +9,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/proxy"
 	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/dockfin/dockfin/internal/terminal"
 	"github.com/dockfin/dockfin/internal/worker"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 func (a *API) handleListServices(w http.ResponseWriter, r *http.Request) {
@@ -403,6 +403,7 @@ func (a *API) handlePatchService(w http.ResponseWriter, r *http.Request) {
 		Description      *string `json:"description"`
 		FQDN             *string `json:"fqdn"`
 		DockerComposeRaw *string `json:"docker_compose_raw"`
+		IsForceHTTPS     *bool   `json:"is_force_https"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -472,6 +473,17 @@ func (a *API) handlePatchService(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if body.IsForceHTTPS != nil {
+		if err := a.Store.SetServiceForceHTTPS(r.Context(), teamID, id, *body.IsForceHTTPS); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+		updated, err = a.Store.GetService(r.Context(), teamID, id)
+		if err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, serviceWithLinks(updated))
 }
 
@@ -506,9 +518,9 @@ func (a *API) handleDeleteService(w http.ResponseWriter, r *http.Request) {
 			if opts.volumes() {
 				downArgs = append(downArgs, "-v")
 			}
-			_, _, _ = sshx.RunArgs(client, downArgs...)
+			runArgsRetry(client, 2, downArgs...)
 			if opts.configurations() {
-				_, _, _ = sshx.RunArgs(client, "rm", "-rf", remoteDir)
+				runArgsRetry(client, 2, "rm", "-rf", remoteDir)
 			}
 			if opts.networks() {
 				// Coolify removes a network named after the service UUID; compose down

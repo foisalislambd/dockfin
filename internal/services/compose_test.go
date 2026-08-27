@@ -618,3 +618,64 @@ func TestPrepareComposeGPUAndRestart(t *testing.T) {
 		t.Fatalf("expected stop_grace_period:\n%s", out)
 	}
 }
+
+func TestPrepareComposeVaultAndObsidianLiveSync(t *testing.T) {
+	for _, name := range []string{"vault.yaml", "obsidian-livesync.yaml"} {
+		raw, err := os.ReadFile("../../templates/compose/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, env, err := PrepareCompose(string(raw), PrepareOpts{
+			BaseURL: "http://svc.example.com",
+			FQDN:    "svc.example.com",
+			Network: "dockfin",
+		})
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if !strings.Contains(out, "certresolver: letsencrypt") {
+			t.Fatalf("%s: expected auto SSL:\n%s", name, out)
+		}
+		if name == "vault.yaml" && env["SERVICE_URL_VAULT_8200"] == "" {
+			t.Fatalf("vault URL not generated: %#v", env)
+		}
+		if name == "obsidian-livesync.yaml" {
+			if env["SERVICE_USER_COUCHDB"] == "" || env["SERVICE_PASSWORD_64_COUCHDB"] == "" {
+				t.Fatalf("couchdb secrets not generated: %#v", env)
+			}
+			if len(env["SERVICE_PASSWORD_64_COUCHDB"]) != 64 {
+				t.Fatalf("PASSWORD_64 should be 64 chars, got %d", len(env["SERVICE_PASSWORD_64_COUCHDB"]))
+			}
+			if strings.Contains(out, "${SERVICE_PASSWORD_64_COUCHDB}") {
+				t.Fatalf("password not substituted:\n%s", out)
+			}
+			if !strings.Contains(out, "couchdb_local") {
+				t.Fatalf("expected compose configs for local.ini:\n%s", out)
+			}
+		}
+	}
+}
+
+func TestPrepareComposeSkipHTTPSRedirect(t *testing.T) {
+	raw := `# port: 80
+services:
+  web:
+    image: nginx
+    environment:
+      - SERVICE_URL_WEB
+`
+	out, _, err := PrepareCompose(raw, PrepareOpts{
+		BaseURL:           "http://app.example.com",
+		FQDN:              "app.example.com",
+		SkipHTTPSRedirect: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "certresolver: letsencrypt") {
+		t.Fatalf("expected TLS:\n%s", out)
+	}
+	if strings.Contains(out, "redirectscheme") {
+		t.Fatalf("did not expect HTTP redirect:\n%s", out)
+	}
+}

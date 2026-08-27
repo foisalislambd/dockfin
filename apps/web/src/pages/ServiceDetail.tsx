@@ -22,6 +22,7 @@ import { LinksMenu, LinksPanel } from '../components/LinksMenu'
 import { MoveResourcePanel } from '../components/MoveResourcePanel'
 import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
 import { ScheduledTasksPanel } from '../components/ScheduledTasksPanel'
+import { ResourceSwitcher } from '../components/ResourceSwitcher'
 import { ServiceLogo } from '../components/ServiceLogo'
 import { ServiceWebhooksPanel } from '../components/ServiceWebhooksPanel'
 import { ServerTerminal } from '../components/Terminal'
@@ -279,8 +280,14 @@ export function ServiceDetailPage() {
           <div className="mt-2 flex items-center gap-3">
             <ServiceLogo src={logo} name={s.name} className="h-11 w-11" />
             <div>
-              <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
+              <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
                 {s.name}
+                <ResourceSwitcher
+                  kind="service"
+                  currentId={svcId}
+                  environmentId={s.environment_id || envId}
+                  projectId={projectId}
+                />
               </h1>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {titleCase(s.service_type)} · <StatusText status={s.status} />
@@ -491,6 +498,25 @@ export function ServiceDetailPage() {
                   resourceId={svcId}
                   resourceName={s.name}
                 />
+                <label className="flex items-start gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
+                    checked={s.is_force_https !== false}
+                    onChange={(e) => {
+                      void api
+                        .updateService(svcId, { is_force_https: e.target.checked })
+                        .then(() => qc.invalidateQueries({ queryKey: ['service', svcId] }))
+                    }}
+                  />
+                  <span>
+                    <span className="font-medium text-gray-900 dark:text-white">Force HTTPS redirects</span>
+                    <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
+                      Custom domains keep TLS. Turn off to leave HTTP reachable without bouncing to HTTPS.
+                      Redeploy to apply.
+                    </span>
+                  </span>
+                </label>
               </div>
             )}
             {side === 'environment' && (

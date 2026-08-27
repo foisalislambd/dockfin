@@ -228,12 +228,14 @@ func guessLogo(typ string) string {
 		strings.ReplaceAll(base, "-", "") + ".svg",
 	}
 	// known Coolify filename quirks
-		aliases := map[string][]string{
-		"pocket-id":   {"pocketid-logo.png", "pocket-id.svg"},
-		"denoKV":      {"denokv.svg", "deno.svg"},
-		"pydio-cells": {"cells.svg", "pydio.svg"},
-		"goatcounter": {"goatcounter.svg", "goatcounter.png"},
-		"vaultwarden": {"bitwarden.svg", "vaultwarden.svg"},
+	aliases := map[string][]string{
+		"pocket-id":         {"pocketid-logo.png", "pocket-id.svg"},
+		"denoKV":            {"denokv.svg", "deno.svg"},
+		"pydio-cells":       {"cells.svg", "pydio.svg"},
+		"goatcounter":       {"goatcounter.svg", "goatcounter.png"},
+		"vaultwarden":       {"bitwarden.svg", "vaultwarden.svg"},
+		"vault":             {"vault.svg"},
+		"obsidian-livesync": {"obsidian-livesync.svg"},
 	}
 	if extra, ok := aliases[typ]; ok {
 		candidates = append(extra, candidates...)

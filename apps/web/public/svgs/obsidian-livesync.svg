@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Obsidian LiveSync">
+  <rect width="64" height="64" rx="14" fill="#7C3AED"/>
+  <path fill="#fff" d="M32 10l16 10v16L32 54 16 36V20L32 10zm0 8.4L22 24.6v10.2L32 44.8l10-10V24.6L32 18.4z"/>
+</svg>

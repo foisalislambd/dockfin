@@ -106,6 +106,8 @@ func (a *API) Router() http.Handler {
 		r.Get("/webhooks/deploy/services/{serviceID}", a.handleServiceDeployWebhook)
 		r.Post("/webhooks/deploy/services/{serviceID}", a.handleServiceDeployWebhook)
 
+		r.Get("/invitations/preview", a.handlePreviewInvitation)
+
 		r.Group(func(r chi.Router) {
 			r.Use(a.requireAuth)
 			r.Use(a.enforceAPITokenPolicy)

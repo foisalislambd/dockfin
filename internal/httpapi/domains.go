@@ -4,10 +4,11 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"time"
 
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/proxy"
 	"github.com/dockfin/dockfin/internal/store"
+	"github.com/google/uuid"
 )
 
 // resolveServerForDomain returns the server used for magic/wildcard FQDN generation.
@@ -152,8 +153,8 @@ func (a *API) handleCheckDomainDNS(w http.ResponseWriter, r *http.Request) {
 
 	results := make([]proxy.DNSCheckResult, 0, len(hosts))
 	allOK := true
-	for _, h := range hosts {
-		if !validationOn {
+	if !validationOn {
+		for _, h := range hosts {
 			results = append(results, proxy.DNSCheckResult{
 				Host:           h,
 				ExpectedIP:     expectIP,
@@ -161,13 +162,16 @@ func (a *API) handleCheckDomainDNS(w http.ResponseWriter, r *http.Request) {
 				SkipValidation: true,
 				Resolvers:      resolvers,
 			})
-			continue
 		}
-		rlt := proxy.CheckDomainDNS(r.Context(), h, expectIP, resolvers)
-		if !rlt.Matched && !rlt.SkipValidation {
-			allOK = false
+	} else {
+		ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
+		defer cancel()
+		results = proxy.CheckDomainsDNS(ctx, hosts, expectIP, resolvers)
+		for _, rlt := range results {
+			if !rlt.Matched && !rlt.SkipValidation {
+				allOK = false
+			}
 		}
-		results = append(results, rlt)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{

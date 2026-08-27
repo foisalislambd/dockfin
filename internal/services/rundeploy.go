@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/proxy"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -99,10 +99,11 @@ func RunDeploy(ctx context.Context, p DeployParams) error {
 			existing[k] = v
 		}
 		opts := PrepareOpts{
-			ServiceID:   id.String(),
-			BaseURL:     "http://127.0.0.1",
-			RouterName:  svc.Name + "-" + id.String()[:8],
-			ExistingEnv: existing,
+			ServiceID:         id.String(),
+			BaseURL:           "http://127.0.0.1",
+			RouterName:        svc.Name + "-" + id.String()[:8],
+			ExistingEnv:       existing,
+			SkipHTTPSRedirect: !svc.IsForceHTTPS,
 		}
 		if p.Dest != nil {
 			opts.Network = p.Dest.Network

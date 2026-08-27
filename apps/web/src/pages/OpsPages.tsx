@@ -164,9 +164,9 @@ export function TeamPage() {
 
   const invite = useMutation({
     mutationFn: () => api.createInvitation(inviteEmail, inviteRole),
-    onSuccess: (inv) => {
+    onSuccess: (res) => {
       setInviteEmail('')
-      setCreatedInvite(inv.token || null)
+      setCreatedInvite(res.invite_url || res.token || null)
       void qc.invalidateQueries({ queryKey: ['team-invitations'] })
     },
   })
@@ -337,8 +337,13 @@ export function TeamPage() {
           {invite.error && <p className="text-sm text-error-500">{invite.error.message}</p>}
           {createdInvite && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-500/30 dark:bg-amber-500/10">
-              <p className="font-medium text-amber-800 dark:text-amber-200">Invite token (share once)</p>
+              <p className="font-medium text-amber-800 dark:text-amber-200">
+                Invite link (share once — they must confirm)
+              </p>
               <code className="mt-1 block break-all font-mono text-xs">{createdInvite}</code>
+              <p className="mt-2 text-xs text-amber-800/80 dark:text-amber-200/80">
+                Chat and email previews cannot burn this invite. Recipients click Confirm after signing in.
+              </p>
             </div>
           )}
           <div className="panel-card overflow-hidden">
@@ -390,7 +395,7 @@ export function TeamPage() {
       <div className="panel-card space-y-3 p-5">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Accept invitation</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Paste an invite token (email must match your account).
+          Paste an invite token if someone sent the raw token instead of the /invite link.
         </p>
         <form
           className="flex flex-wrap items-end gap-3"

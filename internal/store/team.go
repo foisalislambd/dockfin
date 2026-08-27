@@ -283,6 +283,33 @@ func (s *Store) GetInvitationByToken(ctx context.Context, token string) (*TeamIn
 	return &inv, err
 }
 
+type InvitationPreview struct {
+	Email     string    `json:"email"`
+	Role      string    `json:"role"`
+	TeamName  string    `json:"team_name"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// PreviewInvitation returns invite metadata without consuming the token.
+// Safe for crawlers / link unfurls (GET must never accept).
+func (s *Store) PreviewInvitation(ctx context.Context, token string) (*InvitationPreview, error) {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return nil, ErrNotFound
+	}
+	var p InvitationPreview
+	err := s.Pool.QueryRow(ctx, `
+		SELECT i.email, i.role, t.name, i.expires_at
+		FROM team_invitations i
+		JOIN teams t ON t.id = i.team_id
+		WHERE i.token=$1 AND i.expires_at > NOW()
+	`, token).Scan(&p.Email, &p.Role, &p.TeamName, &p.ExpiresAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return &p, err
+}
+
 func (s *Store) AcceptInvitation(ctx context.Context, token string, userID uuid.UUID, userEmail string) (*Team, error) {
 	inv, err := s.GetInvitationByToken(ctx, token)
 	if err != nil {

@@ -99,6 +99,29 @@ var protectedNetworks = map[string]struct{}{
 	"dockfin": {}, "coolify": {},
 }
 
+func dockerMissingOK(stderr string) bool {
+	s := strings.ToLower(stderr)
+	return strings.Contains(s, "no such") ||
+		strings.Contains(s, "not found") ||
+		strings.Contains(s, "does not exist") ||
+		strings.Contains(s, "no such file") ||
+		strings.Contains(s, "no such container") ||
+		strings.Contains(s, "no such volume") ||
+		strings.Contains(s, "no such network")
+}
+
+func runArgsRetry(client *ssh.Client, tries int, args ...string) {
+	if tries < 1 {
+		tries = 1
+	}
+	for i := 0; i < tries; i++ {
+		_, errOut, err := sshx.RunArgs(client, args...)
+		if err == nil || dockerMissingOK(errOut) {
+			return
+		}
+	}
+}
+
 // removeResourceScopedNetwork mirrors Coolify deleteConnectedNetworks: remove a network
 // named after the resource UUID only. Never touches shared destination/proxy networks.
 func removeResourceScopedNetwork(client *ssh.Client, resourceID string) {
@@ -109,12 +132,12 @@ func removeResourceScopedNetwork(client *ssh.Client, resourceID string) {
 	if _, protected := protectedNetworks[name]; protected {
 		return
 	}
-	_, _, _ = sshx.RunArgs(client, "docker", "network", "disconnect", name, "dockfin-proxy")
-	_, _, _ = sshx.RunArgs(client, "docker", "network", "rm", name)
+	runArgsRetry(client, 2, "docker", "network", "disconnect", name, "dockfin-proxy")
+	runArgsRetry(client, 2, "docker", "network", "rm", name)
 }
 
 // runDockerCleanup approximates Coolify CleanupDocker for delete flows.
 func runDockerCleanup(client *ssh.Client) {
-	_, _, _ = sshx.RunArgs(client, "docker", "image", "prune", "-f")
-	_, _, _ = sshx.RunArgs(client, "docker", "builder", "prune", "-f")
+	runArgsRetry(client, 2, "docker", "image", "prune", "-f")
+	runArgsRetry(client, 2, "docker", "builder", "prune", "-f")
 }

@@ -6,15 +6,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/pquerna/otp/totp"
 	"github.com/dockfin/dockfin/internal/crypto"
 	"github.com/dockfin/dockfin/internal/mailer"
+	"github.com/google/uuid"
+	"github.com/pquerna/otp/totp"
 )
 
 // handleLogin2FA completes a password login that required a second factor.
 func (a *API) handleLogin2FA(w http.ResponseWriter, r *http.Request) {
-	ip := loginClientIP(r)
+	ip := a.rateLimitIP(r)
 	if !globalLoginLimiter.allow(ip) {
 		writeError(w, http.StatusTooManyRequests, "too many login attempts")
 		return

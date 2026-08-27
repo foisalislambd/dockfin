@@ -16,6 +16,7 @@ import { ConfirmProvider } from './components/ConfirmDialog'
 import { AppShell } from './components/AppShell'
 import { AppShellSkeleton } from './components/ui/Skeleton'
 import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage } from './pages/Auth'
+import { InvitePage } from './pages/Invite'
 import { api, ApiError } from './lib/api'
 import './index.css'
 
@@ -124,6 +125,12 @@ const resetPasswordRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/reset-password',
   component: ResetPasswordPage,
+})
+
+const inviteRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/invite',
+  component: InvitePage,
 })
 
 const appRoute = createRoute({
@@ -454,6 +461,7 @@ const routeTree = rootRoute.addChildren([
   registerRoute,
   forgotPasswordRoute,
   resetPasswordRoute,
+  inviteRoute,
   appRoute.addChildren([
     dashboardRoute,
     serversRoute,

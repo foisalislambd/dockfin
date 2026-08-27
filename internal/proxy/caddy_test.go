@@ -1,6 +1,29 @@
 package proxy
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
+
+func TestTraefikLabelsHTTPSRedirectIndependentOfTLS(t *testing.T) {
+	tls := TraefikLabelsHTTPS("web", "app.example.com", "80", false)
+	joined := strings.Join(tls, "\n")
+	if !strings.Contains(joined, "certresolver=letsencrypt") {
+		t.Fatalf("custom domain must keep TLS when redirect is off:\n%s", joined)
+	}
+	if strings.Contains(joined, "redirectscheme") {
+		t.Fatalf("did not expect HTTP bounce:\n%s", joined)
+	}
+	redir := TraefikLabelsHTTPS("web", "app.example.com", "80", true)
+	if !strings.Contains(strings.Join(redir, "\n"), "redirectscheme") {
+		t.Fatal("expected HTTP→HTTPS bounce when forceHTTPS")
+	}
+	magic := TraefikLabelsHTTPS("web", "app.1.2.3.4.sslip.io", "80", true)
+	m := strings.Join(magic, "\n")
+	if strings.Contains(m, "certresolver") || strings.Contains(m, "entrypoints=https") {
+		t.Fatalf("magic domain must stay HTTP:\n%s", m)
+	}
+}
 
 func TestCaddyLabels(t *testing.T) {
 	httpOnly := CaddyLabels("app", "example.com", "80", false)

@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/dockfin/dockfin/internal/git"
 	"github.com/dockfin/dockfin/internal/redact"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type Project struct {
@@ -34,111 +34,111 @@ type Environment struct {
 }
 
 type Application struct {
-	ID                      uuid.UUID  `json:"id"`
-	TeamID                  uuid.UUID  `json:"team_id"`
-	EnvironmentID           uuid.UUID  `json:"environment_id"`
-	DestinationID           *uuid.UUID `json:"destination_id"`
-	Name                    string     `json:"name"`
-	Description             string     `json:"description"`
-	FQDN                    string     `json:"fqdn"`
-	Status                  string     `json:"status"`
-	BuildPack               string     `json:"build_pack"`
-	GitRepository           string     `json:"git_repository"`
-	GitBranch               string     `json:"git_branch"`
-	GitCommitSHA            string     `json:"git_commit_sha"`
-	DockerfileLocation      string     `json:"dockerfile_location"`
+	ID                 uuid.UUID  `json:"id"`
+	TeamID             uuid.UUID  `json:"team_id"`
+	EnvironmentID      uuid.UUID  `json:"environment_id"`
+	DestinationID      *uuid.UUID `json:"destination_id"`
+	Name               string     `json:"name"`
+	Description        string     `json:"description"`
+	FQDN               string     `json:"fqdn"`
+	Status             string     `json:"status"`
+	BuildPack          string     `json:"build_pack"`
+	GitRepository      string     `json:"git_repository"`
+	GitBranch          string     `json:"git_branch"`
+	GitCommitSHA       string     `json:"git_commit_sha"`
+	DockerfileLocation string     `json:"dockerfile_location"`
 	// Dockerfile is inline content for Coolify-style "Dockerfile without Git".
-	Dockerfile              string     `json:"dockerfile,omitempty"`
-	DockerComposeLocation   string     `json:"docker_compose_location"`
-	DockerRegistryImageName string     `json:"docker_registry_image_name"`
-	DockerRegistryImageTag  string     `json:"docker_registry_image_tag"`
-	PortsExposes            string     `json:"ports_exposes"`
-	PortsMappings           string     `json:"ports_mappings,omitempty"`
-	CustomNetworkAliases    string     `json:"custom_network_aliases,omitempty"`
-	InstallCommand          string     `json:"install_command,omitempty"`
-	BuildCommand            string     `json:"build_command,omitempty"`
-	StartCommand            string     `json:"start_command,omitempty"`
-	PublishDirectory        string     `json:"publish_directory,omitempty"`
-	CustomNginxConfiguration string    `json:"custom_nginx_configuration,omitempty"`
-	PreviewURLTemplate      string     `json:"preview_url_template,omitempty"`
+	Dockerfile               string `json:"dockerfile,omitempty"`
+	DockerComposeLocation    string `json:"docker_compose_location"`
+	DockerRegistryImageName  string `json:"docker_registry_image_name"`
+	DockerRegistryImageTag   string `json:"docker_registry_image_tag"`
+	PortsExposes             string `json:"ports_exposes"`
+	PortsMappings            string `json:"ports_mappings,omitempty"`
+	CustomNetworkAliases     string `json:"custom_network_aliases,omitempty"`
+	InstallCommand           string `json:"install_command,omitempty"`
+	BuildCommand             string `json:"build_command,omitempty"`
+	StartCommand             string `json:"start_command,omitempty"`
+	PublishDirectory         string `json:"publish_directory,omitempty"`
+	CustomNginxConfiguration string `json:"custom_nginx_configuration,omitempty"`
+	PreviewURLTemplate       string `json:"preview_url_template,omitempty"`
 	// ComposePrepare adapts Git compose for Dockfin (Traefik, network, strip host ports).
 	// False = deploy the repository compose file unchanged.
 	ComposePrepare bool `json:"compose_prepare"`
 	// Coolify-parity compose preview + build options.
-	DockerComposeRaw                  string          `json:"docker_compose_raw,omitempty"`
-	DockerCompose                     string          `json:"docker_compose,omitempty"`
-	DockerComposeDomains              json.RawMessage `json:"docker_compose_domains,omitempty"`
-	BaseDirectory                     string          `json:"base_directory"`
-	DockerComposeCustomBuildCommand   string          `json:"docker_compose_custom_build_command,omitempty"`
-	DockerComposeCustomStartCommand   string          `json:"docker_compose_custom_start_command,omitempty"`
-	CustomDockerRunOptions            string          `json:"custom_docker_run_options,omitempty"`
-	DockerfileTargetBuild             string          `json:"dockerfile_target_build,omitempty"`
-	HealthCheckEnabled                bool            `json:"health_check_enabled"`
-	HealthCheckPath                   string          `json:"health_check_path"`
-	HealthCheckPort                   *int            `json:"health_check_port,omitempty"`
-	HealthCheckMethod                 string          `json:"health_check_method"`
-	HealthCheckReturnCode             int             `json:"health_check_return_code"`
-	HealthCheckInterval               int             `json:"health_check_interval"`
-	HealthCheckTimeout                int             `json:"health_check_timeout"`
-	HealthCheckRetries                int             `json:"health_check_retries"`
-	HealthCheckHost                   string          `json:"health_check_host"`
-	HealthCheckScheme                 string          `json:"health_check_scheme"`
-	HealthCheckResponseText           string          `json:"health_check_response_text,omitempty"`
-	HealthCheckStartPeriod            int             `json:"health_check_start_period"`
-	HealthCheckType                   string          `json:"health_check_type"`
-	HealthCheckCommand                string          `json:"health_check_command,omitempty"`
-	LimitsMemory                      string          `json:"limits_memory"`
-	LimitsCpus                        string          `json:"limits_cpus"`
-	PreDeploymentCommand              string          `json:"pre_deployment_command,omitempty"`
-	PostDeploymentCommand             string          `json:"post_deployment_command,omitempty"`
-	CustomLabels                      string          `json:"custom_labels,omitempty"`
-	HTTPBasicAuthUsername             string          `json:"http_basic_auth_username,omitempty"`
-	HasHTTPBasicAuth                  bool            `json:"has_http_basic_auth"`
-	HTTPBasicAuthPasswordEnc          string          `json:"-"`
-	IsForceHTTPS                      bool            `json:"is_force_https"`
-	IsPreviewEnabled                  bool            `json:"is_preview_enabled"`
-	GitSourceID                       *uuid.UUID      `json:"git_source_id,omitempty"`
-	PrivateKeyID                      *uuid.UUID      `json:"private_key_id,omitempty"`
-	IsBuildServerEnabled              bool            `json:"is_build_server_enabled"`
-	IsAutoDeployEnabled               bool            `json:"is_auto_deploy_enabled"`
-	IsGitSubmodulesEnabled            bool            `json:"is_git_submodules_enabled"`
-	IsPreserveRepositoryEnabled       bool            `json:"is_preserve_repository_enabled"`
-	WatchPaths                        string          `json:"watch_paths,omitempty"`
-	Redirect                          string          `json:"redirect"`
-	DockerRegistryID                  *uuid.UUID      `json:"docker_registry_id,omitempty"`
-	IsDisableBuildCache               bool            `json:"is_disable_build_cache"`
-	IsGitShallowCloneEnabled          bool            `json:"is_git_shallow_clone_enabled"`
-	IsGitLFSEnabled                   bool            `json:"is_git_lfs_enabled"`
-	IsGPUEnabled                      bool            `json:"is_gpu_enabled"`
-	GPUCount                          int             `json:"gpu_count"`
-	CustomDockerStopTimeout           int             `json:"custom_docker_stop_timeout"`
-	CustomDockerRestartPolicy         string          `json:"custom_docker_restart_policy"`
-	IsSPA                             bool            `json:"is_spa"`
-	InjectBuildArgsToDockerfile       bool            `json:"inject_build_args_to_dockerfile"`
-	UseBuildSecrets                   bool            `json:"use_build_secrets"`
-	IncludeSourceCommitInBuild        bool            `json:"include_source_commit_in_build"`
-	DockerImagesToKeep                int             `json:"docker_images_to_keep"`
-	IsConsistentContainerNameEnabled  bool            `json:"is_consistent_container_name_enabled"`
-	CustomInternalName                string          `json:"custom_internal_name,omitempty"`
-	IsGzipEnabled                     bool            `json:"is_gzip_enabled"`
-	IsStripPrefixEnabled              bool            `json:"is_stripprefix_enabled"`
-	IsLogDrainEnabled                 bool            `json:"is_log_drain_enabled"`
-	IsDebugEnabled                    bool            `json:"is_debug_enabled"`
-	IsEnvSortingEnabled               bool            `json:"is_env_sorting_enabled"`
-	IsPRDeploymentsPublicEnabled      bool            `json:"is_pr_deployments_public_enabled"`
-	SkipRebuildIfUnchanged            bool            `json:"skip_rebuild_if_unchanged"`
-	GPUDriver                         string          `json:"gpu_driver,omitempty"`
-	GPUDeviceIDs                      string          `json:"gpu_device_ids,omitempty"`
-	GPUOptions                        string          `json:"gpu_options,omitempty"`
-	CustomDockerMaxRestartCount       int             `json:"custom_docker_max_restart_count"`
-	PreDeploymentCommandContainer     string          `json:"pre_deployment_command_container,omitempty"`
-	PostDeploymentCommandContainer    string          `json:"post_deployment_command_container,omitempty"`
-	IsSwarmOnlyWorkerNodes            bool            `json:"is_swarm_only_worker_nodes"`
-	IsIncludeTimestamps               bool            `json:"is_include_timestamps"`
-	LogsLineLimit                     int             `json:"logs_line_limit"`
-	SwarmReplicas                     int             `json:"swarm_replicas"`
-	SwarmPlacementConstraints         string          `json:"swarm_placement_constraints,omitempty"`
-	CreatedAt                         time.Time       `json:"created_at"`
+	DockerComposeRaw                 string          `json:"docker_compose_raw,omitempty"`
+	DockerCompose                    string          `json:"docker_compose,omitempty"`
+	DockerComposeDomains             json.RawMessage `json:"docker_compose_domains,omitempty"`
+	BaseDirectory                    string          `json:"base_directory"`
+	DockerComposeCustomBuildCommand  string          `json:"docker_compose_custom_build_command,omitempty"`
+	DockerComposeCustomStartCommand  string          `json:"docker_compose_custom_start_command,omitempty"`
+	CustomDockerRunOptions           string          `json:"custom_docker_run_options,omitempty"`
+	DockerfileTargetBuild            string          `json:"dockerfile_target_build,omitempty"`
+	HealthCheckEnabled               bool            `json:"health_check_enabled"`
+	HealthCheckPath                  string          `json:"health_check_path"`
+	HealthCheckPort                  *int            `json:"health_check_port,omitempty"`
+	HealthCheckMethod                string          `json:"health_check_method"`
+	HealthCheckReturnCode            int             `json:"health_check_return_code"`
+	HealthCheckInterval              int             `json:"health_check_interval"`
+	HealthCheckTimeout               int             `json:"health_check_timeout"`
+	HealthCheckRetries               int             `json:"health_check_retries"`
+	HealthCheckHost                  string          `json:"health_check_host"`
+	HealthCheckScheme                string          `json:"health_check_scheme"`
+	HealthCheckResponseText          string          `json:"health_check_response_text,omitempty"`
+	HealthCheckStartPeriod           int             `json:"health_check_start_period"`
+	HealthCheckType                  string          `json:"health_check_type"`
+	HealthCheckCommand               string          `json:"health_check_command,omitempty"`
+	LimitsMemory                     string          `json:"limits_memory"`
+	LimitsCpus                       string          `json:"limits_cpus"`
+	PreDeploymentCommand             string          `json:"pre_deployment_command,omitempty"`
+	PostDeploymentCommand            string          `json:"post_deployment_command,omitempty"`
+	CustomLabels                     string          `json:"custom_labels,omitempty"`
+	HTTPBasicAuthUsername            string          `json:"http_basic_auth_username,omitempty"`
+	HasHTTPBasicAuth                 bool            `json:"has_http_basic_auth"`
+	HTTPBasicAuthPasswordEnc         string          `json:"-"`
+	IsForceHTTPS                     bool            `json:"is_force_https"`
+	IsPreviewEnabled                 bool            `json:"is_preview_enabled"`
+	GitSourceID                      *uuid.UUID      `json:"git_source_id,omitempty"`
+	PrivateKeyID                     *uuid.UUID      `json:"private_key_id,omitempty"`
+	IsBuildServerEnabled             bool            `json:"is_build_server_enabled"`
+	IsAutoDeployEnabled              bool            `json:"is_auto_deploy_enabled"`
+	IsGitSubmodulesEnabled           bool            `json:"is_git_submodules_enabled"`
+	IsPreserveRepositoryEnabled      bool            `json:"is_preserve_repository_enabled"`
+	WatchPaths                       string          `json:"watch_paths,omitempty"`
+	Redirect                         string          `json:"redirect"`
+	DockerRegistryID                 *uuid.UUID      `json:"docker_registry_id,omitempty"`
+	IsDisableBuildCache              bool            `json:"is_disable_build_cache"`
+	IsGitShallowCloneEnabled         bool            `json:"is_git_shallow_clone_enabled"`
+	IsGitLFSEnabled                  bool            `json:"is_git_lfs_enabled"`
+	IsGPUEnabled                     bool            `json:"is_gpu_enabled"`
+	GPUCount                         int             `json:"gpu_count"`
+	CustomDockerStopTimeout          int             `json:"custom_docker_stop_timeout"`
+	CustomDockerRestartPolicy        string          `json:"custom_docker_restart_policy"`
+	IsSPA                            bool            `json:"is_spa"`
+	InjectBuildArgsToDockerfile      bool            `json:"inject_build_args_to_dockerfile"`
+	UseBuildSecrets                  bool            `json:"use_build_secrets"`
+	IncludeSourceCommitInBuild       bool            `json:"include_source_commit_in_build"`
+	DockerImagesToKeep               int             `json:"docker_images_to_keep"`
+	IsConsistentContainerNameEnabled bool            `json:"is_consistent_container_name_enabled"`
+	CustomInternalName               string          `json:"custom_internal_name,omitempty"`
+	IsGzipEnabled                    bool            `json:"is_gzip_enabled"`
+	IsStripPrefixEnabled             bool            `json:"is_stripprefix_enabled"`
+	IsLogDrainEnabled                bool            `json:"is_log_drain_enabled"`
+	IsDebugEnabled                   bool            `json:"is_debug_enabled"`
+	IsEnvSortingEnabled              bool            `json:"is_env_sorting_enabled"`
+	IsPRDeploymentsPublicEnabled     bool            `json:"is_pr_deployments_public_enabled"`
+	SkipRebuildIfUnchanged           bool            `json:"skip_rebuild_if_unchanged"`
+	GPUDriver                        string          `json:"gpu_driver,omitempty"`
+	GPUDeviceIDs                     string          `json:"gpu_device_ids,omitempty"`
+	GPUOptions                       string          `json:"gpu_options,omitempty"`
+	CustomDockerMaxRestartCount      int             `json:"custom_docker_max_restart_count"`
+	PreDeploymentCommandContainer    string          `json:"pre_deployment_command_container,omitempty"`
+	PostDeploymentCommandContainer   string          `json:"post_deployment_command_container,omitempty"`
+	IsSwarmOnlyWorkerNodes           bool            `json:"is_swarm_only_worker_nodes"`
+	IsIncludeTimestamps              bool            `json:"is_include_timestamps"`
+	LogsLineLimit                    int             `json:"logs_line_limit"`
+	SwarmReplicas                    int             `json:"swarm_replicas"`
+	SwarmPlacementConstraints        string          `json:"swarm_placement_constraints,omitempty"`
+	CreatedAt                        time.Time       `json:"created_at"`
 }
 
 type ApplicationPreview struct {
@@ -344,6 +344,7 @@ type Service struct {
 	DockerCompose    string     `json:"docker_compose,omitempty"`
 	FQDN             string     `json:"fqdn"`
 	Status           string     `json:"status"`
+	IsForceHTTPS     bool       `json:"is_force_https"`
 	CreatedAt        time.Time  `json:"created_at"`
 }
 
@@ -1537,17 +1538,17 @@ func (s *Store) CreateService(ctx context.Context, svc *Service) (*Service, erro
 	err := s.Pool.QueryRow(ctx, `
 		INSERT INTO services (id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, docker_compose, fqdn)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-		RETURNING id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, docker_compose, COALESCE(fqdn,''), status, created_at
+		RETURNING id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, docker_compose, COALESCE(fqdn,''), status, created_at, COALESCE(is_force_https, TRUE)
 	`, svc.ID, svc.TeamID, svc.EnvironmentID, svc.ServerID, svc.DestinationID, svc.Name, svc.Description, svc.ServiceType, svc.DockerComposeRaw, prepared, svc.FQDN).Scan(
 		&svc.ID, &svc.TeamID, &svc.EnvironmentID, &svc.ServerID, &svc.DestinationID, &svc.Name, &svc.Description,
-		&svc.ServiceType, &svc.DockerComposeRaw, &svc.DockerCompose, &svc.FQDN, &svc.Status, &svc.CreatedAt,
+		&svc.ServiceType, &svc.DockerComposeRaw, &svc.DockerCompose, &svc.FQDN, &svc.Status, &svc.CreatedAt, &svc.IsForceHTTPS,
 	)
 	return svc, err
 }
 
 func (s *Store) ListServices(ctx context.Context, teamID uuid.UUID, environmentID *uuid.UUID) ([]Service, error) {
 	q := `
-		SELECT id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, COALESCE(docker_compose, ''), COALESCE(fqdn,''), status, created_at
+		SELECT id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, COALESCE(docker_compose, ''), COALESCE(fqdn,''), status, created_at, COALESCE(is_force_https, TRUE)
 		FROM services WHERE team_id=$1 AND deleted_at IS NULL`
 	args := []any{teamID}
 	if environmentID != nil {
@@ -1565,7 +1566,7 @@ func (s *Store) ListServices(ctx context.Context, teamID uuid.UUID, environmentI
 		var svc Service
 		if err := rows.Scan(
 			&svc.ID, &svc.TeamID, &svc.EnvironmentID, &svc.ServerID, &svc.DestinationID, &svc.Name, &svc.Description,
-			&svc.ServiceType, &svc.DockerComposeRaw, &svc.DockerCompose, &svc.FQDN, &svc.Status, &svc.CreatedAt,
+			&svc.ServiceType, &svc.DockerComposeRaw, &svc.DockerCompose, &svc.FQDN, &svc.Status, &svc.CreatedAt, &svc.IsForceHTTPS,
 		); err != nil {
 			return nil, err
 		}
@@ -1577,11 +1578,11 @@ func (s *Store) ListServices(ctx context.Context, teamID uuid.UUID, environmentI
 func (s *Store) GetService(ctx context.Context, teamID, id uuid.UUID) (*Service, error) {
 	var svc Service
 	err := s.Pool.QueryRow(ctx, `
-		SELECT id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, COALESCE(docker_compose, ''), COALESCE(fqdn,''), status, created_at
+		SELECT id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, COALESCE(docker_compose, ''), COALESCE(fqdn,''), status, created_at, COALESCE(is_force_https, TRUE)
 		FROM services WHERE id=$1 AND team_id=$2 AND deleted_at IS NULL
 	`, id, teamID).Scan(
 		&svc.ID, &svc.TeamID, &svc.EnvironmentID, &svc.ServerID, &svc.DestinationID, &svc.Name, &svc.Description,
-		&svc.ServiceType, &svc.DockerComposeRaw, &svc.DockerCompose, &svc.FQDN, &svc.Status, &svc.CreatedAt,
+		&svc.ServiceType, &svc.DockerComposeRaw, &svc.DockerCompose, &svc.FQDN, &svc.Status, &svc.CreatedAt, &svc.IsForceHTTPS,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
@@ -1627,6 +1628,20 @@ func (s *Store) UpdateServiceMeta(ctx context.Context, teamID, id uuid.UUID, nam
 func (s *Store) UpdateServiceFQDN(ctx context.Context, id uuid.UUID, fqdn string) error {
 	_, err := s.Pool.Exec(ctx, `UPDATE services SET fqdn=$2, updated_at=NOW() WHERE id=$1`, id, fqdn)
 	return err
+}
+
+func (s *Store) SetServiceForceHTTPS(ctx context.Context, teamID, id uuid.UUID, enabled bool) error {
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE services SET is_force_https=$3, docker_compose='', updated_at=NOW()
+		WHERE id=$1 AND team_id=$2 AND deleted_at IS NULL
+	`, id, teamID, enabled)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *Store) ListQueuedDeployments(ctx context.Context, limit int) ([]Deployment, error) {

@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/crypto"
 	"github.com/dockfin/dockfin/internal/store"
+	"github.com/google/uuid"
 )
 
 // issueSession creates a new session for user, sets the session cookie, and
@@ -117,7 +117,7 @@ func (a *API) handleRegistrationStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleLogin(w http.ResponseWriter, r *http.Request) {
-	ip := loginClientIP(r)
+	ip := a.rateLimitIP(r)
 	if !globalLoginLimiter.allow(ip) {
 		writeError(w, http.StatusTooManyRequests, "too many login attempts")
 		return

@@ -11,11 +11,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/proxy"
 	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/store"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 type composeServiceDomain struct {
@@ -82,14 +82,14 @@ func (a *API) handleLoadComposeForApp(w http.ResponseWriter, r *http.Request) {
 }
 
 type loadComposeResponse struct {
-	Location             string                     `json:"location"`
-	BaseDirectory        string                     `json:"base_directory"`
-	DockerComposeRaw     string                     `json:"docker_compose_raw"`
-	DockerCompose        string                     `json:"docker_compose"`
+	Location             string                          `json:"location"`
+	BaseDirectory        string                          `json:"base_directory"`
+	DockerComposeRaw     string                          `json:"docker_compose_raw"`
+	DockerCompose        string                          `json:"docker_compose"`
 	DockerComposeDomains map[string]composeServiceDomain `json:"docker_compose_domains"`
-	Units                []services.ComposeUnit     `json:"units"`
-	Volumes              []services.ComposeVolume   `json:"volumes"`
-	Application          *store.Application         `json:"application"`
+	Units                []services.ComposeUnit          `json:"units"`
+	Volumes              []services.ComposeVolume        `json:"volumes"`
+	Application          *store.Application              `json:"application"`
 }
 
 func (a *API) loadApplicationCompose(r *http.Request, teamID uuid.UUID, app *store.Application) (*loadComposeResponse, error) {
@@ -216,12 +216,13 @@ func (a *API) loadApplicationCompose(r *http.Request, teamID uuid.UUID, app *sto
 	routerName := app.Name + "-" + app.ID.String()[:8]
 	port := services.DetectProxyPortForGitCompose(raw, app.PortsExposes)
 	opts := services.PrepareOpts{
-		ServiceID:  app.ID.String(),
-		BaseURL:    baseURL,
-		FQDN:       fqdn,
-		RouterName: routerName,
-		Port:       port,
-		Redirect:   app.Redirect,
+		ServiceID:         app.ID.String(),
+		BaseURL:           baseURL,
+		FQDN:              fqdn,
+		RouterName:        routerName,
+		Port:              port,
+		Redirect:          app.Redirect,
+		SkipHTTPSRedirect: !app.IsForceHTTPS,
 	}
 	if app.DestinationID != nil {
 		if dest, err := a.Store.GetDestination(ctx, teamID, *app.DestinationID); err == nil {
@@ -390,12 +391,13 @@ func (a *API) ensureApplicationComposeEnv(ctx context.Context, teamID, appID uui
 		fqdn = app.FQDN
 	}
 	opts := services.PrepareOpts{
-		ServiceID:  app.ID.String(),
-		BaseURL:    proxy.AutoPublicURL(fqdn),
-		FQDN:       fqdn,
-		RouterName: app.Name + "-" + app.ID.String()[:8],
-		Port:       services.DetectProxyPortForGitCompose(raw, app.PortsExposes),
-		Redirect:   app.Redirect,
+		ServiceID:         app.ID.String(),
+		BaseURL:           proxy.AutoPublicURL(fqdn),
+		FQDN:              fqdn,
+		RouterName:        app.Name + "-" + app.ID.String()[:8],
+		Port:              services.DetectProxyPortForGitCompose(raw, app.PortsExposes),
+		Redirect:          app.Redirect,
+		SkipHTTPSRedirect: !app.IsForceHTTPS,
 	}
 	if app.DestinationID != nil {
 		if dest, err := a.Store.GetDestination(ctx, teamID, *app.DestinationID); err == nil {

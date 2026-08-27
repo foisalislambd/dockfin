@@ -282,11 +282,11 @@ func (s *Store) ServiceHasWebhookSecret(ctx context.Context, teamID, serviceID u
 func (s *Store) GetServiceByID(ctx context.Context, id uuid.UUID) (*Service, error) {
 	var svc Service
 	err := s.Pool.QueryRow(ctx, `
-		SELECT id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, COALESCE(docker_compose, ''), COALESCE(fqdn,''), status, created_at
+		SELECT id, team_id, environment_id, server_id, destination_id, name, description, service_type, docker_compose_raw, COALESCE(docker_compose, ''), COALESCE(fqdn,''), status, created_at, COALESCE(is_force_https, TRUE)
 		FROM services WHERE id=$1 AND deleted_at IS NULL
 	`, id).Scan(
 		&svc.ID, &svc.TeamID, &svc.EnvironmentID, &svc.ServerID, &svc.DestinationID, &svc.Name, &svc.Description,
-		&svc.ServiceType, &svc.DockerComposeRaw, &svc.DockerCompose, &svc.FQDN, &svc.Status, &svc.CreatedAt,
+		&svc.ServiceType, &svc.DockerComposeRaw, &svc.DockerCompose, &svc.FQDN, &svc.Status, &svc.CreatedAt, &svc.IsForceHTTPS,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound

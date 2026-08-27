@@ -84,8 +84,9 @@ func TraefikLabels(appName, fqdn, port string) []string {
 	return TraefikLabelsHTTPS(appName, fqdn, port, false)
 }
 
-// TraefikLabelsHTTPS builds Traefik labels; when forceHTTPS is true, routes HTTPS
-// with TLS and redirects HTTP to HTTPS. fqdn may be a Coolify multi-domain list.
+// TraefikLabelsHTTPS builds Traefik labels.
+// Custom domains (WantAutoHTTPS) always get TLS + Let's Encrypt. forceHTTPS
+// controls the HTTP→HTTPS bounce only. Magic sslip/nip hosts stay HTTP-only.
 func TraefikLabelsHTTPS(appName, fqdn, port string, forceHTTPS bool) []string {
 	router := sanitize(appName)
 	rule := TraefikHostRule(HostsFromDomainList(fqdn))
@@ -100,7 +101,7 @@ func TraefikLabelsHTTPS(appName, fqdn, port string, forceHTTPS bool) []string {
 		"traefik.enable=true",
 		fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port=%s", router, port),
 	}
-	if forceHTTPS {
+	if WantAutoHTTPS(fqdn) {
 		labels = append(labels,
 			fmt.Sprintf("traefik.http.routers.%s.rule=%s", router, rule),
 			fmt.Sprintf("traefik.http.routers.%s.entrypoints=https", router),
@@ -108,10 +109,14 @@ func TraefikLabelsHTTPS(appName, fqdn, port string, forceHTTPS bool) []string {
 			fmt.Sprintf("traefik.http.routers.%s.tls.certresolver=letsencrypt", router),
 			fmt.Sprintf("traefik.http.routers.%s-http.rule=%s", router, rule),
 			fmt.Sprintf("traefik.http.routers.%s-http.entrypoints=http", router),
-			fmt.Sprintf("traefik.http.routers.%s-http.middlewares=%s-redirect", router, router),
-			fmt.Sprintf("traefik.http.middlewares.%s-redirect.redirectscheme.scheme=https", router),
-			fmt.Sprintf("traefik.http.middlewares.%s-redirect.redirectscheme.permanent=true", router),
 		)
+		if forceHTTPS {
+			labels = append(labels,
+				fmt.Sprintf("traefik.http.routers.%s-http.middlewares=%s-redirect", router, router),
+				fmt.Sprintf("traefik.http.middlewares.%s-redirect.redirectscheme.scheme=https", router),
+				fmt.Sprintf("traefik.http.middlewares.%s-redirect.redirectscheme.permanent=true", router),
+			)
+		}
 	} else {
 		labels = append(labels,
 			fmt.Sprintf("traefik.http.routers.%s.rule=%s", router, rule),

@@ -45,7 +45,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       res.status === 401 &&
       !path.includes('/auth/login') &&
       !path.includes('/auth/register') &&
-      !path.includes('/auth/me')
+      !path.includes('/auth/me') &&
+      !path.includes('/invitations/preview')
     ) {
       window.dispatchEvent(new CustomEvent('dockfin:unauthorized'))
     }
@@ -658,6 +659,7 @@ export const api = {
       description?: string
       fqdn?: string
       docker_compose_raw?: string
+      is_force_https?: boolean
     },
   ) => request<Service>(`/api/v1/services/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   serviceContainers: (id: string) =>
@@ -847,10 +849,18 @@ export const api = {
     request<{ status: string }>(`/api/v1/team/members/${userId}`, { method: 'DELETE' }),
   teamInvitations: () => request<{ invitations: TeamInvitation[] }>('/api/v1/team/invitations'),
   createInvitation: (email: string, role = 'member') =>
-    request<TeamInvitation>('/api/v1/team/invitations', {
-      method: 'POST',
-      body: JSON.stringify({ email, role }),
-    }),
+    request<{ invitation: TeamInvitation; token: string; invite_url: string }>(
+      '/api/v1/team/invitations',
+      {
+        method: 'POST',
+        body: JSON.stringify({ email, role }),
+      },
+    ),
+  previewInvitation: (token: string) =>
+    request<{
+      status: string
+      invitation: { email: string; role: string; team_name: string; expires_at: string }
+    }>(`/api/v1/invitations/preview?token=${encodeURIComponent(token)}`),
   deleteInvitation: (id: string) =>
     request<{ status: string }>(`/api/v1/team/invitations/${id}`, { method: 'DELETE' }),
   acceptInvitation: (token: string) =>
@@ -1226,6 +1236,7 @@ export type Service = {
   destination_id?: string | null
   server_id?: string | null
   fqdn?: string
+  is_force_https?: boolean
   docker_compose?: string
   docker_compose_raw?: string
   links?: { label: string; url: string }[]

@@ -649,7 +649,7 @@ export function SettingsPage() {
                 <h3 className="pt-4 text-sm font-semibold text-gray-900 dark:text-white">DNS Settings</h3>
                 <Toggle
                   label="DNS Validation"
-                  helper="Verify custom domains in DNS before deployment."
+                  helper="Check custom domains in DNS (lookups run in parallel, 5s timeout per host). Magic sslip/nip domains skip this."
                   checked={form.is_dns_validation_enabled}
                   onChange={(v) => set('is_dns_validation_enabled', v)}
                   disabled={!canEdit}

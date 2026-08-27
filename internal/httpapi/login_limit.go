@@ -72,9 +72,17 @@ func (l *loginLimiter) success(ip string) {
 }
 
 func loginClientIP(r *http.Request) string {
-	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
-	if err != nil {
-		return strings.TrimSpace(r.RemoteAddr)
+	return requestClientIP(r)
+}
+
+func (a *API) rateLimitIP(r *http.Request) string {
+	if a != nil && a.Cfg != nil && a.Cfg.TrustProxy {
+		for _, h := range []string{"CF-Connecting-IP", "True-Client-IP"} {
+			raw := strings.TrimSpace(r.Header.Get(h))
+			if ip := net.ParseIP(raw); ip != nil {
+				return ip.String()
+			}
+		}
 	}
-	return host
+	return loginClientIP(r)
 }
