@@ -3,17 +3,17 @@ import { Bell, Hash, Mail, MessageCircle, Send, Webhook } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useToast } from '../components/Toast'
 import { FormPageSkeleton } from '../components/ui/Skeleton'
-import { ResourceTabs, TabPanel } from '../components/ui/tabs'
+import { ResourceTabs } from '../components/ui/tabs'
 import { api, type NotificationSetting } from '../lib/api'
 import { Btn, Header, Input, Modal } from './Servers'
 
 const CHANNELS = [
-  { id: 'email', label: 'Email', icon: Mail },
-  { id: 'discord', label: 'Discord', icon: Hash },
-  { id: 'telegram', label: 'Telegram', icon: Send },
-  { id: 'slack', label: 'Slack', icon: MessageCircle },
-  { id: 'pushover', label: 'Pushover', icon: Bell },
-  { id: 'webhook', label: 'Webhook', icon: Webhook },
+  { id: 'email', label: 'Email', hint: 'Team inbox', icon: Mail },
+  { id: 'discord', label: 'Discord', hint: 'Channel webhook', icon: Hash },
+  { id: 'telegram', label: 'Telegram', hint: 'Bot + chat', icon: Send },
+  { id: 'slack', label: 'Slack', hint: 'Incoming webhook', icon: MessageCircle },
+  { id: 'pushover', label: 'Pushover', hint: 'Phone alerts', icon: Bell },
+  { id: 'webhook', label: 'Webhook', hint: 'HTTP POST', icon: Webhook },
 ] as const
 
 type ChannelId = (typeof CHANNELS)[number]['id']
@@ -22,39 +22,39 @@ const EVENT_GROUPS: { title: string; events: { id: string; label: string; help?:
   {
     title: 'Deployments',
     events: [
-      { id: 'deployment_success', label: 'Deployment Success' },
-      { id: 'deployment_failure', label: 'Deployment Failure' },
+      { id: 'deployment_success', label: 'Deployment success' },
+      { id: 'deployment_failure', label: 'Deployment failure' },
       {
         id: 'status_change',
-        label: 'Container Status Changes',
-        help: 'Notify for Stopped and Restarted container events.',
+        label: 'Container status changes',
+        help: 'Stopped and restarted containers.',
       },
     ],
   },
   {
     title: 'Backups',
     events: [
-      { id: 'backup_success', label: 'Backup Success' },
-      { id: 'backup_failure', label: 'Backup Failure' },
+      { id: 'backup_success', label: 'Backup success' },
+      { id: 'backup_failure', label: 'Backup failure' },
     ],
   },
   {
-    title: 'Scheduled Tasks',
+    title: 'Scheduled tasks',
     events: [
-      { id: 'scheduled_task_success', label: 'Scheduled Task Success' },
-      { id: 'scheduled_task_failure', label: 'Scheduled Task Failure' },
+      { id: 'scheduled_task_success', label: 'Task success' },
+      { id: 'scheduled_task_failure', label: 'Task failure' },
     ],
   },
   {
     title: 'Server',
     events: [
-      { id: 'docker_cleanup_success', label: 'Docker Cleanup Success' },
-      { id: 'docker_cleanup_failure', label: 'Docker Cleanup Failure' },
-      { id: 'server_disk_usage', label: 'Server Disk Usage' },
-      { id: 'server_reachable', label: 'Server Reachable' },
-      { id: 'server_unreachable', label: 'Server Unreachable' },
-      { id: 'server_patch', label: 'Server Patching' },
-      { id: 'traefik_outdated', label: 'Traefik Proxy Outdated' },
+      { id: 'docker_cleanup_success', label: 'Docker cleanup success' },
+      { id: 'docker_cleanup_failure', label: 'Docker cleanup failure' },
+      { id: 'server_disk_usage', label: 'Disk usage' },
+      { id: 'server_reachable', label: 'Server reachable' },
+      { id: 'server_unreachable', label: 'Server unreachable' },
+      { id: 'server_patch', label: 'Server patching' },
+      { id: 'traefik_outdated', label: 'Traefik outdated' },
     ],
   },
 ]
@@ -69,6 +69,9 @@ const DEFAULT_EVENTS = [
   'server_patch',
   'traefik_outdated',
 ]
+
+const fieldClass =
+  'panel-field w-full rounded-lg px-3 py-2 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20'
 
 type EmailCfg = {
   use_instance_email_settings: boolean
@@ -129,32 +132,67 @@ function parseConfig(ch: ChannelId, raw: unknown): Record<string, unknown> {
   return { ...base, ...(raw as Record<string, unknown>) }
 }
 
-function Toggle({
+function Switch({
+  checked,
+  onChange,
   label,
-  helper,
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+  label?: string
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
+        checked ? 'bg-brand-500' : 'bg-gray-200 dark:bg-gray-700'
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+          checked ? 'translate-x-5' : 'translate-x-0'
+        }`}
+      />
+    </button>
+  )
+}
+
+function SwitchRow({
+  label,
+  help,
   checked,
   onChange,
 }: {
   label: string
-  helper?: string
+  help?: string
   checked: boolean
   onChange: (v: boolean) => void
 }) {
   return (
-    <label className="flex max-w-md items-center justify-between gap-3 py-1.5 text-sm">
-      <span className="text-gray-700 dark:text-gray-200">
-        {label}
-        {helper ? (
-          <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{helper}</span>
-        ) : null}
-      </span>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="h-4 w-4 shrink-0 accent-[var(--color-accent)]"
-      />
-    </label>
+    <div className="flex items-start justify-between gap-4 py-2.5">
+      <div className="min-w-0">
+        <p className="text-sm text-gray-800 dark:text-gray-200">{label}</p>
+        {help ? <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{help}</p> : null}
+      </div>
+      <Switch checked={checked} onChange={onChange} label={label} />
+    </div>
+  )
+}
+
+function ExtLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a
+      className="text-brand-600 hover:underline dark:text-brand-400"
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+    >
+      {children}
+    </a>
   )
 }
 
@@ -180,13 +218,14 @@ export function NotificationsPage() {
   useEffect(() => {
     const row = byChannel[tab]
     setEnabled(!!row?.enabled)
-    // Saved rows keep their events (including empty). Unsaved channels get defaults.
     setEvents(row?.id ? (row.events ?? []) : DEFAULT_EVENTS)
     setConfig(parseConfig(tab, row?.config))
     setError('')
   }, [tab, byChannel])
 
   const savedEnabled = !!byChannel[tab]?.enabled && !!byChannel[tab]?.id
+  const channel = CHANNELS.find((c) => c.id === tab)!
+  const ChannelIcon = channel.icon
 
   const save = useMutation({
     mutationFn: () => api.upsertNotification(tab, { enabled, config, events }),
@@ -222,33 +261,7 @@ export function NotificationsPage() {
 
   return (
     <div className="space-y-6">
-      <Header
-        title="Notifications"
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Btn primary type="button" disabled={save.isPending} onClick={() => save.mutate()}>
-              {save.isPending ? 'Saving…' : 'Save'}
-            </Btn>
-            {tab === 'email' ? (
-              <Btn
-                type="button"
-                disabled={!savedEnabled || test.isPending}
-                onClick={() => setTestEmailOpen(true)}
-              >
-                Send test email
-              </Btn>
-            ) : (
-              <Btn
-                type="button"
-                disabled={!savedEnabled || test.isPending}
-                onClick={() => test.mutate(undefined)}
-              >
-                {test.isPending ? 'Sending…' : 'Send test'}
-              </Btn>
-            )}
-          </div>
-        }
-      />
+      <Header title="Notifications" />
 
       <ResourceTabs
         tabs={CHANNELS.map((c) => ({ id: c.id, label: c.label, icon: c.icon }))}
@@ -256,69 +269,87 @@ export function NotificationsPage() {
         onChange={(id) => setTab(id as ChannelId)}
       />
 
-      <TabPanel>
-        <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="panel-card flex flex-wrap items-center gap-3 px-5 py-4">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">
+                <ChannelIcon className="h-5 w-5" strokeWidth={1.75} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-base font-semibold text-gray-900 dark:text-white">
+                  {channel.label}
+                </div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">{channel.hint}</div>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  {enabled ? 'On' : 'Off'}
+                </span>
+                <Switch checked={enabled} onChange={setEnabled} label="Enable channel" />
+              </div>
+              <Btn
+                type="button"
+                disabled={!savedEnabled || test.isPending}
+                onClick={() => (tab === 'email' ? setTestEmailOpen(true) : test.mutate(undefined))}
+              >
+                {test.isPending ? 'Sending…' : 'Send test'}
+              </Btn>
+              <Btn primary type="button" disabled={save.isPending} onClick={() => save.mutate()}>
+                {save.isPending ? 'Saving…' : 'Save'}
+              </Btn>
+            </div>
+          </div>
+
           {error ? <p className="text-sm text-error-500">{error}</p> : null}
 
-          <Toggle
-            label="Enabled"
-            helper={`Send ${CHANNELS.find((c) => c.id === tab)?.label.toLowerCase()} notifications for the events below.`}
-            checked={enabled}
-            onChange={setEnabled}
-          />
+          <div className="panel-card space-y-4 p-5">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Connection</h2>
+            {tab === 'email' && (
+              <EmailFields cfg={config as unknown as EmailCfg} setCfg={setCfg} />
+            )}
+            {tab === 'discord' && (
+              <DiscordFields cfg={config as unknown as DiscordCfg} setCfg={setCfg} />
+            )}
+            {tab === 'telegram' && (
+              <TelegramFields cfg={config as unknown as TelegramCfg} setCfg={setCfg} />
+            )}
+            {tab === 'slack' && <SlackFields cfg={config as unknown as SlackCfg} setCfg={setCfg} />}
+            {tab === 'pushover' && (
+              <PushoverFields cfg={config as unknown as PushoverCfg} setCfg={setCfg} />
+            )}
+            {tab === 'webhook' && (
+              <WebhookFields cfg={config as unknown as WebhookCfg} setCfg={setCfg} />
+            )}
+          </div>
 
-          {tab === 'email' && (
-            <EmailFields cfg={config as unknown as EmailCfg} setCfg={setCfg} />
-          )}
-          {tab === 'discord' && (
-            <DiscordFields cfg={config as unknown as DiscordCfg} setCfg={setCfg} />
-          )}
-          {tab === 'telegram' && (
-            <TelegramFields cfg={config as unknown as TelegramCfg} setCfg={setCfg} />
-          )}
-          {tab === 'slack' && <SlackFields cfg={config as unknown as SlackCfg} setCfg={setCfg} />}
-          {tab === 'pushover' && (
-            <PushoverFields cfg={config as unknown as PushoverCfg} setCfg={setCfg} />
-          )}
-          {tab === 'webhook' && (
-            <WebhookFields cfg={config as unknown as WebhookCfg} setCfg={setCfg} />
-          )}
-
-          <div>
-            <h2 className="text-lg font-medium text-gray-900 dark:text-white">Events</h2>
-            <p className="mt-1 mb-4 text-sm text-gray-500 dark:text-gray-400">
-              Choose which events send {CHANNELS.find((c) => c.id === tab)?.label.toLowerCase()}{' '}
-              notifications.
-            </p>
-            <div className={`flex flex-col gap-3 ${tab === 'telegram' ? '' : 'max-w-2xl'}`}>
+          <div className="panel-card p-5">
+            <div className="mb-3 flex items-baseline justify-between gap-3">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Events</h2>
+              <span className="text-xs text-gray-400 dark:text-gray-500">
+                {events.length} selected
+              </span>
+            </div>
+            <div className={tab === 'telegram' ? 'space-y-6' : 'grid gap-6 xl:grid-cols-2'}>
               {EVENT_GROUPS.map((g) => (
-                <div key={g.title} className="panel-card p-4">
-                  <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">
+                <div key={g.title}>
+                  <h3 className="mb-1 text-xs font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500">
                     {g.title}
                   </h3>
-                  <div className="flex flex-col gap-2">
+                  <div className="divide-y divide-gray-100 dark:divide-gray-800">
                     {g.events.map((ev) => (
-                      <div key={ev.id} className="flex flex-wrap items-start gap-3">
-                        <label className="flex min-w-[220px] flex-1 items-start gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
-                            checked={events.includes(ev.id)}
-                            onChange={() => toggleEvent(ev.id)}
-                          />
-                          <span>
-                            <span className="text-gray-700 dark:text-gray-200">{ev.label}</span>
-                            {ev.help ? (
-                              <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
-                                {ev.help}
-                              </span>
-                            ) : null}
-                          </span>
-                        </label>
+                      <div key={ev.id}>
+                        <SwitchRow
+                          label={ev.label}
+                          help={ev.help}
+                          checked={events.includes(ev.id)}
+                          onChange={() => toggleEvent(ev.id)}
+                        />
                         {tab === 'telegram' ? (
                           <input
                             type="password"
-                            placeholder="Custom Telegram thread ID"
+                            placeholder="Custom thread ID (optional)"
                             value={
                               ((config.thread_ids as Record<string, string>) || {})[ev.id] || ''
                             }
@@ -329,7 +360,7 @@ export function NotificationsPage() {
                               }
                               setCfg({ thread_ids })
                             }}
-                            className="panel-field w-56 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
+                            className={`${fieldClass} mb-2 text-xs`}
                           />
                         ) : null}
                       </div>
@@ -340,10 +371,9 @@ export function NotificationsPage() {
             </div>
           </div>
         </div>
-      </TabPanel>
 
       {testEmailOpen && (
-        <Modal title="Send Test Email" onClose={() => setTestEmailOpen(false)}>
+        <Modal title="Send test email" onClose={() => setTestEmailOpen(false)}>
           <form
             className="space-y-3"
             onSubmit={(e) => {
@@ -352,9 +382,9 @@ export function NotificationsPage() {
             }}
           >
             <Input label="Recipient" value={testEmail} onChange={setTestEmail} />
-            {test.error && <p className="text-sm text-error-500">{test.error.message}</p>}
+            {test.error ? <p className="text-sm text-error-500">{test.error.message}</p> : null}
             <Btn primary type="submit" disabled={test.isPending || !testEmail.trim()}>
-              Send Email
+              Send
             </Btn>
           </form>
         </Modal>
@@ -375,10 +405,10 @@ function EmailFields({
   setCfg: (p: Record<string, unknown>) => void
 }) {
   return (
-    <div className="max-w-2xl space-y-4">
-      <Toggle
+    <div className="space-y-4">
+      <SwitchRow
         label="Use instance email settings"
-        helper="Uses SMTP / Resend from Settings → Email. Configure those first for team notifications."
+        help="SMTP / Resend from Settings → Email."
         checked={!!cfg.use_instance_email_settings}
         onChange={(v) => setCfg({ use_instance_email_settings: v })}
       />
@@ -387,33 +417,28 @@ function EmailFields({
         <>
           <div className="grid gap-3 sm:grid-cols-2">
             <Input
-              label="From Name"
+              label="From name"
               value={cfg.smtp_from_name || ''}
               onChange={(v) => setCfg({ smtp_from_name: v })}
             />
             <Input
-              label="From Address"
+              label="From address"
               value={cfg.smtp_from_address || ''}
               onChange={(v) => setCfg({ smtp_from_address: v })}
             />
           </div>
 
-          <div className="panel-card p-4">
-            <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">SMTP Server</h3>
-            <label className="mb-3 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-[var(--color-accent)]"
-                checked={!!cfg.smtp_enabled}
-                onChange={(e) =>
-                  setCfg({
-                    smtp_enabled: e.target.checked,
-                    resend_enabled: e.target.checked ? false : cfg.resend_enabled,
-                  })
-                }
-              />
-              Enabled
-            </label>
+          <div className="rounded-lg border border-gray-100 p-4 dark:border-gray-800">
+            <SwitchRow
+              label="SMTP server"
+              checked={!!cfg.smtp_enabled}
+              onChange={(v) =>
+                setCfg({
+                  smtp_enabled: v,
+                  resend_enabled: v ? false : cfg.resend_enabled,
+                })
+              }
+            />
             <div className="grid gap-3 sm:grid-cols-2">
               <Input label="Host" value={cfg.smtp_host || ''} onChange={(v) => setCfg({ smtp_host: v })} />
               <Input
@@ -426,7 +451,7 @@ function EmailFields({
                 <select
                   value={cfg.smtp_encryption || 'starttls'}
                   onChange={(e) => setCfg({ smtp_encryption: e.target.value })}
-                  className="panel-field w-full rounded-lg px-3 py-2 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
+                  className={fieldClass}
                 >
                   <option value="starttls">STARTTLS</option>
                   <option value="tls">TLS</option>
@@ -434,47 +459,42 @@ function EmailFields({
                 </select>
               </label>
               <Input
-                label="SMTP Username"
+                label="SMTP username"
                 value={cfg.smtp_username || ''}
                 onChange={(v) => setCfg({ smtp_username: v })}
                 required={false}
               />
               <label className="block text-sm">
-                <span className="mb-1 block text-gray-500 dark:text-gray-400">SMTP Password</span>
+                <span className="mb-1 block text-gray-500 dark:text-gray-400">SMTP password</span>
                 <input
                   type="password"
                   value={cfg.smtp_password || ''}
                   onChange={(e) => setCfg({ smtp_password: e.target.value })}
-                  className="panel-field w-full rounded-lg px-3 py-2"
+                  className={fieldClass}
                   placeholder="Leave blank to keep"
                 />
               </label>
             </div>
           </div>
 
-          <div className="panel-card p-4">
-            <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">Resend</h3>
-            <label className="mb-3 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-[var(--color-accent)]"
-                checked={!!cfg.resend_enabled}
-                onChange={(e) =>
-                  setCfg({
-                    resend_enabled: e.target.checked,
-                    smtp_enabled: e.target.checked ? false : cfg.smtp_enabled,
-                  })
-                }
-              />
-              Enabled
-            </label>
+          <div className="rounded-lg border border-gray-100 p-4 dark:border-gray-800">
+            <SwitchRow
+              label="Resend"
+              checked={!!cfg.resend_enabled}
+              onChange={(v) =>
+                setCfg({
+                  resend_enabled: v,
+                  smtp_enabled: v ? false : cfg.smtp_enabled,
+                })
+              }
+            />
             <label className="block text-sm">
-              <span className="mb-1 block text-gray-500 dark:text-gray-400">API Key</span>
+              <span className="mb-1 block text-gray-500 dark:text-gray-400">API key</span>
               <input
                 type="password"
                 value={cfg.resend_api_key || ''}
                 onChange={(e) => setCfg({ resend_api_key: e.target.value })}
-                className="panel-field w-full rounded-lg px-3 py-2"
+                className={fieldClass}
                 placeholder="Leave blank to keep"
               />
             </label>
@@ -488,7 +508,7 @@ function EmailFields({
         onChange={(v) => setCfg({ recipients: v })}
         required={false}
       />
-      <FieldHelp>Comma-separated emails. Leave empty to notify all team members.</FieldHelp>
+      <FieldHelp>Comma-separated. Empty means all team members.</FieldHelp>
     </div>
   )
 }
@@ -501,39 +521,27 @@ function DiscordFields({
   setCfg: (p: Record<string, unknown>) => void
 }) {
   return (
-    <div className="max-w-2xl space-y-3">
-      <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-        <input
-          type="checkbox"
-          className="h-4 w-4 accent-[var(--color-accent)]"
-          checked={!!cfg.ping_enabled}
-          onChange={(e) => setCfg({ ping_enabled: e.target.checked })}
-        />
-        Ping enabled
-      </label>
-      <FieldHelp>
-        If enabled, a ping (@here) will be sent when a critical event happens.
-      </FieldHelp>
+    <div className="space-y-3">
+      <SwitchRow
+        label="Ping @here on critical events"
+        checked={!!cfg.ping_enabled}
+        onChange={(v) => setCfg({ ping_enabled: v })}
+      />
       <label className="block text-sm">
-        <span className="mb-1 block text-gray-500 dark:text-gray-400">Webhook</span>
+        <span className="mb-1 block text-gray-500 dark:text-gray-400">Webhook URL</span>
         <input
           type="password"
           value={cfg.webhook_url || ''}
           onChange={(e) => setCfg({ webhook_url: e.target.value })}
-          className="panel-field w-full rounded-lg px-3 py-2"
+          className={fieldClass}
           placeholder="Leave blank to keep existing webhook"
         />
       </label>
       <FieldHelp>
-        Create a Discord Server and generate a Webhook URL.{' '}
-        <a
-          className="text-brand-600 hover:underline dark:text-brand-400"
-          href="https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Webhook Documentation
-        </a>
+        Generate a webhook in Discord.{' '}
+        <ExtLink href="https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks">
+          Docs
+        </ExtLink>
       </FieldHelp>
     </div>
   )
@@ -547,30 +555,22 @@ function TelegramFields({
   setCfg: (p: Record<string, unknown>) => void
 }) {
   return (
-    <div className="max-w-2xl space-y-3">
+    <div className="space-y-3">
       <label className="block text-sm">
-        <span className="mb-1 block text-gray-500 dark:text-gray-400">Bot API Token</span>
+        <span className="mb-1 block text-gray-500 dark:text-gray-400">Bot API token</span>
         <input
           type="password"
           value={cfg.bot_token || ''}
           onChange={(e) => setCfg({ bot_token: e.target.value })}
-          className="panel-field w-full rounded-lg px-3 py-2"
+          className={fieldClass}
           placeholder="Leave blank to keep"
         />
       </label>
       <FieldHelp>
-        Create a bot with{' '}
-        <a className="text-brand-600 hover:underline dark:text-brand-400" href="https://t.me/BotFather" target="_blank" rel="noreferrer">
-          BotFather
-        </a>
-        .
+        Create a bot with <ExtLink href="https://t.me/BotFather">BotFather</ExtLink>.
       </FieldHelp>
-      <Input
-        label="Chat ID"
-        value={cfg.chat_id || ''}
-        onChange={(v) => setCfg({ chat_id: v })}
-      />
-      <FieldHelp>Add your bot to a group chat and add its Chat ID here.</FieldHelp>
+      <Input label="Chat ID" value={cfg.chat_id || ''} onChange={(v) => setCfg({ chat_id: v })} />
+      <FieldHelp>Add the bot to a group and paste the chat ID.</FieldHelp>
     </div>
   )
 }
@@ -583,22 +583,19 @@ function SlackFields({
   setCfg: (p: Record<string, unknown>) => void
 }) {
   return (
-    <div className="max-w-2xl space-y-3">
+    <div className="space-y-3">
       <label className="block text-sm">
-        <span className="mb-1 block text-gray-500 dark:text-gray-400">Webhook</span>
+        <span className="mb-1 block text-gray-500 dark:text-gray-400">Webhook URL</span>
         <input
           type="password"
           value={cfg.webhook_url || ''}
           onChange={(e) => setCfg({ webhook_url: e.target.value })}
-          className="panel-field w-full rounded-lg px-3 py-2"
+          className={fieldClass}
           placeholder="Leave blank to keep existing webhook"
         />
       </label>
       <FieldHelp>
-        Create a Slack app with an Incoming Webhook —{' '}
-        <a className="text-brand-600 hover:underline dark:text-brand-400" href="https://api.slack.com/apps" target="_blank" rel="noreferrer">
-          api.slack.com/apps
-        </a>
+        Incoming Webhook app — <ExtLink href="https://api.slack.com/apps">api.slack.com/apps</ExtLink>
       </FieldHelp>
     </div>
   )
@@ -612,31 +609,27 @@ function PushoverFields({
   setCfg: (p: Record<string, unknown>) => void
 }) {
   return (
-    <div className="max-w-2xl space-y-3">
+    <div className="space-y-3">
       <label className="block text-sm">
-        <span className="mb-1 block text-gray-500 dark:text-gray-400">User Key</span>
+        <span className="mb-1 block text-gray-500 dark:text-gray-400">User key</span>
         <input
           type="password"
           value={cfg.user_key || ''}
           onChange={(e) => setCfg({ user_key: e.target.value })}
-          className="panel-field w-full rounded-lg px-3 py-2"
+          className={fieldClass}
           placeholder="Leave blank to keep"
         />
       </label>
       <FieldHelp>
-        From your{' '}
-        <a className="text-brand-600 hover:underline dark:text-brand-400" href="https://pushover.net" target="_blank" rel="noreferrer">
-          Pushover dashboard
-        </a>
-        .
+        From your <ExtLink href="https://pushover.net">Pushover dashboard</ExtLink>.
       </FieldHelp>
       <label className="block text-sm">
-        <span className="mb-1 block text-gray-500 dark:text-gray-400">API Token</span>
+        <span className="mb-1 block text-gray-500 dark:text-gray-400">API token</span>
         <input
           type="password"
           value={cfg.api_token || ''}
           onChange={(e) => setCfg({ api_token: e.target.value })}
-          className="panel-field w-full rounded-lg px-3 py-2"
+          className={fieldClass}
           placeholder="Leave blank to keep"
         />
       </label>
@@ -652,16 +645,13 @@ function WebhookFields({
   setCfg: (p: Record<string, unknown>) => void
 }) {
   return (
-    <div className="max-w-2xl space-y-3">
+    <div className="space-y-3">
       <Input
         label="Webhook URL (POST)"
         value={cfg.url || ''}
         onChange={(v) => setCfg({ url: v })}
       />
-      <FieldHelp>
-        Enter a valid HTTP or HTTPS URL. Dockfin will send POST requests to this endpoint when
-        events occur.
-      </FieldHelp>
+      <FieldHelp>Dockfin sends a POST to this URL when a selected event fires.</FieldHelp>
     </div>
   )
 }
