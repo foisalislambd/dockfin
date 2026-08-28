@@ -30,6 +30,16 @@ function isMagicHost(host: string): boolean {
   return h.endsWith('.sslip.io') || h === 'sslip.io' || h.endsWith('.nip.io') || h === 'nip.io'
 }
 
+/** Matches Go proxy.WantAutoHTTPS: custom hosts only; magic/localhost stay HTTP. */
+export function domainsWantAutoHttps(domains: string): boolean {
+  const hosts = splitDomainEntries(domains).map(hostFromDomainEntry).filter(Boolean)
+  if (!hosts.length) return false
+  for (const h of hosts) {
+    if (h === 'localhost' || h === '127.0.0.1' || isMagicHost(h)) return false
+  }
+  return true
+}
+
 function dnsRecordName(host: string): string {
   const parts = host.split('.').filter(Boolean)
   if (parts.length <= 2) return '@'

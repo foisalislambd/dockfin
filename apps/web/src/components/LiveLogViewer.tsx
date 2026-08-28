@@ -186,7 +186,13 @@ export function LiveLogViewer({
         }}
         className="min-w-0 max-h-[min(70dvh,36rem)] min-h-[14rem] overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-all bg-[#0b1220] p-3 font-mono text-[11px] leading-relaxed text-gray-300 sm:min-h-[16rem] sm:p-4 sm:text-xs"
       >
-        {lines.length ? lines.join('\n') : 'Waiting for log lines…'}
+        {lines.length
+          ? lines.join('\n')
+          : status === 'connecting'
+            ? 'Connecting to log stream…'
+            : status === 'error'
+              ? 'Could not stream logs'
+              : 'No log output yet'}
       </pre>
       <div className="flex items-center justify-between border-t border-white/10 bg-[#0b1220] px-3 py-1.5 sm:px-4">
         <span className="text-[10px] tabular-nums tracking-wide text-gray-500 uppercase">

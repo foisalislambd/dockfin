@@ -679,3 +679,27 @@ services:
 		t.Fatalf("did not expect HTTP redirect:\n%s", out)
 	}
 }
+
+func TestPrepareComposeMagicIgnoresForceHTTPS(t *testing.T) {
+	raw := `# port: 80
+services:
+  web:
+    image: nginx
+    environment:
+      - SERVICE_URL_WEB
+`
+	out, _, err := PrepareCompose(raw, PrepareOpts{
+		BaseURL:           "http://n8n.1.2.3.4.sslip.io",
+		FQDN:              "n8n.1.2.3.4.sslip.io",
+		SkipHTTPSRedirect: false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "redirectscheme") || strings.Contains(out, "certresolver") {
+		t.Fatalf("magic domain must stay HTTP-only:\n%s", out)
+	}
+	if !strings.Contains(out, "entrypoints: http") {
+		t.Fatalf("expected HTTP entrypoint:\n%s", out)
+	}
+}

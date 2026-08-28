@@ -17,7 +17,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { DeployLogPanel } from '../components/DeployLogPanel'
 import { LiveLogViewer } from '../components/LiveLogViewer'
-import { DomainsPanel } from '../components/DomainsPanel'
+import { DomainsPanel, domainsWantAutoHttps } from '../components/DomainsPanel'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { LinksMenu, LinksPanel } from '../components/LinksMenu'
 import { MoveResourcePanel } from '../components/MoveResourcePanel'
@@ -32,6 +32,7 @@ import { DetailPageSkeleton } from '../components/ui/Skeleton'
 import { useConfirm } from '../components/ConfirmDialog'
 import { useToast } from '../components/Toast'
 import { api, type Service, type ServiceUnit } from '../lib/api'
+import { useLogStream } from '../lib/useLogStream'
 import { safeExternalHref } from '../lib/url'
 import { Btn, Input } from './Servers'
 
@@ -100,6 +101,7 @@ export function ServiceDetailPage() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [fqdn, setFqdn] = useState('')
+  const httpsRedirectApplies = useMemo(() => domainsWantAutoHttps(fqdn), [fqdn])
   const [showCompose, setShowCompose] = useState(false)
   const [composeDraft, setComposeDraft] = useState('')
   const [showDetails, setShowDetails] = useState(false)
@@ -499,12 +501,14 @@ export function ServiceDetailPage() {
                   resourceId={svcId}
                   resourceName={s.name}
                 />
-                <label className="flex items-start gap-3 text-sm">
+                <label className={`flex items-start gap-3 text-sm ${httpsRedirectApplies ? '' : 'opacity-60'}`}>
                   <input
                     type="checkbox"
                     className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
-                    checked={s.is_force_https !== false}
+                    checked={httpsRedirectApplies && s.is_force_https !== false}
+                    disabled={!httpsRedirectApplies}
                     onChange={(e) => {
+                      if (!httpsRedirectApplies) return
                       void api
                         .updateService(svcId, { is_force_https: e.target.checked })
                         .then(() => qc.invalidateQueries({ queryKey: ['service', svcId] }))
@@ -513,8 +517,9 @@ export function ServiceDetailPage() {
                   <span>
                     <span className="font-medium text-gray-900 dark:text-white">Force HTTPS redirects</span>
                     <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
-                      Custom domains keep TLS. Turn off to leave HTTP reachable without bouncing to HTTPS.
-                      Redeploy to apply.
+                      {httpsRedirectApplies
+                        ? 'Bounce HTTP to HTTPS on custom domains (Let’s Encrypt stays on). Turn off to keep HTTP reachable. Redeploy to apply.'
+                        : 'No effect on sslip.io / nip.io — those stay HTTP (no Let’s Encrypt). Add a custom domain, then this redirect applies after redeploy.'}
                     </span>
                   </span>
                 </label>
@@ -843,10 +848,6 @@ function ServiceLiveLogs({
 }) {
   const [container, setContainer] = useState('')
   const [tail, setTail] = useState(200)
-  const [lines, setLines] = useState<string[]>([])
-  const [status, setStatus] = useState<'connecting' | 'live' | 'ended' | 'error'>('connecting')
-  const [error, setError] = useState('')
-  const [nonce, setNonce] = useState(0)
 
   const containers = useQuery({
     queryKey: ['service-containers', svcId],
@@ -864,37 +865,10 @@ function ServiceLiveLogs({
     }
   }, [options, container])
 
-  useEffect(() => {
-    if (!container) return
-    setLines([])
-    setStatus('connecting')
-    setError('')
-    const qs = new URLSearchParams({ tail: String(tail), container })
-    const es = new EventSource(`/api/v1/services/${svcId}/logs/stream?${qs}`, {
-      withCredentials: true,
-    })
-    es.addEventListener('log', (ev) => {
-      const raw = (ev as MessageEvent).data as string
-      let line = raw
-      try {
-        line = (JSON.parse(raw) as { line?: string }).line ?? raw
-      } catch {
-        /* plain line */
-      }
-      setLines((prev) => [...prev.slice(-2000), line])
-      setStatus('live')
-    })
-    es.addEventListener('done', () => {
-      setStatus('ended')
-      es.close()
-    })
-    es.onerror = () => {
-      setStatus((s) => (s === 'live' ? 'ended' : 'error'))
-      setError('Stream disconnected')
-      es.close()
-    }
-    return () => es.close()
-  }, [svcId, container, tail, nonce])
+  const streamUrl = container
+    ? `/api/v1/services/${svcId}/logs/stream?${new URLSearchParams({ tail: String(tail), container })}`
+    : null
+  const { lines, status, error, reconnect } = useLogStream(streamUrl)
 
   const downloadLogs = () => {
     const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
@@ -917,7 +891,7 @@ function ServiceLiveLogs({
       tail={tail}
       onTailChange={setTail}
       onDownload={downloadLogs}
-      onReconnect={() => setNonce((n) => n + 1)}
+      onReconnect={reconnect}
     />
   )
 }

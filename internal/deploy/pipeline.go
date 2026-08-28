@@ -1494,13 +1494,14 @@ func (p *Pipeline) adaptComposeForDockfin(ctx context.Context, client *ssh.Clien
 	// Non-empty PortsExposes overrides; empty → auto-detect from compose (# port:, ports:).
 	port := services.DetectProxyPortForGitCompose(raw, req.App.PortsExposes)
 	opts := services.PrepareOpts{
-		ServiceID:  req.App.ID.String(),
-		Network:    "",
-		BaseURL:    baseURL,
-		FQDN:       domainList,
-		RouterName: routerName,
-		Port:       port,
-		Redirect:   req.App.Redirect,
+		ServiceID:         req.App.ID.String(),
+		Network:           "",
+		BaseURL:           baseURL,
+		FQDN:              domainList,
+		RouterName:        routerName,
+		Port:              port,
+		Redirect:          req.App.Redirect,
+		SkipHTTPSRedirect: !req.App.IsForceHTTPS,
 	}
 	if req.Destination != nil {
 		opts.Network = req.Destination.Network

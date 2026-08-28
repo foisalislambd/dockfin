@@ -26,6 +26,7 @@ import { ServerTerminal } from '../components/Terminal'
 import { DetailPageSkeleton, PanelSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
 import { api } from '../lib/api'
+import { useLogStream } from '../lib/useLogStream'
 import { Btn, Input } from './Servers'
 
 const DB_TABS = [
@@ -432,40 +433,8 @@ function DatabaseContainerMetrics({ dbId, active }: { dbId: string; active: bool
 }
 
 function DatabaseLiveLogs({ dbId }: { dbId: string }) {
-  const [lines, setLines] = useState<string[]>([])
-  const [status, setStatus] = useState<'connecting' | 'live' | 'ended' | 'error'>('connecting')
-  const [error, setError] = useState('')
-  const [nonce, setNonce] = useState(0)
-
-  useEffect(() => {
-    setLines([])
-    setStatus('connecting')
-    setError('')
-    const qs = new URLSearchParams({ tail: '200' })
-    const es = new EventSource(`/api/v1/databases/${dbId}/logs/stream?${qs}`, {
-      withCredentials: true,
-    })
-    es.addEventListener('log', (ev) => {
-      try {
-        const data = JSON.parse((ev as MessageEvent).data) as { line?: string }
-        setLines((prev) => [...prev.slice(-2000), data.line ?? (ev as MessageEvent).data])
-        setStatus('live')
-      } catch {
-        setLines((prev) => [...prev.slice(-2000), (ev as MessageEvent).data])
-        setStatus('live')
-      }
-    })
-    es.addEventListener('done', () => {
-      setStatus('ended')
-      es.close()
-    })
-    es.onerror = () => {
-      setStatus((s) => (s === 'live' ? 'ended' : 'error'))
-      setError('Stream disconnected')
-      es.close()
-    }
-    return () => es.close()
-  }, [dbId, nonce])
+  const streamUrl = `/api/v1/databases/${dbId}/logs/stream?${new URLSearchParams({ tail: '200' })}`
+  const { lines, status, error, reconnect } = useLogStream(streamUrl)
 
   const downloadLogs = () => {
     const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
@@ -483,7 +452,7 @@ function DatabaseLiveLogs({ dbId }: { dbId: string }) {
       error={error}
       lines={lines}
       onDownload={downloadLogs}
-      onReconnect={() => setNonce((n) => n + 1)}
+      onReconnect={reconnect}
     />
   )
 }

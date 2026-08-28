@@ -375,7 +375,7 @@ func (a *API) Router() http.Handler {
 func timeoutExceptSSE(d time.Duration) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if strings.HasSuffix(r.URL.Path, "/logs/stream") ||
+			if strings.Contains(r.URL.Path, "/logs/stream") ||
 				strings.Contains(r.URL.Path, "/terminal/ws/") ||
 				(strings.HasSuffix(r.URL.Path, "/deploy") &&
 					(r.URL.Query().Get("stream") == "1" || strings.Contains(r.Header.Get("Accept"), "text/event-stream"))) {

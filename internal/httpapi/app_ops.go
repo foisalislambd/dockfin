@@ -325,6 +325,7 @@ func (a *API) handleApplicationLogsStream(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
 
@@ -342,7 +343,7 @@ func (a *API) handleApplicationLogsStream(w http.ResponseWriter, r *http.Request
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		_ = sshx.RunArgsStreaming(client, func(line string) {
+		if err := sshx.RunArgsStreaming(client, func(line string) {
 			select {
 			case <-ctx.Done():
 				return
@@ -350,7 +351,14 @@ func (a *API) handleApplicationLogsStream(w http.ResponseWriter, r *http.Request
 			}
 			b, _ := json.Marshal(map[string]string{"line": line})
 			send("log", string(b))
-		}, "docker", "logs", "-f", "--tail", strconv.Itoa(tail), container)
+		}, "docker", "logs", "-f", "--tail", strconv.Itoa(tail), container); err != nil {
+			select {
+			case <-ctx.Done():
+			default:
+				b, _ := json.Marshal(map[string]string{"line": "docker logs: " + err.Error()})
+				send("log", string(b))
+			}
+		}
 	}()
 
 	ticker := time.NewTicker(15 * time.Second)
