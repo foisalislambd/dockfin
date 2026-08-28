@@ -146,7 +146,7 @@ function DatabaseBackupsPanel({ dbId }: { dbId: string }) {
   if (executions.isLoading || backups.isLoading) {
     return (
       <div className="panel-card p-5">
-        <PanelSkeleton rows={4} />
+        <PanelSkeleton rows={4} showHeader={false} />
       </div>
     )
   }
@@ -818,7 +818,7 @@ function ServerMetricsView({
   if (loading) {
     return (
       <div className="panel-card p-5">
-        <PanelSkeleton rows={3} />
+        <PanelSkeleton rows={3} showHeader={false} />
       </div>
     )
   }

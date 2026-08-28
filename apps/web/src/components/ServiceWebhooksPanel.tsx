@@ -55,10 +55,10 @@ export function ServiceWebhooksPanel({ serviceId }: Props) {
           <Skeleton className="mt-2 h-3 w-72 max-w-full" />
         </div>
         <div className="panel-card p-5">
-          <PanelSkeleton rows={3} />
+          <PanelSkeleton rows={3} showHeader={false} />
         </div>
         <div className="panel-card p-5">
-          <PanelSkeleton rows={2} />
+          <PanelSkeleton rows={2} showHeader={false} />
         </div>
       </div>
     )

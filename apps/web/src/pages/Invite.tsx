@@ -5,6 +5,7 @@ import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { BrandLogo } from '../components/BrandLogo'
 import { ThemeToggle } from '../components/theme/ThemeToggle'
+import { PanelSkeleton } from '../components/ui/Skeleton'
 import { Btn } from './Servers'
 
 function inviteToken() {
@@ -65,7 +66,9 @@ export function InvitePage() {
           Confirm below to join. Opening this page does not use up the invite — email previews and
           chat unfurls are safe.
         </p>
-        {preview.isLoading && <p className="text-sm text-gray-500">Checking invite…</p>}
+        {preview.isLoading ? (
+          <PanelSkeleton rows={3} showHeader={false} />
+        ) : null}
         {preview.error && (
           <p className="text-sm text-error-500">
             {preview.error.message || 'This invite is invalid or expired.'}
@@ -88,7 +91,9 @@ export function InvitePage() {
           </div>
         )}
         {error && <p className="text-sm text-error-500">{error}</p>}
-        {loading ? null : user ? (
+        {loading ? (
+          preview.isLoading ? null : <PanelSkeleton rows={1} showHeader={false} />
+        ) : user ? (
           <form onSubmit={(e) => void onAccept(e)}>
             <Btn primary type="submit" disabled={busy || !preview.data?.invitation}>
               {busy ? 'Joining…' : 'Accept invitation'}

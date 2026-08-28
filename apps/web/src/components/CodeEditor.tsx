@@ -1,6 +1,7 @@
 import Editor, { type OnMount } from '@monaco-editor/react'
 import { useTheme } from 'next-themes'
 import { useEffect, useMemo, useSyncExternalStore } from 'react'
+import { Skeleton } from './ui/Skeleton'
 
 type Props = {
   value: string
@@ -111,11 +112,15 @@ export function CodeEditor({
         onMount={handleMount}
         onChange={(v) => onChange?.(v ?? '')}
         loading={
-          <div className="flex h-full flex-col justify-center gap-3 bg-gray-50 p-4 dark:bg-gray-950">
-            <div className="dockfin-skeleton h-3 w-1/3 rounded-md" />
-            <div className="dockfin-skeleton h-3 w-2/3 rounded-md" />
-            <div className="dockfin-skeleton h-3 w-1/2 rounded-md" />
-            <div className="dockfin-skeleton h-3 w-3/4 rounded-md" />
+          <div
+            className="flex h-full flex-col justify-center gap-3 bg-gray-50 p-4 dark:bg-gray-950"
+            role="status"
+            aria-label="Loading editor"
+          >
+            <Skeleton className="h-3 w-1/3" />
+            <Skeleton className="h-3 w-2/3" />
+            <Skeleton className="h-3 w-1/2" />
+            <Skeleton className="h-3 w-3/4" />
           </div>
         }
       />

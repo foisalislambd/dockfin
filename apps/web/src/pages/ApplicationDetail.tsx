@@ -3168,7 +3168,7 @@ function ApplicationBackupsPanel({ appId }: { appId: string }) {
   if (executions.isLoading || backups.isLoading) {
     return (
       <div className="panel-card p-5">
-        <PanelSkeleton rows={4} />
+        <PanelSkeleton rows={4} showHeader={false} />
       </div>
     )
   }

@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { ServerTerminal } from '../components/Terminal'
-import { PageSkeleton, TableSkeleton } from '../components/ui/Skeleton'
+import { FormPageSkeleton, PageSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { api, type Server, type Tag } from '../lib/api'
 import { Header } from './Servers'
 
@@ -275,7 +275,7 @@ export function TerminalPickerPage() {
   const usable = (servers.data?.servers || []).filter((s) => s.is_usable)
   const server = usable.find((s) => s.id === serverId)
 
-  if (servers.isLoading) return <PageSkeleton cards={2} />
+  if (servers.isLoading) return <FormPageSkeleton />
 
   return (
     <div className="space-y-6">

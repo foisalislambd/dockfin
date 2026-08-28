@@ -242,7 +242,7 @@ export function EnvironmentResourcesPage() {
     },
   })
 
-  if (loading) return <PageSkeleton cards={2} />
+  if (loading) return <PageSkeleton cards={4} />
 
   return (
     <div className="space-y-8">

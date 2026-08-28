@@ -5,6 +5,11 @@ function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(' ')
 }
 
+function loadingRegion(labelled: boolean, label: string) {
+  if (!labelled) return {}
+  return { role: 'status' as const, 'aria-label': label }
+}
+
 /** Single shimmer bone */
 export function Skeleton({
   className,
@@ -25,12 +30,14 @@ export function Skeleton({
 export function PanelSkeleton({
   rows = 4,
   showHeader = true,
+  labelled = true,
 }: {
   rows?: number
   showHeader?: boolean
+  labelled?: boolean
 }) {
   return (
-    <div className="space-y-4" role="status" aria-label="Loading">
+    <div className="space-y-4" {...loadingRegion(labelled, 'Loading')}>
       {showHeader && (
         <div className="space-y-2">
           <Skeleton className="h-4 w-32" />
@@ -51,12 +58,14 @@ export function PanelSkeleton({
 export function TableSkeleton({
   rows = 5,
   cols = 3,
+  labelled = true,
 }: {
   rows?: number
   cols?: number
+  labelled?: boolean
 }) {
   return (
-    <div className="divide-y divide-gray-100 dark:divide-white/5" role="status" aria-label="Loading">
+    <div className="divide-y divide-gray-100 dark:divide-white/5" {...loadingRegion(labelled, 'Loading')}>
       {Array.from({ length: rows }).map((_, r) => (
         <div key={r} className="flex items-center gap-3 px-4 py-3">
           <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
@@ -73,9 +82,9 @@ export function TableSkeleton({
 }
 
 /** Auth form bones — use inside AuthShell form column (not centered on viewport) */
-export function AuthFormSkeleton() {
+export function AuthFormSkeleton({ labelled = true }: { labelled?: boolean }) {
   return (
-    <div className="space-y-4" role="status" aria-label="Loading">
+    <div className="space-y-4" {...loadingRegion(labelled, 'Loading')}>
       <Skeleton className="mb-1 h-9 w-9 rounded-lg lg:hidden" />
       <Skeleton className="h-7 w-36 sm:h-8" />
       <div className="mt-2 space-y-4">
@@ -104,7 +113,7 @@ export function AuthSkeleton() {
     >
       <div className="flex min-h-dvh flex-col justify-center px-5 py-10 sm:px-10 lg:px-14 xl:px-16">
         <div className="mx-auto w-full max-w-[400px]">
-          <AuthFormSkeleton />
+          <AuthFormSkeleton labelled={false} />
         </div>
       </div>
       <div className="relative hidden min-h-dvh overflow-hidden bg-brand-950 lg:flex lg:flex-col lg:items-center lg:justify-center lg:px-8 lg:py-12">
@@ -143,10 +152,10 @@ export function AppShellSkeleton() {
           </div>
         </div>
         <div className="flex flex-1 flex-col gap-0.5 overflow-hidden px-2.5 py-3">
-          {Array.from({ length: 3 }).map((_, g) => (
+          {[3, 5, 5].map((count, g) => (
             <div key={g} className={g > 0 ? 'mt-3' : ''}>
               <Skeleton className="mb-1.5 h-2.5 w-16" />
-              {Array.from({ length: 4 }).map((_, i) => (
+              {Array.from({ length: count }).map((_, i) => (
                 <div key={i} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2">
                   <Skeleton className="h-[18px] w-[18px] shrink-0 rounded" />
                   <Skeleton className="h-3.5 flex-1" />
@@ -166,7 +175,7 @@ export function AppShellSkeleton() {
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-hidden px-3 py-4 sm:px-5 sm:py-5 lg:px-6">
-          <PageSkeleton cards={2} />
+          <PageSkeleton cards={2} labelled={false} />
         </div>
       </div>
     </div>
@@ -177,32 +186,33 @@ export function AppShellSkeleton() {
  * List / dashboard page skeleton (header + cards).
  * Renders inside AppShell main — do not include shell chrome.
  */
-export function PageSkeleton({ cards = 2 }: { cards?: number }) {
+export function PageSkeleton({
+  cards = 2,
+  labelled = true,
+}: {
+  cards?: number
+  labelled?: boolean
+}) {
   const n = Math.max(1, Math.min(cards, 6))
 
   return (
-    <div className="space-y-6" role="status" aria-label="Loading page">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="space-y-2">
-          <Skeleton className="h-3 w-24" />
-          <Skeleton className="h-8 w-52 max-w-full" />
-          <Skeleton className="h-4 w-72 max-w-full" />
-        </div>
+    <div className="space-y-6" {...loadingRegion(labelled, 'Loading page')}>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <Skeleton className="h-7 w-40 max-w-full" />
         <Skeleton className="h-8 w-28 rounded-md" />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {Array.from({ length: n }).map((_, i) => (
-          <div key={i} className="panel-card space-y-3 p-5">
-            <div className="flex items-center gap-3">
-              <Skeleton className="h-10 w-10 shrink-0 rounded-lg" />
-              <div className="min-w-0 flex-1 space-y-2">
-                <Skeleton className="h-4 w-36 max-w-full" />
-                <Skeleton className="h-3 w-48 max-w-full" />
-              </div>
+          <div
+            key={i}
+            className="panel-card flex min-h-[5.5rem] items-center gap-4 px-5 py-4"
+          >
+            <Skeleton className="h-10 w-10 shrink-0 rounded-xl" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton className="h-4 w-36 max-w-full" />
+              <Skeleton className="h-3 w-48 max-w-full" />
             </div>
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-4/5 max-w-lg" />
           </div>
         ))}
       </div>
@@ -250,7 +260,7 @@ export function DetailPageSkeleton({ withSideNav = true }: { withSideNav?: boole
           </aside>
           <div className="min-w-0 flex-1">
             <div className="panel-card space-y-5 p-5">
-              <PanelSkeleton rows={5} />
+              <PanelSkeleton rows={5} showHeader={false} labelled={false} />
             </div>
           </div>
         </div>
@@ -264,7 +274,7 @@ export function DetailPageSkeleton({ withSideNav = true }: { withSideNav?: boole
               </div>
             ))}
           </div>
-          <PanelSkeleton rows={3} showHeader={false} />
+          <PanelSkeleton rows={3} showHeader={false} labelled={false} />
         </div>
       )}
     </div>
@@ -275,15 +285,52 @@ export function DetailPageSkeleton({ withSideNav = true }: { withSideNav?: boole
 export function FormPageSkeleton() {
   return (
     <div className="space-y-6" role="status" aria-label="Loading page">
-      <div className="space-y-2">
-        <Skeleton className="h-3.5 w-28" />
-        <Skeleton className="h-8 w-48 max-w-full" />
-      </div>
+      <Skeleton className="h-7 w-48 max-w-full" />
       <div className="panel-card space-y-5 p-5">
-        <PanelSkeleton rows={4} />
+        <PanelSkeleton rows={4} showHeader={false} labelled={false} />
         <div className="flex gap-2 pt-2">
           <Skeleton className="h-8 w-20 rounded-md" />
           <Skeleton className="h-8 w-20 rounded-md" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Notifications / settings-style page: header, tabs, then cards */
+export function TabbedPageSkeleton({ tabs = 6 }: { tabs?: number }) {
+  return (
+    <div className="space-y-6" role="status" aria-label="Loading page">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <Skeleton className="h-7 w-40" />
+      </div>
+      <div className="flex flex-wrap gap-1 border-b border-gray-200 pb-px dark:border-gray-800">
+        {Array.from({ length: tabs }).map((_, i) => (
+          <Skeleton key={i} className="mb-2 h-8 w-[4.5rem] rounded-md" />
+        ))}
+      </div>
+      <div className="panel-card flex flex-wrap items-center gap-3 px-5 py-4">
+        <Skeleton className="h-10 w-10 shrink-0 rounded-xl" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-3 w-36" />
+        </div>
+        <Skeleton className="h-6 w-11 rounded-full" />
+        <Skeleton className="h-8 w-24 rounded-md" />
+        <Skeleton className="h-8 w-16 rounded-md" />
+      </div>
+      <div className="panel-card space-y-4 p-5">
+        <Skeleton className="h-4 w-24" />
+        <PanelSkeleton rows={3} showHeader={false} labelled={false} />
+      </div>
+      <div className="panel-card p-5">
+        <div className="mb-3 flex justify-between">
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-3 w-20" />
+        </div>
+        <div className="grid gap-6 xl:grid-cols-2">
+          <PanelSkeleton rows={4} showHeader={false} labelled={false} />
+          <PanelSkeleton rows={4} showHeader={false} labelled={false} />
         </div>
       </div>
     </div>

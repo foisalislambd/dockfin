@@ -642,7 +642,7 @@ function CloudInitPanel() {
       {selected && (
         <Modal title={selected.name} onClose={() => setSelected(null)}>
           {detail.isLoading ? (
-            <PanelSkeleton rows={3} />
+            <PanelSkeleton rows={3} showHeader={false} />
           ) : (
             <form
               className="space-y-3"

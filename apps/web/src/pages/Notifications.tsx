@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bell, Hash, Mail, MessageCircle, Send, Webhook } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useToast } from '../components/Toast'
-import { FormPageSkeleton } from '../components/ui/Skeleton'
+import { TabbedPageSkeleton } from '../components/ui/Skeleton'
 import { ResourceTabs } from '../components/ui/tabs'
 import { api, type NotificationSetting } from '../lib/api'
 import { Btn, Header, Input, Modal } from './Servers'
@@ -257,7 +257,7 @@ export function NotificationsPage() {
     setEvents((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]))
   }
 
-  if (list.isLoading) return <FormPageSkeleton />
+  if (list.isLoading) return <TabbedPageSkeleton />
 
   return (
     <div className="space-y-6">

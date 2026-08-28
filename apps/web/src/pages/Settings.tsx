@@ -516,7 +516,7 @@ export function SettingsPage() {
           <div className="min-w-0 flex-1">
             {settings.isLoading ? (
               <div className="panel-card p-5">
-                <PanelSkeleton rows={5} />
+                <PanelSkeleton rows={5} showHeader={false} />
               </div>
             ) : null}
 
@@ -849,7 +849,7 @@ export function SettingsPage() {
       {topTab === 'email' && (
         settings.isLoading ? (
           <div className="panel-card max-w-3xl p-5">
-            <PanelSkeleton rows={5} />
+            <PanelSkeleton rows={5} showHeader={false} />
           </div>
         ) : (
         <form
@@ -970,7 +970,7 @@ export function SettingsPage() {
           />
           {oauth.isLoading ? (
             <div className="panel-card p-5">
-              <PanelSkeleton rows={3} />
+              <PanelSkeleton rows={3} showHeader={false} />
             </div>
           ) : (
           <div className="grid gap-4 lg:grid-cols-2">
@@ -1022,7 +1022,7 @@ export function SettingsPage() {
 
           {backups.isLoading ? (
             <div className="panel-card p-5">
-              <PanelSkeleton rows={4} />
+              <PanelSkeleton rows={4} showHeader={false} />
             </div>
           ) : null}
 
@@ -1553,7 +1553,7 @@ function DockerRegistriesPanel({ canEdit }: { canEdit: boolean }) {
   if (registries.isLoading) {
     return (
       <div className="panel-card p-5">
-        <PanelSkeleton rows={3} />
+        <PanelSkeleton rows={3} showHeader={false} />
       </div>
     )
   }
