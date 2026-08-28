@@ -35,6 +35,7 @@ import { ResourceTagsPanel } from '../components/ResourceTagsPanel'
 import { ScheduledTasksPanel } from '../components/ScheduledTasksPanel'
 import { ServerTerminal } from '../components/Terminal'
 import { CodeEditor } from '../components/CodeEditor'
+import { LiveLogViewer } from '../components/LiveLogViewer'
 import { DetailPageSkeleton, PanelSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { useToast } from '../components/Toast'
 import { api, fetchAllEnvironments } from '../lib/api'
@@ -3610,83 +3611,24 @@ function LiveContainerLogs({
     URL.revokeObjectURL(url)
   }
 
+  const composeNames = containers.data?.containers || []
+
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Live container logs</h2>
-          <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-            Streaming <code className="font-mono text-xs">docker logs -f</code> from the destination.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {isCompose ? (
-            <label className="text-sm">
-              <span className="sr-only">Container</span>
-              <select
-                value={container}
-                onChange={(e) => setContainer(e.target.value)}
-                className="panel-field rounded-lg px-3 py-1.5 font-mono text-xs"
-              >
-                {(containers.data?.containers || []).map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-                {!containers.data?.containers?.length && (
-                  <option value="">No containers</option>
-                )}
-              </select>
-            </label>
-          ) : null}
-          <label className="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-            <input
-              type="checkbox"
-              checked={includeTimestamps}
-              onChange={(e) => onSettingsChange({ is_include_timestamps: e.target.checked })}
-            />
-            Timestamps
-          </label>
-          <label className="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-            <span className="sr-only">Line limit</span>
-            <input
-              type="number"
-              min={50}
-              max={5000}
-              value={lineLimit}
-              onChange={(e) =>
-                onSettingsChange({ logs_line_limit: Number(e.target.value) || 1000 })
-              }
-              className="panel-field w-20 rounded-lg px-2 py-1.5 text-xs"
-              title="Initial tail lines"
-            />
-            <span className="text-xs">lines</span>
-          </label>
-          <Btn type="button" onClick={downloadLogs} disabled={!lines.length}>
-            Download
-          </Btn>
-          <span
-            className={`text-xs font-medium ${
-              status === 'live'
-                ? 'text-emerald-600 dark:text-emerald-400'
-                : status === 'error'
-                  ? 'text-error-500'
-                  : 'text-gray-500'
-            }`}
-          >
-            {status === 'connecting' ? 'Connecting…' : status === 'live' ? 'Live' : status === 'ended' ? 'Ended' : 'Error'}
-          </span>
-          <Btn type="button" onClick={() => setNonce((n) => n + 1)}>
-            Reconnect
-          </Btn>
-        </div>
-      </div>
-      {error && status === 'error' ? (
-        <p className="text-sm text-error-500">{error}</p>
-      ) : null}
-      <pre className="panel-card max-h-[28rem] overflow-auto p-4 font-mono text-xs leading-relaxed text-gray-800 dark:text-gray-200">
-        {lines.length ? lines.join('\n') : 'Waiting for log lines…'}
-      </pre>
-    </div>
+    <LiveLogViewer
+      status={status}
+      error={error}
+      lines={lines}
+      containers={isCompose ? composeNames : undefined}
+      container={isCompose ? container : undefined}
+      onContainerChange={isCompose ? setContainer : undefined}
+      tail={lineLimit}
+      onTailChange={(n) => onSettingsChange({ logs_line_limit: n })}
+      timestamps={{
+        checked: includeTimestamps,
+        onChange: (next) => onSettingsChange({ is_include_timestamps: next }),
+      }}
+      onDownload={downloadLogs}
+      onReconnect={() => setNonce((n) => n + 1)}
+    />
   )
 }

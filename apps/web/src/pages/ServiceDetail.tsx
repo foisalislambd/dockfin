@@ -16,6 +16,7 @@ import {
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { DeployLogPanel } from '../components/DeployLogPanel'
+import { LiveLogViewer } from '../components/LiveLogViewer'
 import { DomainsPanel } from '../components/DomainsPanel'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { LinksMenu, LinksPanel } from '../components/LinksMenu'
@@ -906,76 +907,18 @@ function ServiceLiveLogs({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-            Live container logs
-          </h2>
-          <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-            Streaming <code className="font-mono text-xs">docker logs -f</code> from the target
-            server.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="text-sm">
-            <span className="sr-only">Container</span>
-            <select
-              value={container}
-              onChange={(e) => setContainer(e.target.value)}
-              className="panel-field rounded-lg px-3 py-1.5 font-mono text-xs"
-            >
-              {options.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-              {!options.length && <option value="">No containers</option>}
-            </select>
-          </label>
-          <label className="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-            <span className="sr-only">Line limit</span>
-            <input
-              type="number"
-              min={50}
-              max={5000}
-              value={tail}
-              onChange={(e) => setTail(Number(e.target.value) || 200)}
-              className="panel-field w-20 rounded-lg px-2 py-1.5 text-xs"
-              title="Initial tail lines"
-            />
-            <span className="text-xs">lines</span>
-          </label>
-          <Btn type="button" onClick={downloadLogs} disabled={!lines.length}>
-            Download
-          </Btn>
-          <span
-            className={`text-xs font-medium ${
-              status === 'live'
-                ? 'text-emerald-600 dark:text-emerald-400'
-                : status === 'error'
-                  ? 'text-error-500'
-                  : 'text-gray-500'
-            }`}
-          >
-            {status === 'connecting'
-              ? 'Connecting…'
-              : status === 'live'
-                ? 'Live'
-                : status === 'ended'
-                  ? 'Ended'
-                  : 'Error'}
-          </span>
-          <Btn type="button" onClick={() => setNonce((n) => n + 1)}>
-            Reconnect
-          </Btn>
-        </div>
-      </div>
-      {error && status === 'error' ? <p className="text-sm text-error-500">{error}</p> : null}
-      <pre className="panel-card max-h-[28rem] overflow-auto p-4 font-mono text-xs leading-relaxed text-gray-800 dark:text-gray-200">
-        {lines.length ? lines.join('\n') : 'Waiting for log lines…'}
-      </pre>
-    </div>
+    <LiveLogViewer
+      status={status}
+      error={error}
+      lines={lines}
+      containers={options}
+      container={container}
+      onContainerChange={setContainer}
+      tail={tail}
+      onTailChange={setTail}
+      onDownload={downloadLogs}
+      onReconnect={() => setNonce((n) => n + 1)}
+    />
   )
 }
 

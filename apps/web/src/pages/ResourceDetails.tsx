@@ -21,6 +21,7 @@ import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmM
 import { useConfirm } from '../components/ConfirmDialog'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { ResourceTagsPanel } from '../components/ResourceTagsPanel'
+import { LiveLogViewer } from '../components/LiveLogViewer'
 import { ServerTerminal } from '../components/Terminal'
 import { DetailPageSkeleton, PanelSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
@@ -466,25 +467,24 @@ function DatabaseLiveLogs({ dbId }: { dbId: string }) {
     return () => es.close()
   }, [dbId, nonce])
 
+  const downloadLogs = () => {
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${dbId}-logs.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-xs text-gray-500 dark:text-gray-400">
-          {status === 'live'
-            ? 'Streaming live'
-            : status === 'connecting'
-              ? 'Connecting…'
-              : status === 'ended'
-                ? 'Stream ended'
-                : 'Disconnected'}
-        </span>
-        <Btn onClick={() => setNonce((n) => n + 1)}>Reconnect</Btn>
-      </div>
-      {error && <p className="text-sm text-error-500">{error}</p>}
-      <pre className="max-h-[32rem] overflow-auto rounded-lg bg-gray-950 p-3 font-mono text-xs text-gray-200">
-        {lines.length ? lines.join('\n') : 'Waiting for log output…'}
-      </pre>
-    </div>
+    <LiveLogViewer
+      status={status}
+      error={error}
+      lines={lines}
+      onDownload={downloadLogs}
+      onReconnect={() => setNonce((n) => n + 1)}
+    />
   )
 }
 
