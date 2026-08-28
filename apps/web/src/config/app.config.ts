@@ -1,18 +1,18 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Bell,
+  Box,
   FolderKanban,
-  HardDrive,
   GitBranch,
   KeyRound,
   LayoutDashboard,
-  Network,
   Server,
   Settings,
+  Share2,
   SquareTerminal,
   Tags,
   Users,
-  Variable,
+  Waypoints,
 } from 'lucide-react'
 
 export const appConfig = {
@@ -68,21 +68,47 @@ export type NavItem = {
   icon: LucideIcon
 }
 
-export const navItems: NavItem[] = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Projects', href: '/projects', icon: FolderKanban },
-  { name: 'Servers', href: '/servers', icon: Server },
-  { name: 'Destinations', href: '/destinations', icon: Network },
-  { name: 'Sources', href: '/git-sources', icon: GitBranch },
-  { name: 'Storages', href: '/storages', icon: HardDrive },
-  { name: 'Shared vars', href: '/shared-variables', icon: Variable },
-  { name: 'Tags', href: '/tags', icon: Tags },
-  { name: 'Terminal', href: '/terminal', icon: SquareTerminal },
-  { name: 'Team', href: '/team', icon: Users },
-  { name: 'Keys & Tokens', href: '/security', icon: KeyRound },
-  { name: 'Notifications', href: '/notifications', icon: Bell },
-  { name: 'Settings', href: '/settings', icon: Settings },
+export type NavGroup = {
+  id: string
+  label: string
+  items: NavItem[]
+}
+
+export const navGroups: NavGroup[] = [
+  {
+    id: 'workspace',
+    label: 'Workspace',
+    items: [
+      { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      { name: 'Projects', href: '/projects', icon: FolderKanban },
+      { name: 'Terminal', href: '/terminal', icon: SquareTerminal },
+    ],
+  },
+  {
+    id: 'infrastructure',
+    label: 'Infrastructure',
+    items: [
+      { name: 'Servers', href: '/servers', icon: Server },
+      { name: 'Sources', href: '/git-sources', icon: GitBranch },
+      { name: 'Destinations', href: '/destinations', icon: Waypoints },
+      { name: 'Storages', href: '/storages', icon: Box },
+      { name: 'Shared vars', href: '/shared-variables', icon: Share2 },
+    ],
+  },
+  {
+    id: 'manage',
+    label: 'Manage',
+    items: [
+      { name: 'Team', href: '/team', icon: Users },
+      { name: 'Notifications', href: '/notifications', icon: Bell },
+      { name: 'Keys & Tokens', href: '/security', icon: KeyRound },
+      { name: 'Tags', href: '/tags', icon: Tags },
+      { name: 'Settings', href: '/settings', icon: Settings },
+    ],
+  },
 ]
+
+export const navItems: NavItem[] = navGroups.flatMap((g) => g.items)
 
 export function isNavActive(pathname: string, href: string) {
   if (href === '/dashboard') return pathname === '/dashboard' || pathname === '/'

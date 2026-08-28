@@ -1,6 +1,6 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { Search } from 'lucide-react'
+import { AppWindow, Boxes, ChevronRight, Database, Search } from 'lucide-react'
 import { useMemo, useState, type FormEvent, type MouseEvent } from 'react'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { useToast } from '../components/Toast'
@@ -28,6 +28,14 @@ function statusDotClass(status: string) {
   return 'bg-gray-400'
 }
 
+function kindMeta(kind: ResourceKind) {
+  if (kind === 'application')
+    return { label: 'Application', icon: AppWindow, chip: 'bg-sky-50 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300' }
+  if (kind === 'database')
+    return { label: 'Database', icon: Database, chip: 'bg-amber-50 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300' }
+  return { label: 'Service', icon: Boxes, chip: 'bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300' }
+}
+
 function ResourceCard({
   row,
   to,
@@ -39,15 +47,27 @@ function ResourceCard({
   params: Record<string, string>
   onAddTag: (row: ResourceRow) => void
 }) {
+  const meta = kindMeta(row.kind)
+  const KindIcon = meta.icon
   return (
     <Link
       to={to}
       params={params}
-      className="panel-card flex min-h-[7.5rem] flex-col justify-between gap-3 p-4 transition hover:border-brand-300 dark:hover:border-brand-500/40"
+      className="panel-card group flex min-h-[8rem] flex-col justify-between gap-3 p-4 transition hover:border-brand-300 dark:hover:border-brand-500/40"
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 truncate text-sm font-semibold text-gray-900 dark:text-white">
-          {row.name}
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+            <KindIcon className="h-4 w-4" strokeWidth={1.75} />
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+              {row.name}
+            </div>
+            <span className={`mt-1 inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-medium ${meta.chip}`}>
+              {meta.label}
+            </span>
+          </div>
         </div>
         <span
           className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${statusDotClass(row.status)}`}
@@ -77,6 +97,7 @@ function ResourceCard({
         >
           {row.tags.length ? '+ Tag' : 'Add tag'}
         </button>
+        <ChevronRight className="ml-auto h-3.5 w-3.5 text-gray-300 group-hover:text-brand-500 dark:text-gray-600" />
       </div>
     </Link>
   )
@@ -183,7 +204,7 @@ export function EnvironmentResourcesPage() {
   const filteredDbs = databases.filter(match).sort((a, b) => a.name.localeCompare(b.name))
   const filteredSvcs = services.filter(match).sort((a, b) => a.name.localeCompare(b.name))
 
-  const loading = appsQ.isLoading || dbsQ.isLoading || svcsQ.isLoading
+  const loading = appsQ.isLoading || dbsQ.isLoading || svcsQ.isLoading || project.isLoading
   const empty = !applications.length && !databases.length && !services.length
   const noMatch = !empty && !filteredApps.length && !filteredDbs.length && !filteredSvcs.length
 
@@ -227,17 +248,22 @@ export function EnvironmentResourcesPage() {
     <div className="space-y-8">
       <div>
         <nav className="flex flex-wrap items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
-          <Link to="/projects" className="hover:text-brand-600 dark:hover:text-brand-400">
+          <Link to="/projects" className="hover:text-brand-600 dark:hover:text-brand-400" activeOptions={{ exact: true }}>
             Projects
           </Link>
           <span>/</span>
-          <Link
-            to="/projects/$projectId"
-            params={{ projectId }}
-            className="hover:text-brand-600 dark:hover:text-brand-400"
-          >
-            {project.data?.name || '…'}
-          </Link>
+          {(envs.data?.environments || []).length > 1 ? (
+            <Link
+              to="/projects/$projectId"
+              params={{ projectId }}
+              className="hover:text-brand-600 dark:hover:text-brand-400"
+              activeOptions={{ exact: true }}
+            >
+              {project.data?.name || '…'}
+            </Link>
+          ) : (
+            <span className="text-gray-700 dark:text-gray-300">{project.data?.name || '…'}</span>
+          )}
           <span>/</span>
           <select
             className="rounded border-0 bg-transparent py-0 pr-6 text-sm font-medium text-gray-900 dark:text-white"
@@ -260,7 +286,8 @@ export function EnvironmentResourcesPage() {
           </select>
         </nav>
         <Header
-          title="Resources"
+          title={project.data?.name || 'Resources'}
+          subtitle="Applications, databases, and one-click services in this environment."
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <Link
@@ -328,7 +355,9 @@ export function EnvironmentResourcesPage() {
 
       {filteredApps.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Applications</h2>
+          <h2 className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
+            Applications
+          </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {filteredApps.map((r) => (
               <ResourceCard
@@ -345,7 +374,9 @@ export function EnvironmentResourcesPage() {
 
       {filteredDbs.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Databases</h2>
+          <h2 className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
+            Databases
+          </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {filteredDbs.map((r) => (
               <ResourceCard
@@ -362,7 +393,9 @@ export function EnvironmentResourcesPage() {
 
       {filteredSvcs.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Services</h2>
+          <h2 className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
+            Services
+          </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {filteredSvcs.map((r) => (
               <ResourceCard

@@ -1,5 +1,5 @@
 import { BrandLogo } from '../BrandLogo'
-import { appConfig, isNavActive, navItems } from '../../config/app.config'
+import { appConfig, isNavActive, navGroups } from '../../config/app.config'
 import {
   SIDEBAR_WIDTH_COLLAPSED,
   SIDEBAR_WIDTH_EXPANDED,
@@ -56,7 +56,7 @@ export function PanelSidebar() {
           <button
             type="button"
             onClick={closeMobileSidebar}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10"
             aria-label="Close menu"
           >
             <X className="h-4 w-4" />
@@ -64,34 +64,53 @@ export function PanelSidebar() {
         )}
       </div>
 
-      <nav className="no-scrollbar flex flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 py-3">
-        {navItems.map((item) => {
-          const active = isNavActive(pathname, item.href)
-          const Icon = item.icon
-          return (
-            <Link
-              key={item.href}
-              to={item.href}
-              onClick={closeMobileSidebar}
-              title={!showLabels ? item.name : undefined}
-              aria-current={active ? 'page' : undefined}
-              className={`group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
-                active
-                  ? 'bg-brand-500 text-white shadow-sm shadow-brand-500/25'
-                  : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/8'
-              } ${!showLabels ? 'justify-center px-0' : ''}`}
-            >
-              <Icon
-                className={`h-[18px] w-[18px] shrink-0 ${
-                  active
-                    ? 'text-white'
-                    : 'text-gray-500 group-hover:text-gray-700 dark:text-gray-400'
-                }`}
-              />
-              {showLabels && <span className="truncate">{item.name}</span>}
-            </Link>
-          )
-        })}
+      <nav className="no-scrollbar flex flex-1 flex-col overflow-y-auto px-2.5 py-3">
+        {navGroups.map((group, gi) => (
+          <div key={group.id} className={gi > 0 ? 'mt-4' : ''}>
+            {showLabels ? (
+              <p className="px-2.5 pb-1.5 text-[11px] font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500">
+                {group.label}
+              </p>
+            ) : (
+              gi > 0 && (
+                <div
+                  className="mx-2 mb-2 border-t border-gray-200 dark:border-gray-800"
+                  aria-hidden
+                />
+              )
+            )}
+            <div className="flex flex-col gap-0.5">
+              {group.items.map((item) => {
+                const active = isNavActive(pathname, item.href)
+                const Icon = item.icon
+                return (
+                  <Link
+                    key={item.href}
+                    to={item.href}
+                    onClick={closeMobileSidebar}
+                    title={!showLabels ? item.name : undefined}
+                    aria-current={active ? 'page' : undefined}
+                    className={`group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
+                      active
+                        ? 'bg-brand-50 text-brand-800 dark:bg-brand-500/15 dark:text-brand-200'
+                        : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/8'
+                    } ${!showLabels ? 'justify-center px-0' : ''}`}
+                  >
+                    <Icon
+                      className={`h-[18px] w-[18px] shrink-0 ${
+                        active
+                          ? 'text-brand-600 dark:text-brand-400'
+                          : 'text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-300'
+                      }`}
+                      strokeWidth={1.75}
+                    />
+                    {showLabels && <span className="truncate">{item.name}</span>}
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       <div className="shrink-0 space-y-1 border-t border-gray-200 p-2.5 dark:border-gray-800">
@@ -99,7 +118,7 @@ export function PanelSidebar() {
           <button
             type="button"
             onClick={toggleSidebar}
-            className={`flex w-full items-center gap-2.5 rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-800 dark:text-gray-400 dark:hover:bg-white/5 ${!showLabels ? 'justify-center' : ''}`}
+            className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/5 ${!showLabels ? 'justify-center' : ''}`}
             aria-label={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
           >
             {isExpanded ? (
@@ -108,7 +127,7 @@ export function PanelSidebar() {
                 <span>Collapse</span>
               </>
             ) : (
-              <ChevronRight className="h-4 w-4 shrink-0" />
+              <ChevronRight className="h-4 w-4" />
             )}
           </button>
         )}

@@ -143,10 +143,15 @@ export function AppShellSkeleton() {
           </div>
         </div>
         <div className="flex flex-1 flex-col gap-0.5 overflow-hidden px-2.5 py-3">
-          {Array.from({ length: 13 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2">
-              <Skeleton className="h-[18px] w-[18px] shrink-0 rounded" />
-              <Skeleton className="h-3.5 flex-1" />
+          {Array.from({ length: 3 }).map((_, g) => (
+            <div key={g} className={g > 0 ? 'mt-3' : ''}>
+              <Skeleton className="mb-1.5 h-2.5 w-16" />
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2">
+                  <Skeleton className="h-[18px] w-[18px] shrink-0 rounded" />
+                  <Skeleton className="h-3.5 flex-1" />
+                </div>
+              ))}
             </div>
           ))}
         </div>

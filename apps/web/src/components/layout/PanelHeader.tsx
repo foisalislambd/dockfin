@@ -1,5 +1,5 @@
 import { BrandLogo } from '../BrandLogo'
-import { appConfig, navItems } from '../../config/app.config'
+import { appConfig, navGroups } from '../../config/app.config'
 import { useSidebar } from '../../context/sidebar-context'
 import { ThemeToggle } from '../theme/ThemeToggle'
 import { UserMenu } from './UserMenu'
@@ -80,17 +80,26 @@ export function PanelHeader() {
               <div className="border-b border-gray-200 px-4 py-3 text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
                 Jump to…
               </div>
-              <ul>
-                {navItems.map((item) => (
-                  <li key={item.href}>
-                    <Link
-                      to={item.href}
-                      onClick={() => setPaletteOpen(false)}
-                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5"
-                    >
-                      <item.icon className="h-4 w-4 text-gray-400" />
-                      {item.name}
-                    </Link>
+              <ul className="max-h-[70vh] overflow-y-auto">
+                {navGroups.map((group) => (
+                  <li key={group.id}>
+                    <p className="px-4 pt-3 pb-1 text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
+                      {group.label}
+                    </p>
+                    <ul>
+                      {group.items.map((item) => (
+                        <li key={item.href}>
+                          <Link
+                            to={item.href}
+                            onClick={() => setPaletteOpen(false)}
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5"
+                          >
+                            <item.icon className="h-4 w-4 text-gray-400" strokeWidth={1.75} />
+                            {item.name}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
                   </li>
                 ))}
               </ul>

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
+import { Layers } from 'lucide-react'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { api, LAST_ENV_KEY } from '../lib/api'
 import { Btn, Header, Input, Modal } from './Servers'
@@ -79,7 +80,8 @@ export function ProjectShowPage() {
           ← Projects
         </Link>
         <Header
-          title="Environments"
+          title={project.data.name}
+          subtitle="Choose an environment to deploy and manage resources."
           actions={
             <div className="flex items-center gap-2">
               <Link
@@ -90,7 +92,7 @@ export function ProjectShowPage() {
                 Settings
               </Link>
               <Btn primary onClick={() => setShow(true)}>
-                + Add
+                Add environment
               </Btn>
             </div>
           }
@@ -103,10 +105,13 @@ export function ProjectShowPage() {
             key={env.id}
             to="/projects/$projectId/environments/$envId"
             params={{ projectId, envId: env.id }}
-            className="panel-card group relative flex items-center justify-between gap-4 p-5 transition hover:border-brand-300 dark:hover:border-brand-500/40"
+            className="panel-card group flex items-center gap-4 p-5 transition hover:border-brand-300 dark:hover:border-brand-500/40"
             onClick={() => localStorage.setItem(LAST_ENV_KEY, env.id)}
           >
-            <div className="min-w-0">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+              <Layers className="h-5 w-5" strokeWidth={1.75} />
+            </div>
+            <div className="min-w-0 flex-1">
               <div className="font-semibold text-gray-900 dark:text-white">{env.name}</div>
               {env.description && (
                 <div className="mt-1 truncate text-sm text-gray-500 dark:text-gray-400">
@@ -114,6 +119,9 @@ export function ProjectShowPage() {
                 </div>
               )}
             </div>
+            <span className="text-xs font-medium text-gray-400 group-hover:text-brand-600 dark:group-hover:text-brand-400">
+              Open
+            </span>
           </Link>
         ))}
         {!envs.data?.environments?.length && (

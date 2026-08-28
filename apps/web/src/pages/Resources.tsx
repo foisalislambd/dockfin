@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
+import { FolderKanban } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { api, fetchAllEnvironments, LAST_ENV_KEY } from '../lib/api'
@@ -46,9 +47,10 @@ export function ProjectsPage() {
     <div className="space-y-6">
       <Header
         title="Projects"
+        subtitle="Group applications, databases, and services by environment."
         actions={
           <Btn primary onClick={() => setShow(true)}>
-            + Add
+            New project
           </Btn>
         }
       />
@@ -71,48 +73,51 @@ export function ProjectsPage() {
             return (
               <div
                 key={p.id}
-                className="panel-card flex min-h-[4.5rem] items-center justify-between gap-4 px-5 py-4"
+                className="panel-card group flex min-h-[5.5rem] items-center gap-4 px-5 py-4 transition hover:border-brand-300 dark:hover:border-brand-500/40"
               >
                 <Link
                   to={projectHref.to}
                   params={projectHref.params}
-                  className="min-w-0 flex-1"
+                  className="flex min-w-0 flex-1 items-center gap-4"
                   onClick={() => {
                     if (singleEnvId) localStorage.setItem(LAST_ENV_KEY, singleEnvId)
                   }}
                 >
-                  <div className="truncate text-base font-semibold text-gray-900 dark:text-white">
-                    {p.name}
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">
+                    <FolderKanban className="h-5 w-5" strokeWidth={1.75} />
                   </div>
-                  {p.description ? (
-                    <div className="mt-0.5 truncate text-sm text-gray-500 dark:text-gray-400">
-                      {p.description}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-base font-semibold text-gray-900 dark:text-white">
+                      {p.name}
                     </div>
-                  ) : null}
+                    {p.description ? (
+                      <div className="mt-0.5 truncate text-sm text-gray-500 dark:text-gray-400">
+                        {p.description}
+                      </div>
+                    ) : !envs.isLoading && !envs.isError ? (
+                      <div className="mt-0.5 text-sm text-gray-400 dark:text-gray-500">
+                        {envIds.length === 1
+                          ? '1 environment'
+                          : `${envIds.length} environments`}
+                      </div>
+                    ) : null}
+                  </div>
                 </Link>
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex shrink-0 items-center gap-3">
                   {singleEnvId ? (
                     <Link
                       to="/projects/$projectId/environments/$envId/new"
                       params={{ projectId: p.id, envId: singleEnvId }}
-                      className="text-sm font-medium text-brand-600 hover:underline dark:text-brand-400"
+                      className="hidden text-sm font-medium text-brand-600 sm:inline dark:text-brand-400"
                       onClick={() => localStorage.setItem(LAST_ENV_KEY, singleEnvId)}
                     >
-                      + Add Resource
+                      Add resource
                     </Link>
-                  ) : (
-                    <Link
-                      to="/projects/$projectId"
-                      params={{ projectId: p.id }}
-                      className="text-sm font-medium text-brand-600 hover:underline dark:text-brand-400"
-                    >
-                      Environments
-                    </Link>
-                  )}
+                  ) : null}
                   <Link
                     to="/projects/$projectId/edit"
                     params={{ projectId: p.id }}
-                    className="text-sm text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+                    className="hidden text-sm text-gray-400 hover:text-gray-700 sm:inline dark:hover:text-gray-200"
                   >
                     Settings
                   </Link>
@@ -122,8 +127,19 @@ export function ProjectsPage() {
           })}
         </div>
       ) : (
-        <div className="panel-card p-10 text-center text-sm text-gray-500 dark:text-gray-400">
-          No projects yet. Create one to get started.
+        <div className="panel-card p-10 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">
+            <FolderKanban className="h-6 w-6" strokeWidth={1.75} />
+          </div>
+          <p className="mt-4 text-sm font-medium text-gray-900 dark:text-white">No projects yet</p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Create a project to deploy apps, databases, and services.
+          </p>
+          <div className="mt-4">
+            <Btn primary onClick={() => setShow(true)}>
+              New project
+            </Btn>
+          </div>
         </div>
       )}
 
