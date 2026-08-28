@@ -184,7 +184,7 @@ export function LiveLogViewer({
           const el = e.currentTarget
           stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
         }}
-        className="max-h-[min(70dvh,36rem)] min-h-[14rem] overflow-auto bg-[#0b1220] p-3 font-mono text-[11px] leading-relaxed text-gray-300 sm:min-h-[16rem] sm:p-4 sm:text-xs"
+        className="min-w-0 max-h-[min(70dvh,36rem)] min-h-[14rem] overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-all bg-[#0b1220] p-3 font-mono text-[11px] leading-relaxed text-gray-300 sm:min-h-[16rem] sm:p-4 sm:text-xs"
       >
         {lines.length ? lines.join('\n') : 'Waiting for log lines…'}
       </pre>
