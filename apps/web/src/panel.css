@@ -238,6 +238,36 @@
   background-color: #344054;
 }
 
+/* Dark terminal panes (live logs / deploy output) */
+.log-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+}
+
+.log-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.log-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.log-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background-color: rgba(148, 163, 184, 0.28);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+
+.log-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(226, 232, 240, 0.45);
+}
+
+.log-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
