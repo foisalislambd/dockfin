@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bell, Hash, Mail, MessageCircle, Send, Webhook } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { useToast } from '../components/Toast'
 import { FormPageSkeleton } from '../components/ui/Skeleton'
 import { ResourceTabs, TabPanel } from '../components/ui/tabs'
 import { api, type NotificationSetting } from '../lib/api'
@@ -128,11 +129,40 @@ function parseConfig(ch: ChannelId, raw: unknown): Record<string, unknown> {
   return { ...base, ...(raw as Record<string, unknown>) }
 }
 
+function Toggle({
+  label,
+  helper,
+  checked,
+  onChange,
+}: {
+  label: string
+  helper?: string
+  checked: boolean
+  onChange: (v: boolean) => void
+}) {
+  return (
+    <label className="flex max-w-md items-center justify-between gap-3 py-1.5 text-sm">
+      <span className="text-gray-700 dark:text-gray-200">
+        {label}
+        {helper ? (
+          <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{helper}</span>
+        ) : null}
+      </span>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-4 w-4 shrink-0 accent-[var(--color-accent)]"
+      />
+    </label>
+  )
+}
+
 export function NotificationsPage() {
   const qc = useQueryClient()
+  const toast = useToast()
   const list = useQuery({ queryKey: ['notifications'], queryFn: api.notifications })
   const [tab, setTab] = useState<ChannelId>('email')
-  const [toast, setToast] = useState('')
   const [error, setError] = useState('')
   const [testEmailOpen, setTestEmailOpen] = useState(false)
   const [testEmail, setTestEmail] = useState('')
@@ -154,7 +184,6 @@ export function NotificationsPage() {
     setEvents(row?.id ? (row.events ?? []) : DEFAULT_EVENTS)
     setConfig(parseConfig(tab, row?.config))
     setError('')
-    setToast('')
   }, [tab, byChannel])
 
   const savedEnabled = !!byChannel[tab]?.enabled && !!byChannel[tab]?.id
@@ -163,11 +192,10 @@ export function NotificationsPage() {
     mutationFn: () => api.upsertNotification(tab, { enabled, config, events }),
     onSuccess: () => {
       setError('')
-      setToast('Settings saved.')
+      toast.success('Settings saved.')
       void qc.invalidateQueries({ queryKey: ['notifications'] })
     },
     onError: (e: Error) => {
-      setToast('')
       setError(e.message)
     },
   })
@@ -176,11 +204,10 @@ export function NotificationsPage() {
     mutationFn: (email?: string) => api.testNotification(tab, email ? { email } : undefined),
     onSuccess: () => {
       setError('')
-      setToast(tab === 'email' ? 'Test Email sent.' : 'Test notification sent.')
+      toast.success(tab === 'email' ? 'Test email sent.' : 'Test notification sent.')
       setTestEmailOpen(false)
     },
     onError: (e: Error) => {
-      setToast('')
       setError(e.message)
     },
   })
@@ -195,20 +222,10 @@ export function NotificationsPage() {
 
   return (
     <div className="space-y-6">
-      <Header title="Notifications" />
-
-      <ResourceTabs
-        tabs={CHANNELS.map((c) => ({ id: c.id, label: c.label, icon: c.icon }))}
-        active={tab}
-        onChange={(id) => setTab(id as ChannelId)}
-      />
-
-      <TabPanel>
-        <div className="space-y-6">
+      <Header
+        title="Notifications"
+        actions={
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {CHANNELS.find((c) => c.id === tab)?.label}
-            </h2>
             <Btn primary type="button" disabled={save.isPending} onClick={() => save.mutate()}>
               {save.isPending ? 'Saving…' : 'Save'}
             </Btn>
@@ -218,7 +235,7 @@ export function NotificationsPage() {
                 disabled={!savedEnabled || test.isPending}
                 onClick={() => setTestEmailOpen(true)}
               >
-                Send Test Email
+                Send test email
               </Btn>
             ) : (
               <Btn
@@ -226,23 +243,29 @@ export function NotificationsPage() {
                 disabled={!savedEnabled || test.isPending}
                 onClick={() => test.mutate(undefined)}
               >
-                {test.isPending ? 'Sending…' : 'Send Test Notification'}
+                {test.isPending ? 'Sending…' : 'Send test'}
               </Btn>
             )}
           </div>
+        }
+      />
 
-          {error && <p className="text-sm text-error-500">{error}</p>}
-          {toast && <p className="text-sm text-success-600 dark:text-success-400">{toast}</p>}
+      <ResourceTabs
+        tabs={CHANNELS.map((c) => ({ id: c.id, label: c.label, icon: c.icon }))}
+        active={tab}
+        onChange={(id) => setTab(id as ChannelId)}
+      />
 
-          <label className="flex w-fit items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="accent-[var(--color-accent)]"
-              checked={enabled}
-              onChange={(e) => setEnabled(e.target.checked)}
-            />
-            Enabled
-          </label>
+      <TabPanel>
+        <div className="space-y-6">
+          {error ? <p className="text-sm text-error-500">{error}</p> : null}
+
+          <Toggle
+            label="Enabled"
+            helper={`Send ${CHANNELS.find((c) => c.id === tab)?.label.toLowerCase()} notifications for the events below.`}
+            checked={enabled}
+            onChange={setEnabled}
+          />
 
           {tab === 'email' && (
             <EmailFields cfg={config as unknown as EmailCfg} setCfg={setCfg} />
@@ -262,43 +285,40 @@ export function NotificationsPage() {
           )}
 
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Notification Settings
-            </h2>
+            <h2 className="text-lg font-medium text-gray-900 dark:text-white">Events</h2>
             <p className="mt-1 mb-4 text-sm text-gray-500 dark:text-gray-400">
-              Select events for which you would like to receive{' '}
-              {CHANNELS.find((c) => c.id === tab)?.label.toLowerCase()} notifications.
+              Choose which events send {CHANNELS.find((c) => c.id === tab)?.label.toLowerCase()}{' '}
+              notifications.
             </p>
-            <div className={`flex flex-col gap-4 ${tab === 'telegram' ? '' : 'max-w-2xl'}`}>
+            <div className={`flex flex-col gap-3 ${tab === 'telegram' ? '' : 'max-w-2xl'}`}>
               {EVENT_GROUPS.map((g) => (
-                <div
-                  key={g.title}
-                  className="rounded-lg border border-gray-200 p-4 dark:border-gray-800"
-                >
-                  <h3 className="mb-3 font-medium text-gray-900 dark:text-white">{g.title}</h3>
-                  <div className="flex flex-col gap-2 pl-1">
+                <div key={g.title} className="panel-card p-4">
+                  <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">
+                    {g.title}
+                  </h3>
+                  <div className="flex flex-col gap-2">
                     {g.events.map((ev) => (
                       <div key={ev.id} className="flex flex-wrap items-start gap-3">
                         <label className="flex min-w-[220px] flex-1 items-start gap-2 text-sm">
                           <input
                             type="checkbox"
-                            className="mt-0.5 accent-[var(--color-accent)]"
+                            className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
                             checked={events.includes(ev.id)}
                             onChange={() => toggleEvent(ev.id)}
                           />
                           <span>
-                            <span className="text-gray-800 dark:text-gray-200">{ev.label}</span>
-                            {ev.help && (
+                            <span className="text-gray-700 dark:text-gray-200">{ev.label}</span>
+                            {ev.help ? (
                               <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
                                 {ev.help}
                               </span>
-                            )}
+                            ) : null}
                           </span>
                         </label>
-                        {tab === 'telegram' && (
+                        {tab === 'telegram' ? (
                           <input
                             type="password"
-                            placeholder="Custom Telegram Thread ID"
+                            placeholder="Custom Telegram thread ID"
                             value={
                               ((config.thread_ids as Record<string, string>) || {})[ev.id] || ''
                             }
@@ -309,9 +329,9 @@ export function NotificationsPage() {
                               }
                               setCfg({ thread_ids })
                             }}
-                            className="panel-field w-56 rounded-lg px-2 py-1.5 text-xs"
+                            className="panel-field w-56 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
                           />
-                        )}
+                        ) : null}
                       </div>
                     ))}
                   </div>
@@ -356,18 +376,12 @@ function EmailFields({
 }) {
   return (
     <div className="max-w-2xl space-y-4">
-      <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          className="accent-[var(--color-accent)]"
-          checked={!!cfg.use_instance_email_settings}
-          onChange={(e) => setCfg({ use_instance_email_settings: e.target.checked })}
-        />
-        Use system wide (transactional) email settings
-      </label>
-      <FieldHelp>
-        Uses SMTP / Resend from Settings → Email. Configure those first for team notifications.
-      </FieldHelp>
+      <Toggle
+        label="Use instance email settings"
+        helper="Uses SMTP / Resend from Settings → Email. Configure those first for team notifications."
+        checked={!!cfg.use_instance_email_settings}
+        onChange={(v) => setCfg({ use_instance_email_settings: v })}
+      />
 
       {!cfg.use_instance_email_settings && (
         <>
@@ -384,11 +398,12 @@ function EmailFields({
             />
           </div>
 
-          <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
-            <h3 className="mb-3 font-medium">SMTP Server</h3>
-            <label className="mb-3 flex items-center gap-2 text-sm">
+          <div className="panel-card p-4">
+            <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">SMTP Server</h3>
+            <label className="mb-3 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
               <input
                 type="checkbox"
+                className="h-4 w-4 accent-[var(--color-accent)]"
                 checked={!!cfg.smtp_enabled}
                 onChange={(e) =>
                   setCfg({
@@ -411,7 +426,7 @@ function EmailFields({
                 <select
                   value={cfg.smtp_encryption || 'starttls'}
                   onChange={(e) => setCfg({ smtp_encryption: e.target.value })}
-                  className="panel-field w-full rounded-lg px-3 py-2"
+                  className="panel-field w-full rounded-lg px-3 py-2 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
                 >
                   <option value="starttls">STARTTLS</option>
                   <option value="tls">TLS</option>
@@ -437,11 +452,12 @@ function EmailFields({
             </div>
           </div>
 
-          <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
-            <h3 className="mb-3 font-medium">Resend</h3>
-            <label className="mb-3 flex items-center gap-2 text-sm">
+          <div className="panel-card p-4">
+            <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">Resend</h3>
+            <label className="mb-3 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
               <input
                 type="checkbox"
+                className="h-4 w-4 accent-[var(--color-accent)]"
                 checked={!!cfg.resend_enabled}
                 onChange={(e) =>
                   setCfg({
@@ -486,13 +502,14 @@ function DiscordFields({
 }) {
   return (
     <div className="max-w-2xl space-y-3">
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
         <input
           type="checkbox"
+          className="h-4 w-4 accent-[var(--color-accent)]"
           checked={!!cfg.ping_enabled}
           onChange={(e) => setCfg({ ping_enabled: e.target.checked })}
         />
-        Ping Enabled
+        Ping enabled
       </label>
       <FieldHelp>
         If enabled, a ping (@here) will be sent when a critical event happens.
@@ -510,7 +527,7 @@ function DiscordFields({
       <FieldHelp>
         Create a Discord Server and generate a Webhook URL.{' '}
         <a
-          className="underline"
+          className="text-brand-600 hover:underline dark:text-brand-400"
           href="https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks"
           target="_blank"
           rel="noreferrer"
@@ -543,7 +560,7 @@ function TelegramFields({
       </label>
       <FieldHelp>
         Create a bot with{' '}
-        <a className="underline" href="https://t.me/BotFather" target="_blank" rel="noreferrer">
+        <a className="text-brand-600 hover:underline dark:text-brand-400" href="https://t.me/BotFather" target="_blank" rel="noreferrer">
           BotFather
         </a>
         .
@@ -579,7 +596,7 @@ function SlackFields({
       </label>
       <FieldHelp>
         Create a Slack app with an Incoming Webhook —{' '}
-        <a className="underline" href="https://api.slack.com/apps" target="_blank" rel="noreferrer">
+        <a className="text-brand-600 hover:underline dark:text-brand-400" href="https://api.slack.com/apps" target="_blank" rel="noreferrer">
           api.slack.com/apps
         </a>
       </FieldHelp>
@@ -608,7 +625,7 @@ function PushoverFields({
       </label>
       <FieldHelp>
         From your{' '}
-        <a className="underline" href="https://pushover.net" target="_blank" rel="noreferrer">
+        <a className="text-brand-600 hover:underline dark:text-brand-400" href="https://pushover.net" target="_blank" rel="noreferrer">
           Pushover dashboard
         </a>
         .

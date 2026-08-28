@@ -324,9 +324,6 @@ export function NewResourcePage() {
           <span className="text-gray-900 dark:text-white">New</span>
         </nav>
         <Header title="New Resource" />
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Deploy resources, like Applications, Databases, Services…
-        </p>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">

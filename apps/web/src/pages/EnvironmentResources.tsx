@@ -287,7 +287,6 @@ export function EnvironmentResourcesPage() {
         </nav>
         <Header
           title={project.data?.name || 'Resources'}
-          subtitle="Applications, databases, and one-click services in this environment."
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <Link
@@ -328,8 +327,9 @@ export function EnvironmentResourcesPage() {
 
       {empty && (
         <div className="panel-card p-10 text-center">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Deploy resources, like Applications, Databases, Services…
+          <p className="text-sm font-medium text-gray-900 dark:text-white">No resources yet</p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Add an application, database, or one-click service.
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             <Link
