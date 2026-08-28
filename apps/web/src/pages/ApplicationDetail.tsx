@@ -1680,8 +1680,8 @@ export function ApplicationDetailPage() {
                   </label>
                   <p className="ml-7 text-xs text-gray-500 dark:text-gray-400">
                     {httpsRedirectApplies
-                      ? 'Bounce HTTP to HTTPS on custom domains. Let’s Encrypt stays on either way. Off leaves HTTP reachable. Redeploy to apply.'
-                      : 'No effect on sslip.io / nip.io — those stay HTTP. Add a custom domain first.'}
+                      ? 'Redirect HTTP to HTTPS. Redeploy to apply.'
+                      : 'Magic domains stay HTTP. Add a custom domain first.'}
                   </p>
                   <label className="flex items-center gap-3 text-sm">
                     <input

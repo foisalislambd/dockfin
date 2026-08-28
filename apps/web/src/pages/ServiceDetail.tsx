@@ -518,8 +518,8 @@ export function ServiceDetailPage() {
                     <span className="font-medium text-gray-900 dark:text-white">Force HTTPS redirects</span>
                     <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
                       {httpsRedirectApplies
-                        ? 'Bounce HTTP to HTTPS on custom domains (Let’s Encrypt stays on). Turn off to keep HTTP reachable. Redeploy to apply.'
-                        : 'No effect on sslip.io / nip.io — those stay HTTP (no Let’s Encrypt). Add a custom domain, then this redirect applies after redeploy.'}
+                        ? 'Redirect HTTP to HTTPS. Redeploy to apply.'
+                        : 'Magic domains stay HTTP. Add a custom domain first.'}
                     </span>
                   </span>
                 </label>
