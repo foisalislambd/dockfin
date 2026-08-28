@@ -280,7 +280,6 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if stream {
-		// Subscribe / open SSE before enqueue so early worker logs are not missed.
 		a.streamQueuedDeployment(w, r, teamID, dep.ID, func() error {
 			return a.Queue.Enqueue(worker.DeployJob{DeploymentID: dep.ID, TeamID: teamID, ForceRebuild: force})
 		})
@@ -298,8 +297,9 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// streamQueuedDeployment bridges Hub publish events to an SSE response until the job finishes.
-// optionalEnqueue runs after the SSE subscription is ready (avoids missing early log lines).
+// streamQueuedDeployment sends deployment logs over SSE until the job finishes.
+// Logs are polled from the store (not the live Hub): Hub Publish + DB replay
+// duplicated every line, and Hub drops when its 64-event buffer is full.
 func (a *API) streamQueuedDeployment(w http.ResponseWriter, r *http.Request, teamID, depID uuid.UUID, optionalEnqueue func() error) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -317,12 +317,6 @@ func (a *API) streamQueuedDeployment(w http.ResponseWriter, r *http.Request, tea
 		b, _ := json.Marshal(payload)
 		_, _ = fmt.Fprintf(w, "data: %s\n\n", b)
 		flusher.Flush()
-	}
-
-	var ch chan []byte
-	if a.Hub != nil {
-		ch = a.Hub.Subscribe(depID)
-		defer a.Hub.Unsubscribe(depID, ch)
 	}
 
 	if optionalEnqueue != nil {
@@ -354,18 +348,13 @@ func (a *API) streamQueuedDeployment(w http.ResponseWriter, r *http.Request, tea
 	}
 	replayLogs()
 
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(400 * time.Millisecond)
 	defer ticker.Stop()
 	notify := r.Context().Done()
 	for {
 		select {
 		case <-notify:
 			return
-		case msg, ok := <-ch:
-			if ok && len(msg) > 0 {
-				_, _ = fmt.Fprintf(w, "data: %s\n\n", msg)
-				flusher.Flush()
-			}
 		case <-ticker.C:
 			replayLogs()
 			dep, err := a.Store.GetDeployment(r.Context(), teamID, depID)

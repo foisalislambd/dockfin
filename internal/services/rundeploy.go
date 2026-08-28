@@ -237,6 +237,26 @@ func detectPublicIP(client *ssh.Client) string {
 	return ip
 }
 
+// httpReadyKind is the Traefik/localhost probe result (HTTP only — never TLS/ACME).
+type httpReadyKind int
+
+const (
+	httpReadyUp httpReadyKind = iota
+	httpReadyStarting
+	httpReadyMissing
+)
+
+func classifyHTTPReady(code int) httpReadyKind {
+	if code == 404 {
+		return httpReadyMissing
+	}
+	if code >= 200 && code < 500 {
+		return httpReadyUp
+	}
+	// 0, 502, 503, 504: Traefik is up but the container is still booting.
+	return httpReadyStarting
+}
+
 func waitServiceHTTPReady(client *ssh.Client, fqdn string, emit func(stage, line string)) {
 	host := proxy.PrimaryHost(fqdn)
 	if host == "" {
@@ -245,13 +265,24 @@ func waitServiceHTTPReady(client *ssh.Client, fqdn string, emit func(stage, line
 	if host == "" || client == nil {
 		return
 	}
-	emit("ready", fmt.Sprintf("Waiting for http://%s to become ready…", host))
-	deadline := time.Now().Add(90 * time.Second)
+	magic := proxy.IsMagicDomainHost(host)
+	// Probe Traefik HTTP on loopback only — never HTTPS / Let's Encrypt.
+	waitFor := 18 * time.Second
+	if !magic {
+		waitFor = 30 * time.Second
+	}
+	public := proxy.AutoPublicURL(fqdn)
+	if magic {
+		emit("ready", fmt.Sprintf("Checking %s (HTTP only — no Let's Encrypt on magic domains)…", public))
+	} else {
+		emit("ready", fmt.Sprintf("Checking %s…", public))
+	}
+	deadline := time.Now().Add(waitFor)
 	var last string
 	for time.Now().Before(deadline) {
 		safeHost := strings.ReplaceAll(host, "'", `'\''`)
 		cmd := fmt.Sprintf(
-			`curl -sS -o /dev/null -w '%%{http_code}' --connect-timeout 2 --max-time 5 -H 'Host: %s' http://127.0.0.1/ 2>/dev/null || echo 000`,
+			`curl -sS -o /dev/null -w '%%{http_code}' --connect-timeout 2 --max-time 4 -H 'Host: %s' http://127.0.0.1/ 2>/dev/null || echo 000`,
 			safeHost,
 		)
 		out, _, _ := sshx.Run(client, cmd)
@@ -261,13 +292,43 @@ func waitServiceHTTPReady(client *ssh.Client, fqdn string, emit func(stage, line
 		}
 		last = code
 		n, _ := strconv.Atoi(code)
-		if n >= 200 && n < 500 && n != 404 {
+		switch classifyHTTPReady(n) {
+		case httpReadyUp:
 			emit("ready", fmt.Sprintf("Service reachable (HTTP %s)", code))
 			return
+		case httpReadyStarting:
+			if n == 502 || n == 503 || n == 504 {
+				if magic {
+					emit("ready", fmt.Sprintf(
+						"Containers are up. %s may 502 until the app finishes booting — that is normal. Magic domains stay HTTP (no Let's Encrypt).",
+						public,
+					))
+				} else {
+					emit("ready", fmt.Sprintf(
+						"Containers are up. %s may 502 until the app finishes booting — open it in a few seconds.",
+						public,
+					))
+				}
+				return
+			}
 		}
 		time.Sleep(1500 * time.Millisecond)
 	}
-	emit("ready", fmt.Sprintf("Timed out waiting for ready (last HTTP %s) — open the URL in a few seconds", last))
+	if last == "502" || last == "503" || last == "504" || last == "000" {
+		if magic {
+			emit("ready", fmt.Sprintf(
+				"Containers are running. %s may take a bit longer to boot (last HTTP %s). Magic domains stay HTTP.",
+				public, last,
+			))
+		} else {
+			emit("ready", fmt.Sprintf(
+				"Containers are running. %s may take a bit longer to boot (last HTTP %s).",
+				public, last,
+			))
+		}
+		return
+	}
+	emit("ready", fmt.Sprintf("Still waiting on %s (last HTTP %s). Try the URL shortly.", public, last))
 }
 
 func looksLikeUnpreparedCompose(raw, prepared string) bool {
