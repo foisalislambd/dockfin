@@ -54,6 +54,31 @@ const SIDE_ITEMS = [
   { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
 ] as const
 
+type TopTabId = (typeof TOP_TABS)[number]['id']
+type SideId = (typeof SIDE_ITEMS)[number]['id']
+
+function isTopTabId(v: string | undefined): v is TopTabId {
+  return !!v && TOP_TABS.some((t) => t.id === v)
+}
+
+function isSideId(v: string | undefined): v is SideId {
+  return !!v && SIDE_ITEMS.some((t) => t.id === v)
+}
+
+export type ServiceDetailSearch = {
+  deploy?: string
+  tab?: TopTabId
+  side?: SideId
+}
+
+export function parseServiceDetailSearch(s: Record<string, unknown>): ServiceDetailSearch {
+  return {
+    deploy: typeof s.deploy === 'string' ? s.deploy : undefined,
+    tab: typeof s.tab === 'string' && isTopTabId(s.tab) ? s.tab : undefined,
+    side: typeof s.side === 'string' && isSideId(s.side) ? s.side : undefined,
+  }
+}
+
 function titleCase(s: string) {
   return s
     .replace(/[-_]+/g, ' ')
@@ -91,13 +116,30 @@ export function ServiceDetailPage() {
     envId?: string
     svcId: string
   }
-  const search = useSearch({ strict: false }) as { deploy?: string }
+  const search = useSearch({ strict: false }) as ServiceDetailSearch
   const nav = useNavigate()
   const qc = useQueryClient()
-  const [topTab, setTopTab] = useState<(typeof TOP_TABS)[number]['id']>(
-    search.deploy === '1' ? 'logs' : 'configuration',
-  )
-  const [side, setSide] = useState<(typeof SIDE_ITEMS)[number]['id']>('general')
+  const topTab: TopTabId = isTopTabId(search.tab)
+    ? search.tab
+    : search.deploy === '1'
+      ? 'logs'
+      : 'configuration'
+  const side: SideId = isSideId(search.side) ? search.side : 'general'
+
+  const setSvcNav = (next: { tab?: TopTabId; side?: SideId }) => {
+    const tab = next.tab ?? topTab
+    const nextSide = next.side ?? side
+    void nav({
+      search: ((prev: Record<string, unknown>) => {
+        const { tab: _t, side: _s, deploy: _d, ...rest } = prev
+        const out: Record<string, unknown> = { ...rest }
+        if (tab !== 'configuration') out.tab = tab
+        if (nextSide !== 'general') out.side = nextSide
+        return out
+      }) as never,
+      replace: true,
+    })
+  }
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [fqdn, setFqdn] = useState('')
@@ -115,8 +157,6 @@ export function ServiceDetailPage() {
   const toast = useToast()
 
   useEffect(() => {
-    setTopTab(search.deploy === '1' ? 'logs' : 'configuration')
-    setSide('general')
     setShowCompose(false)
     setShowDetails(false)
     setFqdn('')
@@ -125,7 +165,7 @@ export function ServiceDetailPage() {
     setDeployBusy(false)
     autoDeployed.current = false
     abortRef.current?.abort()
-  }, [svcId, search.deploy])
+  }, [svcId])
 
   const svc = useQuery({ queryKey: ['service', svcId], queryFn: () => api.getService(svcId) })
   const templates = useQuery({ queryKey: ['templates'], queryFn: api.templates })
@@ -207,7 +247,7 @@ export function ServiceDetailPage() {
     abortRef.current?.abort()
     const ac = new AbortController()
     abortRef.current = ac
-    setTopTab('logs')
+    setSvcNav({ tab: 'logs' })
     setDeployBusy(true)
     setDeployError('')
     setDeployLines([])
@@ -346,7 +386,7 @@ export function ServiceDetailPage() {
               <button
                 key={t.id}
                 type="button"
-                onClick={() => setTopTab(t.id)}
+                onClick={() => setSvcNav({ tab: t.id })}
                 className={`relative inline-flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition ${
                   active
                     ? 'text-gray-900 dark:text-white'
@@ -438,7 +478,7 @@ export function ServiceDetailPage() {
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => setSide(item.id)}
+                    onClick={() => setSvcNav({ tab: 'configuration', side: item.id })}
                     className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm ${
                       active
                         ? 'bg-gray-100 font-medium text-gray-900 dark:bg-white/10 dark:text-white'

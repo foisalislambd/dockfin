@@ -53,21 +53,27 @@ export function ResourceSwitcher({
     setOpen(false)
     setQ('')
     if (id === currentId) return
+    const keepNav = ((prev: Record<string, unknown>) => {
+      const { deploy: _d, ...rest } = prev
+      return rest
+    }) as never
     if (kind === 'application') {
       void nav({
         to: '/projects/$projectId/environments/$envId/applications/$appId',
         params: { projectId, envId: environmentId, appId: id },
+        search: keepNav,
       })
     } else if (kind === 'service') {
       void nav({
         to: '/projects/$projectId/environments/$envId/services/$svcId',
         params: { projectId, envId: environmentId, svcId: id },
-        search: { deploy: undefined },
+        search: keepNav,
       })
     } else {
       void nav({
         to: '/projects/$projectId/environments/$envId/databases/$dbId',
         params: { projectId, envId: environmentId, dbId: id },
+        search: keepNav,
       })
     }
   }

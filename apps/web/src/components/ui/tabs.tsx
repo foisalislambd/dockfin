@@ -12,7 +12,7 @@ export function ResourceTabs({
   active,
   onChange,
 }: {
-  tabs: ResourceTab[]
+  tabs: readonly ResourceTab[]
   active: string
   onChange: (id: string) => void
 }) {

@@ -22,6 +22,15 @@ import './index.css'
 
 const queryClient = new QueryClient()
 
+/** Keep only defined string query keys so optional search stays optional for <Link>. */
+function pickStringSearch<K extends string>(s: Record<string, unknown>, keys: readonly K[]): Partial<Record<K, string>> {
+  const out: Partial<Record<K, string>> = {}
+  for (const k of keys) {
+    if (typeof s[k] === 'string') out[k] = s[k] as string
+  }
+  return out
+}
+
 /** Named-export page → React.lazy default component. */
 function lazyPage(loader: () => Promise<Record<string, unknown>>, name: string) {
   return lazy(async () => {
@@ -282,9 +291,8 @@ const projectSharedVarsRoute = createRoute({
 const nestedSvcDetailRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/projects/$projectId/environments/$envId/services/$svcId',
-  validateSearch: (s: Record<string, unknown>) => ({
-    deploy: typeof s.deploy === 'string' ? s.deploy : undefined,
-  }),
+  validateSearch: (s: Record<string, unknown>) =>
+    pickStringSearch(s, ['deploy', 'tab', 'side'] as const),
   component: ServiceDetailPage,
 })
 
@@ -357,6 +365,8 @@ const createServiceRoute = createRoute({
 const serviceDetailRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/services/$svcId',
+  validateSearch: (s: Record<string, unknown>) =>
+    pickStringSearch(s, ['deploy', 'tab', 'side'] as const),
   component: ServiceDetailPage,
 })
 

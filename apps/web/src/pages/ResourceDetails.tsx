@@ -38,7 +38,13 @@ const DB_TABS = [
   { id: 'metrics', label: 'Metrics', icon: Activity },
   { id: 'tags', label: 'Tags', icon: Tags },
   { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
-]
+] as const
+
+type DbTabId = (typeof DB_TABS)[number]['id']
+
+function isDbTabId(v: string | undefined): v is DbTabId {
+  return !!v && DB_TABS.some((t) => t.id === v)
+}
 
 const SERVER_TABS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -464,12 +470,20 @@ export function DatabaseDetailPage() {
     dbId: string
   }
   const nav = useNavigate()
+  const search = useSearch({ strict: false }) as { tab?: string }
   const qc = useQueryClient()
-  const [tab, setTab] = useState('configuration')
+  const tab: DbTabId = isDbTabId(search.tab) ? search.tab : 'configuration'
+  const setTab = (id: string) => {
+    void nav({
+      search: ((prev: Record<string, unknown>) => {
+        const { tab: _t, ...rest } = prev
+        if (id === 'configuration' || !isDbTabId(id)) return rest
+        return { ...rest, tab: id }
+      }) as never,
+      replace: true,
+    })
+  }
   const [deleteOpen, setDeleteOpen] = useState(false)
-  useEffect(() => {
-    setTab('configuration')
-  }, [dbId])
   const db = useQuery({ queryKey: ['database', dbId], queryFn: () => api.getDatabase(dbId) })
   const destinations = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
   const serverId =

@@ -282,7 +282,7 @@ export function NewResourcePage() {
       void nav({
         to: '/projects/$projectId/environments/$envId/services/$svcId',
         params: { projectId, envId, svcId: svc.id },
-        search: { deploy: undefined },
+        search: {},
       })
     },
     onError: (e: Error) => {
