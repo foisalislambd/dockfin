@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { DomainsPanel, normalizeDomains } from '../components/DomainsPanel'
 import { CodeEditor } from '../components/CodeEditor'
-import { ServiceLogo } from '../components/ServiceLogo'
+import { ServiceLogo, catalogLogoUrl } from '../components/ServiceLogo'
 import { CreatePageShell, FormActions, FormInput, FormSelect } from '../components/ui/forms'
 import { FormPageSkeleton } from '../components/ui/Skeleton'
 import { api, fetchAllEnvironments, LAST_ENV_KEY } from '../lib/api'
@@ -227,7 +227,7 @@ export function CreateServicePage() {
             </div>
             {selected && (
               <div className="flex items-start gap-3 rounded-xl border border-brand-200 bg-brand-50/70 px-4 py-3 text-sm dark:border-brand-500/30 dark:bg-brand-500/10">
-                <ServiceLogo src={selected.logo} name={selected.name} className="h-10 w-10" />
+                <ServiceLogo src={catalogLogoUrl(selected.logo)} name={selected.name} className="h-10 w-10" />
                 <div className="min-w-0">
                   <span className="font-semibold text-brand-700 dark:text-brand-300">
                     {selected.name}
@@ -256,7 +256,7 @@ export function CreateServicePage() {
                         : 'border-gray-200 hover:border-gray-300 dark:border-gray-800'
                     }`}
                   >
-                    <ServiceLogo src={t.logo} name={t.name} className="h-9 w-9" />
+                    <ServiceLogo src={catalogLogoUrl(t.logo)} name={t.name} className="h-9 w-9" />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium text-gray-900 dark:text-white">
                         {t.name}

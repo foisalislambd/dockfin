@@ -3,6 +3,12 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { AppWindow, Boxes, ChevronRight, Database, Search } from 'lucide-react'
 import { useMemo, useState, type FormEvent, type MouseEvent } from 'react'
 import { PageSkeleton } from '../components/ui/Skeleton'
+import {
+  ServiceLogo,
+  logoForApplication,
+  logoForDatabaseEngine,
+  logoForServiceType,
+} from '../components/ServiceLogo'
 import { useToast } from '../components/Toast'
 import { api, LAST_ENV_KEY, type Tag } from '../lib/api'
 import { Btn, Header, Input, Modal } from './Servers'
@@ -17,6 +23,7 @@ type ResourceRow = {
   status: string
   description?: string
   tags: Tag[]
+  logo?: string
 }
 
 function statusDotClass(status: string) {
@@ -57,9 +64,13 @@ function ResourceCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
-            <KindIcon className="h-4 w-4" strokeWidth={1.75} />
-          </div>
+          {row.logo ? (
+            <ServiceLogo src={row.logo} name={row.name} className="h-9 w-9" />
+          ) : (
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
+              <KindIcon className="h-4 w-4" strokeWidth={1.75} />
+            </div>
+          )}
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-gray-900 dark:text-white">
               {row.name}
@@ -131,6 +142,9 @@ export function EnvironmentResourcesPage() {
   })
   const allTags = useQuery({ queryKey: ['tags'], queryFn: api.tags })
 
+  const templates = useQuery({ queryKey: ['templates'], queryFn: api.templates })
+  const catalog = templates.data?.templates || []
+
   const [appsQ, dbsQ, svcsQ] = useQueries({
     queries: [
       { queryKey: ['applications', envId], queryFn: () => api.applications(envId) },
@@ -167,6 +181,7 @@ export function EnvironmentResourcesPage() {
     status: a.status,
     description: a.description,
     tags: tagsByKey.get(`application:${a.id}`) || [],
+    logo: logoForApplication(a.build_pack, a.git_source_id),
   }))
 
   const databases: ResourceRow[] = (dbsQ.data?.databases || []).map((d) => ({
@@ -177,6 +192,7 @@ export function EnvironmentResourcesPage() {
     status: d.status,
     description: d.description,
     tags: tagsByKey.get(`database:${d.id}`) || [],
+    logo: logoForDatabaseEngine(d.engine),
   }))
 
   const services: ResourceRow[] = (svcsQ.data?.services || []).map((s) => ({
@@ -187,6 +203,7 @@ export function EnvironmentResourcesPage() {
     status: s.status,
     description: s.description,
     tags: tagsByKey.get(`service:${s.id}`) || [],
+    logo: logoForServiceType(s.service_type, catalog),
   }))
 
   const q = search.trim().toLowerCase()

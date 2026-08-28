@@ -22,6 +22,7 @@ import { useConfirm } from '../components/ConfirmDialog'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { ResourceTagsPanel } from '../components/ResourceTagsPanel'
 import { LiveLogViewer } from '../components/LiveLogViewer'
+import { ServiceLogo, logoForDatabaseEngine } from '../components/ServiceLogo'
 import { ServerTerminal } from '../components/Terminal'
 import { DetailPageSkeleton, PanelSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
@@ -563,10 +564,15 @@ export function DatabaseDetailPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           {back}
-          <h1 className="mt-2 text-xl font-semibold tracking-tight text-gray-900 dark:text-white">{d.name}</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {d.engine} · {d.status}
-          </p>
+          <div className="mt-2 flex items-center gap-3">
+            <ServiceLogo src={logoForDatabaseEngine(d.engine)} name={d.name} className="h-11 w-11" />
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">{d.name}</h1>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {d.engine} · {d.status}
+              </p>
+            </div>
+          </div>
         </div>
         <div className="flex gap-2">
           <Btn onClick={() => start.mutate()}>Start</Btn>

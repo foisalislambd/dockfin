@@ -31,6 +31,7 @@ import { LinksMenu, LinksPanel } from '../components/LinksMenu'
 import { MoveResourcePanel } from '../components/MoveResourcePanel'
 import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
 import { ResourceSwitcher } from '../components/ResourceSwitcher'
+import { ServiceLogo, logoForApplication } from '../components/ServiceLogo'
 import { ResourceTagsPanel } from '../components/ResourceTagsPanel'
 import { ScheduledTasksPanel } from '../components/ScheduledTasksPanel'
 import { ServerTerminal } from '../components/Terminal'
@@ -1006,26 +1007,35 @@ export function ApplicationDetailPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           {crumbs}
-          <h1 className="mt-2 flex flex-wrap items-center gap-2 text-xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
-            {a.name}
-            <ResourceSwitcher
-              kind="application"
-              currentId={appId}
-              environmentId={a.environment_id || envId}
-              projectId={resolvedProjectId}
+          <div className="mt-2 flex items-center gap-3">
+            <ServiceLogo
+              src={logoForApplication(a.build_pack, a.git_source_id)}
+              name={a.name}
+              className="h-11 w-11"
             />
-          </h1>
-          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-            <span className="capitalize">{a.build_pack}</span>
-            <span>·</span>
-            <StatusText status={a.status} />
-            {activeDep && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-500/15 px-2 py-0.5 text-[11px] font-medium text-brand-600 dark:text-brand-300">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-400" />
-                {activeDep.status}
-              </span>
-            )}
-          </p>
+            <div>
+              <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
+                {a.name}
+                <ResourceSwitcher
+                  kind="application"
+                  currentId={appId}
+                  environmentId={a.environment_id || envId}
+                  projectId={resolvedProjectId}
+                />
+              </h1>
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                <span className="capitalize">{a.build_pack}</span>
+                <span>·</span>
+                <StatusText status={a.status} />
+                {activeDep && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-500/15 px-2 py-0.5 text-[11px] font-medium text-brand-600 dark:text-brand-300">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-400" />
+                    {activeDep.status}
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <LinksMenu links={a.links || []} />

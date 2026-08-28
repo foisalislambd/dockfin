@@ -24,7 +24,7 @@ import { MoveResourcePanel } from '../components/MoveResourcePanel'
 import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
 import { ScheduledTasksPanel } from '../components/ScheduledTasksPanel'
 import { ResourceSwitcher } from '../components/ResourceSwitcher'
-import { ServiceLogo } from '../components/ServiceLogo'
+import { ServiceLogo, logoForServiceType } from '../components/ServiceLogo'
 import { ServiceWebhooksPanel } from '../components/ServiceWebhooksPanel'
 import { ServerTerminal } from '../components/Terminal'
 import { CodeEditor } from '../components/CodeEditor'
@@ -311,7 +311,7 @@ export function ServiceDetailPage() {
   }
 
   const s = svc.data
-  const logo = (templates.data?.templates || []).find((t) => t.type === s.service_type)?.logo
+  const logo = logoForServiceType(s.service_type, templates.data?.templates || [])
   const units = s.units || []
   const docsURL = `https://www.google.com/search?q=${encodeURIComponent(s.service_type + ' documentation')}`
 

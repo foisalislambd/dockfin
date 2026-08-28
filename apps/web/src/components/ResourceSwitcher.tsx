@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronsUpDown } from 'lucide-react'
+import { ServiceLogo, logoForApplication, logoForDatabaseEngine, logoForServiceType } from './ServiceLogo'
 import { api } from '../lib/api'
 
 type Kind = 'application' | 'service' | 'database'
@@ -35,17 +36,35 @@ export function ResourceSwitcher({
     queryFn: () => api.databases(environmentId),
     enabled: open && kind === 'database' && !!environmentId,
   })
+  const templates = useQuery({
+    queryKey: ['templates'],
+    queryFn: api.templates,
+    enabled: open && kind === 'service',
+  })
 
   const items = useMemo(() => {
     const needle = q.trim().toLowerCase()
+    const catalog = templates.data?.templates || []
     const list =
       kind === 'application'
-        ? (apps.data?.applications || []).map((a) => ({ id: a.id, name: a.name }))
+        ? (apps.data?.applications || []).map((a) => ({
+            id: a.id,
+            name: a.name,
+            logo: logoForApplication(a.build_pack, a.git_source_id),
+          }))
         : kind === 'service'
-          ? (svcs.data?.services || []).map((s) => ({ id: s.id, name: s.name }))
-          : (dbs.data?.databases || []).map((d) => ({ id: d.id, name: d.name }))
+          ? (svcs.data?.services || []).map((s) => ({
+              id: s.id,
+              name: s.name,
+              logo: logoForServiceType(s.service_type, catalog),
+            }))
+          : (dbs.data?.databases || []).map((d) => ({
+              id: d.id,
+              name: d.name,
+              logo: logoForDatabaseEngine(d.engine),
+            }))
     return needle ? list.filter((x) => x.name.toLowerCase().includes(needle)) : list
-  }, [apps.data, svcs.data, dbs.data, kind, q])
+  }, [apps.data, svcs.data, dbs.data, templates.data, kind, q])
 
   if (!environmentId || !projectId) return null
 
@@ -110,7 +129,10 @@ export function ResourceSwitcher({
                       : 'text-gray-800 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5'
                   }`}
                 >
-                  {item.name}
+                  <span className="flex items-center gap-2">
+                    <ServiceLogo src={item.logo} name={item.name} className="h-5 w-5" />
+                    <span className="truncate">{item.name}</span>
+                  </span>
                 </button>
               </li>
             ))}

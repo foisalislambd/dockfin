@@ -52,6 +52,52 @@ function logoBasename(src: string): string {
   return (parts[parts.length - 1] || '').toLowerCase()
 }
 
+/** Coolify `svgs/n8n.png` → public `/svgs/n8n.png`. */
+export function catalogLogoUrl(logo?: string | null): string | undefined {
+  const s = (logo || '').trim()
+  if (!s) return undefined
+  if (/^https?:\/\//i.test(s) || s.startsWith('/')) return s
+  return `/svgs/${s.replace(/^svgs\//, '')}`
+}
+
+export function logoForServiceType(
+  serviceType: string | undefined,
+  templates: Array<{ type: string; logo?: string }>,
+): string | undefined {
+  if (!serviceType) return undefined
+  if (serviceType === 'custom') return '/svgs/docker.svg'
+  const t = templates.find((x) => x.type === serviceType)
+  const fromTpl = catalogLogoUrl(t?.logo)
+  if (fromTpl) return fromTpl
+  if (templates.length === 0) return undefined
+  const base = serviceType.split(/-with-|-and-/)[0] || serviceType
+  return catalogLogoUrl(`${base}.svg`)
+}
+
+const DB_ENGINE_LOGOS: Record<string, string> = {
+  postgresql: '/svgs/postgresql.svg',
+  postgres: '/svgs/postgresql.svg',
+  mysql: '/svgs/mysql.svg',
+  mariadb: '/svgs/mariadb.svg',
+  redis: '/svgs/redis.svg',
+  keydb: '/svgs/keydb.svg',
+  dragonfly: '/svgs/dragonfly.svg',
+  mongodb: '/svgs/mongodb.svg',
+  clickhouse: '/svgs/clickhouse.svg',
+}
+
+export function logoForDatabaseEngine(engine?: string): string | undefined {
+  const k = (engine || '').toLowerCase().replace(/\s+/g, '')
+  return DB_ENGINE_LOGOS[k] || catalogLogoUrl(k ? `${k}.svg` : '')
+}
+
+export function logoForApplication(buildPack?: string, gitSourceId?: string | null): string {
+  const p = (buildPack || '').toLowerCase()
+  if (p.includes('compose') || p.includes('docker')) return '/svgs/docker.svg'
+  if (gitSourceId) return '/svgs/github.svg'
+  return '/svgs/git.svg'
+}
+
 /** Service catalog / list logo with letter fallback when image is missing. */
 export function ServiceLogo({ src, name, className, imgClassName }: Props) {
   const [failed, setFailed] = useState(false)
