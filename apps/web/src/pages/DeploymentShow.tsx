@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useParams } from '@tanstack/react-router'
+import { useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
+import { BackLink } from '../components/BackLink'
 import { DeployLogPanel } from '../components/DeployLogPanel'
 import { DetailPageSkeleton } from '../components/ui/Skeleton'
 import { Meta } from '../components/ui/tabs'
@@ -78,21 +79,13 @@ export function DeploymentShowPage() {
 
   const back =
     nested && projectId && envId ? (
-      <Link
+      <BackLink
+        label={app.data?.name || 'Application'}
         to="/projects/$projectId/environments/$envId/applications/$appId"
         params={{ projectId, envId, appId }}
-        className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
-      >
-        ← {app.data?.name || 'Application'}
-      </Link>
+      />
     ) : (
-      <Link
-        to="/applications/$appId"
-        params={{ appId }}
-        className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
-      >
-        ← {app.data?.name || 'Application'}
-      </Link>
+      <BackLink label={app.data?.name || 'Application'} to="/applications/$appId" params={{ appId }} />
     )
 
   if (dep.isLoading) return <DetailPageSkeleton withSideNav={false} />

@@ -36,6 +36,7 @@ import { MoveResourcePanel } from '../components/MoveResourcePanel'
 import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
 import { ResourceSetupBanner, type SetupCheck } from '../components/ResourceSetupBanner'
 import { ResourceSwitcher } from '../components/ResourceSwitcher'
+import { BackLink } from '../components/BackLink'
 import { ServiceLogo, logoForApplication } from '../components/ServiceLogo'
 import { StatusBadge } from '../components/StatusBadge'
 import { ResourceTagsPanel } from '../components/ResourceTagsPanel'
@@ -48,6 +49,7 @@ import { DetailMoreItem, DetailMoreMenu } from '../components/DetailMoreMenu'
 import { useToast } from '../components/Toast'
 import { api, fetchAllEnvironments } from '../lib/api'
 import { deployBlockFromEnv, emptyUserEnvVars } from '../lib/env-readiness'
+import { gentleRefetchInterval } from '../lib/poll'
 import { useLogStream } from '../lib/useLogStream'
 import { Btn, Input } from './Servers'
 
@@ -505,19 +507,6 @@ export function ApplicationDetailPage() {
       : undefined) ||
     ''
   const resolvedEnvId = envId || app.data?.environment_id || ''
-  const project = useQuery({
-    queryKey: ['project', resolvedProjectId],
-    queryFn: () => api.getProject(resolvedProjectId),
-    enabled: Boolean(resolvedProjectId),
-  })
-  const envs = useQuery({
-    queryKey: ['environments', resolvedProjectId],
-    queryFn: () => api.environments(resolvedProjectId),
-    enabled: Boolean(resolvedProjectId),
-  })
-  const envMeta =
-    (envs.data?.environments || []).find((e) => e.id === resolvedEnvId) ||
-    allEnvs.data?.find((e) => e.id === resolvedEnvId)
   const dests = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
   const gitSources = useQuery({ queryKey: ['git-sources'], queryFn: api.gitSources })
   const keys = useQuery({ queryKey: ['keys'], queryFn: api.keys })
@@ -959,41 +948,13 @@ export function ApplicationDetailPage() {
 
   const crumbs =
     resolvedProjectId && resolvedEnvId ? (
-      <nav className="flex flex-wrap items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
-        <Link to="/projects" className="hover:text-brand-600 dark:hover:text-brand-400">
-          Projects
-        </Link>
-        <span>/</span>
-        <Link
-          to="/projects/$projectId"
-          params={{ projectId: resolvedProjectId }}
-          className="hover:text-brand-600 dark:hover:text-brand-400"
-        >
-          {project.data?.name ||
-            allEnvs.data?.find((e) => e.id === resolvedEnvId)?.project_name ||
-            '…'}
-        </Link>
-        <span>/</span>
-        <Link
-          to="/projects/$projectId/environments/$envId"
-          params={{ projectId: resolvedProjectId, envId: resolvedEnvId }}
-          className="hover:text-brand-600 dark:hover:text-brand-400"
-        >
-          {envMeta?.name || '…'}
-        </Link>
-        {app.data?.name ? (
-          <>
-            <span>/</span>
-            <span className="text-gray-900 dark:text-white">{app.data.name}</span>
-          </>
-        ) : null}
-      </nav>
+      <BackLink
+        label="Resources"
+        to="/projects/$projectId/environments/$envId"
+        params={{ projectId: resolvedProjectId, envId: resolvedEnvId }}
+      />
     ) : (
-      <nav className="flex flex-wrap items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
-        <Link to="/projects" className="hover:text-brand-600 dark:hover:text-brand-400">
-          Projects
-        </Link>
-      </nav>
+      <BackLink label="Projects" to="/projects" />
     )
 
   if (app.error || !app.data) {
@@ -3421,13 +3382,17 @@ function AppMetricsSection({ appId, serverId }: { appId: string; serverId: strin
     queryKey: ['app-metrics', appId],
     queryFn: () => api.applicationMetrics(appId),
     enabled: Boolean(appId),
-    refetchInterval: 15000,
+    staleTime: 25_000,
+    refetchInterval: gentleRefetchInterval(45_000),
+    refetchIntervalInBackground: false,
   })
   const metrics = useQuery({
     queryKey: ['server-metrics', serverId],
-    queryFn: () => api.serverMetrics(serverId, 60),
+    queryFn: () => api.serverMetrics(serverId, 20, true),
     enabled: Boolean(serverId),
-    refetchInterval: 15000,
+    staleTime: 25_000,
+    refetchInterval: gentleRefetchInterval(30_000),
+    refetchIntervalInBackground: false,
   })
   const list = metrics.data?.metrics || []
   const latest = list[list.length - 1]

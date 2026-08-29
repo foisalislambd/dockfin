@@ -22,6 +22,7 @@ import { useConfirm } from '../components/ConfirmDialog'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { ResourceTagsPanel } from '../components/ResourceTagsPanel'
 import { LiveLogViewer } from '../components/LiveLogViewer'
+import { BackLink } from '../components/BackLink'
 import { ServiceLogo, logoForDatabaseEngine } from '../components/ServiceLogo'
 import { ServerTerminal } from '../components/Terminal'
 import { DetailPageSkeleton, PanelSkeleton, TableSkeleton } from '../components/ui/Skeleton'
@@ -384,7 +385,9 @@ function DatabaseContainerMetrics({ dbId, active }: { dbId: string; active: bool
     queryKey: ['database-metrics', dbId],
     queryFn: () => api.databaseMetrics(dbId),
     enabled: active,
-    refetchInterval: active ? 15000 : false,
+    refetchInterval: active ? 45_000 : false,
+    refetchIntervalInBackground: false,
+    staleTime: 30_000,
   })
   const containers = stats.data?.containers || []
 
@@ -491,9 +494,11 @@ export function DatabaseDetailPage() {
     (destinations.data?.destinations || []).find((dd) => dd.id === db.data?.destination_id)?.server_id || ''
   const metrics = useQuery({
     queryKey: ['server-metrics', serverId],
-    queryFn: () => api.serverMetrics(serverId, 60),
+    queryFn: () => api.serverMetrics(serverId, 20),
     enabled: Boolean(serverId) && tab === 'metrics',
-    refetchInterval: tab === 'metrics' ? 15000 : false,
+    staleTime: 25_000,
+    refetchInterval: tab === 'metrics' ? 30_000 : false,
+    refetchIntervalInBackground: false,
   })
 
   const [isPublic, setIsPublic] = useState(false)
@@ -531,20 +536,13 @@ export function DatabaseDetailPage() {
 
   const back =
     projectId && envId ? (
-      <Link
+      <BackLink
+        label="Resources"
         to="/projects/$projectId/environments/$envId"
         params={{ projectId, envId }}
-        className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
-      >
-        ← Resources
-      </Link>
+      />
     ) : (
-      <Link
-        to="/projects"
-        className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
-      >
-        ← Projects
-      </Link>
+      <BackLink label="Projects" to="/projects" />
     )
 
   if (db.isLoading) return <DetailPageSkeleton withSideNav={false} />
@@ -1146,8 +1144,10 @@ export function ServerDetailPage() {
   const destinations = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
   const metrics = useQuery({
     queryKey: ['server-metrics', serverId],
-    queryFn: () => api.serverMetrics(serverId, 60),
-    refetchInterval: tab === 'metrics' ? 15000 : false,
+    queryFn: () => api.serverMetrics(serverId, 20),
+    refetchInterval: tab === 'metrics' ? 30_000 : false,
+    refetchIntervalInBackground: false,
+    staleTime: 25_000,
   })
   const ops = useQuery({
     queryKey: ['server-ops', serverId],
@@ -1268,9 +1268,7 @@ export function ServerDetailPage() {
     return (
       <div className="space-y-4">
         <p className="text-error-500">{server.error?.message || 'Server not found'}</p>
-        <Link to="/servers" className="text-brand-600 dark:text-brand-400">
-          ← Servers
-        </Link>
+        <BackLink label="Servers" to="/servers" />
       </div>
     )
   }
@@ -1282,12 +1280,7 @@ export function ServerDetailPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <Link
-            to="/servers"
-            className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
-          >
-            ← Servers
-          </Link>
+          <BackLink label="Servers" to="/servers" />
           <h1 className="mt-2 text-xl font-semibold tracking-tight text-gray-900 dark:text-white">{s.name}</h1>
           <p className="mt-1 font-mono text-sm text-gray-500 dark:text-gray-400">
             {s.user_name}@{s.ip}:{s.port}

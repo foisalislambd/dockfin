@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
+import { BackLink } from '../components/BackLink'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { FormPageSkeleton } from '../components/ui/Skeleton'
 import { api } from '../lib/api'
@@ -48,9 +49,7 @@ export function ProjectEditPage() {
     return (
       <div className="space-y-4">
         <p className="text-error-500">{project.error?.message || 'Project not found'}</p>
-        <Link to="/projects" className="text-brand-600 dark:text-brand-400">
-          ← Projects
-        </Link>
+        <BackLink label="Projects" to="/projects" />
       </div>
     )
   }
@@ -60,12 +59,7 @@ export function ProjectEditPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          to="/projects"
-          className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
-        >
-          ← Projects
-        </Link>
+        <BackLink label="Projects" to="/projects" />
         <Header title={project.data.name} />
       </div>
 
@@ -191,13 +185,11 @@ export function EnvironmentEditPage() {
     return (
       <div className="space-y-4">
         <p className="text-error-500">{env.error?.message || 'Environment not found'}</p>
-        <Link
+        <BackLink
+          label="Resources"
           to="/projects/$projectId/environments/$envId"
           params={{ projectId, envId }}
-          className="text-brand-600 dark:text-brand-400"
-        >
-          ← Resources
-        </Link>
+        />
       </div>
     )
   }

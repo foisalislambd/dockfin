@@ -2141,6 +2141,14 @@ func (s *Store) ListServerMetrics(ctx context.Context, teamID, serverID uuid.UUI
 	return out, rows.Err()
 }
 
+func (s *Store) InsertServerMetric(ctx context.Context, teamID, serverID uuid.UUID, m ServerMetric) error {
+	_, err := s.Pool.Exec(ctx, `
+		INSERT INTO server_metrics (team_id, server_id, cpu_percent, memory_used_bytes, memory_total_bytes, disk_used_bytes, disk_total_bytes)
+		VALUES ($1,$2,$3,$4,$5,$6,$7)
+	`, teamID, serverID, m.CPUPercent, m.MemoryUsedBytes, m.MemoryTotalBytes, m.DiskUsedBytes, m.DiskTotalBytes)
+	return err
+}
+
 type ScheduledTaskRow struct {
 	ID           uuid.UUID
 	TeamID       uuid.UUID

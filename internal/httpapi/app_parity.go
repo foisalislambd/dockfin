@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -184,11 +186,14 @@ func (a *API) handleApplicationMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	names := a.listAppContainerNames(client, app)
+	if len(names) > 12 {
+		names = names[:12]
+	}
 	if len(names) == 0 {
 		writeJSON(w, http.StatusOK, map[string]any{"containers": []any{}})
 		return
 	}
-	containers, err := dockerStats(client, names)
+	containers, err := dockerStatsCached("app:"+appID.String(), client, names)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
@@ -203,6 +208,30 @@ type containerStatRow struct {
 	MemPerc  string `json:"mem_percent"`
 	NetIO    string `json:"net_io"`
 	BlockIO  string `json:"block_io"`
+}
+
+type dockerStatsEntry struct {
+	at   time.Time
+	rows []containerStatRow
+}
+
+var dockerStatsCache sync.Map
+
+const dockerStatsTTL = 25 * time.Second
+
+func dockerStatsCached(key string, client *ssh.Client, names []string) ([]containerStatRow, error) {
+	if v, ok := dockerStatsCache.Load(key); ok {
+		e := v.(dockerStatsEntry)
+		if time.Since(e.at) < dockerStatsTTL {
+			return e.rows, nil
+		}
+	}
+	rows, err := dockerStats(client, names)
+	if err != nil {
+		return nil, err
+	}
+	dockerStatsCache.Store(key, dockerStatsEntry{at: time.Now(), rows: rows})
+	return rows, nil
 }
 
 // dockerStats runs a one-shot `docker stats` for the given container names.
@@ -263,7 +292,7 @@ func (a *API) handleDatabaseMetrics(w http.ResponseWriter, r *http.Request) {
 	if out, _, err := sshx.RunArgs(client, "docker", "inspect", "-f", "{{.Name}}", cname); err == nil {
 		cname = strings.TrimPrefix(strings.TrimSpace(out), "/")
 	}
-	containers, err := dockerStats(client, []string{cname})
+	containers, err := dockerStatsCached("db:"+dbID.String(), client, []string{cname})
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return

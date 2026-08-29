@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { Boxes, FolderGit2, Settings2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { BackLink } from '../components/BackLink'
 import { DetailPageSkeleton, PageSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { ResourceTabs, TabPanel } from '../components/ui/tabs'
 import { api } from '../lib/api'
@@ -354,12 +355,7 @@ export function GitSourceDetailPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link
-            to="/git-sources"
-            className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
-          >
-            ← Sources
-          </Link>
+          <BackLink label="Sources" to="/git-sources" />
           <h1 className="mt-2 text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
             GitHub App
           </h1>

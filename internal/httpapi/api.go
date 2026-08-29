@@ -307,6 +307,7 @@ func (a *API) Router() http.Handler {
 				r.Get("/{serviceID}/webhook", a.handleGetServiceWebhookInfo)
 				r.Post("/{serviceID}/webhook-secret", a.handleSetServiceWebhookSecret)
 				r.Get("/{serviceID}/containers", a.handleListServiceContainers)
+				r.Get("/{serviceID}/metrics", a.handleServiceMetrics)
 				r.Get("/{serviceID}/logs/stream", a.handleServiceLogsStream)
 				r.Get("/{serviceID}/backups", a.handleListServiceBackups)
 				r.Post("/{serviceID}/backups", a.handleRunServiceBackup)

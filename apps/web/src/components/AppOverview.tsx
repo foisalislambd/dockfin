@@ -5,6 +5,7 @@ import { ServiceLogo } from './ServiceLogo'
 import { Btn } from '../pages/Servers'
 import { safeExternalHref } from '../lib/url'
 import { Box, ExternalLink, GitBranch, Globe, Server, Variable } from 'lucide-react'
+import { OverviewLiveMetrics } from './OverviewLiveMetrics'
 
 type VisitTarget = { fqdn?: string; links?: { url: string }[] }
 
@@ -393,6 +394,8 @@ export function AppOverview({
         </div>
       </div>
 
+      <OverviewLiveMetrics kind="application" resourceId={app.id} />
+
       <section className="panel-card overflow-hidden">
         <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-5 py-3 dark:border-gray-800">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Deployments</h3>
@@ -602,6 +605,8 @@ export function ServiceOverview({
           </section>
         </div>
       </div>
+
+      <OverviewLiveMetrics kind="service" resourceId={service.id} />
 
       <section className="panel-card overflow-hidden">
         <div className="border-b border-gray-200 px-5 py-3 dark:border-gray-800">

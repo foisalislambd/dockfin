@@ -77,6 +77,48 @@ func (a *API) handleListServiceContainers(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, map[string]any{"containers": names})
 }
 
+func (a *API) handleServiceMetrics(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "serviceID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	teamID := currentTeamID(r)
+	svc, err := a.Store.GetService(r.Context(), teamID, id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	compose := svc.DockerCompose
+	if compose == "" {
+		compose = svc.DockerComposeRaw
+	}
+	serverID, _, err := a.resolveServiceTarget(r.Context(), teamID, svc)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"containers": []any{}})
+		return
+	}
+	client, err := a.dialServer(r, serverID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	names := listServiceContainerNames(client, id, compose)
+	if len(names) > 12 {
+		names = names[:12]
+	}
+	if len(names) == 0 {
+		writeJSON(w, http.StatusOK, map[string]any{"containers": []any{}})
+		return
+	}
+	containers, err := dockerStatsCached("svc:"+id.String(), client, names)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"containers": containers})
+}
+
 func (a *API) handleServiceLogsStream(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "serviceID"))
 	if err != nil {

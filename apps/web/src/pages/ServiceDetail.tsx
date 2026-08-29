@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import {
   AlertTriangle,
   Archive,
@@ -28,6 +28,7 @@ import { MoveResourcePanel } from '../components/MoveResourcePanel'
 import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
 import { ResourceSetupBanner, type SetupCheck } from '../components/ResourceSetupBanner'
 import { ScheduledTasksPanel } from '../components/ScheduledTasksPanel'
+import { BackLink } from '../components/BackLink'
 import { ResourceSwitcher } from '../components/ResourceSwitcher'
 import { ServiceLogo, logoForServiceType } from '../components/ServiceLogo'
 import { StatusBadge, statusTone } from '../components/StatusBadge'
@@ -298,20 +299,13 @@ export function ServiceDetailPage() {
 
   const back =
     projectId && envId ? (
-      <Link
+      <BackLink
+        label="Resources"
         to="/projects/$projectId/environments/$envId"
         params={{ projectId, envId }}
-        className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
-      >
-        ← Resources
-      </Link>
+      />
     ) : (
-      <Link
-        to="/projects"
-        className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
-      >
-        ← Projects
-      </Link>
+      <BackLink label="Projects" to="/projects" />
     )
 
   if (svc.isLoading) return <DetailPageSkeleton withSideNav />

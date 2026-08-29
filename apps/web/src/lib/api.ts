@@ -452,6 +452,8 @@ export const api = {
     }),
   applicationMetrics: (id: string) =>
     request<{ containers: AppContainerMetric[] }>(`/api/v1/applications/${id}/metrics`),
+  serviceMetrics: (id: string) =>
+    request<{ containers: AppContainerMetric[] }>(`/api/v1/services/${id}/metrics`),
   databaseMetrics: (id: string) =>
     request<{ containers: AppContainerMetric[] }>(`/api/v1/databases/${id}/metrics`),
   listAppVolumes: (id: string) =>
@@ -991,8 +993,10 @@ export const api = {
         limit: String(limit),
       }).toString()}`,
     ),
-  serverMetrics: (id: string, limit = 60) =>
-    request<{ metrics: ServerMetric[] }>(`/api/v1/servers/${id}/metrics?limit=${limit}`),
+  serverMetrics: (id: string, limit = 60, live = false) =>
+    request<{ metrics: ServerMetric[] }>(
+      `/api/v1/servers/${id}/metrics?limit=${limit}${live ? '&live=1' : ''}`,
+    ),
 
   patchServerSettings: (
     id: string,

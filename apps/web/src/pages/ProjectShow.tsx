@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { Layers } from 'lucide-react'
+import { BackLink } from '../components/BackLink'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { api, LAST_ENV_KEY } from '../lib/api'
 import { Btn, Header, Input, Modal } from './Servers'
@@ -58,9 +59,7 @@ export function ProjectShowPage() {
     return (
       <div className="space-y-4">
         <p className="text-error-500">{project.error?.message || 'Project not found'}</p>
-        <Link to="/projects" className="text-brand-600 dark:text-brand-400">
-          ← Projects
-        </Link>
+        <BackLink label="Projects" to="/projects" />
       </div>
     )
   }
@@ -73,12 +72,7 @@ export function ProjectShowPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          to="/projects"
-          className="text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
-        >
-          ← Projects
-        </Link>
+        <BackLink label="Projects" to="/projects" />
         <Header
           title={project.data.name}
           subtitle="Choose an environment to deploy and manage resources."

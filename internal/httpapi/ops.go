@@ -862,12 +862,20 @@ func (a *API) handleListServerMetrics(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
+	if r.URL.Query().Get("live") == "1" {
+		cctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
+		_ = a.ensureFreshHostMetrics(cctx, teamID, id)
+		cancel()
+	}
 	limit := 60
 	if s := r.URL.Query().Get("limit"); s != "" {
 		var n int
 		if _, err := fmt.Sscanf(s, "%d", &n); err == nil && n > 0 {
 			limit = n
 		}
+	}
+	if limit > 48 {
+		limit = 48
 	}
 	list, err := a.Store.ListServerMetrics(r.Context(), teamID, id, limit)
 	if err != nil {
