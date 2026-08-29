@@ -44,6 +44,7 @@ import { ServerTerminal } from '../components/Terminal'
 import { CodeEditor } from '../components/CodeEditor'
 import { LiveLogViewer } from '../components/LiveLogViewer'
 import { DetailPageSkeleton, PanelSkeleton, TableSkeleton } from '../components/ui/Skeleton'
+import { DetailMoreItem, DetailMoreMenu } from '../components/DetailMoreMenu'
 import { useToast } from '../components/Toast'
 import { api, fetchAllEnvironments } from '../lib/api'
 import { deployBlockFromEnv, emptyUserEnvVars } from '../lib/env-readiness'
@@ -1090,9 +1091,8 @@ export function ApplicationDetailPage() {
               />
             </h1>
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
-              <StatusBadge status={a.status} />
+              <StatusBadge status={activeDep ? activeDep.status : a.status} />
               <span className="text-xs capitalize text-gray-500 dark:text-gray-400">{a.build_pack}</span>
-              {activeDep ? <StatusBadge status={activeDep.status} /> : null}
               {emptyEnv.length ? (
                 <button
                   type="button"
@@ -1118,62 +1118,56 @@ export function ApplicationDetailPage() {
             </a>
           ) : null}
           <LinksMenu links={a.links || []} />
-          {activeDep && <Btn onClick={() => cancel.mutate(activeDep.id)}>Cancel</Btn>}
-          <button
-            type="button"
-            title="Restart"
-            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-amber-500/15 px-2.5 text-xs font-medium text-amber-700 hover:bg-amber-500/25 dark:text-amber-300"
-            disabled={restartApp.isPending || startApp.isPending || stopApp.isPending || deploy.isPending}
-            onClick={() => restartApp.mutate()}
-          >
-            {restartApp.isPending ? 'Restarting…' : 'Restart'}
-          </button>
-          {(a.status || '').toLowerCase().includes('exit') ||
-          (a.status || '').toLowerCase().includes('stop') ? (
-            <button
-              type="button"
-              title="Start"
-              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-emerald-500/15 px-2.5 text-xs font-medium text-emerald-700 hover:bg-emerald-500/25 dark:text-emerald-300"
-              disabled={startApp.isPending || restartApp.isPending || stopApp.isPending || deploy.isPending}
-              onClick={() => startApp.mutate()}
-            >
-              {startApp.isPending ? 'Starting…' : 'Start'}
-            </button>
-          ) : (
-            <button
-              type="button"
-              title="Stop"
-              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-error-500/15 px-2.5 text-xs font-medium text-error-500 hover:bg-error-500/25"
-              disabled={stopApp.isPending || restartApp.isPending || startApp.isPending || deploy.isPending}
-              onClick={() => {
-                void (async () => {
-                  if (
-                    await confirm({
-                      title: 'Stop application',
-                      message: 'Stop this application container / compose stack?',
-                      confirmLabel: 'Stop',
-                      danger: true,
-                    })
-                  ) {
-                    stopApp.mutate()
-                  }
-                })()
-              }}
-            >
-              {stopApp.isPending ? 'Stopping…' : 'Stop'}
-            </button>
-          )}
+          {activeDep ? <Btn onClick={() => cancel.mutate(activeDep.id)}>Cancel deploy</Btn> : null}
           <Btn primary onClick={() => requestDeploy({})} disabled={deploy.isPending}>
             <span className="inline-flex items-center gap-1.5">
               <Rocket className="h-3.5 w-3.5" />
               {deploy.isPending ? 'Queueing…' : 'Redeploy'}
             </span>
           </Btn>
+          <DetailMoreMenu>
+            <DetailMoreItem
+              disabled={restartApp.isPending || startApp.isPending || stopApp.isPending || deploy.isPending}
+              onClick={() => restartApp.mutate()}
+            >
+              {restartApp.isPending ? 'Restarting…' : 'Restart'}
+            </DetailMoreItem>
+            {(a.status || '').toLowerCase().includes('exit') ||
+            (a.status || '').toLowerCase().includes('stop') ? (
+              <DetailMoreItem
+                disabled={startApp.isPending || restartApp.isPending || stopApp.isPending || deploy.isPending}
+                onClick={() => startApp.mutate()}
+              >
+                {startApp.isPending ? 'Starting…' : 'Start'}
+              </DetailMoreItem>
+            ) : (
+              <DetailMoreItem
+                danger
+                disabled={stopApp.isPending || restartApp.isPending || startApp.isPending || deploy.isPending}
+                onClick={() => {
+                  void (async () => {
+                    if (
+                      await confirm({
+                        title: 'Stop application',
+                        message: 'Stop this application container / compose stack?',
+                        confirmLabel: 'Stop',
+                        danger: true,
+                      })
+                    ) {
+                      stopApp.mutate()
+                    }
+                  })()
+                }}
+              >
+                {stopApp.isPending ? 'Stopping…' : 'Stop'}
+              </DetailMoreItem>
+            )}
+          </DetailMoreMenu>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 dark:border-gray-800">
-        <nav className="flex flex-wrap gap-1" role="tablist">
+      <div className="sticky top-0 z-20 -mx-3 border-b border-gray-200 bg-white/90 px-3 backdrop-blur dark:border-gray-800 dark:bg-gray-950/90 sm:-mx-5 sm:px-5 lg:-mx-6 lg:px-6">
+        <nav className="flex flex-nowrap gap-1 overflow-x-auto" role="tablist">
           {TOP_TABS.map((t) => {
             const Icon = t.icon
             const active = topTab === t.id
@@ -1184,7 +1178,7 @@ export function ApplicationDetailPage() {
                 role="tab"
                 aria-selected={active}
                 onClick={() => setAppNav({ tab: t.id })}
-                className={`relative inline-flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition ${
+                className={`relative inline-flex shrink-0 items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition ${
                   active
                     ? 'text-gray-900 dark:text-white'
                     : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
@@ -1195,6 +1189,9 @@ export function ApplicationDetailPage() {
                   aria-hidden
                 />
                 {t.label}
+                {t.id === 'deployments' && activeDep ? (
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
+                ) : null}
                 {active && (
                   <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-brand-500" />
                 )}
@@ -1220,7 +1217,9 @@ export function ApplicationDetailPage() {
             onCancelDeployment={(id) => cancel.mutate(id)}
             onRedeploy={() => requestDeploy({})}
             onOpenSettings={(side) => setAppNav({ tab: 'configuration', side })}
+            onViewAllDeployments={() => setAppNav({ tab: 'deployments' })}
             deployBusy={deploy.isPending}
+            showGit={sideItems.some((i) => i.id === 'git')}
           />
         </div>
       )}
@@ -1234,7 +1233,6 @@ export function ApplicationDetailPage() {
             onSelect={(id) => setAppNav({ tab: 'configuration', side: id })}
           />
           <div className="min-w-0 flex-1 space-y-6">
-            <ResourceSetupBanner checks={setupChecks} />
             {side === 'general' && (
               <form
                 className="space-y-6"
@@ -1389,10 +1387,19 @@ export function ApplicationDetailPage() {
                   </div>
                 )}
 
-                <div className="panel-card grid gap-4 p-5 sm:grid-cols-2">
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white sm:col-span-2">
-                    Build
-                  </h3>
+                <details className="panel-card group overflow-hidden">
+                  <summary className="cursor-pointer list-none px-5 py-3 text-sm font-semibold text-gray-900 marker:hidden dark:text-white [&::-webkit-details-marker]:hidden">
+                    <span className="flex items-center justify-between gap-2">
+                      Build paths &amp; ports
+                      <span className="text-xs font-normal text-gray-500 group-open:hidden dark:text-gray-400">
+                        Show
+                      </span>
+                      <span className="hidden text-xs font-normal text-gray-500 group-open:inline dark:text-gray-400">
+                        Hide
+                      </span>
+                    </span>
+                  </summary>
+                  <div className="grid gap-4 border-t border-gray-200 p-5 sm:grid-cols-2 dark:border-gray-800">
                   {a.build_pack === 'dockercompose' ? (
                     <>
                       <Input
@@ -1572,7 +1579,8 @@ export function ApplicationDetailPage() {
                       />
                     </>
                   ) : null}
-                </div>
+                  </div>
+                </details>
 
                 {(cfg.build_pack === 'static' || cfg.build_pack === 'railpack') && (
                   <div className="panel-card grid gap-4 p-5 sm:grid-cols-2">
@@ -3060,8 +3068,8 @@ export function ApplicationDetailPage() {
                 Every build for this application, newest first.
               </p>
             </div>
-            <Btn primary onClick={() => requestDeploy({})}>
-              Redeploy
+            <Btn primary onClick={() => requestDeploy({})} disabled={deploy.isPending}>
+              {deploy.isPending ? 'Queueing…' : 'Redeploy'}
             </Btn>
           </div>
           <div className="panel-card overflow-hidden">
@@ -3081,7 +3089,18 @@ export function ApplicationDetailPage() {
       {topTab === 'backups' && <ApplicationBackupsPanel appId={appId} />}
 
       {topTab === 'logs' && (
-        <div className="space-y-6">
+        <div className="space-y-3">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Live container output. Build history lives on{' '}
+            <button
+              type="button"
+              className="font-medium text-brand-600 hover:underline dark:text-brand-400"
+              onClick={() => setAppNav({ tab: 'deployments' })}
+            >
+              Deployments
+            </button>
+            .
+          </p>
           <LiveContainerLogs
             appId={appId}
             isCompose={a.build_pack === 'dockercompose'}
@@ -3092,28 +3111,6 @@ export function ApplicationDetailPage() {
               save.mutate(patch)
             }}
           />
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-                  Recent deployments
-                </h2>
-                <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                  Build / compose history — open a deployment for full deploy logs.
-                </p>
-              </div>
-              <Btn primary onClick={() => requestDeploy({})}>
-                Redeploy
-              </Btn>
-            </div>
-            <div className="panel-card overflow-hidden">
-              <DeploymentRows
-                deployments={deployments.slice(0, 8)}
-                onOpen={openDeployment}
-                empty="No deployment logs yet. Click Redeploy to start one."
-              />
-            </div>
-          </div>
         </div>
       )}
 
@@ -3128,14 +3125,18 @@ export function ApplicationDetailPage() {
                 hideHostShell
               />
             ) : (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                No running containers yet — deploy the application first, then open Terminal.
-              </p>
+              <div className="panel-card space-y-3 p-5 text-sm text-gray-500 dark:text-gray-400">
+                <p>No running containers yet. Deploy first, then open a shell here.</p>
+                <Btn primary onClick={() => requestDeploy({})} disabled={deploy.isPending}>
+                  {deploy.isPending ? 'Queueing…' : 'Redeploy'}
+                </Btn>
+              </div>
             )
           ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Assign a destination so the application container terminal can connect.
-            </p>
+            <div className="panel-card space-y-3 p-5 text-sm text-gray-500 dark:text-gray-400">
+              <p>Assign a destination so the container terminal can connect.</p>
+              <Btn onClick={() => setAppNav({ tab: 'configuration', side: 'servers' })}>Choose destination</Btn>
+            </div>
           )}
         </div>
       )}

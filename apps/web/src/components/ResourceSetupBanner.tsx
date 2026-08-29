@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, Circle } from 'lucide-react'
+import { AlertTriangle, Circle } from 'lucide-react'
 
 export type SetupCheck = {
   id: string
@@ -27,22 +27,14 @@ export function ResourceSetupBanner({ checks }: { checks: SetupCheck[] }) {
               : `${pending.length} steps still need attention.`}
           </p>
           <ul className="mt-3 space-y-2">
-            {checks.map((c) => (
+            {pending.map((c) => (
               <li key={c.id} className="flex items-start gap-2 text-sm">
-                {c.ok ? (
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                ) : (
-                  <Circle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                )}
+                <Circle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                 <div className="min-w-0 flex-1">
-                  <div className={`font-medium ${c.ok ? 'text-gray-500 line-through dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
-                    {c.title}
-                  </div>
-                  {!c.ok ? (
-                    <p className="text-xs text-amber-900/70 dark:text-amber-100/70">{c.hint}</p>
-                  ) : null}
+                  <div className="font-medium text-gray-900 dark:text-white">{c.title}</div>
+                  <p className="text-xs text-amber-900/70 dark:text-amber-100/70">{c.hint}</p>
                 </div>
-                {!c.ok && c.onAction && c.actionLabel ? (
+                {c.onAction && c.actionLabel ? (
                   <button
                     type="button"
                     onClick={c.onAction}

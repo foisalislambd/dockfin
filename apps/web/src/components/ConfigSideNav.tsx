@@ -78,7 +78,7 @@ export function ConfigSideNav<T extends string>({
   )
 
   return (
-    <aside className="w-full shrink-0 md:w-56">
+    <aside className="w-full shrink-0 md:sticky md:top-2 md:max-h-[calc(100dvh-7rem)] md:w-56 md:self-start md:overflow-y-auto">
       {header}
       {body}
     </aside>

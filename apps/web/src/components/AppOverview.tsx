@@ -41,12 +41,14 @@ function PreviewChrome({
   host,
   logoSrc,
   name,
+  href,
 }: {
   host: string
   logoSrc: string
   name: string
+  href?: string
 }) {
-  return (
+  const inner = (
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
       <div className="flex items-center gap-1.5 border-b border-gray-200 px-3 py-2 dark:border-gray-800">
         <span className="h-2 w-2 rounded-full bg-gray-300 dark:bg-gray-600" />
@@ -61,6 +63,21 @@ function PreviewChrome({
       </div>
     </div>
   )
+  if (!href) return inner
+  return (
+    <a href={href} target="_blank" rel="noreferrer" className="block rounded-lg ring-brand-500/0 transition hover:ring-2 hover:ring-brand-500/40">
+      {inner}
+    </a>
+  )
+}
+
+function gitWebHref(repo?: string) {
+  const raw = (repo || '').trim().replace(/\.git$/, '')
+  if (!raw) return undefined
+  if (/^https?:\/\//i.test(raw)) return safeExternalHref(raw)
+  const ssh = raw.match(/^git@([^:]+):(.+)$/)
+  if (ssh) return safeExternalHref(`https://${ssh[1]}/${ssh[2]}`)
+  return undefined
 }
 
 export function DeploymentRows({
@@ -151,7 +168,9 @@ export function AppOverview({
   onCancelDeployment,
   onRedeploy,
   onOpenSettings,
+  onViewAllDeployments,
   deployBusy,
+  showGit = true,
 }: {
   app: Application
   logoSrc: string
@@ -165,7 +184,9 @@ export function AppOverview({
   onCancelDeployment?: (id: string) => void
   onRedeploy: () => void
   onOpenSettings: (side: 'general' | 'environment' | 'servers' | 'git') => void
+  onViewAllDeployments?: () => void
   deployBusy?: boolean
+  showGit?: boolean
 }) {
   const visit = primaryVisitUrl(app)
   const host = visit ? visit.replace(/^https?:\/\//, '').replace(/\/$/, '') : ''
@@ -202,13 +223,18 @@ export function AppOverview({
           </div>
 
           <div className="border-b border-gray-200 bg-gray-50 px-5 py-4 dark:border-gray-800 dark:bg-white/[0.03]">
-            <PreviewChrome host={host} logoSrc={logoSrc} name={app.name} />
+            <PreviewChrome
+              host={host}
+              logoSrc={logoSrc}
+              name={app.name}
+              href={visit && safeExternalHref(visit) ? safeExternalHref(visit) : undefined}
+            />
           </div>
 
           <div className="space-y-4 px-5 py-4">
             <dl className="grid gap-3 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-xs text-gray-500 dark:text-gray-400">Created</dt>
+                <dt className="text-xs text-gray-500 dark:text-gray-400">Last deployed</dt>
                 <dd className="mt-0.5 text-gray-900 dark:text-white">
                   {latest ? formatRelativeTime(latest.created_at) : 'Not deployed yet'}
                 </dd>
@@ -217,12 +243,21 @@ export function AppOverview({
                 <dt className="text-xs text-gray-500 dark:text-gray-400">Source</dt>
                 <dd className="mt-0.5 flex items-center gap-1.5 text-gray-900 dark:text-white">
                   <GitBranch className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                  <span className="truncate">
-                    {repo || 'No git source'}
-                    {app.git_branch ? (
-                      <span className="text-gray-500"> · {app.git_branch}</span>
-                    ) : null}
-                  </span>
+                  {(() => {
+                    const href = gitWebHref(app.git_repository)
+                    const label = repo || 'No git source'
+                    return href ? (
+                      <a href={href} target="_blank" rel="noreferrer" className="truncate hover:text-brand-600 dark:hover:text-brand-400">
+                        {label}
+                        {app.git_branch ? <span className="text-gray-500"> · {app.git_branch}</span> : null}
+                      </a>
+                    ) : (
+                      <span className="truncate">
+                        {label}
+                        {app.git_branch ? <span className="text-gray-500"> · {app.git_branch}</span> : null}
+                      </span>
+                    )
+                  })()}
                 </dd>
               </div>
               {latest?.commit_sha || latest?.commit_message ? (
@@ -238,17 +273,7 @@ export function AppOverview({
               ) : null}
             </dl>
             <div className="flex flex-wrap gap-2">
-              {visit && safeExternalHref(visit) ? (
-                <a
-                  href={safeExternalHref(visit)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex h-8 items-center gap-1.5 rounded-md bg-brand-500 px-2.5 text-xs font-medium text-white hover:bg-brand-600"
-                >
-                  Visit
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              ) : (
+              {visit && safeExternalHref(visit) ? null : (
                 <Btn onClick={() => onOpenSettings('general')}>Add domain</Btn>
               )}
               <Btn primary onClick={onRedeploy} disabled={deployBusy}>
@@ -330,7 +355,7 @@ export function AppOverview({
             <button
               type="button"
               className="flex w-full items-start justify-between gap-2 text-left"
-              onClick={() => onOpenSettings(repo ? 'git' : 'servers')}
+              onClick={() => onOpenSettings('servers')}
             >
               <span className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
                 <Server className="h-3.5 w-3.5 text-gray-400" />
@@ -343,15 +368,43 @@ export function AppOverview({
             </p>
             <p className="mt-0.5 text-xs capitalize text-gray-500 dark:text-gray-400">{app.build_pack}</p>
           </section>
+
+          {showGit ? (
+          <section className="panel-card p-5">
+            <button
+              type="button"
+              className="flex w-full items-start justify-between gap-2 text-left"
+              onClick={() => onOpenSettings('git')}
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+                <GitBranch className="h-3.5 w-3.5 text-gray-400" />
+                Git
+              </span>
+              <span className="text-xs text-brand-600 dark:text-brand-400">Edit</span>
+            </button>
+            <p className="mt-2 truncate text-sm text-gray-600 dark:text-gray-300">
+              {repo || 'No repository connected'}
+            </p>
+            {app.git_branch ? (
+              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{app.git_branch}</p>
+            ) : null}
+          </section>
+          ) : null}
         </div>
       </div>
 
       <section className="panel-card overflow-hidden">
         <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-5 py-3 dark:border-gray-800">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Deployments</h3>
-          <Btn onClick={onRedeploy} disabled={deployBusy}>
-            {deployBusy ? 'Queueing…' : 'Redeploy'}
-          </Btn>
+          {onViewAllDeployments ? (
+            <button
+              type="button"
+              className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+              onClick={onViewAllDeployments}
+            >
+              View all
+            </button>
+          ) : null}
         </div>
         <DeploymentRows
           deployments={recent}
@@ -421,7 +474,12 @@ export function ServiceOverview({
           </div>
 
           <div className="border-b border-gray-200 bg-gray-50 px-5 py-4 dark:border-gray-800 dark:bg-white/[0.03]">
-            <PreviewChrome host={host} logoSrc={logoSrc} name={service.name} />
+            <PreviewChrome
+              host={host}
+              logoSrc={logoSrc}
+              name={service.name}
+              href={visit && safeExternalHref(visit) ? safeExternalHref(visit) : undefined}
+            />
           </div>
 
           <div className="space-y-4 px-5 py-4">
