@@ -333,9 +333,6 @@ export function AuditLogPage() {
   return (
     <div className="space-y-6">
       <Header title="Audit log" />
-      <p className="text-sm text-gray-500 dark:text-gray-400">
-        Recent mutating API calls for this team (deploys, deletes, settings).
-      </p>
       <div className="panel-card overflow-x-auto">
         <table className="panel-table">
           <thead>

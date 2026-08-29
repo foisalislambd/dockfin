@@ -47,7 +47,6 @@ export function ProjectsPage() {
     <div className="space-y-6">
       <Header
         title="Projects"
-        subtitle="Group applications, databases, and services by environment."
         actions={
           <Btn primary onClick={() => setShow(true)}>
             New project
