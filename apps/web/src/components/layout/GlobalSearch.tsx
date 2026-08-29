@@ -7,6 +7,7 @@ import {
   FolderKanban,
   GitBranch,
   Layers,
+  LayoutDashboard,
   Rocket,
   Search,
   Server,
@@ -17,19 +18,20 @@ import {
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { navGroups } from '../../config/app.config'
 import { api, fetchAllEnvironments } from '../../lib/api'
+import { buildGlobalSearchHits, type SearchTarget } from '../../lib/global-search'
 
-type Hit = {
-  id: string
-  group: string
-  name: string
-  hint?: string
-  icon: LucideIcon
-  go: () => void
-}
-
-function matches(needle: string, ...parts: Array<string | undefined>) {
-  if (!needle) return true
-  return parts.some((p) => (p || '').toLowerCase().includes(needle))
+const GROUP_ICON: Record<string, LucideIcon> = {
+  Pages: LayoutDashboard,
+  Projects: FolderKanban,
+  Environments: Layers,
+  Applications: Rocket,
+  Databases: Database,
+  Services: Box,
+  Servers: Server,
+  Sources: GitBranch,
+  Destinations: Waypoints,
+  Storages: Box,
+  Tags: Tags,
 }
 
 export function GlobalSearch() {
@@ -42,7 +44,7 @@ export function GlobalSearch() {
   const [active, setActive] = useState(0)
 
   const live = open || q.trim().length > 0
-  const needle = q.trim().toLowerCase()
+  const needle = q.trim()
 
   const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects, enabled: live })
   const envs = useQuery({ queryKey: ['all-environments'], queryFn: fetchAllEnvironments, enabled: live })
@@ -55,201 +57,99 @@ export function GlobalSearch() {
   const storages = useQuery({ queryKey: ['s3-storages'], queryFn: api.s3Storages, enabled: live })
   const tags = useQuery({ queryKey: ['tags'], queryFn: api.tags, enabled: live })
 
-  const envById = useMemo(() => {
-    const m = new Map<string, { project_id: string; name: string; project_name: string }>()
-    for (const e of envs.data || []) {
-      m.set(e.id, { project_id: e.project_id, name: e.name, project_name: e.project_name })
-    }
-    return m
-  }, [envs.data])
+  const resourceQueries = [
+    projects,
+    envs,
+    apps,
+    dbs,
+    svcs,
+    servers,
+    sources,
+    destinations,
+    storages,
+    tags,
+  ]
+  const loading = needle.length > 0 && resourceQueries.some((q) => q.isPending || q.isFetching)
 
-  const hits = useMemo(() => {
-    const out: Hit[] = []
+  const hits = useMemo(
+    () =>
+      buildGlobalSearchHits({
+        query: q,
+        navGroups,
+        projects: projects.data?.projects || [],
+        environments: envs.data || [],
+        applications: apps.data?.applications || [],
+        databases: dbs.data?.databases || [],
+        services: svcs.data?.services || [],
+        servers: servers.data?.servers || [],
+        gitSources: sources.data?.git_sources || [],
+        destinations: destinations.data?.destinations || [],
+        storages: storages.data?.s3_storages || [],
+        tags: tags.data?.tags || [],
+      }),
+    [
+      q,
+      projects.data,
+      envs.data,
+      apps.data,
+      dbs.data,
+      svcs.data,
+      servers.data,
+      sources.data,
+      destinations.data,
+      storages.data,
+      tags.data,
+    ],
+  )
 
-    for (const group of navGroups) {
-      for (const item of group.items) {
-        if (!matches(needle, item.name, group.label, item.href)) continue
-        out.push({
-          id: `page:${item.href}`,
-          group: 'Pages',
-          name: item.name,
-          hint: group.label,
-          icon: item.icon,
-          go: () => void nav({ to: item.href }),
+  const go = (target: SearchTarget) => {
+    switch (target.kind) {
+      case 'href':
+        return void nav({ to: target.href })
+      case 'project':
+        return void nav({ to: '/projects/$projectId', params: { projectId: target.projectId } })
+      case 'environment':
+        return void nav({
+          to: '/projects/$projectId/environments/$envId',
+          params: { projectId: target.projectId, envId: target.envId },
         })
-      }
+      case 'application':
+        return target.projectId && target.envId
+          ? void nav({
+              to: '/projects/$projectId/environments/$envId/applications/$appId',
+              params: { projectId: target.projectId, envId: target.envId, appId: target.appId },
+            })
+          : void nav({ to: '/applications/$appId', params: { appId: target.appId } })
+      case 'database':
+        return target.projectId && target.envId
+          ? void nav({
+              to: '/projects/$projectId/environments/$envId/databases/$dbId',
+              params: { projectId: target.projectId, envId: target.envId, dbId: target.dbId },
+            })
+          : void nav({ to: '/databases/$dbId', params: { dbId: target.dbId } })
+      case 'service':
+        return target.projectId && target.envId
+          ? void nav({
+              to: '/projects/$projectId/environments/$envId/services/$svcId',
+              params: { projectId: target.projectId, envId: target.envId, svcId: target.svcId },
+            })
+          : void nav({ to: '/services/$svcId', params: { svcId: target.svcId } })
+      case 'server':
+        return void nav({ to: '/servers/$serverId', params: { serverId: target.serverId } })
+      case 'git-source':
+        return void nav({ to: '/git-sources/$sourceId', params: { sourceId: target.sourceId } })
+      case 'destination':
+        return void nav({
+          to: '/servers/$serverId',
+          params: { serverId: target.serverId },
+          search: { tab: 'destinations' },
+        })
+      case 'storages':
+        return void nav({ to: '/storages' })
+      case 'tags':
+        return void nav({ to: '/tags' })
     }
-
-    if (!needle) return out
-
-    for (const p of projects.data?.projects || []) {
-      if (!matches(needle, p.name, p.description)) continue
-      out.push({
-        id: `project:${p.id}`,
-        group: 'Projects',
-        name: p.name,
-        hint: p.description || undefined,
-        icon: FolderKanban,
-        go: () => void nav({ to: '/projects/$projectId', params: { projectId: p.id } }),
-      })
-    }
-
-    for (const e of envs.data || []) {
-      if (!matches(needle, e.name, e.project_name)) continue
-      out.push({
-        id: `env:${e.id}`,
-        group: 'Environments',
-        name: e.name,
-        hint: e.project_name,
-        icon: Layers,
-        go: () =>
-          void nav({
-            to: '/projects/$projectId/environments/$envId',
-            params: { projectId: e.project_id, envId: e.id },
-          }),
-      })
-    }
-
-    for (const a of apps.data?.applications || []) {
-      const env = envById.get(a.environment_id)
-      if (!env || !matches(needle, a.name, a.description, a.fqdn, a.git_repository)) continue
-      out.push({
-        id: `app:${a.id}`,
-        group: 'Applications',
-        name: a.name,
-        hint: env.project_name,
-        icon: Rocket,
-        go: () =>
-          void nav({
-            to: '/projects/$projectId/environments/$envId/applications/$appId',
-            params: { projectId: env.project_id, envId: a.environment_id, appId: a.id },
-          }),
-      })
-    }
-
-    for (const d of dbs.data?.databases || []) {
-      const env = envById.get(d.environment_id)
-      if (!env || !matches(needle, d.name, d.description, d.engine)) continue
-      out.push({
-        id: `db:${d.id}`,
-        group: 'Databases',
-        name: d.name,
-        hint: d.engine || env.project_name,
-        icon: Database,
-        go: () =>
-          void nav({
-            to: '/projects/$projectId/environments/$envId/databases/$dbId',
-            params: { projectId: env.project_id, envId: d.environment_id, dbId: d.id },
-          }),
-      })
-    }
-
-    for (const s of svcs.data?.services || []) {
-      const env = envById.get(s.environment_id)
-      if (!env || !matches(needle, s.name, s.description, s.service_type, s.fqdn)) continue
-      out.push({
-        id: `svc:${s.id}`,
-        group: 'Services',
-        name: s.name,
-        hint: s.service_type || env.project_name,
-        icon: Box,
-        go: () =>
-          void nav({
-            to: '/projects/$projectId/environments/$envId/services/$svcId',
-            params: { projectId: env.project_id, envId: s.environment_id, svcId: s.id },
-          }),
-      })
-    }
-
-    for (const s of servers.data?.servers || []) {
-      if (!matches(needle, s.name, s.ip, s.public_ip, s.description)) continue
-      out.push({
-        id: `server:${s.id}`,
-        group: 'Servers',
-        name: s.name,
-        hint: s.ip || s.public_ip,
-        icon: Server,
-        go: () => void nav({ to: '/servers/$serverId', params: { serverId: s.id } }),
-      })
-    }
-
-    for (const g of sources.data?.git_sources || []) {
-      if (!matches(needle, g.name, g.provider, g.organization)) continue
-      out.push({
-        id: `git:${g.id}`,
-        group: 'Sources',
-        name: g.name,
-        hint: g.provider,
-        icon: GitBranch,
-        go: () => void nav({ to: '/git-sources/$sourceId', params: { sourceId: g.id } }),
-      })
-    }
-
-    for (const d of destinations.data?.destinations || []) {
-      if (!matches(needle, d.name, d.network, d.kind)) continue
-      out.push({
-        id: `dest:${d.id}`,
-        group: 'Destinations',
-        name: d.name,
-        hint: d.kind || d.network,
-        icon: Waypoints,
-        go: () =>
-          void nav({
-            to: '/servers/$serverId',
-            params: { serverId: d.server_id },
-            search: { tab: 'destinations' },
-          }),
-      })
-    }
-
-    for (const s of storages.data?.s3_storages || []) {
-      if (!matches(needle, s.name, s.bucket, s.endpoint)) continue
-      out.push({
-        id: `s3:${s.id}`,
-        group: 'Storages',
-        name: s.name,
-        hint: s.bucket,
-        icon: Box,
-        go: () => void nav({ to: '/storages' }),
-      })
-    }
-
-    for (const t of tags.data?.tags || []) {
-      if (!matches(needle, t.name)) continue
-      out.push({
-        id: `tag:${t.id}`,
-        group: 'Tags',
-        name: t.name,
-        icon: Tags,
-        go: () => void nav({ to: '/tags' }),
-      })
-    }
-
-    return out.slice(0, 40)
-  }, [
-    needle,
-    nav,
-    projects.data,
-    envs.data,
-    envById,
-    apps.data,
-    dbs.data,
-    svcs.data,
-    servers.data,
-    sources.data,
-    destinations.data,
-    storages.data,
-    tags.data,
-  ])
-
-  const loading =
-    live &&
-    (projects.isLoading ||
-      envs.isLoading ||
-      apps.isLoading ||
-      dbs.isLoading ||
-      svcs.isLoading ||
-      servers.isLoading)
+  }
 
   useEffect(() => {
     setActive(0)
@@ -276,14 +176,15 @@ export function GlobalSearch() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  const run = (hit: Hit) => {
-    hit.go()
+  const run = (target: SearchTarget) => {
+    go(target)
     setQ('')
     setOpen(false)
     inputRef.current?.blur()
   }
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (e.nativeEvent.isComposing) return
     if (e.key === 'Escape') {
       if (q) {
         setQ('')
@@ -305,12 +206,13 @@ export function GlobalSearch() {
     } else if (e.key === 'Enter') {
       e.preventDefault()
       const hit = hits[active]
-      if (hit) run(hit)
+      if (hit) run(hit.target)
     }
   }
 
   const showList = open && (hits.length > 0 || needle.length > 0)
   let lastGroup = ''
+  const pageIcon = (href: string) => navGroups.flatMap((g) => g.items).find((i) => i.href === href)?.icon
 
   return (
     <div ref={rootRef} className="relative min-w-0 flex-1 lg:max-w-md">
@@ -319,6 +221,7 @@ export function GlobalSearch() {
         ref={inputRef}
         type="text"
         role="combobox"
+        aria-label="Search"
         aria-autocomplete="list"
         aria-expanded={showList}
         aria-controls={listId}
@@ -361,13 +264,16 @@ export function GlobalSearch() {
         >
           {hits.length === 0 && (
             <p className="px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400">
-              {loading ? 'Searching…' : `No results for “${q.trim()}”.`}
+              {loading ? 'Searching…' : `No results for “${needle}”.`}
             </p>
           )}
           {hits.map((hit, i) => {
             const showGroup = hit.group !== lastGroup
             lastGroup = hit.group
-            const Icon = hit.icon
+            const Icon =
+              hit.target.kind === 'href'
+                ? pageIcon(hit.target.href) || GROUP_ICON.Pages
+                : GROUP_ICON[hit.group] || Search
             return (
               <div key={hit.id}>
                 {showGroup && (
@@ -381,7 +287,7 @@ export function GlobalSearch() {
                   role="option"
                   aria-selected={i === active}
                   onMouseEnter={() => setActive(i)}
-                  onClick={() => run(hit)}
+                  onClick={() => run(hit.target)}
                   className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm ${
                     i === active
                       ? 'bg-gray-50 text-gray-900 dark:bg-white/10 dark:text-white'
