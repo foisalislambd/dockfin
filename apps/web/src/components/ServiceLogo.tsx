@@ -75,6 +75,20 @@ export function logoForServiceType(
   return catalogLogoUrl(`${base}.svg`)
 }
 
+/** When the catalog logo path is .svg but the file is .png/.webp, try those next. */
+export function logoSrcCandidates(src?: string | null): string[] {
+  const s = (src || '').trim()
+  if (!s) return []
+  if (/^https?:\/\//i.test(s)) return [s]
+  const path = s.split('?')[0] || s
+  const m = path.match(/^(.*)\.(svg|png|webp|jpg|jpeg|gif)$/i)
+  if (!m) return [s]
+  const stem = m[1]
+  const orig = m[2].toLowerCase()
+  const extras = ['svg', 'png', 'webp'].filter((ext) => ext !== orig)
+  return [`${stem}.${orig}`, ...extras.map((ext) => `${stem}.${ext}`)]
+}
+
 const DB_ENGINE_LOGOS: Record<string, string> = {
   postgresql: '/svgs/postgresql.svg',
   postgres: '/svgs/postgresql.svg',
@@ -115,6 +129,8 @@ function LetterMark({ letter, className }: { letter: string; className?: string 
 }
 
 export function ServiceLogo({ src, name, className, imgClassName, priority }: Props) {
+  const candidates = logoSrcCandidates(src)
+  const [candidateIdx, setCandidateIdx] = useState(0)
   const [failed, setFailed] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const imgRef = useRef<HTMLImageElement>(null)
@@ -125,18 +141,24 @@ export function ServiceLogo({ src, name, className, imgClassName, priority }: Pr
     () => false,
   )
   const letter = (name || '?').trim().charAt(0).toUpperCase() || '?'
-  const base = src ? logoBasename(src) : ''
+  const currentSrc = candidates[Math.min(candidateIdx, Math.max(candidates.length - 1, 0))]
+  const base = currentSrc ? logoBasename(currentSrc) : ''
   const monochrome = Boolean(base && MONOCHROME_FOR_LIGHT.has(base))
   const dark = mounted && resolvedTheme === 'dark'
 
   useLayoutEffect(() => {
+    setCandidateIdx(0)
     setFailed(false)
+    setLoaded(false)
+  }, [src])
+
+  useLayoutEffect(() => {
     const el = imgRef.current
     if (el?.complete && el.naturalWidth > 0) setLoaded(true)
     else setLoaded(false)
-  }, [src])
+  }, [currentSrc])
 
-  if (!src || failed) {
+  if (!currentSrc || failed) {
     return <LetterMark letter={letter} className={className} />
   }
 
@@ -152,7 +174,7 @@ export function ServiceLogo({ src, name, className, imgClassName, priority }: Pr
       )}
       <img
         ref={imgRef}
-        src={src}
+        src={currentSrc}
         alt=""
         loading={priority ? 'eager' : 'lazy'}
         fetchPriority={priority ? 'high' : 'low'}
@@ -160,12 +182,18 @@ export function ServiceLogo({ src, name, className, imgClassName, priority }: Pr
         className={cn(
           'h-full w-full object-contain p-1 transition-opacity duration-200',
           loaded ? 'opacity-100' : 'opacity-0',
-          // Dark fills for light UI; invert on dark tiles so logos stay visible.
           monochrome && dark && 'invert',
           imgClassName,
         )}
         onLoad={() => setLoaded(true)}
-        onError={() => setFailed(true)}
+        onError={() => {
+          if (candidateIdx + 1 < candidates.length) {
+            setLoaded(false)
+            setCandidateIdx((i) => i + 1)
+            return
+          }
+          setFailed(true)
+        }}
       />
     </span>
   )

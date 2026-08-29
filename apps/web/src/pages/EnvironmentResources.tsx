@@ -191,6 +191,12 @@ export function EnvironmentResourcesPage() {
     queryFn: () => api.environmentTags(projectId, envId),
   })
   const allTags = useQuery({ queryKey: ['tags'], queryFn: api.tags })
+  const templates = useQuery({
+    queryKey: ['templates'],
+    queryFn: api.templates,
+    staleTime: 30 * 60 * 1000,
+  })
+  const catalog = templates.data?.templates || []
 
   const [appsQ, dbsQ, svcsQ] = useQueries({
     queries: [
@@ -250,7 +256,7 @@ export function EnvironmentResourcesPage() {
     status: s.status,
     description: s.description,
     tags: tagsByKey.get(`service:${s.id}`) || [],
-    logo: logoForServiceType(s.service_type, []),
+    logo: logoForServiceType(s.service_type, catalog),
   }))
 
   const q = search.trim().toLowerCase()

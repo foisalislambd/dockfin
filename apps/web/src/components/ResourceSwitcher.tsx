@@ -31,6 +31,12 @@ export function ResourceSwitcher({
     queryFn: () => api.services(environmentId),
     enabled: open && kind === 'service' && !!environmentId,
   })
+  const templates = useQuery({
+    queryKey: ['templates'],
+    queryFn: api.templates,
+    staleTime: 30 * 60 * 1000,
+    enabled: open && kind === 'service',
+  })
   const dbs = useQuery({
     queryKey: ['databases', environmentId],
     queryFn: () => api.databases(environmentId),
@@ -39,6 +45,7 @@ export function ResourceSwitcher({
 
   const items = useMemo(() => {
     const needle = q.trim().toLowerCase()
+    const catalog = templates.data?.templates || []
     const list =
       kind === 'application'
         ? (apps.data?.applications || []).map((a) => ({
@@ -50,7 +57,7 @@ export function ResourceSwitcher({
           ? (svcs.data?.services || []).map((s) => ({
               id: s.id,
               name: s.name,
-              logo: logoForServiceType(s.service_type, []),
+              logo: logoForServiceType(s.service_type, catalog),
             }))
           : (dbs.data?.databases || []).map((d) => ({
               id: d.id,
@@ -58,7 +65,7 @@ export function ResourceSwitcher({
               logo: logoForDatabaseEngine(d.engine),
             }))
     return needle ? list.filter((x) => x.name.toLowerCase().includes(needle)) : list
-  }, [apps.data, svcs.data, dbs.data, kind, q])
+  }, [apps.data, svcs.data, dbs.data, templates.data, kind, q])
 
   if (!environmentId || !projectId) return null
 
