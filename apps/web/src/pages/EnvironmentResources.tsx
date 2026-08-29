@@ -1,6 +1,6 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { AppWindow, Boxes, ChevronRight, Database, Search } from 'lucide-react'
+import { AppWindow, Boxes, ChevronDown, ChevronRight, Database, Search } from 'lucide-react'
 import { useMemo, useState, type FormEvent, type MouseEvent } from 'react'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import {
@@ -282,25 +282,31 @@ export function EnvironmentResourcesPage() {
             <span className="text-gray-700 dark:text-gray-300">{project.data?.name || '…'}</span>
           )}
           <span>/</span>
-          <select
-            className="rounded border-0 bg-transparent py-0 pr-6 text-sm font-medium text-gray-900 dark:text-white"
-            value={envId}
-            aria-label="Environment"
-            onChange={(e) => {
-              const next = e.target.value
-              localStorage.setItem(LAST_ENV_KEY, next)
-              void nav({
-                to: '/projects/$projectId/environments/$envId',
-                params: { projectId, envId: next },
-              })
-            }}
-          >
-            {(envs.data?.environments || []).map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.name}
-              </option>
-            ))}
-          </select>
+          <label className="relative inline-flex items-center">
+            <select
+              className="w-auto max-w-[12rem] cursor-pointer appearance-none border-0 bg-transparent py-0 pl-0 pr-4 text-sm font-medium text-gray-900 field-sizing-content dark:text-white"
+              value={envId}
+              aria-label="Environment"
+              onChange={(e) => {
+                const next = e.target.value
+                localStorage.setItem(LAST_ENV_KEY, next)
+                void nav({
+                  to: '/projects/$projectId/environments/$envId',
+                  params: { projectId, envId: next },
+                })
+              }}
+            >
+              {(envs.data?.environments || []).map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              className="pointer-events-none absolute right-0 top-1/2 h-3 w-3 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+              aria-hidden
+            />
+          </label>
         </nav>
         <Header
           title={project.data?.name || 'Resources'}

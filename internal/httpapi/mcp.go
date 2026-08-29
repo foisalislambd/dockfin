@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/mcp"
+	"github.com/dockfin/dockfin/internal/sshdial"
+	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/version"
 	"github.com/dockfin/dockfin/internal/worker"
 )
@@ -53,6 +55,21 @@ func (b *mcpBackend) ListProjects(ctx context.Context) (any, error) {
 		out = append(out, map[string]any{"id": p.ID, "name": p.Name, "description": p.Description})
 	}
 	return map[string]any{"projects": out, "count": len(out)}, nil
+}
+
+func (b *mcpBackend) ListApplications(ctx context.Context) (any, error) {
+	list, err := b.api.Store.ListApplications(ctx, b.teamID, nil)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]any, 0, len(list))
+	for i, a := range list {
+		if i >= mcpMaxItems {
+			break
+		}
+		out = append(out, map[string]any{"id": a.ID, "name": a.Name, "status": a.Status, "build_pack": a.BuildPack, "fqdn": a.FQDN})
+	}
+	return map[string]any{"applications": out, "count": len(out)}, nil
 }
 
 func (b *mcpBackend) GetApplication(ctx context.Context, id string) (any, error) {
@@ -108,6 +125,80 @@ func (b *mcpBackend) DeployApplication(ctx context.Context, id string, forceRebu
 		return nil, err
 	}
 	return map[string]any{"deployment_id": dep.ID, "application_id": appID, "status": "queued"}, nil
+}
+
+func (b *mcpBackend) StopApplication(ctx context.Context, id string) (any, error) {
+	appID, err := uuid.Parse(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid application id")
+	}
+	app, err := b.api.Store.GetApplication(ctx, b.teamID, appID)
+	if err != nil {
+		return nil, err
+	}
+	if app.DestinationID == nil {
+		return nil, fmt.Errorf("application has no destination")
+	}
+	dest, err := b.api.Store.GetDestination(ctx, b.teamID, *app.DestinationID)
+	if err != nil {
+		return nil, err
+	}
+	if b.api.Queue == nil || b.api.Queue.SSH == nil {
+		return nil, fmt.Errorf("ssh pool unavailable")
+	}
+	client, err := sshdial.DialClient(ctx, b.api.Store, b.api.Queue.SSH, b.teamID, dest.ServerID)
+	if err != nil {
+		return nil, err
+	}
+	cname := "dockfin-" + app.ID.String()
+	_, _, _ = sshx.RunArgs(client, "docker", "stop", cname)
+	_ = b.api.Store.UpdateApplicationStatus(ctx, app.ID, "exited")
+	return map[string]any{"id": app.ID, "status": "exited"}, nil
+}
+
+func (b *mcpBackend) ListServices(ctx context.Context) (any, error) {
+	list, err := b.api.Store.ListServices(ctx, b.teamID, nil)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]any, 0, len(list))
+	for i, s := range list {
+		if i >= mcpMaxItems {
+			break
+		}
+		out = append(out, map[string]any{"id": s.ID, "name": s.Name, "status": s.Status, "service_type": s.ServiceType, "fqdn": s.FQDN})
+	}
+	return map[string]any{"services": out, "count": len(out)}, nil
+}
+
+func (b *mcpBackend) DeployService(ctx context.Context, id string) (any, error) {
+	if abilities, ok := ctx.Value(ctxAPIAbilities).([]string); ok && !apiTokenCanDeploy(abilities) {
+		return nil, fmt.Errorf("insufficient API token abilities for deploy")
+	}
+	svcID, err := uuid.Parse(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid service id")
+	}
+	svc, err := b.api.Store.GetService(ctx, b.teamID, svcID)
+	if err != nil {
+		return nil, err
+	}
+	serverID, _, err := b.api.resolveServiceTarget(ctx, b.teamID, svc)
+	if err != nil {
+		return nil, err
+	}
+	if b.api.Queue == nil {
+		return nil, fmt.Errorf("deploy queue unavailable")
+	}
+	sid := serverID
+	dep, err := b.api.Store.CreateServiceDeployment(ctx, b.teamID, svcID, &sid, false, false, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := b.api.Queue.Enqueue(worker.DeployJob{DeploymentID: dep.ID, TeamID: b.teamID}); err != nil {
+		return nil, err
+	}
+	return map[string]any{"deployment_id": dep.ID, "service_id": svcID, "status": "queued"}, nil
 }
 
 func (b *mcpBackend) ListDatabases(ctx context.Context, environmentID string) (any, error) {

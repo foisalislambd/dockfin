@@ -2,10 +2,12 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/dockfin/dockfin/internal/dns"
 	"github.com/dockfin/dockfin/internal/proxy"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/google/uuid"
@@ -220,3 +222,93 @@ func dnsInstructions(hosts []string, serverIP string) []map[string]string {
 	}
 	return out
 }
+
+func (a *API) handleCloudflareDNS(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Hostname    string `json:"hostname"`
+		ServerID    string `json:"server_id"`
+		TokenID     string `json:"token_id"`
+		IPv4        string `json:"ipv4"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	host := proxy.HostFromDomainEntry(body.Hostname)
+	if host == "" {
+		writeError(w, http.StatusBadRequest, "hostname required")
+		return
+	}
+	teamID := currentTeamID(r)
+	ipv4 := strings.TrimSpace(body.IPv4)
+	if ipv4 == "" && body.ServerID != "" {
+		sid, err := uuid.Parse(body.ServerID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid server_id")
+			return
+		}
+		srv, err := a.Store.GetServer(r.Context(), teamID, sid)
+		if err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+		ipv4 = strings.TrimSpace(srv.PublicIP)
+		if ipv4 == "" {
+			ipv4 = strings.TrimSpace(srv.IP)
+		}
+	}
+	if ipv4 == "" || proxy.IsUnusableMagicIP(ipv4) {
+		writeError(w, http.StatusBadRequest, "usable ipv4 required (set public_ip on the server)")
+		return
+	}
+	token, err := a.cloudflareToken(r, teamID, body.TokenID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	res, err := dns.NewCloudflare(token).UpsertA(host, ipv4)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (a *API) cloudflareToken(r *http.Request, teamID uuid.UUID, tokenID string) (string, error) {
+	var id uuid.UUID
+	if strings.TrimSpace(tokenID) != "" {
+		parsed, err := uuid.Parse(tokenID)
+		if err != nil {
+			return "", err
+		}
+		id = parsed
+	} else {
+		list, err := a.Store.ListCloudProviderTokens(r.Context(), teamID)
+		if err != nil {
+			return "", err
+		}
+		for _, t := range list {
+			if strings.EqualFold(t.Provider, "cloudflare") {
+				id = t.ID
+				break
+			}
+		}
+		if id == uuid.Nil {
+			return "", errNoCloudflareToken
+		}
+	}
+	tok, err := a.Store.GetCloudProviderToken(r.Context(), teamID, id)
+	if err != nil {
+		return "", err
+	}
+	if !strings.EqualFold(tok.Provider, "cloudflare") {
+		return "", errNoCloudflareToken
+	}
+	enc, err := a.Store.GetCloudProviderTokenMaterial(r.Context(), teamID, id)
+	if err != nil {
+		return "", err
+	}
+	return a.Store.Box.DecryptString(enc)
+}
+
+var errNoCloudflareToken = errors.New("add a Cloudflare API token under Keys & Tokens (Zone:DNS Edit)")

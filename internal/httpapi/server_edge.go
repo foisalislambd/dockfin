@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -150,14 +151,8 @@ func applyEdgeSettings(client *ssh.Client, ops store.ServerOpsSettings, syncDrai
 	var warnings []string
 	_ = sshx.EnsureDataDirs(client)
 	if syncDrain {
-		if ops.LogDrainEnabled {
-			content := fmt.Sprintf("LOG_DRAIN_ENABLED=true\nLOG_DRAIN_TYPE=%s\nLOG_DRAIN_CONFIG=%s\n",
-				ops.LogDrainType, strings.ReplaceAll(ops.LogDrainConfig, "\n", " "))
-			if err := sshx.WriteFile(client, "/data/dockfin/log-drain.env", []byte(content)); err != nil {
-				warnings = append(warnings, "log drain: "+err.Error())
-			}
-		} else {
-			_, _, _ = sshx.RunArgs(client, "rm", "-f", "/data/dockfin/log-drain.env")
+		if err := syncLogDrain(client, ops); err != nil {
+			warnings = append(warnings, "log drain: "+err.Error())
 		}
 	}
 	if syncCA {
@@ -171,4 +166,107 @@ func applyEdgeSettings(client *ssh.Client, ops store.ServerOpsSettings, syncDrai
 		}
 	}
 	return warnings
+}
+
+const logDrainContainer = "dockfin-log-drain"
+
+func syncLogDrain(client *ssh.Client, ops store.ServerOpsSettings) error {
+	_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", logDrainContainer)
+	if !ops.LogDrainEnabled {
+		_, _, _ = sshx.RunArgs(client, "rm", "-f", "/data/dockfin/log-drain.env", "/data/dockfin/log-drain/vector.yaml")
+		return nil
+	}
+	cfg, err := vectorConfig(ops.LogDrainType, ops.LogDrainConfig)
+	if err != nil {
+		return err
+	}
+	env := fmt.Sprintf("LOG_DRAIN_ENABLED=true\nLOG_DRAIN_TYPE=%s\nLOG_DRAIN_CONFIG=%s\n",
+		ops.LogDrainType, strings.ReplaceAll(ops.LogDrainConfig, "\n", " "))
+	if err := sshx.WriteFile(client, "/data/dockfin/log-drain.env", []byte(env)); err != nil {
+		return err
+	}
+	_, _, _ = sshx.RunArgs(client, "mkdir", "-p", "/data/dockfin/log-drain")
+	if err := sshx.WriteFile(client, "/data/dockfin/log-drain/vector.yaml", []byte(cfg)); err != nil {
+		return err
+	}
+	_, errOut, err := sshx.RunArgs(client, "docker", "run", "-d",
+		"--name", logDrainContainer,
+		"--restart", "unless-stopped",
+		"-v", "/var/run/docker.sock:/var/run/docker.sock:ro",
+		"-v", "/data/dockfin/log-drain/vector.yaml:/etc/vector/vector.yaml:ro",
+		"timberio/vector:0.41.1-alpine",
+		"--config", "/etc/vector/vector.yaml",
+	)
+	if err != nil {
+		return fmt.Errorf("start log drain: %v %s", err, strings.TrimSpace(errOut))
+	}
+	return nil
+}
+
+func vectorConfig(kind, raw string) (string, error) {
+	kind = strings.ToLower(strings.TrimSpace(kind))
+	raw = strings.TrimSpace(raw)
+	var cfg map[string]any
+	_ = json.Unmarshal([]byte(raw), &cfg)
+	uri := raw
+	headers := ""
+	if cfg != nil {
+		if v, _ := cfg["endpoint"].(string); v != "" {
+			uri = v
+		}
+		if v, _ := cfg["url"].(string); v != "" {
+			uri = v
+		}
+		switch kind {
+		case "newrelic":
+			if v, _ := cfg["api_key"].(string); v != "" {
+				headers = "      Api-Key: \"" + strings.ReplaceAll(v, `"`, ``) + "\"\n"
+			}
+			if uri == raw || uri == "" {
+				uri = "https://log-api.newrelic.com/log/v1"
+			}
+		case "axiom":
+			dataset, _ := cfg["dataset"].(string)
+			token, _ := cfg["token"].(string)
+			if dataset == "" {
+				dataset = "dockfin"
+			}
+			uri = "https://api.axiom.co/v1/datasets/" + dataset + "/ingest"
+			if token != "" {
+				headers = "      Authorization: \"Bearer " + strings.ReplaceAll(token, `"`, ``) + "\"\n"
+			}
+		}
+	}
+	if uri == "" {
+		return "", fmt.Errorf("log drain config needs an endpoint/url")
+	}
+	if headers == "" {
+		return fmt.Sprintf(`sources:
+  docker_logs:
+    type: docker_logs
+    exclude_containers:
+      - %s
+sinks:
+  out:
+    type: http
+    inputs: ["docker_logs"]
+    uri: %q
+    encoding:
+      codec: json
+`, logDrainContainer, uri), nil
+	}
+	return fmt.Sprintf(`sources:
+  docker_logs:
+    type: docker_logs
+    exclude_containers:
+      - %s
+sinks:
+  out:
+    type: http
+    inputs: ["docker_logs"]
+    uri: %q
+    encoding:
+      codec: json
+    headers:
+%s`, logDrainContainer, uri, headers), nil
 }

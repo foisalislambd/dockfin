@@ -2,6 +2,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
   Bell,
   Box,
+  ClipboardList,
   FolderKanban,
   GitBranch,
   KeyRound,
@@ -100,6 +101,7 @@ export const navGroups: NavGroup[] = [
     label: 'Manage',
     items: [
       { name: 'Team', href: '/team', icon: Users },
+      { name: 'Audit', href: '/audit', icon: ClipboardList },
       { name: 'Notifications', href: '/notifications', icon: Bell },
       { name: 'Keys & Tokens', href: '/security', icon: KeyRound },
       { name: 'Tags', href: '/tags', icon: Tags },

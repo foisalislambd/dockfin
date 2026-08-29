@@ -25,6 +25,7 @@ import {
   type OauthSetting,
 } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { useConfirm } from '../components/ConfirmDialog'
 import { Btn, Header } from './Servers'
 
 type TopTab = 'configuration' | 'backup' | 'email' | 'oauth' | 'scheduled' | 'profile'
@@ -213,6 +214,7 @@ function emptyForm(): InstanceSettings {
 export function SettingsPage() {
   const { user, team } = useAuth()
   const qc = useQueryClient()
+  const confirm = useConfirm()
   const canEdit = team?.role === 'owner' || team?.role === 'admin'
   const [topTab, setTopTab] = useState<TopTab>('configuration')
   const [sub, setSub] = useState<ConfigSub>('general')
@@ -342,6 +344,20 @@ export function SettingsPage() {
     onSuccess: () => {
       setError('')
       setMessage('Backup started')
+      void qc.invalidateQueries({ queryKey: ['instance-backup'] })
+    },
+    onError: (e: Error) => {
+      setMessage('')
+      setError(e.message)
+    },
+  })
+
+  const restoreBackup = useMutation({
+    mutationFn: (executionId: string) =>
+      api.restoreInstanceBackup({ execution_id: executionId, confirm: 'RESTORE' }),
+    onSuccess: () => {
+      setError('')
+      setMessage('Instance database restored from dump')
       void qc.invalidateQueries({ queryKey: ['instance-backup'] })
     },
     onError: (e: Error) => {
@@ -1135,6 +1151,7 @@ export function SettingsPage() {
                       <th className="px-3 py-2">Size</th>
                       <th className="px-3 py-2">Started</th>
                       <th className="px-3 py-2">Error</th>
+                      <th className="px-3 py-2"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1151,11 +1168,37 @@ export function SettingsPage() {
                         <td className="max-w-xs truncate px-3 py-2 text-xs text-error-500">
                           {ex.error_message || ''}
                         </td>
+                        <td className="px-3 py-2">
+                          {ex.status === 'finished' && canEdit && (
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-error-500 hover:underline"
+                              disabled={restoreBackup.isPending}
+                              onClick={() => {
+                                void (async () => {
+                                  if (
+                                    await confirm({
+                                      title: 'Restore instance database',
+                                      message:
+                                        'This overwrites the live Dockfin database from the dump. Type is confirmed in the next step. Continue?',
+                                      confirmLabel: 'Restore',
+                                      danger: true,
+                                    })
+                                  ) {
+                                    restoreBackup.mutate(ex.id)
+                                  }
+                                })()
+                              }}
+                            >
+                              Restore
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                     {!backups.data.executions?.length && (
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                           No backup executions yet. Click Backup Now or wait for the schedule.
                         </td>
                       </tr>

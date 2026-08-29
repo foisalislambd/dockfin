@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { CreatePageShell, FormActions, FormInput, FormSelect } from '../components/ui/forms'
 import { PageSkeleton } from '../components/ui/Skeleton'
@@ -237,9 +237,14 @@ function CloudServerForm() {
   const [scriptId, setScriptId] = useState('')
   const [proxyType, setProxyType] = useState('traefik')
 
+  const vpsTokens = useMemo(
+    () => (tokens.data?.cloud_tokens || []).filter((t) => t.provider !== 'cloudflare'),
+    [tokens.data],
+  )
+
   useEffect(() => {
-    if (!tokenId && tokens.data?.cloud_tokens?.[0]?.id) setTokenId(tokens.data.cloud_tokens[0].id)
-  }, [tokens.data, tokenId])
+    if (!tokenId && vpsTokens[0]?.id) setTokenId(vpsTokens[0].id)
+  }, [tokenId, vpsTokens])
   useEffect(() => {
     if (!keyId && keys.data?.private_keys?.[0]?.id) setKeyId(keys.data.private_keys[0].id)
   }, [keys.data, keyId])
@@ -268,7 +273,7 @@ function CloudServerForm() {
     },
   })
 
-  if (!tokens.isLoading && !tokens.data?.cloud_tokens?.length) {
+  if (!tokens.isLoading && !vpsTokens.length) {
     return (
       <p className="text-sm text-gray-500 dark:text-gray-400">
         No cloud provider tokens yet. Add a Hetzner, DigitalOcean, or Vultr API token under{' '}
@@ -290,7 +295,7 @@ function CloudServerForm() {
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <FormSelect label="Cloud token" value={tokenId} onChange={setTokenId}>
-          {(tokens.data?.cloud_tokens || []).map((t) => (
+          {vpsTokens.map((t) => (
             <option key={t.id} value={t.id}>
               {t.name} ({t.provider})
             </option>

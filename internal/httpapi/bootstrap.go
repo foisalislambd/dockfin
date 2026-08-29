@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/bootstrap"
 	"github.com/dockfin/dockfin/internal/proxy"
+	"github.com/dockfin/dockfin/internal/sshdial"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
 	"golang.org/x/crypto/ssh"
@@ -194,36 +195,19 @@ func (a *API) validateAndMaybeProxy(ctx context.Context, teamID, serverID uuid.U
 	if err != nil {
 		return false, false, err
 	}
-	if err := sshx.TCPReachable(srv.IP, srv.Port, 8*time.Second); err != nil {
-		_ = a.Store.UpdateServerStatus(ctx, serverID, false, false, "", "unknown")
-		return false, false, fmt.Errorf("ssh not reachable at %s:%d: %w", srv.IP, srv.Port, err)
+	if srv.JumpHostID == nil {
+		if err := sshx.TCPReachable(srv.IP, srv.Port, 8*time.Second); err != nil {
+			_ = a.Store.UpdateServerStatus(ctx, serverID, false, false, "", "unknown")
+			return false, false, fmt.Errorf("ssh not reachable at %s:%d: %w", srv.IP, srv.Port, err)
+		}
 	}
 	if srv.PrivateKeyID == nil {
 		return false, false, fmt.Errorf("server has no private key")
 	}
-	enc, err := a.Store.GetPrivateKeyMaterial(ctx, teamID, *srv.PrivateKeyID)
-	if err != nil {
-		return false, false, err
-	}
-	priv, err := a.Store.Box.DecryptString(enc)
-	if err != nil {
-		return false, false, err
-	}
-	res, err := a.Queue.SSH.Dial(sshx.Target{
-		Host:                srv.IP,
-		Port:                srv.Port,
-		User:                srv.UserName,
-		PrivateKey:          []byte(priv),
-		ExpectedFingerprint: srv.HostKeyFingerprint,
-		ExpectedKeyType:     srv.HostKeyType,
-	})
+	client, err := sshdial.DialClient(ctx, a.Store, a.Queue.SSH, teamID, serverID)
 	if err != nil {
 		_ = a.Store.UpdateServerStatus(ctx, serverID, true, false, "", "unknown")
 		return false, false, fmt.Errorf("ssh dial: %w", err)
-	}
-	client := res.Client
-	if res.IsNewHost {
-		_ = a.Store.UpdateServerHostKey(ctx, serverID, res.Fingerprint, res.KeyType)
 	}
 	if err := sshx.EnsureDataDirs(client); err != nil {
 		_ = a.Store.UpdateServerStatus(ctx, serverID, true, false, "", "unknown")

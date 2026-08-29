@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Check, Copy, Info } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../lib/api'
@@ -461,6 +461,7 @@ export function DomainDNSAlert({
     <div className="space-y-2 rounded-lg border border-error-500/40 bg-error-500/10 px-3 py-2.5">
       <p className="text-xs font-semibold text-error-700 dark:text-error-400">DNS mismatch — add these</p>
       <DnsRecordsTable rows={alertRows} />
+      <CloudflareDNSButton hostname={customHosts[0]} serverId={serverId} ipv4={alertIp} />
       <div className="space-y-1 text-[11px] leading-relaxed text-error-700 dark:text-error-400">
         <p>
           At your DNS provider, create the A records above (copy Name + Value). Wait 1–5 minutes,
@@ -480,6 +481,45 @@ export function DomainDNSAlert({
           <p>Domain is not resolving to this server yet.</p>
         )}
       </div>
+    </div>
+  )
+}
+
+function CloudflareDNSButton({
+  hostname,
+  serverId,
+  ipv4,
+}: {
+  hostname?: string
+  serverId?: string
+  ipv4?: string
+}) {
+  const [msg, setMsg] = useState('')
+  const sync = useMutation({
+    mutationFn: () =>
+      api.cloudflareDNS({
+        hostname: hostname || '',
+        server_id: serverId,
+        ipv4,
+      }),
+    onSuccess: (d) => setMsg(`Cloudflare ${d.action}: ${d.name} → ${d.content}`),
+    onError: (e: Error) => setMsg(e.message),
+  })
+  if (!hostname) return null
+  return (
+    <div className="space-y-1">
+      <button
+        type="button"
+        className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+        disabled={sync.isPending}
+        onClick={() => {
+          setMsg('')
+          sync.mutate()
+        }}
+      >
+        {sync.isPending ? 'Creating Cloudflare A record…' : 'Create A record in Cloudflare'}
+      </button>
+      {msg && <p className="text-[11px] text-gray-600 dark:text-gray-300">{msg}</p>}
     </div>
   )
 }

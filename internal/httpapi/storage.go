@@ -136,6 +136,11 @@ func (a *API) handleCreateScheduledBackup(w http.ResponseWriter, r *http.Request
 			mapStoreErr(w, err)
 			return
 		}
+	case "service":
+		if _, err := a.Store.GetService(r.Context(), teamID, rid); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
 	default:
 		writeError(w, http.StatusBadRequest, "unsupported resource_type")
 		return
@@ -275,8 +280,8 @@ func (a *API) handleRunDatabaseBackup(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	if db.Engine != "postgresql" && db.Engine != "mysql" && db.Engine != "mariadb" && db.Engine != "redis" && db.Engine != "keydb" {
-		writeError(w, http.StatusBadRequest, "manual backup supports postgresql, mysql/mariadb, and redis/keydb")
+	if !backup.DumpSupported(db.Engine) {
+		writeError(w, http.StatusBadRequest, "manual backup does not support engine "+db.Engine)
 		return
 	}
 	client, password, err := a.openDatabaseSSH(r, db)
@@ -344,8 +349,8 @@ func (a *API) handleRestoreDatabaseBackup(w http.ResponseWriter, r *http.Request
 		mapStoreErr(w, err)
 		return
 	}
-	if db.Engine != "postgresql" && db.Engine != "mysql" && db.Engine != "mariadb" {
-		writeError(w, http.StatusBadRequest, "restore supports postgresql and mysql/mariadb")
+	if !backup.RestoreSupported(db.Engine) {
+		writeError(w, http.StatusBadRequest, "restore does not support engine "+db.Engine)
 		return
 	}
 	filename := body.Filename
@@ -433,8 +438,8 @@ func (a *API) handleImportDatabaseBackup(w http.ResponseWriter, r *http.Request)
 		mapStoreErr(w, err)
 		return
 	}
-	if db.Engine != "postgresql" && db.Engine != "mysql" && db.Engine != "mariadb" {
-		writeError(w, http.StatusBadRequest, "import supports postgresql and mysql/mariadb")
+	if !backup.RestoreSupported(db.Engine) {
+		writeError(w, http.StatusBadRequest, "import does not support engine "+db.Engine)
 		return
 	}
 	restore := true

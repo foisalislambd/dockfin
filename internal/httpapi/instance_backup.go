@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/backup"
@@ -133,6 +134,73 @@ func (a *API) handleListInstanceBackupExecutions(w http.ResponseWriter, r *http.
 		list = []store.BackupExecution{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"executions": list})
+}
+
+func (a *API) handleRestoreInstanceBackup(w http.ResponseWriter, r *http.Request) {
+	if !a.requireSettingsAdmin(w, r) {
+		return
+	}
+	var body struct {
+		ExecutionID string `json:"execution_id"`
+		Filename    string `json:"filename"`
+		Confirm     string `json:"confirm"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	if strings.TrimSpace(body.Confirm) != "RESTORE" {
+		writeError(w, http.StatusBadRequest, `confirm must be "RESTORE"`)
+		return
+	}
+	cfg, err := a.Store.GetInstanceBackupConfig(r.Context())
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if !cfg.Configured {
+		writeError(w, http.StatusBadRequest, "configure instance backup first")
+		return
+	}
+	filename := strings.TrimSpace(body.Filename)
+	if body.ExecutionID != "" {
+		eid, err := uuid.Parse(body.ExecutionID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid execution_id")
+			return
+		}
+		ex, err := a.Store.GetInstanceBackupExecution(r.Context(), eid)
+		if err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+		if ex.Status != "finished" {
+			writeError(w, http.StatusBadRequest, "only finished backups can be restored")
+			return
+		}
+		filename = ex.Filename
+	}
+	user, password, dbName, err := backup.ParseDatabaseURL(a.Cfg.DatabaseURL)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if cfg.DBUser != "" {
+		user = cfg.DBUser
+	}
+	if cfg.DBName != "" {
+		dbName = cfg.DBName
+	}
+	container, err := backup.DetectPostgresContainer(cfg.Container)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := backup.RestoreInstanceLocal(a.Cfg.DataDir, container, user, password, dbName, filename); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "restored", "filename": filename})
 }
 
 func (a *API) executeInstanceBackup(ctx context.Context, teamID uuid.UUID, cfg *store.InstanceBackupConfig) (*store.BackupExecution, error) {

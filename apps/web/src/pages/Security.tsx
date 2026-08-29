@@ -330,7 +330,7 @@ function CloudTokensPanel() {
   const tokens = useQuery({ queryKey: ['cloud-tokens'], queryFn: api.cloudTokens })
   const [addOpen, setAddOpen] = useState(false)
   const [addMenu, setAddMenu] = useState(false)
-  const [provider, setProvider] = useState<'hetzner' | 'digitalocean' | 'vultr'>('hetzner')
+  const [provider, setProvider] = useState<'hetzner' | 'digitalocean' | 'vultr' | 'cloudflare'>('hetzner')
   const [selected, setSelected] = useState<CloudProviderToken | null>(null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -386,7 +386,7 @@ function CloudTokensPanel() {
   if (tokens.isLoading) return <PageSkeleton cards={2} />
   const list = tokens.data?.cloud_tokens || []
 
-  const openAdd = (p: 'hetzner' | 'digitalocean' | 'vultr') => {
+  const openAdd = (p: 'hetzner' | 'digitalocean' | 'vultr' | 'cloudflare') => {
     setProvider(p)
     setAddMenu(false)
     setAddOpen(true)
@@ -409,14 +409,14 @@ function CloudTokensPanel() {
           </Btn>
           {addMenu && (
             <div className="absolute right-0 z-20 mt-1 min-w-[180px] rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
-              {(['hetzner', 'digitalocean', 'vultr'] as const).map((p) => (
+              {(['hetzner', 'digitalocean', 'vultr', 'cloudflare'] as const).map((p) => (
                 <button
                   key={p}
                   type="button"
                   className="block w-full rounded-md px-3 py-2 text-left text-sm capitalize hover:bg-gray-100 dark:hover:bg-white/5"
                   onClick={() => openAdd(p)}
                 >
-                  {p === 'digitalocean' ? 'DigitalOcean' : p[0].toUpperCase() + p.slice(1)}
+                  {p === 'digitalocean' ? 'DigitalOcean' : p === 'cloudflare' ? 'Cloudflare DNS' : p[0].toUpperCase() + p.slice(1)}
                 </button>
               ))}
             </div>

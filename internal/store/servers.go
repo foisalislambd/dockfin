@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -42,6 +43,7 @@ type Server struct {
 	IsSwarmManager     bool       `json:"is_swarm_manager"`
 	WildcardDomain     string     `json:"wildcard_domain"`
 	MagicDomain        string     `json:"magic_domain"`
+	JumpHostID         *uuid.UUID `json:"jump_host_id"`
 	CreatedAt          time.Time  `json:"created_at"`
 }
 
@@ -57,14 +59,14 @@ type Destination struct {
 
 const serverCols = `id, team_id, private_key_id, name, description, ip, COALESCE(public_ip,''), port, user_name,
 	is_reachable, is_usable, docker_version, proxy_type, proxy_status,
-	COALESCE(host_key_fingerprint,''), COALESCE(host_key_type,''), created_at`
+	COALESCE(host_key_fingerprint,''), COALESCE(host_key_type,''), jump_host_id, created_at`
 
 func scanServer(scan func(dest ...any) error) (*Server, error) {
 	var srv Server
 	err := scan(
 		&srv.ID, &srv.TeamID, &srv.PrivateKeyID, &srv.Name, &srv.Description, &srv.IP, &srv.PublicIP, &srv.Port, &srv.UserName,
 		&srv.IsReachable, &srv.IsUsable, &srv.DockerVersion, &srv.ProxyType, &srv.ProxyStatus,
-		&srv.HostKeyFingerprint, &srv.HostKeyType, &srv.CreatedAt,
+		&srv.HostKeyFingerprint, &srv.HostKeyType, &srv.JumpHostID, &srv.CreatedAt,
 	)
 	return &srv, err
 }
@@ -460,4 +462,30 @@ func (s *Store) ListServersForProxyRepair(ctx context.Context) ([]Server, error)
 		out = append(out, *srv)
 	}
 	return out, rows.Err()
+}
+
+func (s *Store) SetServerJumpHost(ctx context.Context, teamID, serverID uuid.UUID, jumpHostID *uuid.UUID) error {
+	if jumpHostID != nil {
+		if *jumpHostID == serverID {
+			return fmt.Errorf("%w: jump host cannot be the server itself", ErrConflict)
+		}
+		jump, err := s.GetServer(ctx, teamID, *jumpHostID)
+		if err != nil {
+			return err
+		}
+		if jump.JumpHostID != nil && *jump.JumpHostID == serverID {
+			return fmt.Errorf("%w: jump host would create a cycle", ErrConflict)
+		}
+	}
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE servers SET jump_host_id=$3, updated_at=NOW()
+		WHERE id=$1 AND team_id=$2
+	`, serverID, teamID, jumpHostID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

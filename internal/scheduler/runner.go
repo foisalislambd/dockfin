@@ -12,6 +12,7 @@ import (
 	"github.com/dockfin/dockfin/internal/backup"
 	"github.com/dockfin/dockfin/internal/proxy"
 	"github.com/dockfin/dockfin/internal/services"
+	"github.com/dockfin/dockfin/internal/sshdial"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
 	"golang.org/x/crypto/ssh"
@@ -226,6 +227,16 @@ func (r *Runner) runBackups(ctx context.Context, minute time.Time) {
 			continue
 		}
 		sid := b.ID
+		if b.ResourceType == "service" {
+			filename := backup.DefaultServiceBackupFilename(b.ResourceID.String())
+			exec, err := r.Store.CreateBackupExecutionScheduled(ctx, b.TeamID, &sid, "service", b.ResourceID, filename)
+			if err != nil {
+				r.Logger.Error("create service backup execution", "err", err)
+				continue
+			}
+			go r.executeServiceBackup(context.Background(), b, exec.ID, filename)
+			continue
+		}
 		if b.ResourceType == "application" {
 			filename := backup.DefaultAppBackupFilename(b.ResourceID.String())
 			exec, err := r.Store.CreateBackupExecutionScheduled(ctx, b.TeamID, &sid, "application", b.ResourceID, filename)
@@ -251,7 +262,7 @@ func (r *Runner) runBackups(ctx context.Context, minute time.Time) {
 			}
 			continue
 		}
-		if db.Engine != "postgresql" && db.Engine != "mysql" && db.Engine != "mariadb" && db.Engine != "redis" && db.Engine != "keydb" {
+		if !backup.DumpSupported(db.Engine) {
 			exec, err := r.Store.CreateBackupExecutionScheduled(ctx, b.TeamID, &sid, "database", db.ID, "skipped")
 			if err == nil {
 				_ = r.Store.FinishBackupExecution(ctx, exec.ID, "failed", 0, fmt.Sprintf("scheduled backup does not support engine %q", db.Engine))
@@ -392,6 +403,60 @@ func (r *Runner) executeApplicationBackup(ctx context.Context, b store.Scheduled
 			r.Logger.Error("s3 upload after app backup", "app", app.ID, "err", err)
 		}
 	}
+}
+
+func (r *Runner) executeServiceBackup(ctx context.Context, b store.ScheduledBackupRow, execID uuid.UUID, filename string) {
+	done := false
+	defer func() {
+		if !done {
+			_ = r.Store.FinishBackupExecution(context.Background(), execID, "failed", 0, "interrupted")
+		}
+	}()
+	svc, err := r.Store.GetService(ctx, b.TeamID, b.ResourceID)
+	if err != nil {
+		_ = r.Store.FinishBackupExecution(ctx, execID, "failed", 0, err.Error())
+		done = true
+		return
+	}
+	serverID := uuid.Nil
+	if svc.DestinationID != nil {
+		dest, derr := r.Store.GetDestination(ctx, b.TeamID, *svc.DestinationID)
+		if derr != nil {
+			_ = r.Store.FinishBackupExecution(ctx, execID, "failed", 0, derr.Error())
+			done = true
+			return
+		}
+		serverID = dest.ServerID
+	} else if svc.ServerID != nil {
+		serverID = *svc.ServerID
+	} else {
+		_ = r.Store.FinishBackupExecution(ctx, execID, "failed", 0, "service has no server or destination")
+		done = true
+		return
+	}
+	client, err := r.dialServer(ctx, b.TeamID, serverID)
+	if err != nil {
+		_ = r.Store.FinishBackupExecution(ctx, execID, "failed", 0, err.Error())
+		done = true
+		return
+	}
+	hostDir := "/data/dockfin/services/" + svc.ID.String()
+	paths := backup.FilterExistingPaths(client, []string{hostDir})
+	if len(paths) == 0 {
+		_ = r.Store.FinishBackupExecution(ctx, execID, "failed", 0, "no service files found on server — deploy first")
+		done = true
+		return
+	}
+	out := backup.ServiceVolumeArchivePath(svc.ID.String(), filename)
+	if err := backup.TarHostPaths(client, out, paths); err != nil {
+		_ = r.Store.FinishBackupExecution(ctx, execID, "failed", 0, err.Error())
+		done = true
+		return
+	}
+	size := backup.FileSize(client, out)
+	_ = r.Store.FinishBackupExecution(ctx, execID, "finished", size, "")
+	done = true
+	_ = backup.EnforceServiceBackupRetention(client, svc.ID.String(), b.Retention)
 }
 
 func (r *Runner) uploadAppBackupToS3(ctx context.Context, client *ssh.Client, teamID, appID, execID uuid.UUID, filename, remotePath string, s3ID uuid.UUID) error {
@@ -564,33 +629,7 @@ func (r *Runner) dialDestination(ctx context.Context, teamID, destID uuid.UUID) 
 }
 
 func (r *Runner) dialServer(ctx context.Context, teamID, serverID uuid.UUID) (*ssh.Client, error) {
-	srv, err := r.Store.GetServer(ctx, teamID, serverID)
-	if err != nil {
-		return nil, err
-	}
-	if srv.PrivateKeyID == nil {
-		return nil, fmt.Errorf("server has no private key")
-	}
-	enc, err := r.Store.GetPrivateKeyMaterial(ctx, teamID, *srv.PrivateKeyID)
-	if err != nil {
-		return nil, err
-	}
-	priv, err := r.Store.Box.DecryptString(enc)
-	if err != nil {
-		return nil, err
-	}
-	res, err := r.SSH.Dial(sshx.Target{
-		Host:                srv.IP,
-		Port:                srv.Port,
-		User:                srv.UserName,
-		PrivateKey:          []byte(priv),
-		ExpectedFingerprint: srv.HostKeyFingerprint,
-		ExpectedKeyType:     srv.HostKeyType,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return res.Client, nil
+	return sshdial.DialClient(ctx, r.Store, r.SSH, teamID, serverID)
 }
 
 func (r *Runner) repairProxyNetworks(ctx context.Context) {

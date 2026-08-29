@@ -114,6 +114,69 @@ func DumpInstanceLocal(dataDir, container, user, password, dbName, filename stri
 	return absPath, fi.Size(), nil
 }
 
+// RestoreInstanceLocal loads a SQL dump produced by DumpInstanceLocal into the instance Postgres.
+func RestoreInstanceLocal(dataDir, container, user, password, dbName, filename string) error {
+	if container == "" {
+		return fmt.Errorf("container required")
+	}
+	if user == "" {
+		user = "dockfin"
+	}
+	if dbName == "" {
+		dbName = "dockfin"
+	}
+	if filename == "" || strings.Contains(filename, "/") || strings.Contains(filename, "..") {
+		return fmt.Errorf("invalid filename")
+	}
+	if !strings.HasPrefix(filename, "pg-dump-dockfin-") || !strings.HasSuffix(filename, ".sql") {
+		return fmt.Errorf("invalid dump filename")
+	}
+	absPath := filepath.Join(InstanceDumpDir(dataDir), filename)
+	if _, err := os.Stat(absPath); err != nil {
+		return fmt.Errorf("dump not found: %w", err)
+	}
+	term := exec.Command("docker", "exec", "-e", "PGPASSWORD="+password, container,
+		"psql", "-U", user, "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-c",
+		fmt.Sprintf(`SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s AND pid <> pg_backend_pid();`, pqLiteral(dbName)))
+	var termErr strings.Builder
+	term.Stderr = &termErr
+	_ = term.Run()
+
+	// Dumps from DumpInstanceLocal are plain SQL without DROP/CREATE, so a live
+	// Dockfin database already has colliding tables. Recreate public first.
+	reset := exec.Command("docker", "exec", "-e", "PGPASSWORD="+password, container,
+		"psql", "-U", user, "-d", dbName, "-v", "ON_ERROR_STOP=1", "-c",
+		`DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO PUBLIC; GRANT ALL ON SCHEMA public TO `+pgIdent(user))
+	var resetErr strings.Builder
+	reset.Stderr = &resetErr
+	if err := reset.Run(); err != nil {
+		return fmt.Errorf("reset schema: %v %s", err, strings.TrimSpace(resetErr.String()))
+	}
+
+	cmd := exec.Command("docker", "exec", "-i", "-e", "PGPASSWORD="+password, container,
+		"psql", "-U", user, "-d", dbName, "-v", "ON_ERROR_STOP=1")
+	f, err := os.Open(absPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	cmd.Stdin = f
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("psql restore: %v %s", err, strings.TrimSpace(stderr.String()))
+	}
+	return nil
+}
+
+func pqLiteral(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
+}
+
+func pgIdent(s string) string {
+	return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
+}
+
 // EnforceLocalRetention keeps the newest keepCount dump files; 0 means unlimited.
 func EnforceLocalRetention(dataDir string, keepCount int) error {
 	if keepCount <= 0 {

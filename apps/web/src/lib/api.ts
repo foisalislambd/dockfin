@@ -64,6 +64,7 @@ export type CreateServerBody = {
   private_key_id?: string
   proxy_type?: string
   description?: string
+  jump_host_id?: string
 }
 
 export type ProvisionServerBody = {
@@ -280,7 +281,7 @@ export const api = {
   cloudTokens: () => request<{ cloud_tokens: CloudProviderToken[] }>('/api/v1/cloud-tokens'),
   getCloudToken: (id: string) => request<CloudProviderToken>(`/api/v1/cloud-tokens/${id}`),
   createCloudToken: (body: {
-    provider: 'hetzner' | 'digitalocean' | 'vultr'
+    provider: 'hetzner' | 'digitalocean' | 'vultr' | 'cloudflare'
     name: string
     description?: string
     token: string
@@ -910,6 +911,26 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  serviceBackups: (id: string) =>
+    request<{ backup_executions: BackupExecution[] }>(`/api/v1/services/${id}/backups`),
+  runServiceBackup: (id: string) =>
+    request<BackupExecution>(`/api/v1/services/${id}/backups`, { method: 'POST' }),
+  restoreServiceBackup: (id: string, body: { execution_id?: string; filename?: string }) =>
+    request<{ status: string; filename: string }>(`/api/v1/services/${id}/backups/restore`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  restoreInstanceBackup: (body: { execution_id?: string; filename?: string; confirm: string }) =>
+    request<{ status: string; filename: string }>('/api/v1/settings/backup/restore', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  auditLogs: () => request<{ audit_logs: AuditLog[] }>('/api/v1/audit-logs'),
+  cloudflareDNS: (body: { hostname: string; server_id?: string; token_id?: string; ipv4?: string }) =>
+    request<{ zone: string; name: string; type: string; content: string; action: string }>(
+      '/api/v1/domains/cloudflare',
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
   scheduledTasks: (params?: { resource_type?: string; resource_id?: string }) => {
     const q = new URLSearchParams()
     if (params?.resource_type) q.set('resource_type', params.resource_type)
@@ -980,6 +1001,7 @@ export const api = {
       wildcard_domain?: string
       magic_domain?: string
       public_ip?: string
+      jump_host_id?: string | null
     },
   ) =>
     request<{ status: string }>(`/api/v1/servers/${id}/settings`, {
@@ -1124,6 +1146,7 @@ export type Server = {
   wildcard_domain?: string
   magic_domain?: string
   public_ip?: string
+  jump_host_id?: string | null
 }
 export type ServerOpsSettings = {
   sentinel_enabled: boolean
@@ -1526,6 +1549,21 @@ export type BackupExecution = {
   s3_key?: string
   started_at: string
   finished_at?: string | null
+}
+export type AuditLog = {
+  id: string
+  team_id: string
+  user_id?: string | null
+  user_email?: string
+  method: string
+  path: string
+  action: string
+  resource_type: string
+  resource_id: string
+  status_code: number
+  ip: string
+  user_agent: string
+  created_at: string
 }
 export type ScheduledTask = {
   id: string

@@ -83,6 +83,7 @@ const GitSourceDetailPage = lazyPage(() => import('./pages/GitSources'), 'GitSou
 const DestinationsPage = lazyPage(() => import('./pages/NavSurfaces'), 'DestinationsPage')
 const TagsPage = lazyPage(() => import('./pages/NavSurfaces'), 'TagsPage')
 const TerminalPickerPage = lazyPage(() => import('./pages/NavSurfaces'), 'TerminalPickerPage')
+const AuditLogPage = lazyPage(() => import('./pages/NavSurfaces'), 'AuditLogPage')
 
 function RootComponent() {
   return (
@@ -465,6 +466,12 @@ const terminalRoute = createRoute({
   component: TerminalPickerPage,
 })
 
+const auditRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/audit',
+  component: AuditLogPage,
+})
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -516,6 +523,7 @@ const routeTree = rootRoute.addChildren([
     destinationsRoute,
     tagsRoute,
     terminalRoute,
+    auditRoute,
   ]),
 ])
 

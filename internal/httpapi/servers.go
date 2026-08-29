@@ -3,6 +3,7 @@ package httpapi
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/proxy"
+	"github.com/dockfin/dockfin/internal/sshdial"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
 	"golang.org/x/crypto/ssh"
@@ -82,6 +84,7 @@ func (a *API) handleCreateServer(w http.ResponseWriter, r *http.Request) {
 		UserName     string `json:"user_name"`
 		PrivateKeyID string `json:"private_key_id"`
 		ProxyType    string `json:"proxy_type"`
+		JumpHostID   string `json:"jump_host_id"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -115,10 +118,27 @@ func (a *API) handleCreateServer(w http.ResponseWriter, r *http.Request) {
 		}
 		keyID = &id
 	}
-	srv, err := a.Store.CreateServer(r.Context(), currentTeamID(r), keyID, body.Name, body.Description, body.IP, body.UserName, body.Port, body.ProxyType)
+	teamID := currentTeamID(r)
+	srv, err := a.Store.CreateServer(r.Context(), teamID, keyID, body.Name, body.Description, body.IP, body.UserName, body.Port, body.ProxyType)
 	if err != nil {
 		mapStoreErr(w, err)
 		return
+	}
+	if strings.TrimSpace(body.JumpHostID) != "" {
+		jid, err := uuid.Parse(body.JumpHostID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid jump_host_id")
+			return
+		}
+		if err := a.Store.SetServerJumpHost(r.Context(), teamID, srv.ID, &jid); err != nil {
+			if errors.Is(err, store.ErrConflict) {
+				writeConflictDetail(w, err)
+				return
+			}
+			mapStoreErr(w, err)
+			return
+		}
+		srv, _ = a.Store.GetServer(r.Context(), teamID, srv.ID)
 	}
 	writeJSON(w, http.StatusCreated, srv)
 }
@@ -151,38 +171,10 @@ func (a *API) handleDeleteServer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) dialServer(r *http.Request, serverID uuid.UUID) (*ssh.Client, error) {
-	teamID := currentTeamID(r)
-	srv, err := a.Store.GetServer(r.Context(), teamID, serverID)
-	if err != nil {
-		return nil, err
+	if a.Queue == nil || a.Queue.SSH == nil {
+		return nil, fmt.Errorf("ssh pool unavailable")
 	}
-	if srv.PrivateKeyID == nil {
-		return nil, fmt.Errorf("server has no private key")
-	}
-	enc, err := a.Store.GetPrivateKeyMaterial(r.Context(), teamID, *srv.PrivateKeyID)
-	if err != nil {
-		return nil, err
-	}
-	priv, err := a.Store.Box.DecryptString(enc)
-	if err != nil {
-		return nil, err
-	}
-	pool := a.Queue.SSH
-	res, err := pool.Dial(sshx.Target{
-		Host:                srv.IP,
-		Port:                srv.Port,
-		User:                srv.UserName,
-		PrivateKey:          []byte(priv),
-		ExpectedFingerprint: srv.HostKeyFingerprint,
-		ExpectedKeyType:     srv.HostKeyType,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if res.IsNewHost {
-		_ = a.Store.UpdateServerHostKey(r.Context(), serverID, res.Fingerprint, res.KeyType)
-	}
-	return res.Client, nil
+	return sshdial.DialClient(r.Context(), a.Store, a.Queue.SSH, currentTeamID(r), serverID)
 }
 
 func (a *API) handleValidateServer(w http.ResponseWriter, r *http.Request) {
@@ -197,10 +189,12 @@ func (a *API) handleValidateServer(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	if err := sshx.TCPReachable(srv.IP, srv.Port, 5*time.Second); err != nil {
-		_ = a.Store.UpdateServerStatus(r.Context(), id, false, false, "", "unknown")
-		writeJSON(w, http.StatusOK, map[string]any{"reachable": false, "usable": false, "error": err.Error()})
-		return
+	if srv.JumpHostID == nil {
+		if err := sshx.TCPReachable(srv.IP, srv.Port, 5*time.Second); err != nil {
+			_ = a.Store.UpdateServerStatus(r.Context(), id, false, false, "", "unknown")
+			writeJSON(w, http.StatusOK, map[string]any{"reachable": false, "usable": false, "error": err.Error()})
+			return
+		}
 	}
 	client, err := a.dialServer(r, id)
 	if err != nil {
@@ -348,6 +342,7 @@ func (a *API) handlePatchServerSettings(w http.ResponseWriter, r *http.Request) 
 		WildcardDomain  *string `json:"wildcard_domain"`
 		MagicDomain     *string `json:"magic_domain"`
 		PublicIP        *string `json:"public_ip"`
+		JumpHostID      *string `json:"jump_host_id"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -377,6 +372,26 @@ func (a *API) handlePatchServerSettings(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		if err := a.Store.SetServerPublicIP(r.Context(), teamID, id, ip); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+	}
+	if body.JumpHostID != nil {
+		raw := strings.TrimSpace(*body.JumpHostID)
+		var jumpID *uuid.UUID
+		if raw != "" {
+			idj, err := uuid.Parse(raw)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "invalid jump_host_id")
+				return
+			}
+			jumpID = &idj
+		}
+		if err := a.Store.SetServerJumpHost(r.Context(), teamID, id, jumpID); err != nil {
+			if errors.Is(err, store.ErrConflict) {
+				writeConflictDetail(w, err)
+				return
+			}
 			mapStoreErr(w, err)
 			return
 		}

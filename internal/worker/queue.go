@@ -11,6 +11,7 @@ import (
 	"github.com/dockfin/dockfin/internal/notify"
 	"github.com/dockfin/dockfin/internal/redact"
 	"github.com/dockfin/dockfin/internal/services"
+	"github.com/dockfin/dockfin/internal/sshdial"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/dockfin/dockfin/internal/ws"
@@ -319,34 +320,14 @@ func (q *Queue) handleService(ctx context.Context, job DeployJob, dep *store.Dep
 		q.publish(job.DeploymentID, "status", "failed")
 		return
 	}
-	enc, err := q.Store.GetPrivateKeyMaterial(ctx, job.TeamID, *srv.PrivateKeyID)
-	if err != nil {
-		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
-		q.publish(job.DeploymentID, "status", "failed")
-		return
-	}
-	priv, err := q.Store.Box.DecryptString(enc)
-	if err != nil {
-		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", "decrypt key: "+err.Error())
-		q.publish(job.DeploymentID, "status", "failed")
-		return
-	}
 
-	res, err := q.SSH.Dial(sshx.Target{
-		Host:                srv.IP,
-		Port:                srv.Port,
-		User:                srv.UserName,
-		PrivateKey:          []byte(priv),
-		ExpectedFingerprint: srv.HostKeyFingerprint,
-		ExpectedKeyType:     srv.HostKeyType,
-	})
+	client, err := sshdial.DialClient(ctx, q.Store, q.SSH, job.TeamID, serverID)
 	if err != nil {
 		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
 		_ = q.Store.UpdateServiceStatus(ctx, svc.ID, "exited")
 		q.publish(job.DeploymentID, "status", "failed")
 		return
 	}
-	client := res.Client
 
 	emit := func(stage, line string) {
 		if cancelled, _ := q.Store.IsDeploymentCancelled(context.Background(), job.DeploymentID); cancelled {

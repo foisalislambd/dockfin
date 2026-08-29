@@ -140,3 +140,32 @@ func FilterExistingPaths(client *ssh.Client, paths []string) []string {
 	}
 	return out
 }
+
+// ServiceVolumeArchivePath returns the remote tar.gz path for a one-click service backup.
+func ServiceVolumeArchivePath(serviceID, filename string) string {
+	return "/data/dockfin/backups/services/" + serviceID + "/" + filename
+}
+
+// DefaultServiceBackupFilename builds a timestamped archive name.
+func DefaultServiceBackupFilename(serviceID string) string {
+	short := serviceID
+	if len(short) > 8 {
+		short = short[:8]
+	}
+	return fmt.Sprintf("svc-%s-%s.tar.gz", short, time.Now().UTC().Format("20060102-150405"))
+}
+
+// EnforceServiceBackupRetention keeps the newest keepCount archives under
+// /data/dockfin/backups/services/{serviceID}/.
+func EnforceServiceBackupRetention(client *ssh.Client, serviceID string, keepCount int) error {
+	if keepCount <= 0 || client == nil || serviceID == "" {
+		return nil
+	}
+	dir := "/data/dockfin/backups/services/" + serviceID
+	cmd := fmt.Sprintf(
+		`cd %s 2>/dev/null && ls -1t svc-*.tar.gz 2>/dev/null | tail -n +%d | xargs -r rm -f`,
+		shellQuote(dir), keepCount+1,
+	)
+	_, _, err := sshx.Run(client, cmd)
+	return err
+}

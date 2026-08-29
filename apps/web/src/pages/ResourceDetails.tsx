@@ -1119,6 +1119,7 @@ export function ServerDetailPage() {
   const [wildcardDomain, setWildcardDomain] = useState('')
   const [magicDomain, setMagicDomain] = useState('sslip.io')
   const [publicIP, setPublicIP] = useState('')
+  const [jumpHostId, setJumpHostId] = useState('')
   const [cleanupFreq, setCleanupFreq] = useState('0 0 * * *')
   const [cleanupThreshold, setCleanupThreshold] = useState('80')
   const [forceCleanup, setForceCleanup] = useState(false)
@@ -1134,11 +1135,13 @@ export function ServerDetailPage() {
   }, [serverId, search.tab])
 
   const server = useQuery({ queryKey: ['server', serverId], queryFn: () => api.getServer(serverId) })
+  const allServers = useQuery({ queryKey: ['servers'], queryFn: api.servers })
   useEffect(() => {
     if (!server.data) return
     setWildcardDomain(server.data.wildcard_domain || '')
     setMagicDomain(server.data.magic_domain || 'sslip.io')
     setPublicIP(server.data.public_ip || '')
+    setJumpHostId(server.data.jump_host_id || '')
   }, [server.data])
   const destinations = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
   const metrics = useQuery({
@@ -1206,6 +1209,7 @@ export function ServerDetailPage() {
       wildcard_domain?: string
       magic_domain?: string
       public_ip?: string
+      jump_host_id?: string | null
     }) => api.patchServerSettings(serverId, body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['server', serverId] })
@@ -1604,6 +1608,30 @@ export function ServerDetailPage() {
                 <span className="mt-0.5 block text-gray-500 dark:text-gray-400">
                   Mark this node as a Docker Swarm manager for swarm destinations.
                 </span>
+              </span>
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-gray-500 dark:text-gray-400">SSH jump host (bastion)</span>
+              <select
+                className="panel-field h-9 w-full max-w-md rounded-md px-2 text-sm"
+                value={jumpHostId}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setJumpHostId(v)
+                  patchSettings.mutate({ jump_host_id: v || null })
+                }}
+              >
+                <option value="">None (direct SSH)</option>
+                {(allServers.data?.servers || [])
+                  .filter((x) => x.id !== serverId)
+                  .map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.name} ({x.ip})
+                    </option>
+                  ))}
+              </select>
+              <span className="mt-1 block text-xs text-gray-500">
+                Dockfin SSHs to the jump host first, then to this server. Skip if this host is reachable directly.
               </span>
             </label>
             <div className="border-t border-gray-200 pt-4 dark:border-gray-800">

@@ -117,6 +117,13 @@
 - [x] Environment clone success toast (application/database/service counts)
 - [x] Settings → Scheduled Jobs "Recent issues" (failed task executions + failed docker cleanup runs)
 - [x] Shared Variables server-scope hub (`/shared-variables?scope=server&server_id=...`, server picker, deep-link from Server → Settings)
+- [x] Instance backup restore (Settings → Backup, confirm `RESTORE`)
+- [x] Service volume backups (list/run/restore + scheduled)
+- [x] Database dump/restore for MongoDB, ClickHouse, Dragonfly
+- [x] SSH jump host / bastion (`jump_host_id` on servers)
+- [x] Team audit log (`GET /audit-logs` + Audit nav)
+- [x] Cloudflare DNS A-record upsert (`POST /domains/cloudflare`)
+- [x] Log drain ships container logs via Vector when enabled
 
 ## Cloud provisioning & edge (wave 4)
 
@@ -156,7 +163,7 @@ carries a `warnings` array.
 ## MCP & auto-update (wave 3)
 - [x] HTTP JSON-RPC MCP endpoint (`POST /api/v1/mcp`, `GET` probe) gated on `is_mcp_server_enabled`
 - [x] Bearer API-token auth (same path as the REST API — abilities and IP allowlist still apply)
-- [x] Tools: `list_servers`, `list_projects`, `get_application`, `deploy_application`, `list_databases` (team-scoped, bounded to 100 rows)
+- [x] Tools: `list_servers`, `list_projects`, `list_applications`, `get_application`, `deploy_application`, `stop_application`, `list_databases`, `list_services`, `deploy_service`
 - [x] Scheduler auto-update tick (`is_auto_update_enabled` + `auto_update_frequency` cron)
 - [x] Channel → tag mapping (stable→`latest`, next→`next`, nightly→`nightly`) on `ghcr.io/foisalislambd/dockfin`, honouring `docker_registry_url`
 - [x] Rewrites the install compose image tag, then runs `docker compose pull` + `up -d` in `DOCKFIN_DIR`

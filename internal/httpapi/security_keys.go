@@ -189,7 +189,7 @@ func (a *API) handleCreateCloudToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	provider := strings.ToLower(strings.TrimSpace(body.Provider))
-	if body.Name == "" || body.Token == "" || (provider != "hetzner" && provider != "digitalocean" && provider != "vultr") {
+	if body.Name == "" || body.Token == "" || (provider != "hetzner" && provider != "digitalocean" && provider != "vultr" && provider != "cloudflare") {
 		writeError(w, http.StatusBadRequest, "provider, name, and token required")
 		return
 	}
@@ -330,6 +330,10 @@ func validateCloudProviderToken(provider, token string) error {
 		authValue = "Bearer " + token
 	case "vultr":
 		url = "https://api.vultr.com/v2/account"
+		authHeader = "Authorization"
+		authValue = "Bearer " + token
+	case "cloudflare":
+		url = "https://api.cloudflare.com/client/v4/user/tokens/verify"
 		authHeader = "Authorization"
 		authValue = "Bearer " + token
 	default:

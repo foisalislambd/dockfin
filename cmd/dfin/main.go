@@ -43,18 +43,35 @@ func main() {
 		body := map[string]any{"force_rebuild": false}
 		code, out := api(base, token, http.MethodPost, "/api/v1/applications/"+appID+"/deploy", body)
 		fmt.Println(code, out)
+	case "stop":
+		if len(os.Args) < 3 {
+			fatal(fmt.Errorf("usage: dfin stop <application-uuid>"))
+		}
+		code, out := api(base, token, http.MethodPost, "/api/v1/applications/"+os.Args[2]+"/stop", nil)
+		fmt.Println(code, out)
 	case "logs":
 		if len(os.Args) < 3 {
 			fatal(fmt.Errorf("usage: dfin logs <deployment-uuid>"))
 		}
-		depID := os.Args[2]
-		code, out := api(base, token, http.MethodGet, "/api/v1/deployments/"+depID, nil)
+		code, out := api(base, token, http.MethodGet, "/api/v1/deployments/"+os.Args[2], nil)
 		fmt.Println(code, out)
 	case "apps":
 		code, out := api(base, token, http.MethodGet, "/api/v1/applications", nil)
 		fmt.Println(code, out)
+	case "services":
+		code, out := api(base, token, http.MethodGet, "/api/v1/services", nil)
+		fmt.Println(code, out)
+	case "databases":
+		code, out := api(base, token, http.MethodGet, "/api/v1/databases", nil)
+		fmt.Println(code, out)
 	case "servers":
 		code, out := api(base, token, http.MethodGet, "/api/v1/servers", nil)
+		fmt.Println(code, out)
+	case "service-deploy":
+		if len(os.Args) < 3 {
+			fatal(fmt.Errorf("usage: dfin service-deploy <service-uuid>"))
+		}
+		code, out := api(base, token, http.MethodPost, "/api/v1/services/"+os.Args[2]+"/deploy", nil)
 		fmt.Println(code, out)
 	default:
 		usage()
@@ -70,13 +87,29 @@ Usage:
   dfin health [url]
   dfin servers
   dfin apps
+  dfin services
+  dfin databases
   dfin deploy <application-uuid>
+  dfin stop <application-uuid>
+  dfin service-deploy <service-uuid>
   dfin logs <deployment-uuid>
 
 Env:
   DOCKFIN_URL    default http://localhost:8000
   DOCKFIN_TOKEN  session/API bearer token
 `)
+}
+
+func env(k, def string) string {
+	if v := strings.TrimSpace(os.Getenv(k)); v != "" {
+		return v
+	}
+	return def
+}
+
+func fatal(err error) {
+	fmt.Fprintln(os.Stderr, err)
+	os.Exit(1)
 }
 
 func api(base, token, method, path string, body any) (int, string) {
@@ -89,11 +122,11 @@ func api(base, token, method, path string, body any) (int, string) {
 	if err != nil {
 		fatal(err)
 	}
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	client := &http.Client{Timeout: 60 * time.Second}
 	resp, err := client.Do(req)
@@ -103,16 +136,4 @@ func api(base, token, method, path string, body any) (int, string) {
 	defer resp.Body.Close()
 	b, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, string(b)
-}
-
-func env(k, d string) string {
-	if v := os.Getenv(k); v != "" {
-		return v
-	}
-	return d
-}
-
-func fatal(err error) {
-	fmt.Fprintln(os.Stderr, err)
-	os.Exit(1)
 }

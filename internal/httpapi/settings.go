@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/bootstrap"
 	"github.com/dockfin/dockfin/internal/proxy"
-	"github.com/dockfin/dockfin/internal/sshx"
+	"github.com/dockfin/dockfin/internal/sshdial"
 	"github.com/dockfin/dockfin/internal/store"
 	"golang.org/x/crypto/ssh"
 )
@@ -111,29 +111,11 @@ func (a *API) dialSelfSSH(ctx context.Context, teamID uuid.UUID) (*ssh.Client, e
 	if srv.PrivateKeyID == nil {
 		return nil, fmt.Errorf("server has no private key")
 	}
-	enc, err := a.Store.GetPrivateKeyMaterial(ctx, teamID, *srv.PrivateKeyID)
-	if err != nil {
-		return nil, err
-	}
-	priv, err := a.Store.Box.DecryptString(enc)
-	if err != nil {
-		return nil, err
-	}
-	res, err := a.Queue.SSH.Dial(sshx.Target{
-		Host:                srv.IP,
-		Port:                srv.Port,
-		User:                srv.UserName,
-		PrivateKey:          []byte(priv),
-		ExpectedFingerprint: srv.HostKeyFingerprint,
-		ExpectedKeyType:     srv.HostKeyType,
-	})
+	client, err := sshdial.DialClient(ctx, a.Store, a.Queue.SSH, teamID, srv.ID)
 	if err != nil {
 		return nil, fmt.Errorf("ssh dial: %w", err)
 	}
-	if res.IsNewHost {
-		_ = a.Store.UpdateServerHostKey(ctx, srv.ID, res.Fingerprint, res.KeyType)
-	}
-	return res.Client, nil
+	return client, nil
 }
 
 func (a *API) findSelfServer(ctx context.Context, teamID uuid.UUID) (*store.Server, error) {

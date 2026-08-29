@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import {
   AlertTriangle,
+  Archive,
   CalendarClock,
   Globe,
   HardDrive,
@@ -40,6 +41,7 @@ const TOP_TABS = [
   { id: 'configuration', label: 'Configuration', icon: Settings2 },
   { id: 'logs', label: 'Logs', icon: ScrollText },
   { id: 'terminal', label: 'Terminal', icon: Terminal },
+  { id: 'backups', label: 'Backups', icon: Archive },
   { id: 'links', label: 'Links', icon: Link2 },
 ] as const
 
@@ -414,6 +416,8 @@ export function ServiceDetailPage() {
       )}
 
       {topTab === 'links' && <LinksPanel links={s.links || []} />}
+
+      {topTab === 'backups' && <ServiceBackupsPanel svcId={svcId} />}
 
       {topTab === 'logs' && (
         <div className="space-y-6">
@@ -942,6 +946,135 @@ function DetailRow({ label, value, mono }: { label: string; value: string; mono?
       <div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
       <div className={`mt-0.5 text-sm text-gray-900 dark:text-white ${mono ? 'font-mono text-xs break-all' : ''}`}>
         {value}
+      </div>
+    </div>
+  )
+}
+
+function ServiceBackupsPanel({ svcId }: { svcId: string }) {
+  const qc = useQueryClient()
+  const confirm = useConfirm()
+  const toast = useToast()
+  const backups = useQuery({ queryKey: ['scheduled-backups'], queryFn: api.scheduledBackups })
+  const executions = useQuery({
+    queryKey: ['svc-backups', svcId],
+    queryFn: () => api.serviceBackups(svcId),
+    refetchInterval: (q) => {
+      const list = q.state.data?.backup_executions || []
+      return list.some((b) => b.status === 'running') ? 2000 : false
+    },
+  })
+  const [frequency, setFrequency] = useState('0 0 * * *')
+  const [retention, setRetention] = useState('7')
+  const mine = (backups.data?.scheduled_backups || []).filter(
+    (b) => b.resource_type === 'service' && b.resource_id === svcId,
+  )
+  const create = useMutation({
+    mutationFn: () =>
+      api.createScheduledBackup({
+        resource_type: 'service',
+        resource_id: svcId,
+        frequency,
+        retention: Number(retention) || 7,
+      }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['scheduled-backups'] }),
+  })
+  const runNow = useMutation({
+    mutationFn: () => api.runServiceBackup(svcId),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['svc-backups', svcId] }),
+  })
+  const restoreBackup = useMutation({
+    mutationFn: (executionId: string) => api.restoreServiceBackup(svcId, { execution_id: executionId }),
+    onSuccess: () => toast.success('Backup restored'),
+    onError: (e: Error) => toast.error(e.message || 'Restore failed'),
+  })
+  const removeSchedule = useMutation({
+    mutationFn: (id: string) => api.deleteScheduledBackup(id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['scheduled-backups'] }),
+  })
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Archives <code className="text-xs">/data/dockfin/services/{svcId}</code> on the server.
+        </p>
+        <Btn primary disabled={runNow.isPending} onClick={() => runNow.mutate()}>
+          {runNow.isPending ? 'Archiving…' : 'Run backup now'}
+        </Btn>
+      </div>
+      {runNow.error && <p className="text-sm text-error-500">{runNow.error.message}</p>}
+      <div className="panel-card overflow-hidden">
+        <table className="panel-table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>File</th>
+              <th>Started</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {(executions.data?.backup_executions || []).map((b) => (
+              <tr key={b.id}>
+                <td className="capitalize">{b.status}</td>
+                <td className="font-mono text-xs">{b.filename}</td>
+                <td className="text-xs text-gray-500">
+                  {b.started_at ? new Date(b.started_at).toLocaleString() : '—'}
+                </td>
+                <td>
+                  {b.status === 'finished' && (
+                    <button
+                      type="button"
+                      className="text-xs text-brand-600 hover:underline"
+                      onClick={() => {
+                        void (async () => {
+                          if (
+                            await confirm({
+                              title: 'Restore backup',
+                              message: `Restore files from ${b.filename}?`,
+                              confirmLabel: 'Restore',
+                              danger: true,
+                            })
+                          ) {
+                            restoreBackup.mutate(b.id)
+                          }
+                        })()
+                      }}
+                    >
+                      Restore
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {!executions.data?.backup_executions?.length && (
+              <tr>
+                <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                  No backup runs yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div className="panel-card space-y-3 p-5">
+        <h3 className="text-sm font-medium">Schedule</h3>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input label="Cron" value={frequency} onChange={setFrequency} />
+          <Input label="Retention" value={retention} onChange={setRetention} />
+        </div>
+        <Btn onClick={() => create.mutate()} disabled={create.isPending}>
+          {create.isPending ? 'Saving…' : 'Add schedule'}
+        </Btn>
+        {mine.map((b) => (
+          <div key={b.id} className="flex items-center justify-between text-sm">
+            <span className="font-mono text-xs">{b.frequency}</span>
+            <button type="button" className="text-error-500" onClick={() => removeSchedule.mutate(b.id)}>
+              Remove
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   )

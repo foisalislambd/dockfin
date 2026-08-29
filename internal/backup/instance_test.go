@@ -23,6 +23,15 @@ func TestInstanceDumpFilenameUnique(t *testing.T) {
 	}
 }
 
+func TestPgIdentQuotes(t *testing.T) {
+	if pgIdent(`dockfin`) != `"dockfin"` {
+		t.Fatal(pgIdent("dockfin"))
+	}
+	if pgIdent(`a"b`) != `"a""b"` {
+		t.Fatal(pgIdent(`a"b`))
+	}
+}
+
 func TestDetectAndDump(t *testing.T) {
 	c, err := DetectPostgresContainer("")
 	if err != nil {

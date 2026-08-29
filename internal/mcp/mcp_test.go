@@ -16,6 +16,9 @@ func (f *fakeBackend) ListServers(context.Context) (any, error) {
 func (f *fakeBackend) ListProjects(context.Context) (any, error) {
 	return map[string]any{"projects": []any{}}, nil
 }
+func (f *fakeBackend) ListApplications(context.Context) (any, error) {
+	return map[string]any{"applications": []any{}}, nil
+}
 func (f *fakeBackend) GetApplication(_ context.Context, id string) (any, error) {
 	if id != "app-1" {
 		return nil, fmt.Errorf("not found")
@@ -26,8 +29,17 @@ func (f *fakeBackend) DeployApplication(_ context.Context, id string, force bool
 	f.deployed = id
 	return map[string]any{"status": "queued", "force": force}, nil
 }
+func (f *fakeBackend) StopApplication(_ context.Context, id string) (any, error) {
+	return map[string]any{"id": id, "status": "exited"}, nil
+}
 func (f *fakeBackend) ListDatabases(context.Context, string) (any, error) {
 	return map[string]any{"databases": []any{}}, nil
+}
+func (f *fakeBackend) ListServices(context.Context) (any, error) {
+	return map[string]any{"services": []any{}}, nil
+}
+func (f *fakeBackend) DeployService(_ context.Context, id string) (any, error) {
+	return map[string]any{"status": "queued", "id": id}, nil
 }
 
 func handle(t *testing.T, b Backend, method, params string) *Response {
@@ -46,8 +58,8 @@ func TestToolsList(t *testing.T) {
 	}
 	result := resp.Result.(map[string]any)
 	tools := result["tools"].([]Tool)
-	if len(tools) != 5 {
-		t.Fatalf("expected 5 tools, got %d", len(tools))
+	if len(tools) != 9 {
+		t.Fatalf("expected 9 tools, got %d", len(tools))
 	}
 }
 

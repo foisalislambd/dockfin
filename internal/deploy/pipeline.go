@@ -13,6 +13,7 @@ import (
 
 	"github.com/dockfin/dockfin/internal/proxy"
 	"github.com/dockfin/dockfin/internal/services"
+	"github.com/dockfin/dockfin/internal/sshdial"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/google/uuid"
@@ -170,6 +171,9 @@ func (p *Pipeline) Run(ctx context.Context, req Request) error {
 }
 
 func (p *Pipeline) dialServer(ctx context.Context, srv *store.Server, privKey []byte) (*ssh.Client, error) {
+	if p.Store != nil && srv != nil && srv.TeamID != uuid.Nil {
+		return sshdial.DialClient(ctx, p.Store, p.SSH, srv.TeamID, srv.ID)
+	}
 	res, err := p.SSH.Dial(sshx.Target{
 		Host:                srv.IP,
 		Port:                srv.Port,

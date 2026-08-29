@@ -112,6 +112,7 @@ func (a *API) Router() http.Handler {
 			r.Use(a.requireAuth)
 			r.Use(a.enforceAPITokenPolicy)
 			r.Use(a.requireTeam)
+			r.Use(a.auditMutations)
 			r.Use(timeoutExceptSSE(120 * time.Second))
 
 			r.Get("/teams", a.handleListTeams)
@@ -207,6 +208,8 @@ func (a *API) Router() http.Handler {
 			r.Get("/destinations", a.handleListDestinations)
 			r.Post("/domains/generate", a.handleGenerateDomain)
 			r.Post("/domains/check", a.handleCheckDomainDNS)
+			r.Post("/domains/cloudflare", a.handleCloudflareDNS)
+			r.Get("/audit-logs", a.handleListAuditLogs)
 
 			r.Route("/projects", func(r chi.Router) {
 				r.Get("/", a.handleListProjects)
@@ -305,6 +308,9 @@ func (a *API) Router() http.Handler {
 				r.Post("/{serviceID}/webhook-secret", a.handleSetServiceWebhookSecret)
 				r.Get("/{serviceID}/containers", a.handleListServiceContainers)
 				r.Get("/{serviceID}/logs/stream", a.handleServiceLogsStream)
+				r.Get("/{serviceID}/backups", a.handleListServiceBackups)
+				r.Post("/{serviceID}/backups", a.handleRunServiceBackup)
+				r.Post("/{serviceID}/backups/restore", a.handleRestoreServiceBackup)
 			})
 
 			r.Get("/mcp", a.handleMCPProbe)
@@ -343,6 +349,7 @@ func (a *API) Router() http.Handler {
 			r.Post("/settings/backup/configure", a.handleConfigureInstanceBackup)
 			r.Patch("/settings/backup", a.handlePatchInstanceBackup)
 			r.Post("/settings/backup/run", a.handleRunInstanceBackup)
+			r.Post("/settings/backup/restore", a.handleRestoreInstanceBackup)
 			r.Get("/settings/backup/executions", a.handleListInstanceBackupExecutions)
 
 			r.Get("/scheduled-tasks", a.handleListScheduledTasks)

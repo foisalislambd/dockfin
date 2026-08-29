@@ -172,6 +172,23 @@ func (s *Store) ListInstanceBackupExecutions(ctx context.Context, limit int) ([]
 	return out, rows.Err()
 }
 
+func (s *Store) GetInstanceBackupExecution(ctx context.Context, id uuid.UUID) (*BackupExecution, error) {
+	var b BackupExecution
+	err := s.Pool.QueryRow(ctx, `
+		SELECT id, team_id, scheduled_backup_id, resource_type, resource_id, status, size_bytes, filename,
+			COALESCE(s3_uploaded,FALSE), COALESCE(s3_key,''), error_message, started_at, finished_at
+		FROM backup_executions
+		WHERE id=$1 AND resource_type=$2
+	`, id, InstanceBackupResourceType).Scan(
+		&b.ID, &b.TeamID, &b.ScheduledBackupID, &b.ResourceType, &b.ResourceID, &b.Status, &b.SizeBytes, &b.Filename,
+		&b.S3Uploaded, &b.S3Key, &b.ErrorMessage, &b.StartedAt, &b.FinishedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return &b, err
+}
+
 func (s *Store) CreateInstanceBackupExecution(ctx context.Context, teamID uuid.UUID, filename string) (*BackupExecution, error) {
 	return s.CreateBackupExecution(ctx, teamID, InstanceBackupResourceType, InstanceBackupResourceID, filename)
 }

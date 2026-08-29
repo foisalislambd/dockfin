@@ -9,7 +9,7 @@ import (
 
 	"github.com/dockfin/dockfin/internal/git"
 	"github.com/dockfin/dockfin/internal/services"
-	"github.com/dockfin/dockfin/internal/sshx"
+	"github.com/dockfin/dockfin/internal/sshdial"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/dockfin/dockfin/internal/worker"
 	"github.com/google/uuid"
@@ -222,39 +222,10 @@ func (a *API) cleanupPreviewRemote(ctx context.Context, app *store.Application, 
 }
 
 func (a *API) dialServerForTeam(ctx context.Context, teamID, serverID uuid.UUID) (*ssh.Client, error) {
-	srv, err := a.Store.GetServer(ctx, teamID, serverID)
-	if err != nil {
-		return nil, err
-	}
-	if srv.PrivateKeyID == nil {
-		return nil, fmt.Errorf("server has no private key")
-	}
-	enc, err := a.Store.GetPrivateKeyMaterial(ctx, teamID, *srv.PrivateKeyID)
-	if err != nil {
-		return nil, err
-	}
-	priv, err := a.Store.Box.DecryptString(enc)
-	if err != nil {
-		return nil, err
-	}
 	if a.Queue == nil || a.Queue.SSH == nil {
 		return nil, fmt.Errorf("ssh pool unavailable")
 	}
-	res, err := a.Queue.SSH.Dial(sshx.Target{
-		Host:                srv.IP,
-		Port:                srv.Port,
-		User:                srv.UserName,
-		PrivateKey:          []byte(priv),
-		ExpectedFingerprint: srv.HostKeyFingerprint,
-		ExpectedKeyType:     srv.HostKeyType,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if res.IsNewHost {
-		_ = a.Store.UpdateServerHostKey(ctx, serverID, res.Fingerprint, res.KeyType)
-	}
-	return res.Client, nil
+	return sshdial.DialClient(ctx, a.Store, a.Queue.SSH, teamID, serverID)
 }
 
 // processWebhookEvent applies push / preview / cleanup for one application.

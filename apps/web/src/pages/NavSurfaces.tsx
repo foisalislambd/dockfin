@@ -326,3 +326,54 @@ export function TerminalPickerPage() {
     </div>
   )
 }
+
+export function AuditLogPage() {
+  const logs = useQuery({ queryKey: ['audit-logs'], queryFn: api.auditLogs, refetchInterval: 8000 })
+  if (logs.isLoading) return <PageSkeleton cards={1} />
+  return (
+    <div className="space-y-6">
+      <Header title="Audit log" />
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        Recent mutating API calls for this team (deploys, deletes, settings).
+      </p>
+      <div className="panel-card overflow-x-auto">
+        <table className="panel-table">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Who</th>
+              <th>Action</th>
+              <th>Resource</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(logs.data?.audit_logs || []).map((row) => (
+              <tr key={row.id}>
+                <td className="whitespace-nowrap text-xs text-gray-500">
+                  {row.created_at ? new Date(row.created_at).toLocaleString() : '—'}
+                </td>
+                <td className="text-sm">{row.user_email || '—'}</td>
+                <td className="font-mono text-xs">
+                  {row.method} {row.action}
+                </td>
+                <td className="font-mono text-xs">
+                  {row.resource_type}
+                  {row.resource_id ? ` ${row.resource_id.slice(0, 8)}` : ''}
+                </td>
+                <td className="text-xs">{row.status_code || '—'}</td>
+              </tr>
+            ))}
+            {!logs.data?.audit_logs?.length && (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                  No audit entries yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}

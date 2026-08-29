@@ -20,6 +20,12 @@ func TestRateLimitIPCloudflare(t *testing.T) {
 	if got := a.rateLimitIP(r); got == "203.0.113.88" {
 		t.Fatalf("must not trust CF header without TrustProxy, got %q", got)
 	}
+	spoof := httptest.NewRequest(http.MethodPost, "/api/v1/applications", nil)
+	spoof.RemoteAddr = "10.0.0.1:9"
+	spoof.Header.Set("X-Forwarded-For", "1.2.3.4")
+	if got := a.rateLimitIP(spoof); got != "10.0.0.1" {
+		t.Fatalf("must not trust X-Forwarded-For without TrustProxy, got %q", got)
+	}
 }
 
 func TestAPITokenAllows(t *testing.T) {

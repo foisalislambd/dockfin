@@ -22,6 +22,9 @@ type Target struct {
 	PrivateKey          []byte
 	ExpectedFingerprint string // empty = TOFU (trust on first use)
 	ExpectedKeyType     string
+	// Jump, when set, opens the TCP connection through an existing SSH client
+	// (ProxyJump / bastion). The pool key includes the jump remote address.
+	Jump *ssh.Client
 }
 
 type DialResult struct {
@@ -41,7 +44,11 @@ func NewPool() *Pool {
 }
 
 func (p *Pool) key(t Target) string {
-	return fmt.Sprintf("%s@%s:%d", t.User, t.Host, t.Port)
+	base := fmt.Sprintf("%s@%s:%d", t.User, t.Host, t.Port)
+	if t.Jump == nil {
+		return base
+	}
+	return t.Jump.RemoteAddr().String() + ">" + base
 }
 
 func FingerprintSHA256(key ssh.PublicKey) string {
@@ -50,17 +57,24 @@ func FingerprintSHA256(key ssh.PublicKey) string {
 }
 
 func (p *Pool) Dial(t Target) (*DialResult, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	k := p.key(t)
+	p.mu.Lock()
 	if c, ok := p.conns[k]; ok {
+		p.mu.Unlock()
 		_, _, err := c.SendRequest("dockfin-keepalive", true, nil)
 		if err == nil {
 			return &DialResult{Client: c, Fingerprint: t.ExpectedFingerprint, KeyType: t.ExpectedKeyType}, nil
 		}
-		_ = c.Close()
-		delete(p.conns, k)
+		p.mu.Lock()
+		if cur, still := p.conns[k]; still && cur == c {
+			_ = c.Close()
+			delete(p.conns, k)
+		}
+		p.mu.Unlock()
+	} else {
+		p.mu.Unlock()
 	}
+
 	signer, err := ssh.ParsePrivateKey(t.PrivateKey)
 	if err != nil {
 		return nil, fmt.Errorf("parse private key: %w", err)
@@ -88,11 +102,20 @@ func (p *Pool) Dial(t Target) (*DialResult, error) {
 		Timeout:         15 * time.Second,
 	}
 	addr := fmt.Sprintf("%s:%d", t.Host, t.Port)
-	client, err := ssh.Dial("tcp", addr, cfg)
+	client, err := dialSSH(t.Jump, addr, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("ssh dial %s: %w", addr, err)
 	}
+
+	p.mu.Lock()
+	if existing, ok := p.conns[k]; ok {
+		p.mu.Unlock()
+		_ = client.Close()
+		return &DialResult{Client: existing, Fingerprint: t.ExpectedFingerprint, KeyType: t.ExpectedKeyType}, nil
+	}
 	p.conns[k] = client
+	p.mu.Unlock()
+
 	fp := ""
 	kt := ""
 	if gotKey != nil {
@@ -103,6 +126,41 @@ func (p *Pool) Dial(t Target) (*DialResult, error) {
 }
 
 // DialClient is a convenience wrapper returning only the client.
+func dialSSH(jump *ssh.Client, addr string, cfg *ssh.ClientConfig) (*ssh.Client, error) {
+	if jump == nil {
+		return ssh.Dial("tcp", addr, cfg)
+	}
+	timeout := cfg.Timeout
+	if timeout <= 0 {
+		timeout = 15 * time.Second
+	}
+	type dialRes struct {
+		conn net.Conn
+		err  error
+	}
+	ch := make(chan dialRes, 1)
+	go func() {
+		c, err := jump.Dial("tcp", addr)
+		ch <- dialRes{c, err}
+	}()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case r := <-ch:
+		if r.err != nil {
+			return nil, r.err
+		}
+		ncc, chans, reqs, err := ssh.NewClientConn(r.conn, addr, cfg)
+		if err != nil {
+			_ = r.conn.Close()
+			return nil, err
+		}
+		return ssh.NewClient(ncc, chans, reqs), nil
+	case <-timer.C:
+		return nil, fmt.Errorf("jump tcp dial timed out after %s", timeout)
+	}
+}
+
 func (p *Pool) DialClient(t Target) (*ssh.Client, error) {
 	res, err := p.Dial(t)
 	if err != nil {

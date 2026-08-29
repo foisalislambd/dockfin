@@ -51,9 +51,13 @@ type Tool struct {
 type Backend interface {
 	ListServers(ctx context.Context) (any, error)
 	ListProjects(ctx context.Context) (any, error)
+	ListApplications(ctx context.Context) (any, error)
 	GetApplication(ctx context.Context, id string) (any, error)
 	DeployApplication(ctx context.Context, id string, forceRebuild bool) (any, error)
+	StopApplication(ctx context.Context, id string) (any, error)
 	ListDatabases(ctx context.Context, environmentID string) (any, error)
+	ListServices(ctx context.Context) (any, error)
+	DeployService(ctx context.Context, id string) (any, error)
 }
 
 func obj(props map[string]any, required ...string) map[string]any {
@@ -80,6 +84,11 @@ func Tools() []Tool {
 			InputSchema: obj(map[string]any{}),
 		},
 		{
+			Name:        "list_applications",
+			Description: "List applications in the current team.",
+			InputSchema: obj(map[string]any{}),
+		},
+		{
 			Name:        "get_application",
 			Description: "Get a single application by UUID.",
 			InputSchema: obj(map[string]any{"id": str("Application UUID")}, "id"),
@@ -93,9 +102,24 @@ func Tools() []Tool {
 			}, "id"),
 		},
 		{
+			Name:        "stop_application",
+			Description: "Stop a running application.",
+			InputSchema: obj(map[string]any{"id": str("Application UUID")}, "id"),
+		},
+		{
 			Name:        "list_databases",
 			Description: "List databases in the current team, optionally filtered by environment.",
 			InputSchema: obj(map[string]any{"environment_id": str("Environment UUID (optional)")}),
+		},
+		{
+			Name:        "list_services",
+			Description: "List one-click / compose services in the current team.",
+			InputSchema: obj(map[string]any{}),
+		},
+		{
+			Name:        "deploy_service",
+			Description: "Queue a deployment for a compose service.",
+			InputSchema: obj(map[string]any{"id": str("Service UUID")}, "id"),
 		},
 	}
 }
@@ -171,6 +195,8 @@ func callTool(ctx context.Context, b Backend, name string, rawArgs json.RawMessa
 		return b.ListServers(ctx)
 	case "list_projects":
 		return b.ListProjects(ctx)
+	case "list_applications":
+		return b.ListApplications(ctx)
 	case "get_application":
 		if args.ID == "" {
 			return nil, fmt.Errorf("id is required")
@@ -181,8 +207,20 @@ func callTool(ctx context.Context, b Backend, name string, rawArgs json.RawMessa
 			return nil, fmt.Errorf("id is required")
 		}
 		return b.DeployApplication(ctx, args.ID, args.ForceRebuild)
+	case "stop_application":
+		if args.ID == "" {
+			return nil, fmt.Errorf("id is required")
+		}
+		return b.StopApplication(ctx, args.ID)
 	case "list_databases":
 		return b.ListDatabases(ctx, args.EnvironmentID)
+	case "list_services":
+		return b.ListServices(ctx)
+	case "deploy_service":
+		if args.ID == "" {
+			return nil, fmt.Errorf("id is required")
+		}
+		return b.DeployService(ctx, args.ID)
 	default:
 		return nil, fmt.Errorf("unknown tool %q", name)
 	}
