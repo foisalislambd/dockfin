@@ -238,6 +238,17 @@
   background-color: #344054;
 }
 
+.dockfin-xterm {
+  min-height: 0;
+}
+.dockfin-xterm .xterm {
+  height: 100%;
+  padding: 4px 2px 0;
+}
+.dockfin-xterm .xterm-viewport {
+  overflow-y: auto !important;
+}
+
 /* Dark terminal panes (live logs / deploy output) */
 .log-scrollbar {
   scrollbar-width: thin;

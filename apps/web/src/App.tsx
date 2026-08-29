@@ -82,7 +82,7 @@ const GitSourcesPage = lazyPage(() => import('./pages/GitSources'), 'GitSourcesP
 const GitSourceDetailPage = lazyPage(() => import('./pages/GitSources'), 'GitSourceDetailPage')
 const DestinationsPage = lazyPage(() => import('./pages/NavSurfaces'), 'DestinationsPage')
 const TagsPage = lazyPage(() => import('./pages/NavSurfaces'), 'TagsPage')
-const TerminalPickerPage = lazyPage(() => import('./pages/NavSurfaces'), 'TerminalPickerPage')
+const TerminalPickerPage = lazyPage(() => import('./pages/TerminalPage'), 'TerminalPickerPage')
 const AuditLogPage = lazyPage(() => import('./pages/NavSurfaces'), 'AuditLogPage')
 
 function RootComponent() {

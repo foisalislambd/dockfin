@@ -13,6 +13,7 @@ export type DeleteResourceBody = {
 }
 
 export const LAST_ENV_KEY = 'dockfin:last_environment_id'
+export const LAST_TERM_SERVER_KEY = 'dockfin:last_terminal_server_id'
 
 export class ApiError extends Error {
   status: number

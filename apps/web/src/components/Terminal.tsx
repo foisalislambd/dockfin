@@ -12,6 +12,8 @@ type Props = {
   /** Optional dropdown of container names. */
   containerOptions?: string[]
   hideHostShell?: boolean
+  /** Grow to fill the parent instead of a fixed 28rem pane. */
+  fill?: boolean
 }
 
 export function ServerTerminal({
@@ -19,6 +21,7 @@ export function ServerTerminal({
   defaultContainer = '',
   containerOptions,
   hideHostShell = false,
+  fill = false,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -41,6 +44,17 @@ export function ServerTerminal({
     setStatus('closed')
   }
 
+  const sendResize = () => {
+    const fit = fitRef.current
+    const ws = wsRef.current
+    if (!fit) return
+    fit.fit()
+    const dims = fit.proposeDimensions()
+    if (dims && ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }))
+    }
+  }
+
   const connect = async () => {
     setError('')
     disconnect()
@@ -49,14 +63,17 @@ export function ServerTerminal({
       const { session_id } = await api.createTerminal(serverId, container || undefined)
       if (!hostRef.current) return
 
+      const compact = typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
       const term = new Terminal({
         cursorBlink: true,
-        fontFamily: 'Geist Mono, ui-monospace, monospace',
-        fontSize: 13,
+        fontFamily: 'Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace',
+        fontSize: compact ? 12 : 13,
+        lineHeight: 1.25,
         theme: {
           background: '#0b1220',
           foreground: '#e2e8f0',
           cursor: '#94a3b8',
+          selectionBackground: '#334155',
         },
       })
       const fit = new FitAddon()
@@ -72,10 +89,7 @@ export function ServerTerminal({
 
       ws.onopen = () => {
         setStatus('open')
-        const dims = fit.proposeDimensions()
-        if (dims) {
-          ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }))
-        }
+        requestAnimationFrame(sendResize)
         term.focus()
       }
       ws.onmessage = (ev) => {
@@ -94,16 +108,6 @@ export function ServerTerminal({
           ws.send(JSON.stringify({ type: 'stdin', data }))
         }
       })
-
-      const onResize = () => {
-        fit.fit()
-        const dims = fit.proposeDimensions()
-        if (dims && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }))
-        }
-      }
-      window.addEventListener('resize', onResize)
-      return () => window.removeEventListener('resize', onResize)
     } catch (e) {
       setStatus('closed')
       setError(e instanceof Error ? e.message : 'Failed to open terminal')
@@ -112,42 +116,76 @@ export function ServerTerminal({
 
   useEffect(() => () => disconnect(), [serverId])
 
+  useEffect(() => {
+    const el = hostRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => sendResize())
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [status, fill])
+
   const locked = status === 'open' || status === 'connecting'
 
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-end gap-3">
-        {containerOptions && containerOptions.length > 0 ? (
-          <label className="block min-w-[12rem] flex-1 text-sm">
-            <span className="mb-1 block text-gray-500 dark:text-gray-400">Container</span>
-            <select
-              value={container}
-              onChange={(e) => setContainer(e.target.value)}
-              disabled={locked}
-              className="panel-field w-full rounded-lg px-3 py-2 font-mono text-sm"
-            >
-              {!hideHostShell && <option value="">Host shell</option>}
-              {containerOptions.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : (
-          <label className="block min-w-[12rem] flex-1 text-sm">
+  const toolbar = (
+    <div
+      className={
+        fill
+          ? 'flex flex-col gap-2 border-b border-white/10 bg-[#111827] px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3'
+          : 'flex flex-wrap items-end gap-3'
+      }
+    >
+      {containerOptions && containerOptions.length > 0 ? (
+        <label className={`block min-w-0 text-sm ${fill ? 'w-full sm:min-w-[12rem] sm:flex-1' : 'min-w-[12rem] flex-1'}`}>
+          {!fill && <span className="mb-1 block text-gray-500 dark:text-gray-400">Container</span>}
+          {fill && (
+            <span className="mb-1 block text-[11px] font-medium tracking-wide text-slate-400 uppercase sm:sr-only">
+              Target
+            </span>
+          )}
+          <select
+            value={container}
+            onChange={(e) => setContainer(e.target.value)}
+            disabled={locked}
+            className={
+              fill
+                ? 'h-9 w-full rounded-md border border-white/10 bg-[#0b1220] px-2.5 font-mono text-xs text-slate-200'
+                : 'panel-field w-full rounded-lg px-3 py-2 font-mono text-sm'
+            }
+          >
+            {!hideHostShell && <option value="">Host shell</option>}
+            {containerOptions.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <label className={`block min-w-0 text-sm ${fill ? 'w-full sm:min-w-[12rem] sm:flex-1' : 'min-w-[12rem] flex-1'}`}>
+          {!fill && (
             <span className="mb-1 block text-gray-500 dark:text-gray-400">
               Container (optional docker exec)
             </span>
-            <input
-              value={container}
-              onChange={(e) => setContainer(e.target.value)}
-              placeholder={hideHostShell ? 'container name required' : 'leave empty for host shell'}
-              disabled={locked}
-              className="panel-field w-full rounded-lg px-3 py-2 font-mono text-sm"
-            />
-          </label>
-        )}
+          )}
+          {fill && (
+            <span className="mb-1 block text-[11px] font-medium tracking-wide text-slate-400 uppercase sm:sr-only">
+              Container
+            </span>
+          )}
+          <input
+            value={container}
+            onChange={(e) => setContainer(e.target.value)}
+            placeholder={hideHostShell ? 'container name required' : 'Host shell (or container name)'}
+            disabled={locked}
+            className={
+              fill
+                ? 'h-9 w-full rounded-md border border-white/10 bg-[#0b1220] px-2.5 font-mono text-xs text-slate-200 placeholder:text-slate-500'
+                : 'panel-field w-full rounded-lg px-3 py-2 font-mono text-sm'
+            }
+          />
+        </label>
+      )}
+      <div className="flex shrink-0 items-center">
         {status === 'open' ? (
           <Btn onClick={disconnect}>Disconnect</Btn>
         ) : (
@@ -155,15 +193,36 @@ export function ServerTerminal({
             {status === 'connecting' ? 'Connecting…' : 'Connect'}
           </Btn>
         )}
-        <span className="pb-2 text-xs text-gray-500 dark:text-gray-400">
-          {status === 'open' ? 'connected' : status === 'connecting' ? 'connecting' : 'disconnected'}
-        </span>
       </div>
+    </div>
+  )
+
+  const pane = (
+    <div
+      ref={hostRef}
+      className={
+        fill
+          ? 'dockfin-xterm relative min-h-[14rem] flex-1 overflow-hidden bg-[#0b1220] px-2 pt-2 sm:min-h-0'
+          : 'dockfin-xterm h-[28rem] overflow-hidden rounded-lg border border-gray-200 bg-[#0b1220] p-2 dark:border-gray-800'
+      }
+    />
+  )
+
+  if (fill) {
+    return (
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-gray-200 bg-[#0b1220] shadow-sm dark:border-gray-800">
+        {toolbar}
+        {error ? <p className="px-3 py-2 text-sm text-error-400">{error}</p> : null}
+        {pane}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {toolbar}
       {error && <p className="text-sm text-error-500">{error}</p>}
-      <div
-        ref={hostRef}
-        className="h-[28rem] overflow-hidden rounded-lg border border-gray-200 bg-[#0b1220] p-2 dark:border-gray-800"
-      />
+      {pane}
       <p className="text-xs text-gray-500 dark:text-gray-400">
         Interactive SSH PTY over WebSocket. Sessions idle out after 30 minutes.
       </p>

@@ -2,8 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { ServerTerminal } from '../components/Terminal'
-import { FormPageSkeleton, PageSkeleton, TableSkeleton } from '../components/ui/Skeleton'
+import { PageSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { api, type Server, type Tag } from '../lib/api'
 import { Header } from './Servers'
 
@@ -262,66 +261,6 @@ export function TagsPage() {
             </div>
           )}
         </>
-      )}
-    </div>
-  )
-}
-
-/** Server picker then an interactive terminal, without needing to open a resource detail page. */
-export function TerminalPickerPage() {
-  const servers = useQuery({ queryKey: ['servers'], queryFn: api.servers })
-  const [serverId, setServerId] = useState('')
-
-  const usable = (servers.data?.servers || []).filter((s) => s.is_usable)
-  const server = usable.find((s) => s.id === serverId)
-
-  if (servers.isLoading) return <FormPageSkeleton />
-
-  return (
-    <div className="space-y-6">
-      <Header title="Terminal" />
-      {!usable.length ? (
-        <div className="panel-card p-8 text-center text-sm text-gray-500 dark:text-gray-400">
-          No servers with a working Docker connection yet.{' '}
-          <Link to="/servers" className="text-brand-600 hover:underline dark:text-brand-400">
-            Add a server
-          </Link>
-          .
-        </div>
-      ) : (
-        <div className="panel-card space-y-4 p-5">
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="block min-w-[16rem] text-sm">
-              <span className="mb-1 block text-gray-500 dark:text-gray-400">Server</span>
-              <select
-                value={serverId}
-                onChange={(e) => setServerId(e.target.value)}
-                className="panel-field w-full rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="">Select a server…</option>
-                {usable.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.ip})
-                  </option>
-                ))}
-              </select>
-            </label>
-            {server && (
-              <Link
-                to="/servers/$serverId"
-                params={{ serverId: server.id }}
-                className="pb-2 text-xs text-brand-600 hover:underline dark:text-brand-400"
-              >
-                Open server details →
-              </Link>
-            )}
-          </div>
-          {server ? (
-            <ServerTerminal key={server.id} serverId={server.id} />
-          ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">Pick a server to connect.</p>
-          )}
-        </div>
       )}
     </div>
   )

@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { Outlet } from '@tanstack/react-router'
+import { Outlet, useRouterState } from '@tanstack/react-router'
 import {
   SIDEBAR_WIDTH_COLLAPSED,
   SIDEBAR_WIDTH_EXPANDED,
@@ -13,6 +13,7 @@ import { PageSkeleton } from './ui/Skeleton'
 
 function PanelShellInner() {
   const { isExpanded, isDesktop } = useSidebar()
+  const fillViewport = useRouterState({ select: (s) => s.location.pathname === '/terminal' })
   const sidebarWidth = isDesktop
     ? isExpanded
       ? SIDEBAR_WIDTH_EXPANDED
@@ -30,8 +31,20 @@ function PanelShellInner() {
       <PanelBackdrop />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <PanelHeader />
-        <main className="panel-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-          <div className="w-full px-3 py-4 sm:px-5 sm:py-5 lg:px-6">
+        <main
+          className={
+            fillViewport
+              ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
+              : 'panel-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden'
+          }
+        >
+          <div
+            className={
+              fillViewport
+                ? 'flex h-full min-h-0 w-full min-w-0 flex-1 flex-col px-3 py-3 sm:px-5 sm:py-4 lg:px-6'
+                : 'w-full px-3 py-4 sm:px-5 sm:py-5 lg:px-6'
+            }
+          >
             {/* Keep shell chrome mounted; only the page body suspends */}
             <Suspense fallback={<PageSkeleton cards={2} />}>
               <Outlet />
