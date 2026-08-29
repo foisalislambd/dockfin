@@ -349,10 +349,11 @@ function DonutChart({ slices }: { slices: ContainerSlice[] }) {
         {slices.map((s, i) => {
           const v = values[i]
           const sweep = total > 0 ? (v / total) * 360 : 0
-          const start = angle + gap / 2
-          const end = angle + sweep - gap / 2
+          const pad = Math.min(gap / 2, Math.max(0, sweep / 2 - 0.25))
+          const start = angle + pad
+          const end = angle + sweep - pad
           angle += sweep
-          if (end - start < 0.4) return null
+          if (sweep <= 0 || end - start < 0.2) return null
           const on = hover === i
           return (
             <path
@@ -598,7 +599,11 @@ export function OverviewLiveMetrics({
     for (const s of slicesFromRows(rows)) {
       values[s.id] = { cpu: s.cpu, mem: s.memUsed }
     }
-    setHistory((prev) => [...prev, { t: Date.now(), values }].slice(-40))
+    setHistory((prev) => {
+      const last = prev[prev.length - 1]
+      if (last && JSON.stringify(last.values) === JSON.stringify(values)) return prev
+      return [...prev, { t: Date.now(), values }].slice(-40)
+    })
   }, [q.dataUpdatedAt])
 
   if (!resourceId) return null
