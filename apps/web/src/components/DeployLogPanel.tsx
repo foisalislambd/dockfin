@@ -38,7 +38,7 @@ export function DeployLogPanel({
       </div>
       <pre
         ref={ref}
-        className="log-scrollbar max-h-[min(28rem,55vh)] min-h-[12rem] overflow-auto p-4 font-mono text-[12px] leading-relaxed text-gray-200"
+        className="log-scrollbar min-w-0 max-h-[min(28rem,55vh)] min-h-[12rem] overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-all p-4 font-mono text-[12px] leading-relaxed text-gray-200"
       >
         {lines.length ? lines.join('\n') : emptyHint}
       </pre>

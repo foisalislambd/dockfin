@@ -257,7 +257,7 @@
 
 .log-scrollbar::-webkit-scrollbar {
   width: 8px;
-  height: 8px;
+  height: 0;
 }
 
 .log-scrollbar::-webkit-scrollbar-track {
