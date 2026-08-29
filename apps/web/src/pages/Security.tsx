@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Cloud, FileCode2, KeyRound, KeySquare } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { PageSkeleton, PanelSkeleton } from '../components/ui/Skeleton'
+import { PanelSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { ResourceTabs, TabPanel } from '../components/ui/tabs'
 import {
   api,
@@ -151,7 +151,13 @@ function PrivateKeysPanel() {
     setDescription(selected.description || '')
   }, [selected])
 
-  if (keys.isLoading) return <PageSkeleton cards={2} />
+  if (keys.isLoading) {
+    return (
+      <div className="panel-card overflow-hidden">
+        <TableSkeleton rows={5} cols={3} />
+      </div>
+    )
+  }
 
   const list = keys.data?.private_keys || []
 
@@ -383,7 +389,13 @@ function CloudTokensPanel() {
     setMsg('')
   }, [selected])
 
-  if (tokens.isLoading) return <PageSkeleton cards={2} />
+  if (tokens.isLoading) {
+    return (
+      <div className="panel-card overflow-hidden">
+        <TableSkeleton rows={5} cols={3} />
+      </div>
+    )
+  }
   const list = tokens.data?.cloud_tokens || []
 
   const openAdd = (p: 'hetzner' | 'digitalocean' | 'vultr' | 'cloudflare') => {
@@ -577,7 +589,13 @@ function CloudInitPanel() {
     setScript(detail.data.script || '')
   }, [detail.data])
 
-  if (scripts.isLoading) return <PageSkeleton cards={2} />
+  if (scripts.isLoading) {
+    return (
+      <div className="panel-card p-5">
+        <PanelSkeleton rows={4} showHeader={false} />
+      </div>
+    )
+  }
   const list = scripts.data?.cloud_init_scripts || []
 
   return (
@@ -739,7 +757,13 @@ function ApiTokensPanel() {
     })
   }
 
-  if (tokens.isLoading || settings.isLoading) return <PageSkeleton cards={2} />
+  if (tokens.isLoading || settings.isLoading) {
+    return (
+      <div className="panel-card overflow-hidden">
+        <TableSkeleton rows={5} cols={3} />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { Layers } from 'lucide-react'
 import { BackLink } from '../components/BackLink'
-import { PageSkeleton } from '../components/ui/Skeleton'
+import { EnvResourcesSkeleton, PageSkeleton } from '../components/ui/Skeleton'
 import { api, LAST_ENV_KEY } from '../lib/api'
 import { Btn, Header, Input, Modal } from './Servers'
 
@@ -64,9 +64,9 @@ export function ProjectShowPage() {
     )
   }
 
-  // While redirecting single-env projects, keep skeleton
+  // Single-env projects redirect to the resources grid — match that layout.
   if ((envs.data?.environments || []).length === 1) {
-    return <PageSkeleton cards={1} />
+    return <EnvResourcesSkeleton />
   }
 
   return (

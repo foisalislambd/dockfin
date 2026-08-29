@@ -2,7 +2,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { AppWindow, Boxes, ChevronDown, ChevronRight, Database, Search } from 'lucide-react'
 import { useMemo, useState, type FormEvent, type MouseEvent } from 'react'
-import { PageSkeleton } from '../components/ui/Skeleton'
+import { EnvResourcesSkeleton } from '../components/ui/Skeleton'
 import {
   ServiceLogo,
   logoForApplication,
@@ -259,7 +259,7 @@ export function EnvironmentResourcesPage() {
     },
   })
 
-  if (loading) return <PageSkeleton cards={4} />
+  if (loading) return <EnvResourcesSkeleton />
 
   return (
     <div className="space-y-8">

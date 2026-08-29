@@ -175,7 +175,11 @@ export function AppShellSkeleton() {
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-hidden px-3 py-4 sm:px-5 sm:py-5 lg:px-6">
-          <PageSkeleton cards={2} labelled={false} />
+          <RoutePageSkeleton
+            pathname={typeof window !== 'undefined' ? window.location.pathname : '/'}
+            search={typeof window !== 'undefined' ? window.location.search : ''}
+            labelled={false}
+          />
         </div>
       </div>
     </div>
@@ -221,28 +225,41 @@ export function PageSkeleton({
 }
 
 /**
- * Detail page with top tabs + optional configuration side nav
- * (Application / Service detail layout).
+ * Application / service detail: back link, title row, top tabs, overview (or settings nav).
  */
-export function DetailPageSkeleton({ withSideNav = true }: { withSideNav?: boolean }) {
+export function DetailPageSkeleton({
+  withSideNav = false,
+  tabs = 6,
+  labelled = true,
+}: {
+  withSideNav?: boolean
+  tabs?: number
+  labelled?: boolean
+}) {
   return (
-    <div className="space-y-6" role="status" aria-label="Loading page">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="space-y-2">
-          <Skeleton className="h-3.5 w-40" />
-          <Skeleton className="h-8 w-56 max-w-full" />
-          <Skeleton className="h-4 w-44" />
+    <div className="space-y-5" {...loadingRegion(labelled, 'Loading page')}>
+      <div className="inline-flex h-8 items-center gap-1.5">
+        <Skeleton className="h-6 w-6 rounded-md" />
+        <Skeleton className="h-3.5 w-24" />
+      </div>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <Skeleton className="h-10 w-10 shrink-0 rounded-xl" />
+          <div className="min-w-0 space-y-2">
+            <Skeleton className="h-7 w-48 max-w-full" />
+            <Skeleton className="h-5 w-24 rounded-full" />
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Skeleton className="h-8 w-20 rounded-md" />
-          <Skeleton className="h-8 w-20 rounded-md" />
+          <Skeleton className="h-8 w-16 rounded-md" />
           <Skeleton className="h-8 w-24 rounded-md" />
+          <Skeleton className="h-8 w-8 rounded-md" />
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1 border-b border-gray-200 pb-px dark:border-gray-800">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="mb-2 h-8 w-24 rounded-md" />
+      <div className="flex flex-nowrap gap-1 overflow-x-auto border-b border-gray-200 pb-px dark:border-gray-800">
+        {Array.from({ length: tabs }).map((_, i) => (
+          <Skeleton key={i} className="mb-2 h-8 w-[4.75rem] shrink-0 rounded-md" />
         ))}
       </div>
 
@@ -265,20 +282,192 @@ export function DetailPageSkeleton({ withSideNav = true }: { withSideNav?: boole
           </div>
         </div>
       ) : (
-        <div className="panel-card space-y-5 p-5">
-          <div className="grid gap-4 sm:grid-cols-3">
+        <div className="space-y-5">
+          <div className="panel-card space-y-4 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-5 w-16 rounded-full" />
+            </div>
+            <Skeleton className="h-4 w-64 max-w-full" />
+          </div>
+          <div className="grid sm:grid-cols-3">
             {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="space-y-2">
+              <div
+                key={i}
+                className="border-b border-gray-200 p-5 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 dark:border-gray-800"
+              >
                 <Skeleton className="h-3 w-16" />
-                <Skeleton className="h-5 w-28" />
+                <Skeleton className="mt-2 h-8 w-24" />
+                <Skeleton className="mt-3 h-1.5 w-full rounded-full" />
               </div>
             ))}
           </div>
-          <PanelSkeleton rows={3} showHeader={false} labelled={false} />
         </div>
       )}
     </div>
   )
+}
+
+/** Environment resources grid (project details). */
+export function EnvResourcesSkeleton({ labelled = true }: { labelled?: boolean }) {
+  return (
+    <div className="space-y-8" {...loadingRegion(labelled, 'Loading page')}>
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-3.5 w-16" />
+          <Skeleton className="h-3 w-2" />
+          <Skeleton className="h-3.5 w-28" />
+          <Skeleton className="h-3 w-2" />
+          <Skeleton className="h-3.5 w-20" />
+        </div>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <Skeleton className="h-7 w-44 max-w-full" />
+          <div className="flex gap-2">
+            <Skeleton className="h-8 w-20 rounded-md" />
+            <Skeleton className="h-8 w-16 rounded-md" />
+            <Skeleton className="h-8 w-16 rounded-md" />
+          </div>
+        </div>
+      </div>
+      <Skeleton className="h-9 max-w-xl rounded-md" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="panel-card flex min-h-[8rem] flex-col justify-between gap-3 p-4">
+            <div className="flex items-start gap-3">
+              <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 w-16 rounded-md" />
+              </div>
+            </div>
+            <Skeleton className="h-3 w-40" />
+            <Skeleton className="h-4 w-14" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Dashboard welcome + stat tiles. */
+export function DashboardSkeleton({ labelled = true }: { labelled?: boolean }) {
+  return (
+    <div className="space-y-6" {...loadingRegion(labelled, 'Loading page')}>
+      <Skeleton className="h-7 w-56 max-w-full" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="panel-card p-4">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="mt-2 h-6 w-12" />
+          </div>
+        ))}
+      </div>
+      <div className="panel-card space-y-3 p-5">
+        <Skeleton className="h-4 w-32" />
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full rounded-md" />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** New-resource picker: search + choice cards. */
+export function ChoiceGridSkeleton({ labelled = true }: { labelled?: boolean }) {
+  return (
+    <div className="space-y-6" {...loadingRegion(labelled, 'Loading page')}>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-3.5 w-16" />
+          <Skeleton className="h-3.5 w-24" />
+        </div>
+        <Skeleton className="h-7 w-40" />
+      </div>
+      <Skeleton className="h-9 w-full max-w-xl rounded-md" />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="panel-card flex min-h-[5.5rem] items-center gap-4 px-5 py-4">
+            <Skeleton className="h-10 w-10 shrink-0 rounded-xl" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton className="h-4 w-36 max-w-full" />
+              <Skeleton className="h-3 w-48 max-w-full" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function tabFromSearch(search: unknown): string {
+  if (typeof search === 'string') {
+    const q = search.startsWith('?') ? search.slice(1) : search
+    return new URLSearchParams(q).get('tab') || ''
+  }
+  if (search && typeof search === 'object' && 'tab' in search) {
+    const t = (search as { tab?: unknown }).tab
+    return typeof t === 'string' ? t : ''
+  }
+  return ''
+}
+
+/**
+ * Match the route that is actually loading. AppShell used to always show the
+ * project-list skeleton (PageSkeleton) while lazy chunks load — that flashed
+ * on application/service details.
+ */
+export function RoutePageSkeleton({
+  pathname,
+  search,
+  labelled = true,
+}: {
+  pathname: string
+  search?: unknown
+  labelled?: boolean
+}) {
+  const p = pathname.replace(/\/+$/, '') || '/'
+  const tab = tabFromSearch(search)
+  const settingsTab = tab === 'configuration'
+
+  if (
+    /\/(applications|databases|services)\/new$/.test(p) ||
+    /\/servers\/new$/.test(p) ||
+    /\/storages\/new$/.test(p) ||
+    /\/edit$/.test(p)
+  ) {
+    return <FormPageSkeleton />
+  }
+  if (/\/environments\/[^/]+\/new$/.test(p)) {
+    return <ChoiceGridSkeleton labelled={labelled} />
+  }
+  if (/\/deployments\/[^/]+$/.test(p)) {
+    return <DetailPageSkeleton withSideNav={false} tabs={2} labelled={labelled} />
+  }
+  if (/\/applications\/[^/]+$/.test(p)) {
+    return <DetailPageSkeleton withSideNav={settingsTab} tabs={6} labelled={labelled} />
+  }
+  if (/\/services\/[^/]+$/.test(p)) {
+    return <DetailPageSkeleton withSideNav={settingsTab} tabs={5} labelled={labelled} />
+  }
+  if (/\/(databases|servers|git-sources)\/[^/]+$/.test(p)) {
+    return <DetailPageSkeleton withSideNav={false} tabs={4} labelled={labelled} />
+  }
+  if (p === '/notifications' || p === '/settings' || p === '/security') {
+    return <TabbedPageSkeleton />
+  }
+  if (/\/projects\/[^/]+\/environments\/[^/]+$/.test(p)) {
+    return <EnvResourcesSkeleton labelled={labelled} />
+  }
+  if (/\/projects\/[^/]+$/.test(p)) {
+    return <PageSkeleton cards={1} labelled={labelled} />
+  }
+  if (p === '/dashboard') {
+    return <DashboardSkeleton labelled={labelled} />
+  }
+  if (p === '/projects') {
+    return <PageSkeleton cards={2} labelled={labelled} />
+  }
+  return <PageSkeleton cards={2} labelled={labelled} />
 }
 
 /** Edit / settings form page skeleton */

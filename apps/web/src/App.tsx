@@ -242,6 +242,8 @@ const nestedCreateAppRoute = createRoute({
 const nestedAppDetailRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/projects/$projectId/environments/$envId/applications/$appId',
+  validateSearch: (s: Record<string, unknown>) =>
+    pickStringSearch(s, ['tab', 'side'] as const),
   component: ApplicationDetailPage,
 })
 
@@ -316,6 +318,8 @@ const createApplicationRoute = createRoute({
 const applicationDetailRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/applications/$appId',
+  validateSearch: (s: Record<string, unknown>) =>
+    pickStringSearch(s, ['tab', 'side'] as const),
   component: ApplicationDetailPage,
 })
 

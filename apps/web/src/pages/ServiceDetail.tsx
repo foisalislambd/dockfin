@@ -257,6 +257,12 @@ export function ServiceDetailPage() {
       if (gate.empty.length) setSvcNav({ tab: 'configuration', side: 'environment' })
       return
     }
+    const cur = svc.data
+    if (cur && !cur.destination_id && !cur.server_id) {
+      toast.warning('Choose a destination server before deploying.')
+      setSvcNav({ tab: 'configuration', side: 'general' })
+      return
+    }
     abortRef.current?.abort()
     const ac = new AbortController()
     abortRef.current = ac
@@ -308,7 +314,7 @@ export function ServiceDetailPage() {
       <BackLink label="Projects" to="/projects" />
     )
 
-  if (svc.isLoading) return <DetailPageSkeleton withSideNav />
+  if (svc.isLoading) return <DetailPageSkeleton withSideNav={topTab === 'configuration'} tabs={5} />
   if (svc.error || !svc.data) {
     return (
       <div className="space-y-4">

@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { Boxes, Container, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { ServiceLogo } from '../components/ServiceLogo'
-import { PageSkeleton } from '../components/ui/Skeleton'
+import { ChoiceGridSkeleton } from '../components/ui/Skeleton'
 import { api, LAST_ENV_KEY, type Template } from '../lib/api'
 import { Header } from './Servers'
 
@@ -291,7 +291,7 @@ export function NewResourcePage() {
     },
   })
 
-  if (project.isLoading || templates.isLoading) return <PageSkeleton cards={3} />
+  if (project.isLoading || templates.isLoading) return <ChoiceGridSkeleton />
 
   const showApps = filteredGit.length > 0 || filteredDocker.length > 0
   const showServices =

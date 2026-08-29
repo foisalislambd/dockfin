@@ -9,11 +9,14 @@ import {
 import { PanelBackdrop } from './layout/PanelBackdrop'
 import { PanelHeader } from './layout/PanelHeader'
 import { PanelSidebar } from './layout/PanelSidebar'
-import { PageSkeleton } from './ui/Skeleton'
+import { RoutePageSkeleton } from './ui/Skeleton'
 
 function PanelShellInner() {
   const { isExpanded, isDesktop } = useSidebar()
   const fillViewport = useRouterState({ select: (s) => s.location.pathname === '/terminal' })
+  const fallback = useRouterState({
+    select: (s) => ({ pathname: s.location.pathname, search: s.location.search }),
+  })
   const sidebarWidth = isDesktop
     ? isExpanded
       ? SIDEBAR_WIDTH_EXPANDED
@@ -46,7 +49,7 @@ function PanelShellInner() {
             }
           >
             {/* Keep shell chrome mounted; only the page body suspends */}
-            <Suspense fallback={<PageSkeleton cards={2} />}>
+            <Suspense fallback={<RoutePageSkeleton pathname={fallback.pathname} search={fallback.search} />}>
               <Outlet />
             </Suspense>
           </div>

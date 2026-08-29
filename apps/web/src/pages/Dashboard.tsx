@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Database, FolderKanban, Rocket, Server } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { PageSkeleton } from '../components/ui/Skeleton'
+import { DashboardSkeleton } from '../components/ui/Skeleton'
 import { api, type Project } from '../lib/api'
 import { useAuth } from '../lib/auth'
 
@@ -64,7 +64,7 @@ export function DashboardPage() {
     [projects.data?.projects],
   )
 
-  if (loading) return <PageSkeleton cards={2} />
+  if (loading) return <DashboardSkeleton />
 
   return (
     <div className="space-y-6">

@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/sshx"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -31,15 +31,7 @@ func serviceContainerName(id uuid.UUID, unit string) string {
 func listServiceContainerNames(client *ssh.Client, id uuid.UUID, composeYAML string) []string {
 	var names []string
 	if client != nil {
-		out, _, err := sshx.RunArgs(client, "docker", "ps", "-a",
-			"--filter", "label=com.docker.compose.project="+serviceProject(id), "--format", "{{.Names}}")
-		if err == nil {
-			for _, line := range strings.Split(out, "\n") {
-				if line = strings.TrimSpace(line); line != "" {
-					names = append(names, line)
-				}
-			}
-		}
+		names = dockerComposeNames(client, serviceProject(id), true)
 	}
 	if len(names) > 0 {
 		return names
@@ -89,10 +81,6 @@ func (a *API) handleServiceMetrics(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	compose := svc.DockerCompose
-	if compose == "" {
-		compose = svc.DockerComposeRaw
-	}
 	serverID, _, err := a.resolveServiceTarget(r.Context(), teamID, svc)
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"containers": []any{}})
@@ -103,20 +91,11 @@ func (a *API) handleServiceMetrics(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	names := listServiceContainerNames(client, id, compose)
+	names := dockerComposeNames(client, serviceProject(id), false)
 	if len(names) > 12 {
 		names = names[:12]
 	}
-	if len(names) == 0 {
-		writeJSON(w, http.StatusOK, map[string]any{"containers": []any{}})
-		return
-	}
-	containers, err := dockerStatsCached("svc:"+id.String(), client, names)
-	if err != nil {
-		writeError(w, http.StatusBadGateway, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"containers": containers})
+	writeJSON(w, http.StatusOK, map[string]any{"containers": dockerStatsOrEmpty("svc:"+id.String(), client, names)})
 }
 
 func (a *API) handleServiceLogsStream(w http.ResponseWriter, r *http.Request) {

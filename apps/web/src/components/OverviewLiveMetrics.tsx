@@ -34,6 +34,14 @@ function parseMemUsage(s: string) {
   return { used: parseMemPart(used), limit: parseMemPart(limit) }
 }
 
+/** Same host RAM shown on every unlimited container — do not add those limits together. */
+function sharedHostMemLimit(limits: number[]) {
+  if (limits.length < 2) return false
+  const maxL = Math.max(...limits)
+  const minL = Math.min(...limits)
+  return maxL > 1024 ** 3 && (maxL - minL) / maxL < 0.02
+}
+
 function fmtBytes(n: number) {
   if (!Number.isFinite(n) || n <= 0) return '0 B'
   const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB']
@@ -65,15 +73,24 @@ function UsageBar({ value, warn = 90 }: { value: number; warn?: number }) {
 function summarize(rows: AppContainerMetric[]) {
   let cpu = 0
   let memUsed = 0
-  let memLimit = 0
+  let diskR = 0
+  let diskW = 0
+  const limits: number[] = []
   for (const c of rows) {
     cpu += parseCPU(c.cpu_percent)
     const mem = parseMemUsage(c.mem_usage)
     memUsed += mem.used
-    memLimit += mem.limit
+    if (mem.limit > 0) limits.push(mem.limit)
+    const io = parseMemUsage(c.block_io)
+    diskR += io.used
+    diskW += io.limit
   }
+  const hostish = sharedHostMemLimit(limits)
+  const memLimit = hostish ? Math.max(...limits) : limits.reduce((a, b) => a + b, 0)
   const memPct = memLimit > 0 ? (memUsed / memLimit) * 100 : 0
-  return { cpu, memUsed, memLimit, memPct }
+  const memCapped = Boolean(memLimit) && !hostish && memPct >= 5
+  const diskIO = rows.length ? `${fmtBytes(diskR)} / ${fmtBytes(diskW)}` : ''
+  return { cpu, memUsed, memLimit, memPct, memCapped, diskIO }
 }
 
 /** This stack’s containers via docker stats — not the whole VPS. Cached ~25s on the API. */
@@ -95,8 +112,7 @@ export function OverviewLiveMetrics({
     refetchOnWindowFocus: true,
   })
   const rows = q.data?.containers || []
-  const { cpu, memUsed, memLimit, memPct } = summarize(rows)
-  const diskIO = rows[0]?.block_io || rows.map((c) => c.block_io).filter(Boolean)[0] || ''
+  const { cpu, memUsed, memLimit, memPct, memCapped, diskIO } = summarize(rows)
 
   if (!resourceId) return null
 
@@ -133,7 +149,9 @@ export function OverviewLiveMetrics({
               <p className="mt-1 text-2xl font-semibold tabular-nums text-gray-900 dark:text-white">
                 {cpu.toFixed(1)}%
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">of one host CPU</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {cpu > 100 ? 'Over 100% means more than one CPU core' : 'of one host CPU'}
+              </p>
               <UsageBar value={Math.min(cpu, 100)} />
             </div>
             <div className="border-b border-gray-200 p-5 sm:border-b-0 sm:border-r dark:border-gray-800">
@@ -145,11 +163,9 @@ export function OverviewLiveMetrics({
                 {fmtBytes(memUsed)}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                {memLimit && memPct >= 5
-                  ? `${fmtBytes(memLimit)} container limit`
-                  : 'No memory cap on this stack'}
+                {memCapped ? `${fmtBytes(memLimit)} container limit` : 'No memory cap on this stack'}
               </p>
-              <UsageBar value={memPct >= 5 ? memPct : 0} />
+              <UsageBar value={memCapped ? Math.min(memPct, 100) : 0} />
             </div>
             <div className="p-5">
               <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
@@ -160,7 +176,7 @@ export function OverviewLiveMetrics({
                 {diskIO || '—'}
               </p>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Read / write for this stack. Volume size is not in this sample.
+                Read / write across this stack. Volume size is not in this sample.
               </p>
             </div>
           </div>
