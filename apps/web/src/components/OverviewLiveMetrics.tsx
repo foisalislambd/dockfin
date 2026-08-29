@@ -59,7 +59,20 @@ function shortName(name: string) {
   return name.replace(/^\/?dockfin-(svc|db)-[a-f0-9]+-/i, '').replace(/-1$/, '') || name
 }
 
-const CONTAINER_COLORS = ['#0d9488', '#2563eb', '#d97706', '#7c3aed', '#db2777', '#0891b2']
+const CONTAINER_COLORS = [
+  '#0d9488',
+  '#2563eb',
+  '#d97706',
+  '#7c3aed',
+  '#db2777',
+  '#0891b2',
+  '#65a30d',
+  '#ea580c',
+  '#4f46e5',
+  '#c026d3',
+  '#0f766e',
+  '#b45309',
+]
 
 function UsageBar({ value, warn = 90 }: { value: number; warn?: number }) {
   const high = value >= warn
@@ -74,6 +87,7 @@ function UsageBar({ value, warn = 90 }: { value: number; warn?: number }) {
 }
 
 type ContainerSlice = {
+  id: string
   name: string
   color: string
   cpu: number
@@ -82,16 +96,41 @@ type ContainerSlice = {
 }
 
 function slicesFromRows(rows: AppContainerMetric[]): ContainerSlice[] {
+  const seen = new Map<string, number>()
   return rows.map((c, i) => {
+    let name = shortName(c.name)
+    const n = (seen.get(name) || 0) + 1
+    seen.set(name, n)
+    if (n > 1) name = `${name} (${n})`
     const mem = parseMemUsage(c.mem_usage)
     return {
-      name: shortName(c.name),
+      id: c.name || `${name}-${i}`,
+      name,
       color: CONTAINER_COLORS[i % CONTAINER_COLORS.length],
       cpu: parseCPU(c.cpu_percent),
       memUsed: mem.used,
       memLabel: c.mem_usage?.split('/')[0]?.trim() || fmtBytes(mem.used),
     }
   })
+}
+
+function memoryShareSlices(slices: ContainerSlice[]): ContainerSlice[] {
+  if (slices.length <= 8) return slices
+  const ranked = [...slices].sort((a, b) => b.memUsed - a.memUsed)
+  const top = ranked.slice(0, 7)
+  const rest = ranked.slice(7)
+  const memUsed = rest.reduce((a, s) => a + s.memUsed, 0)
+  return [
+    ...top,
+    {
+      id: '__others__',
+      name: `Others (${rest.length})`,
+      color: '#64748b',
+      cpu: rest.reduce((a, s) => a + s.cpu, 0),
+      memUsed,
+      memLabel: fmtBytes(memUsed),
+    },
+  ]
 }
 
 function cpuScale(n: number) {
@@ -138,10 +177,6 @@ function fmtCompact(n: number) {
   return `${g >= 10 ? g.toFixed(0) : g.toFixed(1)}G`
 }
 
-function slug(name: string) {
-  return name.replace(/[^a-zA-Z0-9_-]/g, '_')
-}
-
 function ChartCard({
   title,
   unit,
@@ -162,13 +197,11 @@ function ChartCard({
   )
 }
 
-function ColumnChart({
-  slices,
-  metric,
-}: {
-  slices: ContainerSlice[]
-  metric: 'cpu' | 'mem'
-}) {
+function slug(id: string) {
+  return id.replace(/[^a-zA-Z0-9_-]/g, '_')
+}
+
+function ColumnChart({ slices, metric }: { slices: ContainerSlice[]; metric: 'cpu' | 'mem' }) {
   const w = 380
   const h = 210
   const l = 48
@@ -182,15 +215,16 @@ function ColumnChart({
   const ticks = metric === 'cpu' ? cpuTicks(max) : memTicks(max)
   const n = Math.max(slices.length, 1)
   const slot = innerW / n
-  const barW = Math.min(52, slot * 0.48)
+  const barW = Math.min(52, Math.max(10, slot * 0.55))
   const fmt = (v: number) => (metric === 'cpu' ? `${v.toFixed(v >= 10 ? 0 : 1)}%` : fmtBytes(v))
-  const gid = (name: string) => `col-${metric}-${slug(name)}`
+  const gid = (id: string) => `col-${metric}-${slug(id)}`
+  const showValue = n <= 8
 
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="h-[13.5rem] w-full" role="img">
       <defs>
         {slices.map((s) => (
-          <linearGradient key={s.name} id={gid(s.name)} x1="0" y1="1" x2="0" y2="0">
+          <linearGradient key={s.id} id={gid(s.id)} x1="0" y1="1" x2="0" y2="0">
             <stop offset="0%" stopColor={s.color} stopOpacity="0.72" />
             <stop offset="100%" stopColor={s.color} stopOpacity="1" />
           </linearGradient>
@@ -233,28 +267,31 @@ function ColumnChart({
         const x = l + slot * i + (slot - barW) / 2
         const y = t + innerH - bh
         const tall = bh > 28
+        const label = n > 6 ? s.name.slice(0, 6) : s.name.length > 14 ? `${s.name.slice(0, 13)}…` : s.name
         return (
-          <g key={s.name}>
-            <rect x={x} y={y} width={barW} height={Math.max(bh, v > 0 ? 3 : 0)} rx="6" fill={`url(#${gid(s.name)})`}>
+          <g key={s.id}>
+            <rect x={x} y={y} width={barW} height={Math.max(bh, v > 0 ? 3 : 0)} rx="6" fill={`url(#${gid(s.id)})`}>
               <title>{`${s.name}: ${fmt(v)}`}</title>
             </rect>
-            <text
-              x={x + barW / 2}
-              y={tall ? y + 16 : Math.max(14, y - 8)}
-              textAnchor="middle"
-              className={`text-[11px] font-medium tabular-nums ${
-                tall ? 'fill-white' : 'fill-gray-800 dark:fill-gray-100'
-              }`}
-            >
-              {fmt(v)}
-            </text>
+            {showValue ? (
+              <text
+                x={x + barW / 2}
+                y={tall ? y + 16 : Math.max(14, y - 8)}
+                textAnchor="middle"
+                className={`text-[11px] font-medium tabular-nums ${
+                  tall ? 'fill-white' : 'fill-gray-800 dark:fill-gray-100'
+                }`}
+              >
+                {fmt(v)}
+              </text>
+            ) : null}
             <text
               x={x + barW / 2}
               y={h - 10}
               textAnchor="middle"
               className="fill-gray-600 text-[11px] font-medium dark:fill-gray-300"
             >
-              {s.name.length > 14 ? `${s.name.slice(0, 13)}…` : s.name}
+              {label}
             </text>
           </g>
         )
@@ -268,73 +305,100 @@ function polar(cx: number, cy: number, r: number, deg: number) {
   return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)] as const
 }
 
+function donutSlice(cx: number, cy: number, outer: number, inner: number, start: number, end: number) {
+  const [ox1, oy1] = polar(cx, cy, outer, start)
+  const [ox2, oy2] = polar(cx, cy, outer, end)
+  const [ix2, iy2] = polar(cx, cy, inner, end)
+  const [ix1, iy1] = polar(cx, cy, inner, start)
+  const large = end - start > 180 ? 1 : 0
+  return `M ${ox1} ${oy1} A ${outer} ${outer} 0 ${large} 1 ${ox2} ${oy2} L ${ix2} ${iy2} A ${inner} ${inner} 0 ${large} 0 ${ix1} ${iy1} Z`
+}
+
 function DonutChart({ slices }: { slices: ContainerSlice[] }) {
+  const [hover, setHover] = useState<number | null>(null)
+  const [tip, setTip] = useState<{ x: number; y: number } | null>(null)
   const cx = 90
   const cy = 90
-  const r = 58
-  const sw = 20
+  const outer = 72
+  const inner = 48
   const values = slices.map((s) => s.memUsed)
   const total = values.reduce((a, v) => a + v, 0)
   const live = values.filter((v) => v > 0).length
-  const gap = live > 1 ? 4 : 0
+  const gap = live > 6 ? 1.6 : live > 1 ? 4 : 0
+  const active = hover != null ? slices[hover] : null
+  const activeVal = hover != null ? values[hover] : 0
+  const activeShare = total > 0 && hover != null ? (activeVal / total) * 100 : 0
   let angle = 0
   return (
-    <div className="flex h-[13.5rem] items-center gap-4">
-      <svg viewBox="0 0 180 180" className="h-40 w-40 shrink-0" role="img">
-        <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth={sw} className="stroke-gray-200 dark:stroke-white/10" />
+    <div
+      className="relative flex h-[13.5rem] items-center justify-center overflow-visible"
+      onMouseLeave={() => {
+        setHover(null)
+        setTip(null)
+      }}
+    >
+      <svg viewBox="0 0 180 180" className="h-full max-h-[13.5rem] w-auto" role="img">
+        <circle
+          cx={cx}
+          cy={cy}
+          r={(outer + inner) / 2}
+          fill="none"
+          strokeWidth={outer - inner}
+          className="stroke-gray-200 dark:stroke-white/10"
+        />
         {slices.map((s, i) => {
           const v = values[i]
           const sweep = total > 0 ? (v / total) * 360 : 0
           const start = angle + gap / 2
           const end = angle + sweep - gap / 2
           angle += sweep
-          if (end - start < 0.8) return null
-          const [x1, y1] = polar(cx, cy, r, start)
-          const [x2, y2] = polar(cx, cy, r, end)
-          const large = end - start > 180 ? 1 : 0
+          if (end - start < 0.4) return null
+          const on = hover === i
           return (
             <path
-              key={s.name}
-              d={`M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`}
-              fill="none"
-              stroke={s.color}
-              strokeWidth={sw}
-              strokeLinecap="round"
-            >
-              <title>{`${s.name}: ${fmtBytes(v)}`}</title>
-            </path>
+              key={s.id}
+              d={donutSlice(cx, cy, outer, inner, start, end)}
+              fill={s.color}
+              opacity={hover == null || on ? 1 : 0.38}
+              className="cursor-pointer"
+              onMouseEnter={() => setHover(i)}
+              onMouseMove={(e) => {
+                const box = e.currentTarget.ownerSVGElement?.parentElement
+                if (!box) return
+                const rect = box.getBoundingClientRect()
+                setTip({ x: e.clientX - rect.left, y: e.clientY - rect.top })
+              }}
+            />
           )
         })}
         <text
           x={cx}
-          y={cy - 2}
+          y={active ? cy - 8 : cy - 2}
           textAnchor="middle"
-          className="fill-gray-900 text-[15px] font-semibold tabular-nums dark:fill-white"
+          className="pointer-events-none fill-gray-900 text-[13px] font-semibold dark:fill-white"
         >
-          {fmtBytes(total)}
+          {active ? (active.name.length > 16 ? `${active.name.slice(0, 15)}…` : active.name) : fmtBytes(total)}
         </text>
-        <text x={cx} y={cy + 16} textAnchor="middle" className="fill-gray-400 text-[11px] dark:fill-gray-500">
-          used
+        <text
+          x={cx}
+          y={active ? cy + 10 : cy + 16}
+          textAnchor="middle"
+          className="pointer-events-none fill-gray-500 text-[11px] tabular-nums dark:fill-gray-400"
+        >
+          {active ? `${fmtBytes(activeVal)} · ${activeShare.toFixed(0)}%` : 'used'}
         </text>
       </svg>
-      <ul className="min-w-0 flex-1 space-y-2.5">
-        {slices.map((s, i) => {
-          const v = values[i]
-          const share = total > 0 ? (v / total) * 100 : 0
-          return (
-            <li key={s.name} className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
-                <span className="truncate text-[13px] font-medium text-gray-800 dark:text-gray-100">{s.name}</span>
-              </div>
-              <p className="mt-0.5 pl-[18px] text-[12px] tabular-nums text-gray-500 dark:text-gray-400">
-                {fmtBytes(v)}
-                <span className="text-gray-400 dark:text-gray-500"> · {share.toFixed(0)}%</span>
-              </p>
-            </li>
-          )
-        })}
-      </ul>
+      {active && tip ? (
+        <div
+          className="pointer-events-none absolute z-10 max-w-[14rem] rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+          style={{ left: tip.x + 12, top: tip.y - 8, transform: 'translateY(-100%)' }}
+        >
+          <p className="text-[12px] font-semibold text-gray-900 dark:text-white">{active.name}</p>
+          <p className="text-[11px] tabular-nums text-gray-500 dark:text-gray-400">
+            {fmtBytes(activeVal)} · {activeShare.toFixed(0)}%
+          </p>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -356,10 +420,9 @@ function LineChart({
   const b = 18
   const innerW = w - l - r
   const innerH = h - t - b
-  const names = slices.map((s) => s.name)
-  const colorOf = Object.fromEntries(slices.map((s) => [s.name, s.color]))
-  const series = names.map((name) =>
-    history.map((p) => (metric === 'cpu' ? p.values[name]?.cpu ?? 0 : p.values[name]?.mem ?? 0)),
+  const colorOf = Object.fromEntries(slices.map((s) => [s.id, s.color]))
+  const series = slices.map((s) =>
+    history.map((p) => (metric === 'cpu' ? p.values[s.id]?.cpu ?? 0 : p.values[s.id]?.mem ?? 0)),
   )
   const max = metric === 'cpu' ? cpuScale(Math.max(0, ...series.flat())) : memScale(Math.max(0, ...series.flat()))
   const ticks = metric === 'cpu' ? cpuTicks(max) : memTicks(max)
@@ -409,12 +472,12 @@ function LineChart({
         className="stroke-gray-300 dark:stroke-white/20"
         strokeWidth="1.25"
       />
-      {names.map((name, i) => (
-        <g key={name}>
-          <polygon points={areaPts(series[i])} fill={colorOf[name]} opacity="0.12" />
+      {slices.map((s, i) => (
+        <g key={s.id}>
+          <polygon points={areaPts(series[i])} fill={colorOf[s.id]} opacity="0.12" />
           <polyline
             fill="none"
-            stroke={colorOf[name]}
+            stroke={colorOf[s.id]}
             strokeWidth="2.5"
             strokeLinejoin="round"
             strokeLinecap="round"
@@ -428,7 +491,7 @@ function LineChart({
                 cx={x}
                 cy={y}
                 r="3"
-                fill={colorOf[name]}
+                fill={colorOf[s.id]}
                 className="stroke-white dark:stroke-gray-950"
                 strokeWidth="1.5"
               />
@@ -442,12 +505,13 @@ function LineChart({
 
 function ContainerCharts({ rows, history }: { rows: AppContainerMetric[]; history: HistoryPoint[] }) {
   const slices = slicesFromRows(rows)
+  const share = memoryShareSlices(slices)
   return (
     <div className="space-y-4 border-t border-gray-200 px-5 py-4 dark:border-gray-800">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <p className="text-xs font-semibold text-gray-900 dark:text-white">By container</p>
         {slices.map((s) => (
-          <span key={s.name} className="inline-flex items-center gap-1.5 text-[12px] text-gray-600 dark:text-gray-300">
+          <span key={s.id} className="inline-flex items-center gap-1.5 text-[12px] text-gray-600 dark:text-gray-300">
             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
             <span className="font-medium">{s.name}</span>
             <span className="tabular-nums text-gray-400 dark:text-gray-500">
@@ -464,7 +528,7 @@ function ContainerCharts({ rows, history }: { rows: AppContainerMetric[]; histor
           <ColumnChart slices={slices} metric="mem" />
         </ChartCard>
         <ChartCard title="Memory share">
-          <DonutChart slices={slices} />
+          <DonutChart slices={share} />
         </ChartCard>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -532,7 +596,7 @@ export function OverviewLiveMetrics({
     if (!rows.length) return
     const values: HistoryPoint['values'] = {}
     for (const s of slicesFromRows(rows)) {
-      values[s.name] = { cpu: s.cpu, mem: s.memUsed }
+      values[s.id] = { cpu: s.cpu, mem: s.memUsed }
     }
     setHistory((prev) => [...prev, { t: Date.now(), values }].slice(-40))
   }, [q.dataUpdatedAt])
