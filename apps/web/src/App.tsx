@@ -77,7 +77,7 @@ const ProjectSharedVariablesPage = lazyPage(
 )
 const SharedVariablesPage = lazyPage(() => import('./pages/OpsPages'), 'SharedVariablesPage')
 const StoragesPage = lazyPage(() => import('./pages/OpsPages'), 'StoragesPage')
-const TeamPage = lazyPage(() => import('./pages/OpsPages'), 'TeamPage')
+const TeamPage = lazyPage(() => import('./pages/TeamPage'), 'TeamPage')
 const GitSourcesPage = lazyPage(() => import('./pages/GitSources'), 'GitSourcesPage')
 const GitSourceDetailPage = lazyPage(() => import('./pages/GitSources'), 'GitSourceDetailPage')
 const DestinationsPage = lazyPage(() => import('./pages/NavSurfaces'), 'DestinationsPage')
