@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Eye, EyeOff } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { api, type EnvVar } from '../lib/api'
+import { emptyUserEnvVars } from '../lib/env-readiness'
 import { useConfirm } from './ConfirmDialog'
 import { InfoHint } from './ui/forms'
 import { TableSkeleton } from './ui/Skeleton'
@@ -78,6 +79,11 @@ export function EnvVarsPanel({
     return [...list].sort((a, b) => a.key.localeCompare(b.key))
   }, [vars.data?.environment_variables, sortByKey])
 
+  const emptyUser = useMemo(
+    () => (isPreview ? [] : emptyUserEnvVars(sortedVars)),
+    [isPreview, sortedVars],
+  )
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -124,6 +130,13 @@ export function EnvVarsPanel({
           </div>
         ) : (
           <>
+            {!isPreview && emptyUser.length > 0 ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                {emptyUser.length === 1
+                  ? '1 variable still needs a value. Deploy is blocked until you fill it.'
+                  : `${emptyUser.length} variables still need a value. Fill them before deploying.`}
+              </div>
+            ) : null}
             {sortedVars.map((v) => (
               <EnvVarCard
                 key={v.id}
@@ -131,6 +144,7 @@ export function EnvVarsPanel({
                 resourceType={resourceType}
                 resourceId={resourceId}
                 isPreview={isPreview}
+                needsValue={emptyUser.some((e) => e.id === v.id)}
                 onChanged={() => void qc.invalidateQueries({ queryKey })}
               />
             ))}
@@ -164,12 +178,14 @@ function EnvVarCard({
   resourceType,
   resourceId,
   isPreview = false,
+  needsValue = false,
   onChanged,
 }: {
   variable: EnvVar
   resourceType: string
   resourceId: string
   isPreview?: boolean
+  needsValue?: boolean
   onChanged: () => void
 }) {
   const confirm = useConfirm()
@@ -211,7 +227,14 @@ function EnvVarCard({
   const disabled = locked || save.isPending
 
   return (
-    <div className={`panel-card space-y-4 p-4 ${locked ? 'opacity-90' : ''}`}>
+    <div
+      className={`panel-card space-y-4 p-4 ${locked ? 'opacity-90' : ''} ${
+        needsValue ? 'border-amber-300 ring-1 ring-amber-200 dark:border-amber-500/40 dark:ring-amber-500/20' : ''
+      }`}
+    >
+      {needsValue ? (
+        <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Needs a value before deploy</p>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm">
           <span className="mb-1 block text-gray-500 dark:text-gray-400">Name</span>

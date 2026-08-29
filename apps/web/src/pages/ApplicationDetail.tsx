@@ -6,11 +6,13 @@ import {
   Archive,
   CalendarClock,
   Gauge,
+  ExternalLink,
   GitBranch,
   GitPullRequest,
   HardDrive,
   History,
-  Link2,
+  LayoutDashboard,
+  Rocket,
   RotateCcw,
   ScrollText,
   Server,
@@ -24,14 +26,18 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useConfirm } from '../components/ConfirmDialog'
+import { AppOverview, DeploymentRows, primaryVisitUrl } from '../components/AppOverview'
+import { ConfigSideNav } from '../components/ConfigSideNav'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { DomainsPanel, domainsWantAutoHttps, normalizeDomains } from '../components/DomainsPanel'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
-import { LinksMenu, LinksPanel } from '../components/LinksMenu'
+import { LinksMenu } from '../components/LinksMenu'
 import { MoveResourcePanel } from '../components/MoveResourcePanel'
 import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
+import { ResourceSetupBanner, type SetupCheck } from '../components/ResourceSetupBanner'
 import { ResourceSwitcher } from '../components/ResourceSwitcher'
 import { ServiceLogo, logoForApplication } from '../components/ServiceLogo'
+import { StatusBadge } from '../components/StatusBadge'
 import { ResourceTagsPanel } from '../components/ResourceTagsPanel'
 import { ScheduledTasksPanel } from '../components/ScheduledTasksPanel'
 import { ServerTerminal } from '../components/Terminal'
@@ -40,17 +46,18 @@ import { LiveLogViewer } from '../components/LiveLogViewer'
 import { DetailPageSkeleton, PanelSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { useToast } from '../components/Toast'
 import { api, fetchAllEnvironments } from '../lib/api'
+import { deployBlockFromEnv, emptyUserEnvVars } from '../lib/env-readiness'
 import { useLogStream } from '../lib/useLogStream'
 import { Btn, Input } from './Servers'
 
-/** Coolify-style top IA — Configuration first, Links last. */
+/** Vercel-style IA — Overview first, Settings last. */
 const TOP_TABS = [
-  { id: 'configuration', label: 'Configuration', icon: Settings2 },
+  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'deployments', label: 'Deployments', icon: History },
-  { id: 'backups', label: 'Backups', icon: Archive },
   { id: 'logs', label: 'Logs', icon: ScrollText },
   { id: 'terminal', label: 'Terminal', icon: Terminal },
-  { id: 'links', label: 'Links', icon: Link2 },
+  { id: 'backups', label: 'Backups', icon: Archive },
+  { id: 'configuration', label: 'Settings', icon: Settings2 },
 ] as const
 
 type AppCfg = {
@@ -419,6 +426,13 @@ const SIDE_ITEMS = [
   { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
 ] as const
 
+const APP_SIDE_GROUPS = [
+  { label: 'Setup', ids: ['general', 'advanced', 'environment'] },
+  { label: 'Source', ids: ['git', 'servers', 'previews', 'webhooks'] },
+  { label: 'Runtime', ids: ['storages', 'tasks', 'limits', 'metrics', 'tags'] },
+  { label: 'Manage', ids: ['rollback', 'operations', 'danger'] },
+] as const
+
 type TopTabId = (typeof TOP_TABS)[number]['id']
 type SideId = (typeof SIDE_ITEMS)[number]['id']
 
@@ -442,27 +456,6 @@ export function parseApplicationDetailSearch(s: Record<string, unknown>): Applic
   return { tab, side }
 }
 
-function statusTone(status: string) {
-  const s = (status || '').toLowerCase()
-  if (s.includes('run') || s.includes('healthy')) return 'ok'
-  if (s.includes('deploy') || s.includes('queue') || s.includes('progress')) return 'warn'
-  if (s.includes('exit') || s.includes('stop') || s.includes('fail') || s.includes('error')) return 'bad'
-  return 'muted'
-}
-
-function StatusText({ status }: { status: string }) {
-  const tone = statusTone(status)
-  const color =
-    tone === 'ok'
-      ? 'text-emerald-600 dark:text-emerald-400'
-      : tone === 'warn'
-        ? 'text-amber-600 dark:text-amber-400'
-        : tone === 'bad'
-          ? 'text-error-500'
-          : 'text-gray-500 dark:text-gray-400'
-  return <span className={`capitalize ${color}`}>{status || 'unknown'}</span>
-}
-
 export function ApplicationDetailPage() {
   const { appId, projectId, envId } = useParams({ strict: false }) as {
     appId: string
@@ -471,7 +464,7 @@ export function ApplicationDetailPage() {
   }
   const nav = useNavigate()
   const search = useSearch({ strict: false }) as ApplicationDetailSearch
-  const topTab: TopTabId = isTopTabId(search.tab) ? search.tab : 'configuration'
+  const topTab: TopTabId = isTopTabId(search.tab) ? search.tab : 'overview'
   const sideRaw: SideId = isSideId(search.side) ? search.side : 'general'
   const qc = useQueryClient()
   const toast = useToast()
@@ -486,7 +479,7 @@ export function ApplicationDetailPage() {
       search: ((prev: Record<string, unknown>) => {
         const { tab: _t, side: _s, ...rest } = prev
         const out: Record<string, unknown> = { ...rest }
-        if (tab !== 'configuration') {
+        if (tab !== 'overview') {
           out.tab = tab
         }
         // Keep side in the URL even on other top tabs so Configuration restores it.
@@ -527,6 +520,11 @@ export function ApplicationDetailPage() {
   const dests = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
   const gitSources = useQuery({ queryKey: ['git-sources'], queryFn: api.gitSources })
   const keys = useQuery({ queryKey: ['keys'], queryFn: api.keys })
+  const envVarsQ = useQuery({
+    queryKey: ['env-vars', 'application', appId, 'prod'],
+    queryFn: () => api.envVars('application', appId, true, false),
+    enabled: Boolean(appId),
+  })
   const deps = useQuery({
     queryKey: ['deployments', appId],
     queryFn: () => api.deployments(appId),
@@ -654,11 +652,14 @@ export function ApplicationDetailPage() {
 
   const sideItems = useMemo(() => {
     const inlineDockerfile = Boolean(app.data?.dockerfile || cfg.dockerfile)
-    if (!inlineDockerfile) return SIDE_ITEMS
-    return SIDE_ITEMS.filter(
-      (item) => !['git', 'webhooks', 'previews', 'rollback'].includes(item.id),
+    const base = !inlineDockerfile
+      ? SIDE_ITEMS
+      : SIDE_ITEMS.filter((item) => !['git', 'webhooks', 'previews', 'rollback'].includes(item.id))
+    const emptyCount = emptyUserEnvVars(envVarsQ.data?.environment_variables).length
+    return base.map((item) =>
+      item.id === 'environment' && emptyCount ? { ...item, badge: emptyCount } : item,
     )
-  }, [app.data?.dockerfile, cfg.dockerfile])
+  }, [app.data?.dockerfile, cfg.dockerfile, envVarsQ.data?.environment_variables])
 
   // If URL points at a hidden side item (e.g. Git on inline Dockerfile), fall back.
   const side: SideId = sideItems.some((i) => i.id === sideRaw) ? sideRaw : 'general'
@@ -807,6 +808,7 @@ export function ApplicationDetailPage() {
         })
       }
     },
+    onError: (e: Error) => toast.error(e.message || 'Deploy failed'),
   })
 
   const startApp = useMutation({
@@ -923,6 +925,27 @@ export function ApplicationDetailPage() {
     onError: (e: Error) => toast.error(e.message || 'Clone failed'),
   })
 
+  const emptyEnv = useMemo(
+    () => emptyUserEnvVars(envVarsQ.data?.environment_variables),
+    [envVarsQ.data?.environment_variables],
+  )
+
+  const requestDeploy = (vars: { force?: boolean } = {}) => {
+    const gate = deployBlockFromEnv(envVarsQ)
+    if (gate.block) {
+      toast.warning(gate.message || 'Finish setup before deploying.')
+      if (gate.empty.length) setAppNav({ tab: 'configuration', side: 'environment' })
+      return
+    }
+    const dest = cfg.destination_id || app.data?.destination_id
+    if (!dest) {
+      toast.warning('Choose a destination server before deploying.')
+      setAppNav({ tab: 'configuration', side: 'servers' })
+      return
+    }
+    deploy.mutate(vars)
+  }
+
   const appImages = useQuery({
     queryKey: ['app-images', appId],
     queryFn: () => api.listApplicationImages(appId),
@@ -1002,42 +1025,98 @@ export function ApplicationDetailPage() {
     }
   }
 
+  const deployments = deps.data?.deployments || []
+  const latestDep =
+    activeDep ||
+    deployments.find((d) => d.status === 'finished') ||
+    deployments[0]
+  const visitUrl = primaryVisitUrl(a)
+  const visitHref = visitUrl
+  const destMeta = (dests.data?.destinations || []).find(
+    (d) => d.id === (cfg.destination_id || a.destination_id),
+  )
+  const setupChecks: SetupCheck[] = [
+    {
+      id: 'env',
+      ok: !envVarsQ.isError && (!envVarsQ.isSuccess || emptyEnv.length === 0),
+      title: 'Environment variables',
+      hint: envVarsQ.isError
+        ? 'Could not load environment variables.'
+        : emptyEnv.length === 1
+          ? `${emptyEnv[0]?.key} still needs a value.`
+          : `${emptyEnv.length} variables still need a value.`,
+      actionLabel: 'Fill now',
+      onAction: () => setAppNav({ tab: 'configuration', side: 'environment' }),
+    },
+    {
+      id: 'dest',
+      ok: Boolean(cfg.destination_id || a.destination_id),
+      title: 'Destination server',
+      hint: 'Pick where this application should run.',
+      actionLabel: 'Choose',
+      onAction: () => setAppNav({ tab: 'configuration', side: 'servers' }),
+    },
+    {
+      id: 'domain',
+      ok:
+        Boolean((cfg.fqdn || a.fqdn || '').trim()) ||
+        Object.values(serviceDomains).some((v) => String(v).trim()) ||
+        Boolean((a.links || []).length),
+      title: 'Public domain',
+      hint: 'Add a magic or custom domain so Traefik can route traffic.',
+      actionLabel: 'Set domain',
+      onAction: () => setAppNav({ tab: 'configuration', side: 'general' }),
+    },
+  ]
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          {crumbs}
-          <div className="mt-2 flex items-center gap-3">
-            <ServiceLogo
-              src={logoForApplication(a.build_pack, a.git_source_id)}
-              name={a.name}
-              className="h-11 w-11"
-            />
-            <div>
-              <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
-                {a.name}
-                <ResourceSwitcher
-                  kind="application"
-                  currentId={appId}
-                  environmentId={a.environment_id || envId}
-                  projectId={resolvedProjectId}
-                />
-              </h1>
-              <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                <span className="capitalize">{a.build_pack}</span>
-                <span>·</span>
-                <StatusText status={a.status} />
-                {activeDep && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-500/15 px-2 py-0.5 text-[11px] font-medium text-brand-600 dark:text-brand-300">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-400" />
-                    {activeDep.status}
-                  </span>
-                )}
-              </p>
+    <div className="space-y-5">
+      {crumbs}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <ServiceLogo
+            src={logoForApplication(a.build_pack, a.git_source_id)}
+            name={a.name}
+            className="h-10 w-10"
+          />
+          <div className="min-w-0">
+            <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
+              {a.name}
+              <ResourceSwitcher
+                kind="application"
+                currentId={appId}
+                environmentId={a.environment_id || envId}
+                projectId={resolvedProjectId}
+              />
+            </h1>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <StatusBadge status={a.status} />
+              <span className="text-xs capitalize text-gray-500 dark:text-gray-400">{a.build_pack}</span>
+              {activeDep ? <StatusBadge status={activeDep.status} /> : null}
+              {emptyEnv.length ? (
+                <button
+                  type="button"
+                  onClick={() => setAppNav({ tab: 'configuration', side: 'environment' })}
+                  className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-800 hover:bg-amber-500/25 dark:text-amber-300"
+                >
+                  {emptyEnv.length} env {emptyEnv.length === 1 ? 'var' : 'vars'} to fill
+                </button>
+              ) : null}
             </div>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {visitHref ? (
+            <a
+              href={visitHref}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-800 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
+            >
+              Visit
+              <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+            </a>
+          ) : null}
           <LinksMenu links={a.links || []} />
           {activeDep && <Btn onClick={() => cancel.mutate(activeDep.id)}>Cancel</Btn>}
           <button
@@ -1084,8 +1163,11 @@ export function ApplicationDetailPage() {
               {stopApp.isPending ? 'Stopping…' : 'Stop'}
             </button>
           )}
-          <Btn primary onClick={() => deploy.mutate({})}>
-            Redeploy
+          <Btn primary onClick={() => requestDeploy({})} disabled={deploy.isPending}>
+            <span className="inline-flex items-center gap-1.5">
+              <Rocket className="h-3.5 w-3.5" />
+              {deploy.isPending ? 'Queueing…' : 'Redeploy'}
+            </span>
           </Btn>
         </div>
       </div>
@@ -1122,39 +1204,37 @@ export function ApplicationDetailPage() {
         </nav>
       </div>
 
+      {topTab === 'overview' && (
+        <div className="space-y-6">
+          <ResourceSetupBanner checks={setupChecks} />
+          <AppOverview
+            app={a}
+            logoSrc={logoForApplication(a.build_pack, a.git_source_id)}
+            latest={latestDep}
+            recent={deployments.slice(0, 8)}
+            destination={destMeta}
+            emptyEnvCount={emptyEnv.length}
+            envTotal={(envVarsQ.data?.environment_variables || []).length}
+            links={a.links || []}
+            onOpenDeployment={openDeployment}
+            onCancelDeployment={(id) => cancel.mutate(id)}
+            onRedeploy={() => requestDeploy({})}
+            onOpenSettings={(side) => setAppNav({ tab: 'configuration', side })}
+            deployBusy={deploy.isPending}
+          />
+        </div>
+      )}
+
       {topTab === 'configuration' && (
         <div className="flex flex-col gap-6 md:flex-row">
-          <aside className="w-full shrink-0 md:w-56">
-            <nav className="space-y-0.5">
-              {sideItems.map((item) => {
-                const Icon = item.icon
-                const active = side === item.id
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setAppNav({ tab: 'configuration', side: item.id })}
-                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm ${
-                      active
-                        ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-300'
-                        : 'text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/5'
-                    }`}
-                  >
-                    <Icon
-                      className={`h-3.5 w-3.5 shrink-0 ${
-                        active
-                          ? 'text-brand-600 dark:text-brand-400'
-                          : 'text-gray-400 dark:text-gray-500'
-                      }`}
-                      aria-hidden
-                    />
-                    <span className="truncate">{item.label}</span>
-                  </button>
-                )
-              })}
-            </nav>
-          </aside>
+          <ConfigSideNav
+            items={sideItems}
+            groups={APP_SIDE_GROUPS}
+            active={side}
+            onSelect={(id) => setAppNav({ tab: 'configuration', side: id })}
+          />
           <div className="min-w-0 flex-1 space-y-6">
+            <ResourceSetupBanner checks={setupChecks} />
             {side === 'general' && (
               <form
                 className="space-y-6"
@@ -2750,10 +2830,10 @@ export function ApplicationDetailPage() {
                 <div className="panel-card space-y-3 p-5">
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Deploy</h3>
                   <div className="flex flex-wrap gap-2">
-                    <Btn primary onClick={() => deploy.mutate({})}>
+                    <Btn primary onClick={() => requestDeploy({})}>
                       Redeploy
                     </Btn>
-                    <Btn onClick={() => deploy.mutate({ force: true })}>Force rebuild</Btn>
+                    <Btn onClick={() => requestDeploy({ force: true })}>Force rebuild</Btn>
                   </div>
                 </div>
                 <div className="panel-card space-y-3 p-5">
@@ -2921,7 +3001,7 @@ export function ApplicationDetailPage() {
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     Queue a deployment with force rebuild enabled.
                   </p>
-                  <Btn onClick={() => deploy.mutate({ force: true })}>Force rebuild deploy</Btn>
+                  <Btn onClick={() => requestDeploy({ force: true })}>Force rebuild deploy</Btn>
                   {deploy.error && <p className="text-sm text-error-500">{deploy.error.message}</p>}
                 </div>
 
@@ -2972,10 +3052,15 @@ export function ApplicationDetailPage() {
       )}
 
       {topTab === 'deployments' && (
-        <div>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Deployments</h2>
-            <Btn primary onClick={() => deploy.mutate({})}>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Deployments</h2>
+              <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                Every build for this application, newest first.
+              </p>
+            </div>
+            <Btn primary onClick={() => requestDeploy({})}>
               Redeploy
             </Btn>
           </div>
@@ -2983,54 +3068,11 @@ export function ApplicationDetailPage() {
             {deps.isLoading ? (
               <TableSkeleton rows={5} cols={4} />
             ) : (
-            <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
-                <tr>
-                  <th className="px-3 py-2">ID</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">Stage</th>
-                  <th className="px-3 py-2">Created</th>
-                  <th className="px-3 py-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(deps.data?.deployments || []).map((d) => (
-                  <tr key={d.id} className="border-t border-gray-200 dark:border-gray-800">
-                    <td className="px-3 py-2 font-mono text-xs">{d.id.slice(0, 8)}…</td>
-                    <td className="px-3 py-2">{d.status}</td>
-                    <td className="px-3 py-2">{d.current_stage || '—'}</td>
-                    <td className="px-3 py-2 text-gray-500 dark:text-gray-400">
-                      {new Date(d.created_at).toLocaleString()}
-                    </td>
-                    <td className="space-x-3 px-3 py-2">
-                      <button
-                        type="button"
-                        className="text-brand-600 dark:text-brand-400"
-                        onClick={() => openDeployment(d.id)}
-                      >
-                        Logs
-                      </button>
-                      {(d.status === 'queued' || d.status === 'in_progress') && (
-                        <button
-                          type="button"
-                          className="text-error-500"
-                          onClick={() => cancel.mutate(d.id)}
-                        >
-                          Cancel
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {!deps.data?.deployments?.length && (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                      No deployments yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+              <DeploymentRows
+                deployments={deployments}
+                onOpen={openDeployment}
+                onCancel={(id) => cancel.mutate(id)}
+              />
             )}
           </div>
         </div>
@@ -3060,29 +3102,16 @@ export function ApplicationDetailPage() {
                   Build / compose history — open a deployment for full deploy logs.
                 </p>
               </div>
-              <Btn primary onClick={() => deploy.mutate({})}>
+              <Btn primary onClick={() => requestDeploy({})}>
                 Redeploy
               </Btn>
             </div>
-            <div className="panel-card divide-y divide-gray-200 dark:divide-gray-800">
-              {(deps.data?.deployments || []).slice(0, 8).map((d) => (
-                <button
-                  key={d.id}
-                  type="button"
-                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm hover:bg-gray-50 dark:hover:bg-white/5"
-                  onClick={() => openDeployment(d.id)}
-                >
-                  <span className="font-mono text-xs text-gray-500">{d.id.slice(0, 8)}…</span>
-                  <span className="capitalize">{d.status}</span>
-                  <span className="text-xs text-gray-500">{d.current_stage || '—'}</span>
-                  <span className="text-brand-600 dark:text-brand-400">View logs →</span>
-                </button>
-              ))}
-              {!deps.data?.deployments?.length && (
-                <p className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                  No deployment logs yet. Click Redeploy to start one.
-                </p>
-              )}
+            <div className="panel-card overflow-hidden">
+              <DeploymentRows
+                deployments={deployments.slice(0, 8)}
+                onOpen={openDeployment}
+                empty="No deployment logs yet. Click Redeploy to start one."
+              />
             </div>
           </div>
         </div>
@@ -3110,8 +3139,6 @@ export function ApplicationDetailPage() {
           )}
         </div>
       )}
-
-      {topTab === 'links' && <LinksPanel links={a.links || []} />}
     </div>
   )
 }

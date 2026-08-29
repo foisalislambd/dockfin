@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 
-type ToastKind = 'success' | 'error' | 'info'
+type ToastKind = 'success' | 'error' | 'info' | 'warning'
 
 type ToastItem = {
   id: number
@@ -21,6 +21,7 @@ type ToastAPI = {
   push: (message: string, kind?: ToastKind) => void
   success: (message: string) => void
   error: (message: string) => void
+  warning: (message: string) => void
 }
 
 const ToastContext = createContext<ToastAPI | null>(null)
@@ -33,9 +34,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const push = useCallback((message: string, kind: ToastKind = 'info') => {
     const id = nextId++
     setItems((prev) => [...prev, { id, message, kind }])
+    const ms = kind === 'warning' || kind === 'error' ? 6000 : 3500
     window.setTimeout(() => {
       setItems((prev) => prev.filter((t) => t.id !== id))
-    }, 3500)
+    }, ms)
   }, [])
 
   const api = useMemo<ToastAPI>(
@@ -43,6 +45,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       push,
       success: (message) => push(message, 'success'),
       error: (message) => push(message, 'error'),
+      warning: (message) => push(message, 'warning'),
     }),
     [push],
   )
@@ -61,7 +64,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   ? 'border-success-500/30 bg-white/95 text-success-700 dark:bg-gray-900/95 dark:text-success-400'
                   : t.kind === 'error'
                     ? 'border-error-500/30 bg-white/95 text-error-600 dark:bg-gray-900/95 dark:text-error-400'
-                    : 'border-gray-200 bg-white/95 text-gray-800 dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-100'
+                    : t.kind === 'warning'
+                      ? 'border-amber-400/40 bg-white/95 text-amber-800 dark:bg-gray-900/95 dark:text-amber-200'
+                      : 'border-gray-200 bg-white/95 text-gray-800 dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-100'
               }`}
             >
               {t.message}
@@ -81,6 +86,7 @@ export function useToast(): ToastAPI {
       push: () => undefined,
       success: () => undefined,
       error: () => undefined,
+      warning: () => undefined,
     }
   }
   return ctx
