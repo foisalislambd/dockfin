@@ -279,6 +279,48 @@
   background: transparent;
 }
 
+.search-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #98a2b3 transparent;
+  overscroll-behavior: contain;
+}
+
+.dark .search-scrollbar {
+  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+}
+
+.search-scrollbar::-webkit-scrollbar {
+  width: 10px;
+}
+
+.search-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 8px 0;
+}
+
+.search-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background-color: #98a2b3;
+  background-clip: padding-box;
+  border: 3px solid transparent;
+}
+
+.search-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #667085;
+}
+
+.dark .search-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.28);
+}
+
+.dark .search-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.45);
+}
+
+.search-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }

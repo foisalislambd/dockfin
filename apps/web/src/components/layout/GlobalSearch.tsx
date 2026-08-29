@@ -15,7 +15,7 @@ import {
   Waypoints,
   X,
 } from 'lucide-react'
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { navGroups } from '../../config/app.config'
 import { api, fetchAllEnvironments } from '../../lib/api'
 import { buildGlobalSearchHits, type SearchTarget } from '../../lib/global-search'
@@ -38,10 +38,12 @@ export function GlobalSearch() {
   const nav = useNavigate()
   const inputRef = useRef<HTMLInputElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const listId = useId()
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
+  const [edge, setEdge] = useState({ top: false, bottom: false })
 
   const live = open || q.trim().length > 0
   const needle = q.trim()
@@ -151,9 +153,32 @@ export function GlobalSearch() {
     }
   }
 
+  const showList = open && (hits.length > 0 || needle.length > 0)
+
+  const syncEdges = () => {
+    const el = listRef.current
+    if (!el) return
+    setEdge({
+      top: el.scrollTop > 6,
+      bottom: el.scrollTop + el.clientHeight < el.scrollHeight - 6,
+    })
+  }
+
   useEffect(() => {
     setActive(0)
   }, [needle, hits.length])
+
+  useLayoutEffect(() => {
+    if (!showList) return
+    syncEdges()
+  }, [showList, hits.length])
+
+  useEffect(() => {
+    if (!open) return
+    const el = listRef.current?.querySelector('[aria-selected="true"]')
+    el?.scrollIntoView({ block: 'nearest' })
+    syncEdges()
+  }, [active, open])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -210,7 +235,6 @@ export function GlobalSearch() {
     }
   }
 
-  const showList = open && (hits.length > 0 || needle.length > 0)
   let lastGroup = ''
   const pageIcon = (href: string) => navGroups.flatMap((g) => g.items).find((i) => i.href === href)?.icon
 
@@ -257,52 +281,68 @@ export function GlobalSearch() {
       )}
 
       {showList && (
-        <div
-          id={listId}
-          role="listbox"
-          className="absolute top-full z-50 mt-1.5 max-h-[min(24rem,70vh)] w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-800 dark:bg-gray-900"
-        >
-          {hits.length === 0 && (
-            <p className="px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400">
-              {loading ? 'Searching…' : `No results for “${needle}”.`}
-            </p>
-          )}
-          {hits.map((hit, i) => {
-            const showGroup = hit.group !== lastGroup
-            lastGroup = hit.group
-            const Icon =
-              hit.target.kind === 'href'
-                ? pageIcon(hit.target.href) || GROUP_ICON.Pages
-                : GROUP_ICON[hit.group] || Search
-            return (
-              <div key={hit.id}>
-                {showGroup && (
-                  <p className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
-                    {hit.group}
-                  </p>
-                )}
-                <button
-                  type="button"
-                  id={`${listId}-${hit.id}`}
-                  role="option"
-                  aria-selected={i === active}
-                  onMouseEnter={() => setActive(i)}
-                  onClick={() => run(hit.target)}
-                  className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm ${
-                    i === active
-                      ? 'bg-gray-50 text-gray-900 dark:bg-white/10 dark:text-white'
-                      : 'text-gray-700 dark:text-gray-200'
-                  }`}
-                >
-                  <Icon className="h-4 w-4 shrink-0 text-gray-400" strokeWidth={1.75} />
-                  <span className="min-w-0 flex-1 truncate">{hit.name}</span>
-                  {hit.hint && (
-                    <span className="max-w-[40%] truncate text-[11px] text-gray-400">{hit.hint}</span>
+        <div className="absolute top-full z-50 mt-1.5 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-900">
+          <div
+            ref={listRef}
+            id={listId}
+            role="listbox"
+            onScroll={syncEdges}
+            className="search-scrollbar max-h-[min(22rem,60vh)] overflow-y-auto py-1"
+          >
+            {hits.length === 0 && (
+              <p className="px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400">
+                {loading ? 'Searching…' : `No results for “${needle}”.`}
+              </p>
+            )}
+            {hits.map((hit, i) => {
+              const showGroup = hit.group !== lastGroup
+              lastGroup = hit.group
+              const Icon =
+                hit.target.kind === 'href'
+                  ? pageIcon(hit.target.href) || GROUP_ICON.Pages
+                  : GROUP_ICON[hit.group] || Search
+              return (
+                <div key={hit.id}>
+                  {showGroup && (
+                    <p className="sticky top-0 z-10 bg-white/95 px-3 pt-2 pb-1 text-[10px] font-semibold tracking-wider text-gray-400 uppercase backdrop-blur dark:bg-gray-900/95">
+                      {hit.group}
+                    </p>
                   )}
-                </button>
-              </div>
-            )
-          })}
+                  <button
+                    type="button"
+                    id={`${listId}-${hit.id}`}
+                    role="option"
+                    aria-selected={i === active}
+                    onMouseEnter={() => setActive(i)}
+                    onClick={() => run(hit.target)}
+                    className={`flex w-full items-center gap-2.5 px-3 py-2 pr-4 text-left text-sm ${
+                      i === active
+                        ? 'bg-gray-50 text-gray-900 dark:bg-white/10 dark:text-white'
+                        : 'text-gray-700 dark:text-gray-200'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0 text-gray-400" strokeWidth={1.75} />
+                    <span className="min-w-0 flex-1 truncate">{hit.name}</span>
+                    {hit.hint && (
+                      <span className="max-w-[40%] truncate text-[11px] text-gray-400">{hit.hint}</span>
+                    )}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+          {edge.top && (
+            <div
+              className="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-white to-transparent dark:from-gray-900"
+              aria-hidden
+            />
+          )}
+          {edge.bottom && (
+            <div
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-white to-transparent dark:from-gray-900"
+              aria-hidden
+            />
+          )}
         </div>
       )}
     </div>
