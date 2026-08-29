@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest a feature or Coolify-parity improvement
+description: Suggest a feature
 labels: ["enhancement"]
 body:
   - type: textarea
@@ -19,11 +19,6 @@ body:
     id: alternatives
     attributes:
       label: Alternatives considered
-  - type: input
-    id: coolify
-    attributes:
-      label: Coolify reference (optional)
-      placeholder: Feature name or docs URL in Coolify
   - type: checkboxes
     id: help
     attributes:

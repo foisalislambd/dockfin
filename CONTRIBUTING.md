@@ -81,7 +81,7 @@ Security issues: see [SECURITY.md](SECURITY.md).
 
 ## Feature requests
 
-Open an issue with the use case, Coolify parity reference (if any), and whether you can help implement it.
+Open an issue with the use case and whether you can help implement it.
 
 ## License
 
