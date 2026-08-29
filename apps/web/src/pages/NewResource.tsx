@@ -1,10 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { Boxes, Container, Search } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import { ServiceLogo } from '../components/ServiceLogo'
-import { ChoiceGridSkeleton } from '../components/ui/Skeleton'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { catalogLogoUrl, ServiceLogo } from '../components/ServiceLogo'
+import { ChoiceGridSkeleton, Skeleton } from '../components/ui/Skeleton'
 import { api, LAST_ENV_KEY, type Template } from '../lib/api'
+import {
+  SERVICE_PAGE_SIZE,
+  catalogMatchesQuery,
+  filterServiceTemplates,
+  pageCatalog,
+} from '../lib/new-resource-catalog'
 import { Header } from './Servers'
 
 type AppOption = {
@@ -149,12 +155,14 @@ function ResourceTile({
   logo,
   onClick,
   busy,
+  priority,
 }: {
   title: string
   description: string
   logo: string
   onClick: () => void
   busy?: boolean
+  priority?: boolean
 }) {
   return (
     <button
@@ -166,7 +174,13 @@ function ResourceTile({
       }`}
     >
       <span className="flex h-[4.5rem] w-[4.5rem] shrink-0 items-center justify-center overflow-hidden rounded-lg bg-black/5 p-2 transition dark:bg-white/10">
-        <ServiceLogo src={logo} name={title} className="h-full w-full" imgClassName="h-full w-full object-contain" />
+        <ServiceLogo
+          src={logo}
+          name={title}
+          priority={priority}
+          className="h-full w-full"
+          imgClassName="h-full w-full object-contain"
+        />
       </span>
       <div className="min-w-0 flex-1">
         <div className="text-[15px] font-medium text-gray-900 dark:text-white">{title}</div>
@@ -187,6 +201,10 @@ export function NewResourcePage() {
   const [creatingType, setCreatingType] = useState<string | null>(null)
   const [createError, setCreateError] = useState('')
   const [destinationId, setDestinationId] = useState('')
+  const [visibleCount, setVisibleCount] = useState(SERVICE_PAGE_SIZE)
+  const [filterKey, setFilterKey] = useState('\0')
+  const loadMoreRef = useRef<HTMLDivElement>(null)
+  const filteredLenRef = useRef(0)
 
   const project = useQuery({
     queryKey: ['project', projectId],
@@ -214,28 +232,46 @@ export function NewResourcePage() {
   }, [templates.data])
 
   const q = search.trim().toLowerCase()
-  const matchText = (...parts: Array<string | undefined>) => {
-    if (!q) return true
-    return parts.some((p) => (p || '').toLowerCase().includes(q))
+  const nextFilterKey = `${q}\0${category}`
+  if (filterKey !== nextFilterKey) {
+    setFilterKey(nextFilterKey)
+    setVisibleCount(SERVICE_PAGE_SIZE)
   }
 
   const filteredGit = GIT_BASED.filter((a) =>
-    matchText(a.title, a.description, a.buildPack, 'git', 'repository', 'application', 'compose'),
+    catalogMatchesQuery(q, a.title, a.description, a.buildPack, 'git', 'repository', 'application', 'compose'),
   )
   const filteredDocker = DOCKER_BASED.filter((a) =>
-    matchText(a.title, a.description, a.buildPack, 'docker', 'image', 'compose', 'static', 'application'),
+    catalogMatchesQuery(q, a.title, a.description, a.buildPack, 'docker', 'image', 'compose', 'static', 'application'),
   )
-  const filteredDbs = DATABASES.filter((d) =>
-    matchText(d.id, d.title, d.description, 'database'),
+  const filteredDbs = DATABASES.filter((d) => catalogMatchesQuery(q, d.id, d.title, d.description, 'database'))
+
+  const filteredServices = useMemo(
+    () => filterServiceTemplates(templates.data?.templates || [], q, category),
+    [templates.data, category, q],
+  )
+  filteredLenRef.current = filteredServices.length
+
+  const { visible: visibleServices, hasMore: hasMoreServices } = pageCatalog(
+    filteredServices,
+    visibleCount,
   )
 
-  const filteredServices = useMemo(() => {
-    const list = templates.data?.templates || []
-    return list.filter((t) => {
-      if (category && (t.category || '').toLowerCase() !== category.toLowerCase()) return false
-      return matchText(t.name, t.type, t.description, t.category, 'service')
-    })
-  }, [templates.data, category, q])
+  useEffect(() => {
+    if (!hasMoreServices) return
+    const el = loadMoreRef.current
+    if (!el) return
+    const root = el.closest('.panel-scrollbar')
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return
+        setVisibleCount((n) => Math.min(n + SERVICE_PAGE_SIZE, filteredLenRef.current))
+      },
+      { root, rootMargin: '200px 0px' },
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [hasMoreServices, visibleCount, q, category])
 
   const goApp = (buildPack: string, sourceType?: string) => {
     localStorage.setItem(LAST_ENV_KEY, envId)
@@ -291,11 +327,13 @@ export function NewResourcePage() {
     },
   })
 
-  if (project.isLoading || templates.isLoading) return <ChoiceGridSkeleton />
+  if (project.isLoading) return <ChoiceGridSkeleton />
 
   const showApps = filteredGit.length > 0 || filteredDocker.length > 0
   const showServices =
-    filteredServices.length > 0 || (!q && !category && (templates.data?.templates || []).length > 0)
+    templates.isLoading ||
+    filteredServices.length > 0 ||
+    (!q && !category && (templates.data?.templates || []).length > 0)
 
   return (
     <div className="space-y-6">
@@ -444,39 +482,77 @@ export function NewResourcePage() {
               Add a server destination for free sslip.io domains before deploying services.
             </p>
           )}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredServices.map((t) => {
-              const busy = creatingType === t.type && createService.isPending
-              const logo = t.logo?.startsWith('http')
-                ? t.logo
-                : t.logo?.startsWith('/')
-                  ? t.logo
-                  : t.logo
-                    ? `/svgs/${t.logo.replace(/^svgs\//, '')}`
-                    : undefined
-              return (
-                <ResourceTile
-                  key={t.type}
-                  title={busy ? 'Creating…' : t.name}
-                  description={t.description || t.category || t.type}
-                  logo={logo || '/svgs/docker.svg'}
-                  busy={busy || Boolean(creatingType)}
-                  onClick={() => {
-                    setCreateError('')
-                    setCreatingType(t.type)
-                    createService.mutate(t)
-                  }}
-                />
-              )
-            })}
-          </div>
-          {!filteredServices.length && (
-            <p className="text-sm text-gray-500 dark:text-gray-400">No services match your search.</p>
+          {templates.isLoading ? (
+            <div
+              className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+              role="status"
+              aria-label="Loading services"
+            >
+              {Array.from({ length: 9 }).map((_, i) => (
+                <div key={i} className="panel-card flex items-center gap-3 p-3">
+                  <Skeleton className="h-[4.5rem] w-[4.5rem] shrink-0 rounded-lg" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-full" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {visibleServices.map((t, i) => {
+                  const busy = creatingType === t.type && createService.isPending
+                  const logo = catalogLogoUrl(t.logo)
+                  return (
+                    <ResourceTile
+                      key={t.type}
+                      title={busy ? 'Creating…' : t.name}
+                      description={t.description || t.category || t.type}
+                      logo={logo || '/svgs/docker.svg'}
+                      priority={i < 6}
+                      busy={busy || Boolean(creatingType)}
+                      onClick={() => {
+                        setCreateError('')
+                        setCreatingType(t.type)
+                        createService.mutate(t)
+                      }}
+                    />
+                  )
+                })}
+              </div>
+              {hasMoreServices && (
+                <div ref={loadMoreRef} className="flex flex-col items-center gap-2 py-2">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Showing {visibleServices.length} of {filteredServices.length} services
+                  </p>
+                  <button
+                    type="button"
+                    className="text-sm font-medium text-brand-600 hover:underline dark:text-brand-400"
+                    onClick={() =>
+                      setVisibleCount((n) => Math.min(n + SERVICE_PAGE_SIZE, filteredServices.length))
+                    }
+                  >
+                    Load more
+                  </button>
+                </div>
+              )}
+              {!hasMoreServices && filteredServices.length > SERVICE_PAGE_SIZE && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {filteredServices.length} services
+                </p>
+              )}
+              {!filteredServices.length && (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  No services match your search.
+                </p>
+              )}
+            </>
           )}
         </section>
       )}
 
-      {!showApps && !filteredDbs.length && !filteredServices.length && (
+      {!templates.isLoading && !showApps && !filteredDbs.length && !filteredServices.length && (
         <div className="panel-card flex flex-col items-center gap-2 p-10 text-center">
           <Container className="h-8 w-8 text-gray-400" />
           <p className="text-sm text-gray-500 dark:text-gray-400">No resources match your search.</p>

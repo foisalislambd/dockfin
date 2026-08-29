@@ -1,5 +1,5 @@
 import { useTheme } from 'next-themes'
-import { useState, useSyncExternalStore } from 'react'
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { cn } from '../lib/cn'
 
 type Props = {
@@ -7,6 +7,8 @@ type Props = {
   name: string
   className?: string
   imgClassName?: string
+  /** First-screen logos: fetch immediately instead of native lazy. */
+  priority?: boolean
 }
 
 /**
@@ -99,8 +101,24 @@ export function logoForApplication(buildPack?: string, gitSourceId?: string | nu
 }
 
 /** Service catalog / list logo with letter fallback when image is missing. */
-export function ServiceLogo({ src, name, className, imgClassName }: Props) {
+function LetterMark({ letter, className }: { letter: string; className?: string }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center rounded-lg bg-brand-50 text-sm font-semibold text-brand-600 dark:bg-brand-500/15 dark:text-brand-300',
+        className,
+      )}
+      aria-hidden
+    >
+      {letter}
+    </span>
+  )
+}
+
+export function ServiceLogo({ src, name, className, imgClassName, priority }: Props) {
   const [failed, setFailed] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const imgRef = useRef<HTMLImageElement>(null)
   const { resolvedTheme } = useTheme()
   const mounted = useSyncExternalStore(
     () => () => {},
@@ -112,38 +130,42 @@ export function ServiceLogo({ src, name, className, imgClassName }: Props) {
   const monochrome = Boolean(base && MONOCHROME_FOR_LIGHT.has(base))
   const dark = mounted && resolvedTheme === 'dark'
 
+  useLayoutEffect(() => {
+    setFailed(false)
+    const el = imgRef.current
+    if (el?.complete && el.naturalWidth > 0) setLoaded(true)
+    else setLoaded(false)
+  }, [src])
+
   if (!src || failed) {
-    return (
-      <span
-        className={cn(
-          'inline-flex shrink-0 items-center justify-center rounded-lg bg-brand-50 text-sm font-semibold text-brand-600 dark:bg-brand-500/15 dark:text-brand-300',
-          className,
-        )}
-        aria-hidden
-      >
-        {letter}
-      </span>
-    )
+    return <LetterMark letter={letter} className={className} />
   }
 
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-50 dark:bg-white/10',
+        'relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-50 dark:bg-white/10',
         className,
       )}
     >
+      {!loaded && (
+        <LetterMark letter={letter} className="absolute inset-0 h-full w-full rounded-none" />
+      )}
       <img
+        ref={imgRef}
         src={src}
         alt=""
-        loading="lazy"
+        loading={priority ? 'eager' : 'lazy'}
+        fetchPriority={priority ? 'high' : 'low'}
         decoding="async"
         className={cn(
-          'h-full w-full object-contain p-1',
+          'h-full w-full object-contain p-1 transition-opacity duration-200',
+          loaded ? 'opacity-100' : 'opacity-0',
           // Dark fills for light UI; invert on dark tiles so logos stay visible.
           monochrome && dark && 'invert',
           imgClassName,
         )}
+        onLoad={() => setLoaded(true)}
         onError={() => setFailed(true)}
       />
     </span>
