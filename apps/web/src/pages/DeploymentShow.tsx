@@ -3,7 +3,7 @@ import { useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { BackLink } from '../components/BackLink'
 import { DeployLogPanel } from '../components/DeployLogPanel'
-import { DetailPageSkeleton } from '../components/ui/Skeleton'
+import { SimpleDetailSkeleton } from '../components/ui/Skeleton'
 import { Meta } from '../components/ui/tabs'
 import { api } from '../lib/api'
 import { Btn } from './Servers'
@@ -88,7 +88,7 @@ export function DeploymentShowPage() {
       <BackLink label={app.data?.name || 'Application'} to="/applications/$appId" params={{ appId }} />
     )
 
-  if (dep.isLoading) return <DetailPageSkeleton withSideNav={false} />
+  if (dep.isLoading) return <SimpleDetailSkeleton />
   if (dep.error || !dep.data) {
     return (
       <div className="space-y-4">

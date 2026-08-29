@@ -314,7 +314,15 @@ export function ServiceDetailPage() {
       <BackLink label="Projects" to="/projects" />
     )
 
-  if (svc.isLoading) return <DetailPageSkeleton withSideNav={topTab === 'configuration'} tabs={5} />
+  if (svc.isLoading) {
+    return (
+      <DetailPageSkeleton
+        withSideNav={topTab === 'configuration'}
+        tabs={5}
+        metrics={topTab !== 'configuration'}
+      />
+    )
+  }
   if (svc.error || !svc.data) {
     return (
       <div className="space-y-4">

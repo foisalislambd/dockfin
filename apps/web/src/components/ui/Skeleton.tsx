@@ -1,5 +1,6 @@
 import type { CSSProperties, HTMLAttributes } from 'react'
 import { SIDEBAR_WIDTH_EXPANDED } from '../../context/sidebar-context'
+import { routeSkeletonKind } from '../../lib/route-skeleton'
 
 function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(' ')
@@ -231,10 +232,13 @@ export function DetailPageSkeleton({
   withSideNav = false,
   tabs = 6,
   labelled = true,
+  metrics = false,
 }: {
   withSideNav?: boolean
   tabs?: number
   labelled?: boolean
+  /** Application/service Overview live-usage tiles — not DB/server/git. */
+  metrics?: boolean
 }) {
   return (
     <div className="space-y-5" {...loadingRegion(labelled, 'Loading page')}>
@@ -281,7 +285,7 @@ export function DetailPageSkeleton({
             </div>
           </div>
         </div>
-      ) : (
+      ) : metrics ? (
         <div className="space-y-5">
           <div className="panel-card space-y-4 p-5">
             <div className="flex items-center justify-between gap-3">
@@ -302,6 +306,18 @@ export function DetailPageSkeleton({
               </div>
             ))}
           </div>
+        </div>
+      ) : (
+        <div className="panel-card space-y-5 p-5">
+          <div className="grid gap-4 sm:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-5 w-28" />
+              </div>
+            ))}
+          </div>
+          <PanelSkeleton rows={3} showHeader={false} labelled={false} />
         </div>
       )}
     </div>
@@ -399,75 +415,21 @@ export function ChoiceGridSkeleton({ labelled = true }: { labelled?: boolean }) 
   )
 }
 
-function tabFromSearch(search: unknown): string {
-  if (typeof search === 'string') {
-    const q = search.startsWith('?') ? search.slice(1) : search
-    return new URLSearchParams(q).get('tab') || ''
-  }
-  if (search && typeof search === 'object' && 'tab' in search) {
-    const t = (search as { tab?: unknown }).tab
-    return typeof t === 'string' ? t : ''
-  }
-  return ''
-}
-
-/**
- * Match the route that is actually loading. AppShell used to always show the
- * project-list skeleton (PageSkeleton) while lazy chunks load — that flashed
- * on application/service details.
- */
-export function RoutePageSkeleton({
-  pathname,
-  search,
-  labelled = true,
-}: {
-  pathname: string
-  search?: unknown
-  labelled?: boolean
-}) {
-  const p = pathname.replace(/\/+$/, '') || '/'
-  const tab = tabFromSearch(search)
-  const settingsTab = tab === 'configuration'
-
-  if (
-    /\/(applications|databases|services)\/new$/.test(p) ||
-    /\/servers\/new$/.test(p) ||
-    /\/storages\/new$/.test(p) ||
-    /\/edit$/.test(p)
-  ) {
-    return <FormPageSkeleton />
-  }
-  if (/\/environments\/[^/]+\/new$/.test(p)) {
-    return <ChoiceGridSkeleton labelled={labelled} />
-  }
-  if (/\/deployments\/[^/]+$/.test(p)) {
-    return <DetailPageSkeleton withSideNav={false} tabs={2} labelled={labelled} />
-  }
-  if (/\/applications\/[^/]+$/.test(p)) {
-    return <DetailPageSkeleton withSideNav={settingsTab} tabs={6} labelled={labelled} />
-  }
-  if (/\/services\/[^/]+$/.test(p)) {
-    return <DetailPageSkeleton withSideNav={settingsTab} tabs={5} labelled={labelled} />
-  }
-  if (/\/(databases|servers|git-sources)\/[^/]+$/.test(p)) {
-    return <DetailPageSkeleton withSideNav={false} tabs={4} labelled={labelled} />
-  }
-  if (p === '/notifications' || p === '/settings' || p === '/security') {
-    return <TabbedPageSkeleton />
-  }
-  if (/\/projects\/[^/]+\/environments\/[^/]+$/.test(p)) {
-    return <EnvResourcesSkeleton labelled={labelled} />
-  }
-  if (/\/projects\/[^/]+$/.test(p)) {
-    return <PageSkeleton cards={1} labelled={labelled} />
-  }
-  if (p === '/dashboard') {
-    return <DashboardSkeleton labelled={labelled} />
-  }
-  if (p === '/projects') {
-    return <PageSkeleton cards={2} labelled={labelled} />
-  }
-  return <PageSkeleton cards={2} labelled={labelled} />
+/** Deployment log / single-panel detail (no app Overview). */
+export function SimpleDetailSkeleton({ labelled = true }: { labelled?: boolean }) {
+  return (
+    <div className="space-y-5" {...loadingRegion(labelled, 'Loading page')}>
+      <div className="inline-flex h-8 items-center gap-1.5">
+        <Skeleton className="h-6 w-6 rounded-md" />
+        <Skeleton className="h-3.5 w-28" />
+      </div>
+      <Skeleton className="h-7 w-56 max-w-full" />
+      <div className="panel-card space-y-3 p-5">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-40 w-full rounded-md" />
+      </div>
+    </div>
+  )
 }
 
 /** Edit / settings form page skeleton */
@@ -524,4 +486,48 @@ export function TabbedPageSkeleton({ tabs = 6 }: { tabs?: number }) {
       </div>
     </div>
   )
+}
+
+export function RoutePageSkeleton({
+  pathname,
+  search,
+  labelled = true,
+}: {
+  pathname: string
+  search?: unknown
+  labelled?: boolean
+}) {
+  const kind = routeSkeletonKind(pathname, search)
+  switch (kind) {
+    case 'form':
+      return <FormPageSkeleton />
+    case 'choice':
+      return <ChoiceGridSkeleton labelled={labelled} />
+    case 'app':
+      return <DetailPageSkeleton withSideNav={false} tabs={6} metrics labelled={labelled} />
+    case 'app-settings':
+      return <DetailPageSkeleton withSideNav tabs={6} labelled={labelled} />
+    case 'service':
+      return <DetailPageSkeleton withSideNav={false} tabs={5} metrics labelled={labelled} />
+    case 'service-settings':
+      return <DetailPageSkeleton withSideNav tabs={5} labelled={labelled} />
+    case 'resource':
+      return <DetailPageSkeleton withSideNav={false} tabs={6} labelled={labelled} />
+    case 'simple':
+      return <SimpleDetailSkeleton labelled={labelled} />
+    case 'env':
+      return <EnvResourcesSkeleton labelled={labelled} />
+    case 'project':
+      return <PageSkeleton cards={1} labelled={labelled} />
+    case 'dashboard':
+      return <DashboardSkeleton labelled={labelled} />
+    case 'tabbed':
+      return <TabbedPageSkeleton />
+    case 'list-3':
+      return <PageSkeleton cards={3} labelled={labelled} />
+    case 'list-1':
+      return <PageSkeleton cards={1} labelled={labelled} />
+    default:
+      return <PageSkeleton cards={2} labelled={labelled} />
+  }
 }

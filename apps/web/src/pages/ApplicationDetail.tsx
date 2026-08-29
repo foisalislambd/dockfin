@@ -943,7 +943,7 @@ export function ApplicationDetailPage() {
   })
 
   if (app.isLoading) {
-    return <DetailPageSkeleton withSideNav={topTab === 'configuration'} tabs={6} />
+    return <DetailPageSkeleton withSideNav={topTab === 'configuration'} tabs={6} metrics={topTab !== 'configuration'} />
   }
 
   const crumbs =
