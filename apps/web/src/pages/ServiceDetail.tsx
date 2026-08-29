@@ -421,7 +421,6 @@ export function ServiceDetailPage() {
 
       {topTab === 'logs' && (
         <div className="space-y-6">
-          <ServiceLiveLogs svcId={svcId} fallbackContainers={containerOptions} />
           {(deployBusy || deployLines.length > 0 || deployError) && (
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -440,6 +439,7 @@ export function ServiceDetailPage() {
               {deployError && <p className="text-sm text-error-500">{deployError}</p>}
             </div>
           )}
+          <ServiceLiveLogs svcId={svcId} fallbackContainers={containerOptions} />
         </div>
       )}
 
