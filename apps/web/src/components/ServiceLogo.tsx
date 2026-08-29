@@ -71,7 +71,6 @@ export function logoForServiceType(
   const t = templates.find((x) => x.type === serviceType)
   const fromTpl = catalogLogoUrl(t?.logo)
   if (fromTpl) return fromTpl
-  if (templates.length === 0) return undefined
   const base = serviceType.split(/-with-|-and-/)[0] || serviceType
   return catalogLogoUrl(`${base}.svg`)
 }

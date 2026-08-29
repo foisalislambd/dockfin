@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { AppWindow, Boxes, ChevronDown, ChevronRight, Database, Search } from 'lucide-react'
 import { useMemo, useState, type FormEvent, type MouseEvent } from 'react'
 import { EnvResourcesSkeleton } from '../components/ui/Skeleton'
+import { CatalogLoadMore } from '../components/CatalogLoadMore'
 import {
   ServiceLogo,
   logoForApplication,
@@ -10,6 +11,7 @@ import {
   logoForServiceType,
 } from '../components/ServiceLogo'
 import { useToast } from '../components/Toast'
+import { useCatalogWindow } from '../hooks/use-catalog-window'
 import { api, LAST_ENV_KEY, type Tag } from '../lib/api'
 import { Btn, Header, Input, Modal } from './Servers'
 
@@ -48,11 +50,13 @@ function ResourceCard({
   to,
   params,
   onAddTag,
+  priority,
 }: {
   row: ResourceRow
   to: string
   params: Record<string, string>
   onAddTag: (row: ResourceRow) => void
+  priority?: boolean
 }) {
   const meta = kindMeta(row.kind)
   const KindIcon = meta.icon
@@ -65,7 +69,7 @@ function ResourceCard({
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           {row.logo ? (
-            <ServiceLogo src={row.logo} name={row.name} className="h-9 w-9" />
+            <ServiceLogo src={row.logo} name={row.name} priority={priority} className="h-9 w-9" />
           ) : (
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
               <KindIcon className="h-4 w-4" strokeWidth={1.75} />
@@ -114,6 +118,52 @@ function ResourceCard({
   )
 }
 
+function PagedResourceGrid({
+  rows,
+  filterKey,
+  noun,
+  to,
+  idParam,
+  projectId,
+  envId,
+  onAddTag,
+}: {
+  rows: ResourceRow[]
+  filterKey: string
+  noun: string
+  to: string
+  idParam: 'appId' | 'dbId' | 'svcId'
+  projectId: string
+  envId: string
+  onAddTag: (row: ResourceRow) => void
+}) {
+  const { visible, hasMore, total, loadMoreRef, loadMore } = useCatalogWindow(rows, filterKey)
+  return (
+    <>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {visible.map((r, i) => (
+          <ResourceCard
+            key={r.id}
+            row={r}
+            to={to}
+            params={{ projectId, envId, [idParam]: r.id }}
+            onAddTag={onAddTag}
+            priority={i < 6}
+          />
+        ))}
+      </div>
+      <CatalogLoadMore
+        hasMore={hasMore}
+        shown={visible.length}
+        total={total}
+        noun={noun}
+        loadMoreRef={loadMoreRef}
+        onLoadMore={loadMore}
+      />
+    </>
+  )
+}
+
 export function EnvironmentResourcesPage() {
   const { projectId, envId } = useParams({ strict: false }) as { projectId: string; envId: string }
   const nav = useNavigate()
@@ -141,9 +191,6 @@ export function EnvironmentResourcesPage() {
     queryFn: () => api.environmentTags(projectId, envId),
   })
   const allTags = useQuery({ queryKey: ['tags'], queryFn: api.tags })
-
-  const templates = useQuery({ queryKey: ['templates'], queryFn: api.templates })
-  const catalog = templates.data?.templates || []
 
   const [appsQ, dbsQ, svcsQ] = useQueries({
     queries: [
@@ -203,7 +250,7 @@ export function EnvironmentResourcesPage() {
     status: s.status,
     description: s.description,
     tags: tagsByKey.get(`service:${s.id}`) || [],
-    logo: logoForServiceType(s.service_type, catalog),
+    logo: logoForServiceType(s.service_type, []),
   }))
 
   const q = search.trim().toLowerCase()
@@ -211,6 +258,7 @@ export function EnvironmentResourcesPage() {
     if (!q) return true
     return (
       r.name.toLowerCase().includes(q) ||
+      r.kind.toLowerCase().includes(q) ||
       r.subtitle.toLowerCase().includes(q) ||
       (r.description || '').toLowerCase().includes(q) ||
       r.tags.some((t) => t.name.toLowerCase().includes(q))
@@ -381,17 +429,16 @@ export function EnvironmentResourcesPage() {
           <h2 className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
             Applications
           </h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredApps.map((r) => (
-              <ResourceCard
-                key={r.id}
-                row={r}
-                to="/projects/$projectId/environments/$envId/applications/$appId"
-                params={{ projectId, envId, appId: r.id }}
-                onAddTag={setTagTarget}
-              />
-            ))}
-          </div>
+          <PagedResourceGrid
+            rows={filteredApps}
+            filterKey={`app:${q}`}
+            noun="applications"
+            to="/projects/$projectId/environments/$envId/applications/$appId"
+            idParam="appId"
+            projectId={projectId}
+            envId={envId}
+            onAddTag={setTagTarget}
+          />
         </section>
       )}
 
@@ -400,17 +447,16 @@ export function EnvironmentResourcesPage() {
           <h2 className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
             Databases
           </h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredDbs.map((r) => (
-              <ResourceCard
-                key={r.id}
-                row={r}
-                to="/projects/$projectId/environments/$envId/databases/$dbId"
-                params={{ projectId, envId, dbId: r.id }}
-                onAddTag={setTagTarget}
-              />
-            ))}
-          </div>
+          <PagedResourceGrid
+            rows={filteredDbs}
+            filterKey={`db:${q}`}
+            noun="databases"
+            to="/projects/$projectId/environments/$envId/databases/$dbId"
+            idParam="dbId"
+            projectId={projectId}
+            envId={envId}
+            onAddTag={setTagTarget}
+          />
         </section>
       )}
 
@@ -419,17 +465,16 @@ export function EnvironmentResourcesPage() {
           <h2 className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
             Services
           </h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredSvcs.map((r) => (
-              <ResourceCard
-                key={r.id}
-                row={r}
-                to="/projects/$projectId/environments/$envId/services/$svcId"
-                params={{ projectId, envId, svcId: r.id }}
-                onAddTag={setTagTarget}
-              />
-            ))}
-          </div>
+          <PagedResourceGrid
+            rows={filteredSvcs}
+            filterKey={`svc:${q}`}
+            noun="services"
+            to="/projects/$projectId/environments/$envId/services/$svcId"
+            idParam="svcId"
+            projectId={projectId}
+            envId={envId}
+            onAddTag={setTagTarget}
+          />
         </section>
       )}
 

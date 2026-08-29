@@ -159,7 +159,7 @@ export function ServiceDetailPage() {
   }, [svcId])
 
   const svc = useQuery({ queryKey: ['service', svcId], queryFn: () => api.getService(svcId) })
-  const templates = useQuery({ queryKey: ['templates'], queryFn: api.templates })
+  const templates = useQuery({ queryKey: ['templates'], queryFn: api.templates, enabled: false })
   const dests = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
   const envVarsQ = useQuery({
     queryKey: ['env-vars', 'service', svcId, 'prod'],

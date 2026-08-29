@@ -1,10 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { Layers, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Layers } from 'lucide-react'
 import { BackLink } from '../components/BackLink'
+import { CatalogLoadMore } from '../components/CatalogLoadMore'
 import { EnvResourcesSkeleton, PageSkeleton } from '../components/ui/Skeleton'
-import { api, LAST_ENV_KEY } from '../lib/api'
+import { useCatalogWindow } from '../hooks/use-catalog-window'
+import { api, LAST_ENV_KEY, type Environment } from '../lib/api'
+import { catalogMatchesQuery } from '../lib/new-resource-catalog'
 import { Btn, Header, Input, Modal } from './Servers'
 
 export function ProjectShowPage() {
@@ -22,8 +25,8 @@ export function ProjectShowPage() {
   const [show, setShow] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [search, setSearch] = useState('')
 
-  // Single environment → resources directly
   useEffect(() => {
     const list = envs.data?.environments
     if (!list || list.length !== 1) return
@@ -64,10 +67,14 @@ export function ProjectShowPage() {
     )
   }
 
-  // Single-env projects redirect to the resources grid — match that layout.
   if ((envs.data?.environments || []).length === 1) {
     return <EnvResourcesSkeleton />
   }
+
+  const q = search.trim().toLowerCase()
+  const filteredEnvs = (envs.data?.environments || []).filter((env) =>
+    catalogMatchesQuery(q, env.name, env.description),
+  )
 
   return (
     <div className="space-y-6">
@@ -93,8 +100,69 @@ export function ProjectShowPage() {
         />
       </div>
 
+      {(envs.data?.environments || []).length > 0 && (
+        <div className="relative max-w-xl">
+          <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search environments…"
+            className="panel-field h-9 w-full rounded-md py-1.5 pr-3 pl-9 text-sm"
+          />
+        </div>
+      )}
+
+      <EnvironmentGrid projectId={projectId} environments={filteredEnvs} query={q} />
+
+      {!filteredEnvs.length && (envs.data?.environments || []).length > 0 && (
+        <div className="panel-card p-8 text-center text-sm text-gray-500 dark:text-gray-400">
+          No environments match your search.
+        </div>
+      )}
+      {!envs.data?.environments?.length && (
+        <div className="panel-card p-8 text-center text-sm text-gray-500 dark:text-gray-400">
+          No environments found.
+        </div>
+      )}
+
+      {show && (
+        <Modal title="New Environment" onClose={() => setShow(false)}>
+          <form
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault()
+              create.mutate()
+            }}
+          >
+            <Input label="Name" value={name} onChange={setName} />
+            <Input label="Description" value={description} onChange={setDescription} required={false} />
+            {create.error && <p className="text-sm text-error-500">{create.error.message}</p>}
+            <Btn primary type="submit">
+              Save
+            </Btn>
+          </form>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function EnvironmentGrid({
+  projectId,
+  environments,
+  query,
+}: {
+  projectId: string
+  environments: Environment[]
+  query: string
+}) {
+  const { visible, hasMore, total, loadMoreRef, loadMore } = useCatalogWindow(environments, query)
+  if (!environments.length) return null
+  return (
+    <>
       <div className="grid gap-3 lg:grid-cols-2">
-        {(envs.data?.environments || []).map((env) => (
+        {visible.map((env) => (
           <Link
             key={env.id}
             to="/projects/$projectId/environments/$envId"
@@ -118,31 +186,15 @@ export function ProjectShowPage() {
             </span>
           </Link>
         ))}
-        {!envs.data?.environments?.length && (
-          <div className="panel-card col-span-full p-8 text-center text-sm text-gray-500 dark:text-gray-400">
-            No environments found.
-          </div>
-        )}
       </div>
-
-      {show && (
-        <Modal title="New Environment" onClose={() => setShow(false)}>
-          <form
-            className="space-y-3"
-            onSubmit={(e) => {
-              e.preventDefault()
-              create.mutate()
-            }}
-          >
-            <Input label="Name" value={name} onChange={setName} />
-            <Input label="Description" value={description} onChange={setDescription} required={false} />
-            {create.error && <p className="text-sm text-error-500">{create.error.message}</p>}
-            <Btn primary type="submit">
-              Save
-            </Btn>
-          </form>
-        </Modal>
-      )}
-    </div>
+      <CatalogLoadMore
+        hasMore={hasMore}
+        shown={visible.length}
+        total={total}
+        noun="environments"
+        loadMoreRef={loadMoreRef}
+        onLoadMore={loadMore}
+      />
+    </>
   )
 }

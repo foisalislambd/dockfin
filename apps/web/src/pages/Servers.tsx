@@ -1,10 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
+import { Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
+import { CatalogLoadMore } from '../components/CatalogLoadMore'
 import { CreatePageShell, FormActions, FormInput, FormSelect } from '../components/ui/forms'
 import { PageSkeleton } from '../components/ui/Skeleton'
-import { api } from '../lib/api'
+import { useCatalogWindow } from '../hooks/use-catalog-window'
+import { api, type Server } from '../lib/api'
+import { catalogMatchesQuery } from '../lib/new-resource-catalog'
 
 export { Btn } from '../components/ui/Button'
 export { Header } from '../components/ui/Header'
@@ -48,6 +52,45 @@ export function ServersPage() {
         }
       />
 
+      <ServerList servers={servers.data?.servers || []} qc={qc} />
+
+      {showKey && (
+        <Modal title="Add SSH key" onClose={() => setShowKey(false)}>
+          <KeyForm onSubmit={(name, key) => createKey.mutate({ name, key })} error={createKey.error?.message} />
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function ServerList({
+  servers,
+  qc,
+}: {
+  servers: Server[]
+  qc: ReturnType<typeof useQueryClient>
+}) {
+  const [search, setSearch] = useState('')
+  const q = search.trim().toLowerCase()
+  const filtered = servers.filter((s) =>
+    catalogMatchesQuery(q, s.name, s.ip, s.user_name, s.proxy_type, s.proxy_status),
+  )
+  const { visible, hasMore, total, loadMoreRef, loadMore } = useCatalogWindow(filtered, q)
+
+  return (
+    <div className="space-y-3">
+      {servers.length > 0 && (
+        <div className="relative max-w-xl">
+          <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search servers…"
+            className="panel-field h-9 w-full rounded-md py-1.5 pr-3 pl-9 text-sm"
+          />
+        </div>
+      )}
       <div className="panel-card overflow-hidden">
         <table className="panel-table">
           <thead>
@@ -60,7 +103,7 @@ export function ServersPage() {
             </tr>
           </thead>
           <tbody>
-            {(servers.data?.servers || []).map((s) => (
+            {visible.map((s) => (
               <tr key={s.id}>
                 <td>
                   <Link
@@ -75,7 +118,16 @@ export function ServersPage() {
                   {s.user_name}@{s.ip}:{s.port}
                 </td>
                 <td>
-                  <Status ok={s.is_usable} label={s.is_usable ? `Docker ${s.docker_version || 'ok'}` : s.is_reachable ? 'No Docker' : 'Unreachable'} />
+                  <Status
+                    ok={s.is_usable}
+                    label={
+                      s.is_usable
+                        ? `Docker ${s.docker_version || 'ok'}`
+                        : s.is_reachable
+                          ? 'No Docker'
+                          : 'Unreachable'
+                    }
+                  />
                 </td>
                 <td className="text-xs text-gray-500 dark:text-gray-400">
                   {s.proxy_type || 'traefik'}
@@ -92,7 +144,9 @@ export function ServersPage() {
                   <button
                     className="text-brand-600 hover:underline dark:text-brand-400"
                     type="button"
-                    onClick={() => void api.validateServer(s.id).then(() => qc.invalidateQueries({ queryKey: ['servers'] }))}
+                    onClick={() =>
+                      void api.validateServer(s.id).then(() => qc.invalidateQueries({ queryKey: ['servers'] }))
+                    }
                   >
                     Validate
                   </button>
@@ -100,29 +154,40 @@ export function ServersPage() {
                     className="text-brand-600 hover:underline dark:text-brand-400 disabled:opacity-40"
                     type="button"
                     disabled={s.proxy_type === 'none'}
-                    onClick={() => void api.startProxy(s.id).then(() => qc.invalidateQueries({ queryKey: ['servers'] }))}
+                    onClick={() =>
+                      void api.startProxy(s.id).then(() => qc.invalidateQueries({ queryKey: ['servers'] }))
+                    }
                   >
                     Start proxy
                   </button>
                 </td>
               </tr>
             ))}
-            {!servers.data?.servers?.length && (
+            {!servers.length && (
               <tr>
                 <td colSpan={5} className="panel-table-empty">
                   No servers yet.
                 </td>
               </tr>
             )}
+            {!!servers.length && !filtered.length && (
+              <tr>
+                <td colSpan={5} className="panel-table-empty">
+                  No servers match your search.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
-
-      {showKey && (
-        <Modal title="Add SSH key" onClose={() => setShowKey(false)}>
-          <KeyForm onSubmit={(name, key) => createKey.mutate({ name, key })} error={createKey.error?.message} />
-        </Modal>
-      )}
+      <CatalogLoadMore
+        hasMore={hasMore}
+        shown={visible.length}
+        total={total}
+        noun="servers"
+        loadMoreRef={loadMoreRef}
+        onLoadMore={loadMore}
+      />
     </div>
   )
 }

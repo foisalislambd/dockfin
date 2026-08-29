@@ -1,9 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { FolderKanban } from 'lucide-react'
+import { FolderKanban, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { CatalogLoadMore } from '../components/CatalogLoadMore'
 import { PageSkeleton } from '../components/ui/Skeleton'
+import { useCatalogWindow } from '../hooks/use-catalog-window'
 import { api, fetchAllEnvironments, LAST_ENV_KEY } from '../lib/api'
+import { catalogMatchesQuery } from '../lib/new-resource-catalog'
 import { Btn, Header, Input, Modal } from './Servers'
 
 export function ProjectsPage() {
@@ -14,6 +17,7 @@ export function ProjectsPage() {
   const [show, setShow] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [search, setSearch] = useState('')
   const create = useMutation({
     mutationFn: () => api.createProject(name, description),
     onSuccess: (data) => {
@@ -41,6 +45,16 @@ export function ProjectsPage() {
     return m
   }, [envs.data])
 
+  const q = search.trim().toLowerCase()
+  const filteredProjects = useMemo(() => {
+    const list = projects.data?.projects || []
+    return list.filter((p) => catalogMatchesQuery(q, p.name, p.description))
+  }, [projects.data, q])
+  const { visible, hasMore, total, loadMoreRef, loadMore } = useCatalogWindow(
+    filteredProjects,
+    q,
+  )
+
   if (projects.isLoading) return <PageSkeleton cards={2} />
 
   return (
@@ -54,9 +68,23 @@ export function ProjectsPage() {
         }
       />
 
-      {(projects.data?.projects || []).length > 0 ? (
+      {(projects.data?.projects || []).length > 0 && (
+        <div className="relative max-w-xl">
+          <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search projects…"
+            className="panel-field h-9 w-full rounded-md py-1.5 pr-3 pl-9 text-sm"
+          />
+        </div>
+      )}
+
+      {filteredProjects.length > 0 ? (
+        <>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-          {(projects.data?.projects || []).map((p) => {
+          {visible.map((p) => {
             const envIds = envsByProject.get(p.id) || []
             // Single env → resources; else environments list
             const singleEnvId = envIds.length === 1 ? envIds[0] : undefined
@@ -124,6 +152,19 @@ export function ProjectsPage() {
               </div>
             )
           })}
+        </div>
+        <CatalogLoadMore
+          hasMore={hasMore}
+          shown={visible.length}
+          total={total}
+          noun="projects"
+          loadMoreRef={loadMoreRef}
+          onLoadMore={loadMore}
+        />
+        </>
+      ) : (projects.data?.projects || []).length > 0 ? (
+        <div className="panel-card p-8 text-center text-sm text-gray-500 dark:text-gray-400">
+          No projects match your search.
         </div>
       ) : (
         <div className="panel-card p-10 text-center">

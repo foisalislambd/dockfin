@@ -1,12 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { CatalogLoadMore } from '../components/CatalogLoadMore'
 import { DomainsPanel, normalizeDomains } from '../components/DomainsPanel'
 import { CodeEditor } from '../components/CodeEditor'
 import { ServiceLogo, catalogLogoUrl } from '../components/ServiceLogo'
 import { CreatePageShell, FormActions, FormInput, FormSelect } from '../components/ui/forms'
-import { FormPageSkeleton } from '../components/ui/Skeleton'
+import { FormPageSkeleton, Skeleton } from '../components/ui/Skeleton'
+import { useCatalogWindow } from '../hooks/use-catalog-window'
 import { api, fetchAllEnvironments, LAST_ENV_KEY } from '../lib/api'
+import { filterServiceTemplates } from '../lib/new-resource-catalog'
 
 const EMPTY_COMPOSE = `services:
   app:
@@ -52,20 +55,14 @@ export function CreateServicePage() {
     }))
   }, [envs.data, dests.data, templates.data, prefillEnv, emptyCompose])
 
-  const filtered = useMemo(() => {
-    const q = searchQ.trim().toLowerCase()
-    const list = templates.data?.templates || []
-    if (!q) return list.slice(0, 48)
-    return list
-      .filter(
-        (t) =>
-          t.name.toLowerCase().includes(q) ||
-          t.type.toLowerCase().includes(q) ||
-          (t.description || '').toLowerCase().includes(q) ||
-          (t.category || '').toLowerCase().includes(q),
-      )
-      .slice(0, 48)
-  }, [templates.data, searchQ])
+  const matched = useMemo(
+    () => filterServiceTemplates(templates.data?.templates || [], searchQ, ''),
+    [templates.data, searchQ],
+  )
+  const { visible, hasMore, total, loadMoreRef, loadMore } = useCatalogWindow(
+    matched,
+    searchQ.trim().toLowerCase(),
+  )
 
   const selected = (templates.data?.templates || []).find((t) => t.type === form.template)
 
@@ -113,7 +110,7 @@ export function CreateServicePage() {
     },
   })
 
-  if ((!emptyCompose && templates.isLoading) || envs.isLoading || dests.isLoading) {
+  if (envs.isLoading || dests.isLoading) {
     return <FormPageSkeleton />
   }
 
@@ -236,41 +233,81 @@ export function CreateServicePage() {
                 </div>
               </div>
             )}
-            <div className="grid max-h-[min(40rem,70vh)] gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {filtered.map((t) => {
-                const active = form.template === t.type
-                return (
-                  <button
-                    key={t.type}
-                    type="button"
-                    onClick={() =>
-                      setForm((f) => ({
-                        ...f,
-                        template: t.type,
-                        name: f.name || t.name.toLowerCase().replace(/\s+/g, '-'),
-                      }))
-                    }
-                    className={`flex items-start gap-3 rounded-lg border p-2.5 text-left transition ${
-                      active
-                        ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500/30 dark:bg-brand-500/10'
-                        : 'border-gray-200 hover:border-gray-300 dark:border-gray-800'
-                    }`}
+            {templates.isLoading ? (
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="flex items-start gap-3 rounded-lg border border-gray-200 p-2.5 dark:border-gray-800"
                   >
-                    <ServiceLogo src={catalogLogoUrl(t.logo)} name={t.name} className="h-9 w-9" />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium text-gray-900 dark:text-white">
-                        {t.name}
-                      </div>
-                      {t.category && (
-                        <div className="mt-1 text-[10px] font-semibold tracking-wide text-gray-400 uppercase">
-                          {t.category}
-                        </div>
-                      )}
+                    <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Skeleton className="h-4 w-28" />
+                      <Skeleton className="h-3 w-16" />
                     </div>
-                  </button>
-                )
-              })}
-            </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div
+                data-catalog-scroll
+                className="grid max-h-[min(40rem,70vh)] gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+              >
+                {visible.map((t, i) => {
+                  const active = form.template === t.type
+                  return (
+                    <button
+                      key={t.type}
+                      type="button"
+                      onClick={() =>
+                        setForm((f) => ({
+                          ...f,
+                          template: t.type,
+                          name: f.name || t.name.toLowerCase().replace(/\s+/g, '-'),
+                        }))
+                      }
+                      className={`flex items-start gap-3 rounded-lg border p-2.5 text-left transition ${
+                        active
+                          ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500/30 dark:bg-brand-500/10'
+                          : 'border-gray-200 hover:border-gray-300 dark:border-gray-800'
+                      }`}
+                    >
+                      <ServiceLogo
+                        src={catalogLogoUrl(t.logo)}
+                        name={t.name}
+                        priority={i < 6}
+                        className="h-9 w-9"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-gray-900 dark:text-white">
+                          {t.name}
+                        </div>
+                        {t.category && (
+                          <div className="mt-1 text-[10px] font-semibold tracking-wide text-gray-400 uppercase">
+                            {t.category}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  )
+                })}
+                <div className="col-span-full">
+                  <CatalogLoadMore
+                    hasMore={hasMore}
+                    shown={visible.length}
+                    total={total}
+                    noun="templates"
+                    loadMoreRef={loadMoreRef}
+                    onLoadMore={loadMore}
+                  />
+                  {!matched.length && (
+                    <p className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                      No templates match your search.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </section>
         )}
 
