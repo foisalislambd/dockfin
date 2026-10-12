@@ -79,7 +79,7 @@ export function LiveLogViewer({
     : [...TAIL_OPTIONS, tail ?? 200].sort((a, b) => a - b)
 
   return (
-    <div className="-mx-3 overflow-hidden border-y border-gray-200 dark:border-gray-800 sm:mx-0 sm:rounded-xl sm:border">
+    <div className="-mx-2 overflow-hidden border-y border-gray-200 dark:border-gray-800 sm:mx-0 sm:rounded-xl sm:border">
       <div className="flex flex-col gap-2 bg-white px-3 py-2.5 dark:bg-white/[0.03] sm:flex-row sm:items-center sm:gap-3 sm:px-4">
         <div className="flex items-center justify-between gap-2 sm:contents">
           <div className="flex min-w-0 items-center gap-2">

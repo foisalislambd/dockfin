@@ -103,7 +103,7 @@ export function DeploymentRows({
         const busy = d.status === 'queued' || d.status === 'in_progress'
         const title = (d.commit_message || '').trim() || d.current_stage || d.status
         return (
-          <div key={d.id} className="flex flex-wrap items-center gap-3 px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-white/[0.03]">
+          <div key={d.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5.5 hover:bg-gray-50 dark:hover:bg-white/[0.03]">
             <button
               type="button"
               className="min-w-0 flex-1 text-left"
@@ -184,7 +184,7 @@ export function AppOverview({
   onOpenDeployment: (id: string) => void
   onCancelDeployment?: (id: string) => void
   onRedeploy: () => void
-  onOpenSettings: (side: 'general' | 'environment' | 'servers' | 'git') => void
+  onOpenSettings: (side: 'general' | 'domains' | 'environment' | 'servers' | 'git') => void
   onViewAllDeployments?: () => void
   deployBusy?: boolean
   showGit?: boolean
@@ -208,10 +208,10 @@ export function AppOverview({
   )
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,1fr)]">
+    <div className="space-y-3">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,1fr)]">
         <section className="panel-card overflow-hidden">
-          <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-5 py-3 dark:border-gray-800">
+          <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-2.5 dark:border-gray-800">
             <div>
               <p className="text-[11px] font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
                 Production
@@ -223,7 +223,7 @@ export function AppOverview({
             <StatusBadge status={latest?.status || app.status} />
           </div>
 
-          <div className="border-b border-gray-200 bg-gray-50 px-5 py-4 dark:border-gray-800 dark:bg-white/[0.03]">
+          <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-white/[0.03]">
             <PreviewChrome
               host={host}
               logoSrc={logoSrc}
@@ -232,7 +232,7 @@ export function AppOverview({
             />
           </div>
 
-          <div className="space-y-4 px-5 py-4">
+          <div className="space-y-3 px-4 py-3">
             <dl className="grid gap-3 text-sm sm:grid-cols-2">
               <div>
                 <dt className="text-xs text-gray-500 dark:text-gray-400">Last deployed</dt>
@@ -275,7 +275,7 @@ export function AppOverview({
             </dl>
             <div className="flex flex-wrap gap-2">
               {visit && safeExternalHref(visit) ? null : (
-                <Btn onClick={() => onOpenSettings('general')}>Add domain</Btn>
+                <Btn onClick={() => onOpenSettings('domains')}>Add domain</Btn>
               )}
               <Btn primary onClick={onRedeploy} disabled={deployBusy}>
                 {deployBusy ? 'Queueing…' : 'Redeploy'}
@@ -287,8 +287,8 @@ export function AppOverview({
           </div>
         </section>
 
-        <div className="space-y-4">
-          <section className="panel-card p-5">
+        <div className="space-y-3">
+          <section className="panel-card p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
                 <Globe className="h-3.5 w-3.5 text-gray-400" />
@@ -297,7 +297,7 @@ export function AppOverview({
               <button
                 type="button"
                 className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
-                onClick={() => onOpenSettings('general')}
+                onClick={() => onOpenSettings('domains')}
               >
                 Edit
               </button>
@@ -329,7 +329,7 @@ export function AppOverview({
             )}
           </section>
 
-          <section className="panel-card space-y-3 p-5">
+          <section className="panel-card space-y-3 p-4">
             <button
               type="button"
               className="flex w-full items-start justify-between gap-2 text-left"
@@ -352,7 +352,7 @@ export function AppOverview({
             )}
           </section>
 
-          <section className="panel-card p-5">
+          <section className="panel-card p-4">
             <button
               type="button"
               className="flex w-full items-start justify-between gap-2 text-left"
@@ -371,7 +371,7 @@ export function AppOverview({
           </section>
 
           {showGit ? (
-          <section className="panel-card p-5">
+          <section className="panel-card p-4">
             <button
               type="button"
               className="flex w-full items-start justify-between gap-2 text-left"
@@ -397,7 +397,7 @@ export function AppOverview({
       <OverviewLiveMetrics kind="application" resourceId={app.id} />
 
       <section className="panel-card overflow-hidden">
-        <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-5 py-3 dark:border-gray-800">
+        <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-2.5 dark:border-gray-800">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Deployments</h3>
           {onViewAllDeployments ? (
             <button
@@ -461,10 +461,10 @@ export function ServiceOverview({
   const units = service.units || []
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,1fr)]">
+    <div className="space-y-3">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,1fr)]">
         <section className="panel-card overflow-hidden">
-          <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-5 py-3 dark:border-gray-800">
+          <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-2.5 dark:border-gray-800">
             <div>
               <p className="text-[11px] font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
                 Production
@@ -476,7 +476,7 @@ export function ServiceOverview({
             <StatusBadge status={service.status} />
           </div>
 
-          <div className="border-b border-gray-200 bg-gray-50 px-5 py-4 dark:border-gray-800 dark:bg-white/[0.03]">
+          <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-white/[0.03]">
             <PreviewChrome
               host={host}
               logoSrc={logoSrc}
@@ -485,7 +485,7 @@ export function ServiceOverview({
             />
           </div>
 
-          <div className="space-y-4 px-5 py-4">
+          <div className="space-y-3 px-4 py-3">
             <dl className="grid gap-3 text-sm sm:grid-cols-2">
               <div>
                 <dt className="text-xs text-gray-500 dark:text-gray-400">Type</dt>
@@ -522,8 +522,8 @@ export function ServiceOverview({
           </div>
         </section>
 
-        <div className="space-y-4">
-          <section className="panel-card p-5">
+        <div className="space-y-3">
+          <section className="panel-card p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
                 <Globe className="h-3.5 w-3.5 text-gray-400" />
@@ -571,7 +571,7 @@ export function ServiceOverview({
             )}
           </section>
 
-          <section className="panel-card space-y-3 p-5">
+          <section className="panel-card space-y-3 p-4">
             <button
               type="button"
               className="flex w-full items-start justify-between gap-2 text-left"
@@ -594,7 +594,7 @@ export function ServiceOverview({
             )}
           </section>
 
-          <section className="panel-card p-5">
+          <section className="panel-card p-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
               <Server className="h-3.5 w-3.5 text-gray-400" />
               Destination
@@ -609,7 +609,7 @@ export function ServiceOverview({
       <OverviewLiveMetrics kind="service" resourceId={service.id} />
 
       <section className="panel-card overflow-hidden">
-        <div className="border-b border-gray-200 px-5 py-3 dark:border-gray-800">
+        <div className="border-b border-gray-200 px-4 py-2.5 dark:border-gray-800">
           <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
             <Box className="h-3.5 w-3.5 text-gray-400" />
             Containers
@@ -618,7 +618,7 @@ export function ServiceOverview({
         {units.length ? (
           <div className="divide-y divide-gray-200 dark:divide-gray-800">
             {units.map((u) => (
-              <div key={u.name} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
+              <div key={u.name} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5.5">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{u.name}</p>
                   <p className="mt-0.5 truncate font-mono text-xs text-gray-500 dark:text-gray-400">

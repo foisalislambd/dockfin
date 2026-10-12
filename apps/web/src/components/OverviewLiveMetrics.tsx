@@ -613,9 +613,6 @@ export function OverviewLiveMetrics({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-5 py-3 dark:border-gray-800">
         <div>
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Live usage</h3>
-          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-            This stack’s containers only · not the VPS · 30s while this tab is open
-          </p>
         </div>
       </div>
       {q.isLoading && !rows.length ? (

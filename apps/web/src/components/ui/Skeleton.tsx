@@ -175,7 +175,7 @@ export function AppShellSkeleton() {
             <Skeleton className="h-8 w-8 rounded-full" />
           </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-hidden px-3 py-4 sm:px-5 sm:py-5 lg:px-6">
+        <div className="min-h-0 flex-1 overflow-hidden px-2 py-3 sm:px-3 sm:py-3">
           <RoutePageSkeleton
             pathname={typeof window !== 'undefined' ? window.location.pathname : '/'}
             search={typeof window !== 'undefined' ? window.location.search : ''}
@@ -233,20 +233,27 @@ export function DetailPageSkeleton({
   tabs = 6,
   labelled = true,
   metrics = false,
+  variant = 'tabs',
 }: {
   withSideNav?: boolean
   tabs?: number
   labelled?: boolean
   /** Application/service Overview live-usage tiles — not DB/server/git. */
   metrics?: boolean
+  /** Resource pages use a grouped side menu. Name and actions sit on Overview. */
+  variant?: 'tabs' | 'resource'
 }) {
+  const resource = variant === 'resource'
   return (
     <div className="space-y-5" {...loadingRegion(labelled, 'Loading page')}>
+      {resource ? null : (
       <div className="inline-flex h-8 items-center gap-1.5">
         <Skeleton className="h-6 w-6 rounded-md" />
         <Skeleton className="h-3.5 w-24" />
       </div>
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      )}
+      {resource ? null : (
+      <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <Skeleton className="h-10 w-10 shrink-0 rounded-xl" />
           <div className="min-w-0 space-y-2">
@@ -260,14 +267,17 @@ export function DetailPageSkeleton({
           <Skeleton className="h-8 w-8 rounded-md" />
         </div>
       </div>
+      )}
 
+      {resource ? null : (
       <div className="flex flex-nowrap gap-1 overflow-x-auto border-b border-gray-200 pb-px dark:border-gray-800">
         {Array.from({ length: tabs }).map((_, i) => (
           <Skeleton key={i} className="mb-2 h-8 w-[4.75rem] shrink-0 rounded-md" />
         ))}
       </div>
+      )}
 
-      {withSideNav ? (
+      {resource || withSideNav ? (
         <div className="flex flex-col gap-6 md:flex-row">
           <aside className="w-full shrink-0 md:w-56">
             <nav className="space-y-0.5">
@@ -504,13 +514,11 @@ export function RoutePageSkeleton({
     case 'choice':
       return <ChoiceGridSkeleton labelled={labelled} />
     case 'app':
-      return <DetailPageSkeleton withSideNav={false} tabs={6} metrics labelled={labelled} />
     case 'app-settings':
-      return <DetailPageSkeleton withSideNav tabs={6} labelled={labelled} />
+      return <DetailPageSkeleton variant="resource" metrics labelled={labelled} />
     case 'service':
-      return <DetailPageSkeleton withSideNav={false} tabs={5} metrics labelled={labelled} />
     case 'service-settings':
-      return <DetailPageSkeleton withSideNav tabs={5} labelled={labelled} />
+      return <DetailPageSkeleton variant="resource" labelled={labelled} />
     case 'resource':
       return <DetailPageSkeleton withSideNav={false} tabs={6} labelled={labelled} />
     case 'simple':

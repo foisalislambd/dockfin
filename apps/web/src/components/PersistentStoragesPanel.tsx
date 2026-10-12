@@ -96,10 +96,6 @@ export function PersistentStoragesPanel({
     <div className="space-y-4">
       <div>
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Persistent Storages</h2>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Volumes declared in the compose file. Named volumes are created automatically on deploy.
-          Edit the compose YAML and use Load Compose to refresh this list.
-        </p>
       </div>
       <div className="panel-card overflow-hidden">
         <table className="w-full text-left text-sm">

@@ -58,7 +58,7 @@ export function EnvVarsPanel({
   resourceType,
   resourceId,
   title = 'Environment Variables',
-  subtitle = 'Environment (secrets) variables for this resource.',
+  subtitle = '',
   previewTabs = false,
   sortByKey = false,
 }: Props) {

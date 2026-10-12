@@ -44,8 +44,8 @@ function PanelShellInner() {
           <div
             className={
               fillViewport
-                ? 'flex h-full min-h-0 w-full min-w-0 flex-1 flex-col px-3 py-3 sm:px-5 sm:py-4 lg:px-6'
-                : 'w-full px-3 py-4 sm:px-5 sm:py-5 lg:px-6'
+                ? 'flex h-full min-h-0 w-full min-w-0 flex-1 flex-col px-2 py-3 sm:px-3 sm:py-3'
+                : 'w-full px-2 py-3 sm:px-3 sm:py-3'
             }
           >
             {/* Keep shell chrome mounted; only the page body suspends */}

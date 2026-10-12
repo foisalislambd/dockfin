@@ -9,7 +9,9 @@ import {
   ExternalLink,
   GitBranch,
   GitPullRequest,
+  Globe,
   HardDrive,
+  HeartPulse,
   History,
   LayoutDashboard,
   Rocket,
@@ -53,11 +55,11 @@ import { gentleRefetchInterval } from '../lib/poll'
 import { useLogStream } from '../lib/useLogStream'
 import { Btn, Input } from './Servers'
 
-/** Vercel-style IA — Overview first, Settings last. */
+/** URL buckets. Configuration sections live in ?side=; the rest are ?tab=. */
 const TOP_TABS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'deployments', label: 'Deployments', icon: History },
-  { id: 'logs', label: 'Logs', icon: ScrollText },
+  { id: 'deployments', label: 'Deployment Logs', icon: History },
+  { id: 'logs', label: 'Runtime Logs', icon: ScrollText },
   { id: 'terminal', label: 'Terminal', icon: Terminal },
   { id: 'backups', label: 'Backups', icon: Archive },
   { id: 'configuration', label: 'Settings', icon: Settings2 },
@@ -410,41 +412,73 @@ function healthFromApp(updated: {
   }
 }
 
-/** Coolify-style configuration sidebar (Dockfin design tokens). */
-const SIDE_ITEMS = [
+/** Coolify-style resource menu. Configuration ids are stored in ?side=. */
+const NAV_ITEMS = [
+  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'general', label: 'General', icon: Settings2 },
-  { id: 'advanced', label: 'Advanced', icon: SlidersHorizontal },
+  { id: 'domains', label: 'Domains', icon: Globe },
   { id: 'environment', label: 'Environment Variables', icon: Variable },
   { id: 'storages', label: 'Persistent Storage', icon: HardDrive },
+  { id: 'advanced', label: 'Advanced', icon: SlidersHorizontal },
+  { id: 'health', label: 'Healthcheck', icon: HeartPulse },
+  { id: 'tags', label: 'Tags', icon: Tags },
+  { id: 'logs', label: 'Runtime Logs', icon: ScrollText },
+  { id: 'deployments', label: 'Deployment Logs', icon: History },
+  { id: 'terminal', label: 'Terminal', icon: Terminal },
+  { id: 'metrics', label: 'Metrics', icon: Activity },
   { id: 'git', label: 'Git Source', icon: GitBranch },
   { id: 'servers', label: 'Servers', icon: Server },
+  { id: 'previews', label: 'Preview Deployments', icon: GitPullRequest },
   { id: 'tasks', label: 'Scheduled Tasks', icon: CalendarClock },
   { id: 'webhooks', label: 'Webhooks', icon: Webhook },
-  { id: 'previews', label: 'Preview Deployments', icon: GitPullRequest },
-  { id: 'rollback', label: 'Rollback', icon: RotateCcw },
-  { id: 'limits', label: 'Resource Limits', icon: Gauge },
+  { id: 'backups', label: 'Backups', icon: Archive },
   { id: 'operations', label: 'Resource Operations', icon: Wrench },
-  { id: 'metrics', label: 'Metrics', icon: Activity },
-  { id: 'tags', label: 'Tags', icon: Tags },
+  { id: 'limits', label: 'Resource Limits', icon: Gauge },
+  { id: 'rollback', label: 'Rollback', icon: RotateCcw },
   { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
 ] as const
 
-const APP_SIDE_GROUPS = [
-  { label: 'Setup', ids: ['general', 'advanced', 'environment'] },
-  { label: 'Source', ids: ['git', 'servers', 'previews', 'webhooks'] },
-  { label: 'Runtime', ids: ['storages', 'tasks', 'limits', 'metrics', 'tags'] },
-  { label: 'Manage', ids: ['rollback', 'operations', 'danger'] },
+const APP_NAV_GROUPS = [
+  {
+    label: 'Settings',
+    ids: ['general', 'domains', 'environment', 'storages', 'advanced', 'health', 'tags'],
+  },
+  { label: 'Observe & troubleshoot', ids: ['logs', 'deployments', 'terminal', 'metrics'] },
+  { label: 'Deploy', ids: ['git', 'servers', 'previews'] },
+  { label: 'Automation', ids: ['tasks', 'webhooks', 'backups'] },
+  { label: 'Operations', ids: ['operations', 'limits', 'rollback', 'danger'] },
+] as const
+
+const CONFIG_SIDE_IDS = [
+  'general',
+  'domains',
+  'environment',
+  'storages',
+  'advanced',
+  'health',
+  'tags',
+  'metrics',
+  'git',
+  'servers',
+  'previews',
+  'tasks',
+  'webhooks',
+  'operations',
+  'limits',
+  'rollback',
+  'danger',
 ] as const
 
 type TopTabId = (typeof TOP_TABS)[number]['id']
-type SideId = (typeof SIDE_ITEMS)[number]['id']
+type SideId = (typeof CONFIG_SIDE_IDS)[number]
+type NavId = (typeof NAV_ITEMS)[number]['id']
 
 function isTopTabId(v: string | undefined): v is TopTabId {
   return !!v && TOP_TABS.some((t) => t.id === v)
 }
 
 function isSideId(v: string | undefined): v is SideId {
-  return !!v && SIDE_ITEMS.some((t) => t.id === v)
+  return !!v && (CONFIG_SIDE_IDS as readonly string[]).includes(v)
 }
 
 /** Persisted in ?tab=&side= so refresh keeps the active panels. */
@@ -482,17 +516,20 @@ export function ApplicationDetailPage() {
       search: ((prev: Record<string, unknown>) => {
         const { tab: _t, side: _s, ...rest } = prev
         const out: Record<string, unknown> = { ...rest }
-        if (tab !== 'overview') {
-          out.tab = tab
-        }
-        // Keep side in the URL even on other top tabs so Configuration restores it.
-        if (nextSide !== 'general') {
-          out.side = nextSide
-        }
+        if (tab !== 'overview') out.tab = tab
+        if (tab === 'configuration' && nextSide !== 'general') out.side = nextSide
         return out
       }) as never,
       replace: true,
     })
+  }
+
+  const goSection = (id: NavId) => {
+    if (id === 'overview' || id === 'logs' || id === 'deployments' || id === 'terminal' || id === 'backups') {
+      setAppNav({ tab: id, side: 'general' })
+      return
+    }
+    if (isSideId(id)) setAppNav({ tab: 'configuration', side: id })
   }
 
   const app = useQuery({ queryKey: ['application', appId], queryFn: () => api.application(appId) })
@@ -642,17 +679,23 @@ export function ApplicationDetailPage() {
 
   const sideItems = useMemo(() => {
     const inlineDockerfile = Boolean(app.data?.dockerfile || cfg.dockerfile)
-    const base = !inlineDockerfile
-      ? SIDE_ITEMS
-      : SIDE_ITEMS.filter((item) => !['git', 'webhooks', 'previews', 'rollback'].includes(item.id))
-    const emptyCount = emptyUserEnvVars(envVarsQ.data?.environment_variables).length
-    return base.map((item) =>
-      item.id === 'environment' && emptyCount ? { ...item, badge: emptyCount } : item,
+    const hidden = new Set<string>(
+      inlineDockerfile ? ['git', 'webhooks', 'previews', 'rollback'] : [],
     )
-  }, [app.data?.dockerfile, cfg.dockerfile, envVarsQ.data?.environment_variables])
+    const emptyCount = emptyUserEnvVars(envVarsQ.data?.environment_variables).length
+    const deploying = (deps.data?.deployments || []).some(
+      (d) => d.status === 'queued' || d.status === 'in_progress',
+    )
+    return NAV_ITEMS.filter((item) => !hidden.has(item.id)).map((item) => {
+      if (item.id === 'environment' && emptyCount) return { ...item, badge: emptyCount }
+      if (item.id === 'deployments' && deploying) return { ...item, dot: true }
+      return item
+    })
+  }, [app.data?.dockerfile, cfg.dockerfile, envVarsQ.data?.environment_variables, deps.data?.deployments])
 
   // If URL points at a hidden side item (e.g. Git on inline Dockerfile), fall back.
   const side: SideId = sideItems.some((i) => i.id === sideRaw) ? sideRaw : 'general'
+  const section: NavId = topTab === 'configuration' ? side : topTab
 
   const applyAppToForm = (updated: NonNullable<typeof app.data>) => {
     setCfg(appCfgFromData(updated))
@@ -939,11 +982,11 @@ export function ApplicationDetailPage() {
   const appImages = useQuery({
     queryKey: ['app-images', appId],
     queryFn: () => api.listApplicationImages(appId),
-    enabled: side === 'rollback' && Boolean(appId),
+    enabled: section === 'rollback' && Boolean(appId),
   })
 
   if (app.isLoading) {
-    return <DetailPageSkeleton withSideNav={topTab === 'configuration'} tabs={6} metrics={topTab !== 'configuration'} />
+    return <DetailPageSkeleton variant="resource" />
   }
 
   const crumbs =
@@ -959,7 +1002,7 @@ export function ApplicationDetailPage() {
 
   if (app.error || !app.data) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
         {crumbs}
         <p className="text-error-500">{app.error?.message || 'Application not found'}</p>
       </div>
@@ -1027,14 +1070,24 @@ export function ApplicationDetailPage() {
       title: 'Public domain',
       hint: 'Add a magic or custom domain so Traefik can route traffic.',
       actionLabel: 'Set domain',
-      onAction: () => setAppNav({ tab: 'configuration', side: 'general' }),
+      onAction: () => setAppNav({ tab: 'configuration', side: 'domains' }),
     },
   ]
 
   return (
-    <div className="space-y-5">
-      {crumbs}
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="space-y-3">
+      <div className="flex flex-col gap-2 md:flex-row md:items-start">
+        <ConfigSideNav
+          items={sideItems}
+          groups={APP_NAV_GROUPS}
+          pinned={['overview']}
+          active={section}
+          onSelect={goSection}
+        />
+        <div className="min-w-0 flex-1 space-y-3">
+      {section === 'overview' && (
+        <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <ServiceLogo
             src={logoForApplication(a.build_pack, a.git_source_id)}
@@ -1051,9 +1104,14 @@ export function ApplicationDetailPage() {
                 projectId={resolvedProjectId}
               />
             </h1>
+            {(activeDep ? activeDep.status : a.status) !== (latestDep?.status || a.status) || emptyEnv.length ? (
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
-              <StatusBadge status={activeDep ? activeDep.status : a.status} />
-              <span className="text-xs capitalize text-gray-500 dark:text-gray-400">{a.build_pack}</span>
+              {(activeDep ? activeDep.status : a.status) !== (latestDep?.status || a.status) ? (
+                <>
+                  <StatusBadge status={activeDep ? activeDep.status : a.status} />
+                  <span className="text-xs capitalize text-gray-500 dark:text-gray-400">{a.build_pack}</span>
+                </>
+              ) : null}
               {emptyEnv.length ? (
                 <button
                   type="button"
@@ -1064,6 +1122,7 @@ export function ApplicationDetailPage() {
                 </button>
               ) : null}
             </div>
+            ) : null}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -1126,44 +1185,6 @@ export function ApplicationDetailPage() {
           </DetailMoreMenu>
         </div>
       </div>
-
-      <div className="sticky top-0 z-20 -mx-3 border-b border-gray-200 bg-white/90 px-3 backdrop-blur dark:border-gray-800 dark:bg-gray-950/90 sm:-mx-5 sm:px-5 lg:-mx-6 lg:px-6">
-        <nav className="flex flex-nowrap gap-1 overflow-x-auto" role="tablist">
-          {TOP_TABS.map((t) => {
-            const Icon = t.icon
-            const active = topTab === t.id
-            return (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => setAppNav({ tab: t.id })}
-                className={`relative inline-flex shrink-0 items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition ${
-                  active
-                    ? 'text-gray-900 dark:text-white'
-                    : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-                }`}
-              >
-                <Icon
-                  className={`h-3.5 w-3.5 shrink-0 ${active ? 'opacity-100' : 'opacity-70'}`}
-                  aria-hidden
-                />
-                {t.label}
-                {t.id === 'deployments' && activeDep ? (
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
-                ) : null}
-                {active && (
-                  <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-brand-500" />
-                )}
-              </button>
-            )
-          })}
-        </nav>
-      </div>
-
-      {topTab === 'overview' && (
-        <div className="space-y-6">
           <ResourceSetupBanner checks={setupChecks} />
           <AppOverview
             app={a}
@@ -1185,18 +1206,9 @@ export function ApplicationDetailPage() {
         </div>
       )}
 
-      {topTab === 'configuration' && (
-        <div className="flex flex-col gap-6 md:flex-row">
-          <ConfigSideNav
-            items={sideItems}
-            groups={APP_SIDE_GROUPS}
-            active={side}
-            onSelect={(id) => setAppNav({ tab: 'configuration', side: id })}
-          />
-          <div className="min-w-0 flex-1 space-y-6">
-            {side === 'general' && (
+            {section === 'general' && (
               <form
-                className="space-y-6"
+                className="space-y-3"
                 onSubmit={(e) => {
                   e.preventDefault()
                   const fqdn = normalizeDomains(cfg.fqdn)
@@ -1208,9 +1220,6 @@ export function ApplicationDetailPage() {
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <h2 className="text-sm font-semibold text-gray-900 dark:text-white">General</h2>
-                      <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                        General configuration for your application.
-                      </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Btn primary type="submit" disabled={save.isPending}>
@@ -1227,7 +1236,7 @@ export function ApplicationDetailPage() {
                       ) : null}
                     </div>
                   </div>
-                  <div className="panel-card grid gap-4 p-5 sm:grid-cols-2">
+                  <div className="panel-card grid gap-4 p-4 sm:grid-cols-2">
                     <Input label="Name" value={cfg.name} onChange={(v) => setCfg({ ...cfg, name: v })} />
                     <Input
                       label="Description"
@@ -1254,100 +1263,6 @@ export function ApplicationDetailPage() {
                   </div>
                 </div>
 
-                {a.build_pack === 'dockercompose' &&
-                (a.compose_units || []).some((u) => !u.is_database) &&
-                cfg.compose_prepare ? (
-                  <div className="panel-card space-y-4 p-5">
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Domains</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      One domain (or comma-separated list) per compose service. Use Generate Domain for
-                      magic sslip/nip URLs.
-                    </p>
-                    {(a.compose_units || [])
-                      .filter((u) => !u.is_database)
-                      .map((u) => (
-                        <div key={u.name} className="flex flex-wrap items-end gap-2">
-                          <div className="min-w-0 flex-1">
-                            <Input
-                              label={`Domains for ${u.name}`}
-                              value={serviceDomains[u.name] || ''}
-                              onChange={(v) =>
-                                setServiceDomains((d) => ({ ...d, [u.name]: v }))
-                              }
-                              required={false}
-                            />
-                          </div>
-                          <Btn
-                            type="button"
-                            onClick={() => {
-                              void api
-                                .generateDomain({
-                                  name: `${cfg.name || a.name}-${u.name}`,
-                                  server_id: serverId || undefined,
-                                  destination_id: cfg.destination_id || a.destination_id || undefined,
-                                  resource_id: a.id,
-                                })
-                                .then((res) => {
-                                  const url = res.fqdn || res.url || ''
-                                  if (!url) throw new Error('No domain returned')
-                                  setServiceDomains((d) => ({ ...d, [u.name]: url }))
-                                  toast.success(`Domain for ${u.name}`)
-                                })
-                                .catch((err: Error) => toast.error(err.message || 'Generate failed'))
-                            }}
-                          >
-                            Generate Domain
-                          </Btn>
-                        </div>
-                      ))}
-                    <label className="block text-sm">
-                      <span className="mb-1 block text-gray-500 dark:text-gray-400">
-                        WWW redirect
-                      </span>
-                      <select
-                        value={cfg.redirect}
-                        onChange={(e) => setCfg({ ...cfg, redirect: e.target.value })}
-                        className="panel-field w-full max-w-xs rounded-lg px-3 py-2 text-sm"
-                      >
-                        <option value="both">Both www & non-www</option>
-                        <option value="www">Redirect to www</option>
-                        <option value="non-www">Redirect to non-www</option>
-                      </select>
-                    </label>
-                  </div>
-                ) : (
-                  <div className="panel-card space-y-4 p-5">
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Domains</h3>
-                    <DomainsPanel
-                      value={cfg.fqdn}
-                      onChange={(v) => setCfg({ ...cfg, fqdn: v })}
-                      onSave={(next) => {
-                        setCfg((c) => ({ ...c, fqdn: next }))
-                        save.mutate({ fqdn: next })
-                      }}
-                      saveBusy={save.isPending}
-                      serverId={serverId || undefined}
-                      destinationId={cfg.destination_id || a.destination_id || undefined}
-                      resourceId={a.id}
-                      resourceName={cfg.name || a.name}
-                    />
-                    <label className="block text-sm">
-                      <span className="mb-1 block text-gray-500 dark:text-gray-400">
-                        WWW redirect
-                      </span>
-                      <select
-                        value={cfg.redirect}
-                        onChange={(e) => setCfg({ ...cfg, redirect: e.target.value })}
-                        className="panel-field w-full max-w-xs rounded-lg px-3 py-2 text-sm"
-                      >
-                        <option value="both">Both www & non-www</option>
-                        <option value="www">Redirect to www</option>
-                        <option value="non-www">Redirect to non-www</option>
-                      </select>
-                    </label>
-                  </div>
-                )}
-
                 <details className="panel-card group overflow-hidden">
                   <summary className="cursor-pointer list-none px-5 py-3 text-sm font-semibold text-gray-900 marker:hidden dark:text-white [&::-webkit-details-marker]:hidden">
                     <span className="flex items-center justify-between gap-2">
@@ -1360,7 +1275,7 @@ export function ApplicationDetailPage() {
                       </span>
                     </span>
                   </summary>
-                  <div className="grid gap-4 border-t border-gray-200 p-5 sm:grid-cols-2 dark:border-gray-800">
+                  <div className="grid gap-4 border-t border-gray-200 p-4 sm:grid-cols-2 dark:border-gray-800">
                   {a.build_pack === 'dockercompose' ? (
                     <>
                       <Input
@@ -1544,7 +1459,7 @@ export function ApplicationDetailPage() {
                 </details>
 
                 {(cfg.build_pack === 'static' || cfg.build_pack === 'railpack') && (
-                  <div className="panel-card grid gap-4 p-5 sm:grid-cols-2">
+                  <div className="panel-card grid gap-4 p-4 sm:grid-cols-2">
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-white sm:col-span-2">
                       {cfg.build_pack === 'static' ? 'Static site' : 'Railpack'} commands
                     </h3>
@@ -1598,7 +1513,7 @@ export function ApplicationDetailPage() {
                 )}
 
                 {a.build_pack === 'dockerfile' && cfg.dockerfile ? (
-                  <div className="panel-card space-y-3 p-5">
+                  <div className="panel-card space-y-3 p-4">
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Dockerfile</h3>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                       Inline Dockerfile (no Git). ENV lines can be managed under Environment Variables.
@@ -1615,7 +1530,7 @@ export function ApplicationDetailPage() {
                 ) : null}
 
                 {a.build_pack === 'dockercompose' ? (
-                  <div className="panel-card space-y-3 p-5">
+                  <div className="panel-card space-y-3 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
                         Docker Compose
@@ -1658,16 +1573,127 @@ export function ApplicationDetailPage() {
               </form>
             )}
 
-            {side === 'advanced' && (
-              <div className="space-y-6">
+            {section === 'domains' && (
+              <form
+                className="space-y-3"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  const fqdn = normalizeDomains(cfg.fqdn)
+                  setCfg((c) => ({ ...c, fqdn }))
+                  save.mutate({ fqdn })
+                }}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Domains</h2>
+                  </div>
+                  <Btn primary type="submit" disabled={save.isPending}>
+                    {save.isPending ? 'Saving…' : 'Save'}
+                  </Btn>
+                </div>
+                {a.build_pack === 'dockercompose' &&
+                (a.compose_units || []).some((u) => !u.is_database) &&
+                cfg.compose_prepare ? (
+                  <div className="panel-card space-y-3 p-4">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Domains</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      One domain (or comma-separated list) per compose service. Use Generate Domain for
+                      magic sslip/nip URLs.
+                    </p>
+                    {(a.compose_units || [])
+                      .filter((u) => !u.is_database)
+                      .map((u) => (
+                        <div key={u.name} className="flex flex-wrap items-end gap-2">
+                          <div className="min-w-0 flex-1">
+                            <Input
+                              label={`Domains for ${u.name}`}
+                              value={serviceDomains[u.name] || ''}
+                              onChange={(v) =>
+                                setServiceDomains((d) => ({ ...d, [u.name]: v }))
+                              }
+                              required={false}
+                            />
+                          </div>
+                          <Btn
+                            type="button"
+                            onClick={() => {
+                              void api
+                                .generateDomain({
+                                  name: `${cfg.name || a.name}-${u.name}`,
+                                  server_id: serverId || undefined,
+                                  destination_id: cfg.destination_id || a.destination_id || undefined,
+                                  resource_id: a.id,
+                                })
+                                .then((res) => {
+                                  const url = res.fqdn || res.url || ''
+                                  if (!url) throw new Error('No domain returned')
+                                  setServiceDomains((d) => ({ ...d, [u.name]: url }))
+                                  toast.success(`Domain for ${u.name}`)
+                                })
+                                .catch((err: Error) => toast.error(err.message || 'Generate failed'))
+                            }}
+                          >
+                            Generate Domain
+                          </Btn>
+                        </div>
+                      ))}
+                    <label className="block text-sm">
+                      <span className="mb-1 block text-gray-500 dark:text-gray-400">
+                        WWW redirect
+                      </span>
+                      <select
+                        value={cfg.redirect}
+                        onChange={(e) => setCfg({ ...cfg, redirect: e.target.value })}
+                        className="panel-field w-full max-w-xs rounded-lg px-3 py-2 text-sm"
+                      >
+                        <option value="both">Both www & non-www</option>
+                        <option value="www">Redirect to www</option>
+                        <option value="non-www">Redirect to non-www</option>
+                      </select>
+                    </label>
+                  </div>
+                ) : (
+                  <div className="panel-card space-y-3 p-4">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Domains</h3>
+                    <DomainsPanel
+                      value={cfg.fqdn}
+                      onChange={(v) => setCfg({ ...cfg, fqdn: v })}
+                      onSave={(next) => {
+                        setCfg((c) => ({ ...c, fqdn: next }))
+                        save.mutate({ fqdn: next })
+                      }}
+                      saveBusy={save.isPending}
+                      serverId={serverId || undefined}
+                      destinationId={cfg.destination_id || a.destination_id || undefined}
+                      resourceId={a.id}
+                      resourceName={cfg.name || a.name}
+                    />
+                    <label className="block text-sm">
+                      <span className="mb-1 block text-gray-500 dark:text-gray-400">
+                        WWW redirect
+                      </span>
+                      <select
+                        value={cfg.redirect}
+                        onChange={(e) => setCfg({ ...cfg, redirect: e.target.value })}
+                        className="panel-field w-full max-w-xs rounded-lg px-3 py-2 text-sm"
+                      >
+                        <option value="both">Both www & non-www</option>
+                        <option value="www">Redirect to www</option>
+                        <option value="non-www">Redirect to non-www</option>
+                      </select>
+                    </label>
+                  </div>
+                )}
+              </form>
+            )}
+
+            {section === 'advanced' && (
+              <div className="space-y-3">
                 <div>
                   <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Advanced</h2>
-                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                    Health checks and deployment behaviour.
-                  </p>
                 </div>
                 <form
-                  className="panel-card space-y-4 p-5"
+                  className="panel-card space-y-3 p-4"
                   onSubmit={(e) => {
                     e.preventDefault()
                     save.mutate({})
@@ -2019,7 +2045,7 @@ export function ApplicationDetailPage() {
                 </form>
 
                 <form
-                  className="panel-card space-y-4 p-5"
+                  className="panel-card space-y-3 p-4"
                   onSubmit={(e) => {
                     e.preventDefault()
                     save.mutate({})
@@ -2058,7 +2084,7 @@ export function ApplicationDetailPage() {
                 </form>
 
                 <form
-                  className="panel-card space-y-4 p-5"
+                  className="panel-card space-y-3 p-4"
                   onSubmit={(e) => {
                     e.preventDefault()
                     save.mutate({})
@@ -2111,7 +2137,7 @@ export function ApplicationDetailPage() {
                 </form>
 
                 <form
-                  className="panel-card space-y-4 p-5"
+                  className="panel-card space-y-3 p-4"
                   onSubmit={(e) => {
                     e.preventDefault()
                     save.mutate({})
@@ -2162,9 +2188,17 @@ export function ApplicationDetailPage() {
                   </Btn>
                 </form>
 
+              </div>
+            )}
+
+            {section === 'health' && (
+              <div className="space-y-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Healthcheck</h2>
+                </div>
                 {a.build_pack !== 'dockercompose' ? (
                 <form
-                  className="panel-card space-y-4 p-5"
+                  className="panel-card space-y-3 p-4"
                   onSubmit={(e) => {
                     e.preventDefault()
                     saveHealth.mutate()
@@ -2299,7 +2333,7 @@ export function ApplicationDetailPage() {
                   </Btn>
                 </form>
                 ) : (
-                  <div className="panel-card p-5 text-sm text-gray-500 dark:text-gray-400">
+                  <div className="panel-card p-4 text-sm text-gray-500 dark:text-gray-400">
                     Health checks for Docker Compose apps are defined in the compose file (or leave
                     adaptation mode to Dockfin Traefik routing).
                   </div>
@@ -2307,9 +2341,9 @@ export function ApplicationDetailPage() {
               </div>
             )}
 
-            {side === 'git' && (
+            {section === 'git' && (
               <form
-                className="space-y-4"
+                className="space-y-3"
                 onSubmit={(e) => {
                   e.preventDefault()
                   save.mutate({})
@@ -2317,11 +2351,8 @@ export function ApplicationDetailPage() {
               >
                 <div>
                   <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Git Source</h2>
-                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                    Repository and branch used for deployments.
-                  </p>
                 </div>
-                <div className="panel-card grid gap-4 p-5 sm:grid-cols-2">
+                <div className="panel-card grid gap-4 p-4 sm:grid-cols-2">
                   <Input
                     label="Git repository"
                     value={cfg.git_repository}
@@ -2380,9 +2411,9 @@ export function ApplicationDetailPage() {
               </form>
             )}
 
-            {side === 'servers' && (
+            {section === 'servers' && (
               <form
-                className="space-y-4"
+                className="space-y-3"
                 onSubmit={(e) => {
                   e.preventDefault()
                   save.mutate({})
@@ -2391,11 +2422,8 @@ export function ApplicationDetailPage() {
               >
                 <div>
                   <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Servers</h2>
-                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                    Destination where this application is deployed.
-                  </p>
                 </div>
-                <div className="panel-card space-y-4 p-5">
+                <div className="panel-card space-y-3 p-4">
                   <label className="block text-sm">
                     <span className="mb-1 block text-gray-500 dark:text-gray-400">Destination</span>
                     <select
@@ -2475,49 +2503,41 @@ export function ApplicationDetailPage() {
               </form>
             )}
 
-            {side === 'storages' && (
-              <div className="space-y-4">
-                <div>
-                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-                    Persistent Storage
-                  </h2>
-                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                    {a.build_pack === 'dockercompose'
-                      ? 'Volumes come from your compose file. Edit YAML and Load Compose to refresh.'
-                      : 'Persistent volumes mounted into the container on the next deploy.'}
-                  </p>
-                </div>
+            {section === 'storages' && (
+              <div className="space-y-3">
                 {a.build_pack === 'dockercompose' ? (
                   <PersistentStoragesPanel
                     compose={a.docker_compose_raw || a.docker_compose || ''}
                     volumes={a.compose_volumes || []}
                   />
                 ) : (
-                  <PersistentStoragesPanel applicationId={appId} editable />
+                  <>
+                    <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                      Persistent Storage
+                    </h2>
+                    <PersistentStoragesPanel applicationId={appId} editable />
+                  </>
                 )}
               </div>
             )}
 
-            {side === 'metrics' && (
+            {section === 'metrics' && (
               <AppMetricsSection appId={appId} serverId={serverId} />
             )}
 
-            {side === 'tags' && (
-              <div className="space-y-4">
+            {section === 'tags' && (
+              <div className="space-y-3">
                 <div>
                   <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Tags</h2>
-                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                    Organize this application with tags.
-                  </p>
                 </div>
                 <ResourceTagsPanel resourceType="application" resourceId={appId} />
               </div>
             )}
 
-            {side === 'limits' && (
+            {section === 'limits' && (
               <div>
                 <form
-                  className="space-y-4"
+                  className="space-y-3"
                   onSubmit={(e) => {
                     e.preventDefault()
                     saveLimits.mutate()
@@ -2527,11 +2547,8 @@ export function ApplicationDetailPage() {
                     <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
                       Resource Limits
                     </h2>
-                    <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                      Docker resource limits applied on the next deploy. Leave empty for unlimited.
-                    </p>
                   </div>
-                  <div className="panel-card grid gap-4 p-5 sm:grid-cols-2">
+                  <div className="panel-card grid gap-4 p-4 sm:grid-cols-2">
                     <Input
                       label="Memory limit"
                       value={limits.limits_memory}
@@ -2560,17 +2577,12 @@ export function ApplicationDetailPage() {
               </div>
             )}
 
-            {side === 'environment' && (
+            {section === 'environment' && (
               <div>
                 <div className="mb-3">
                   <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
                     Environment Variables
                   </h2>
-                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                    {a.build_pack === 'dockercompose'
-                      ? 'Variables are auto-created from your Docker Compose file (${VAR}, defaults, and SERVICE_*). Click Load Compose under General if the list is empty.'
-                      : 'Environment (secrets) variables for this application.'}
-                  </p>
                 </div>
                 <EnvVarsPanel
                   resourceType="application"
@@ -2582,22 +2594,15 @@ export function ApplicationDetailPage() {
               </div>
             )}
 
-            {side === 'previews' && (
-              <div className="space-y-6">
+            {section === 'previews' && (
+              <div className="space-y-3">
                 <div className="mb-3">
                   <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
                     Preview Deployments
                   </h2>
-                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                    Pull-request preview deployments for this application.
-                    {!cfg.is_preview_enabled && (
-                      <> Enable them under Advanced to accept PR webhooks.</>
-                    )}{' '}
-                    Preview-specific env vars live under Environment Variables → Preview.
-                  </p>
                 </div>
                 <form
-                  className="panel-card grid gap-4 p-5 sm:grid-cols-2"
+                  className="panel-card grid gap-4 p-4 sm:grid-cols-2"
                   onSubmit={(e) => {
                     e.preventDefault()
                     save.mutate({})
@@ -2620,7 +2625,7 @@ export function ApplicationDetailPage() {
                   </div>
                 </form>
                 <form
-                  className="panel-card grid gap-4 p-5 sm:grid-cols-2"
+                  className="panel-card grid gap-4 p-4 sm:grid-cols-2"
                   onSubmit={(e) => {
                     e.preventDefault()
                     if (!previewDeploy.pull_request_id) return
@@ -2747,12 +2752,12 @@ export function ApplicationDetailPage() {
               </div>
             )}
 
-            {side === 'webhooks' && (
+            {section === 'webhooks' && (
               <div>
                 <div className="mb-3">
                   <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Webhooks</h2>
                 </div>
-                <div className="panel-card space-y-4 p-5">
+                <div className="panel-card space-y-3 p-4">
                   <div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">Git webhook URL</div>
                     <code className="mt-1 block break-all font-mono text-sm text-gray-900 dark:text-white">
@@ -2783,20 +2788,20 @@ export function ApplicationDetailPage() {
               </div>
             )}
 
-            {side === 'tasks' && (
+            {section === 'tasks' && (
               <div>
                 <ScheduledTasksPanel resourceType="application" resourceId={appId} />
               </div>
             )}
 
-            {side === 'operations' && (
-              <div className="space-y-4">
+            {section === 'operations' && (
+              <div className="space-y-3">
                 <div>
                   <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
                     Resource Operations
                   </h2>
                 </div>
-                <div className="panel-card space-y-3 p-5">
+                <div className="panel-card space-y-3 p-4">
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Deploy</h3>
                   <div className="flex flex-wrap gap-2">
                     <Btn primary onClick={() => requestDeploy({})}>
@@ -2805,7 +2810,7 @@ export function ApplicationDetailPage() {
                     <Btn onClick={() => requestDeploy({ force: true })}>Force rebuild</Btn>
                   </div>
                 </div>
-                <div className="panel-card space-y-3 p-5">
+                <div className="panel-card space-y-3 p-4">
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Clone</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     Duplicate this application (settings and env vars) into the same or another
@@ -2827,7 +2832,7 @@ export function ApplicationDetailPage() {
                     <p className="text-sm text-error-500">{cloneApp.error.message}</p>
                   ) : null}
                 </div>
-                <div className="panel-card space-y-3 p-5">
+                <div className="panel-card space-y-3 p-4">
                   <h3 className="text-sm font-semibold text-error-500">Stop + Docker cleanup</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     Stop containers and run Docker prune on the destination server (unused images,
@@ -2866,16 +2871,13 @@ export function ApplicationDetailPage() {
               </div>
             )}
 
-            {side === 'rollback' && (
-              <div className="space-y-4">
+            {section === 'rollback' && (
+              <div className="space-y-3">
                 <div>
                   <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Rollback</h2>
-                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                    Redeploy a previous finished commit. This queues a new deployment with force rebuild.
-                  </p>
                 </div>
                 <form
-                  className="panel-card flex flex-wrap items-end gap-4 p-5"
+                  className="panel-card flex flex-wrap items-end gap-4 p-4"
                   onSubmit={(e) => {
                     e.preventDefault()
                     save.mutate({})
@@ -2963,9 +2965,9 @@ export function ApplicationDetailPage() {
               </div>
             )}
 
-            {side === 'danger' && (
-              <div className="space-y-4">
-                <div className="panel-card space-y-4 border-error-200 p-5 dark:border-error-500/30">
+            {section === 'danger' && (
+              <div className="space-y-3">
+                <div className="panel-card space-y-3 border-error-200 p-4 dark:border-error-500/30">
                   <h2 className="text-sm font-semibold text-error-500">Force rebuild</h2>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     Queue a deployment with force rebuild enabled.
@@ -3016,18 +3018,12 @@ export function ApplicationDetailPage() {
                 />
               </div>
             )}
-          </div>
-        </div>
-      )}
 
-      {topTab === 'deployments' && (
+      {section === 'deployments' && (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Deployments</h2>
-              <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                Every build for this application, newest first.
-              </p>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Deployment Logs</h2>
             </div>
             <Btn primary onClick={() => requestDeploy({})} disabled={deploy.isPending}>
               {deploy.isPending ? 'Queueing…' : 'Redeploy'}
@@ -3047,21 +3043,13 @@ export function ApplicationDetailPage() {
         </div>
       )}
 
-      {topTab === 'backups' && <ApplicationBackupsPanel appId={appId} />}
+      {section === 'backups' && <ApplicationBackupsPanel appId={appId} />}
 
-      {topTab === 'logs' && (
+      {section === 'logs' && (
         <div className="space-y-3">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Live container output. Build history lives on{' '}
-            <button
-              type="button"
-              className="font-medium text-brand-600 hover:underline dark:text-brand-400"
-              onClick={() => setAppNav({ tab: 'deployments' })}
-            >
-              Deployments
-            </button>
-            .
-          </p>
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Runtime Logs</h2>
+          </div>
           <LiveContainerLogs
             appId={appId}
             isCompose={a.build_pack === 'dockercompose'}
@@ -3075,7 +3063,7 @@ export function ApplicationDetailPage() {
         </div>
       )}
 
-      {topTab === 'terminal' && (
+      {section === 'terminal' && (
         <div>
           {serverId ? (
             (appContainers.data?.containers || []).length > 0 ? (
@@ -3086,7 +3074,7 @@ export function ApplicationDetailPage() {
                 hideHostShell
               />
             ) : (
-              <div className="panel-card space-y-3 p-5 text-sm text-gray-500 dark:text-gray-400">
+              <div className="panel-card space-y-3 p-4 text-sm text-gray-500 dark:text-gray-400">
                 <p>No running containers yet. Deploy first, then open a shell here.</p>
                 <Btn primary onClick={() => requestDeploy({})} disabled={deploy.isPending}>
                   {deploy.isPending ? 'Queueing…' : 'Redeploy'}
@@ -3094,13 +3082,15 @@ export function ApplicationDetailPage() {
               </div>
             )
           ) : (
-            <div className="panel-card space-y-3 p-5 text-sm text-gray-500 dark:text-gray-400">
+            <div className="panel-card space-y-3 p-4 text-sm text-gray-500 dark:text-gray-400">
               <p>Assign a destination so the container terminal can connect.</p>
               <Btn onClick={() => setAppNav({ tab: 'configuration', side: 'servers' })}>Choose destination</Btn>
             </div>
           )}
         </div>
       )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -3174,18 +3164,15 @@ function ApplicationBackupsPanel({ appId }: { appId: string }) {
 
   if (executions.isLoading || backups.isLoading) {
     return (
-      <div className="panel-card p-5">
+      <div className="panel-card p-4">
         <PanelSkeleton rows={4} showHeader={false} />
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Archives application volumes to `/data/dockfin/backups` on the server.
-        </p>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <Btn primary onClick={() => runNow.mutate()}>
           {runNow.isPending ? 'Archiving…' : 'Run backup now'}
         </Btn>
@@ -3407,12 +3394,9 @@ function AppMetricsSection({ appId, serverId }: { appId: string; serverId: strin
   const containers = appMetrics.data?.containers || []
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div>
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Metrics</h2>
-        <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-          Live container stats and host metrics for this application.
-        </p>
       </div>
 
       <div className="panel-card overflow-hidden">
@@ -3465,7 +3449,7 @@ function AppMetricsSection({ appId, serverId }: { appId: string; serverId: strin
 
       <h3 className="text-sm font-medium text-gray-900 dark:text-white">Host metrics</h3>
       {!serverId ? (
-        <div className="panel-card p-5 text-sm text-gray-500 dark:text-gray-400">
+        <div className="panel-card p-4 text-sm text-gray-500 dark:text-gray-400">
           Select a destination under Servers first.
         </div>
       ) : (

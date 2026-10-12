@@ -38,6 +38,30 @@
   box-shadow: 0 1px 2px 0 rgba(16, 24, 40, 0.05);
 }
 
+/* Resource menu sits flush against the main sidebar, under the top bar. */
+.panel-subnav {
+  border-radius: 0;
+}
+
+@media (min-width: 768px) {
+  .panel-subnav {
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    width: 15rem;
+    height: calc(100dvh - 3.25rem);
+    max-height: calc(100dvh - 3.25rem);
+    margin-top: -0.75rem;
+    margin-bottom: -0.75rem;
+    margin-left: -0.75rem;
+    border-top-width: 0;
+    border-bottom-width: 0;
+    border-left-width: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
 .dark .panel-card {
   border-color: #1d2939;
   background-color: rgba(255, 255, 255, 0.03);
@@ -224,17 +248,38 @@
   color: #98a2b3;
 }
 
+.panel-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.panel-scrollbar:hover {
+  scrollbar-color: #d0d5dd transparent;
+}
+
+.dark .panel-scrollbar:hover {
+  scrollbar-color: #344054 transparent;
+}
+
 .panel-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
+}
+
+.panel-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .panel-scrollbar::-webkit-scrollbar-thumb {
   border-radius: 9999px;
+  background-color: transparent;
+}
+
+.panel-scrollbar:hover::-webkit-scrollbar-thumb {
   background-color: #d0d5dd;
 }
 
-.dark .panel-scrollbar::-webkit-scrollbar-thumb {
+.dark .panel-scrollbar:hover::-webkit-scrollbar-thumb {
   background-color: #344054;
 }
 

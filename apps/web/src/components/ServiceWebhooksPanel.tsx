@@ -68,9 +68,6 @@ export function ServiceWebhooksPanel({ serviceId }: Props) {
     <div className="space-y-5">
       <div>
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Webhooks</h2>
-        <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-          Trigger a redeploy of this service from CI or an external system.
-        </p>
       </div>
 
       <section className="panel-card space-y-3 p-5">

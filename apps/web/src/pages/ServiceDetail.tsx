@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
+import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import {
   AlertTriangle,
   Archive,
   CalendarClock,
+  ChevronLeft,
   ExternalLink,
   Globe,
   HardDrive,
@@ -47,7 +48,7 @@ import { Btn, Input } from './Servers'
 
 const TOP_TABS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'logs', label: 'Logs', icon: ScrollText },
+  { id: 'logs', label: 'Runtime Logs', icon: ScrollText },
   { id: 'terminal', label: 'Terminal', icon: Terminal },
   { id: 'backups', label: 'Backups', icon: Archive },
   { id: 'configuration', label: 'Settings', icon: Settings2 },
@@ -57,21 +58,35 @@ const SIDE_ITEMS = [
   { id: 'general', label: 'General', icon: Settings2 },
   { id: 'domains', label: 'Domains', icon: Globe },
   { id: 'environment', label: 'Environment Variables', icon: Variable },
-  { id: 'storages', label: 'Persistent Storages', icon: HardDrive },
+  { id: 'storages', label: 'Persistent Storage', icon: HardDrive },
   { id: 'tasks', label: 'Scheduled Tasks', icon: CalendarClock },
   { id: 'webhooks', label: 'Webhooks', icon: Webhook },
   { id: 'operations', label: 'Resource Operations', icon: Wrench },
   { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
 ] as const
 
-const SVC_SIDE_GROUPS = [
-  { label: 'Setup', ids: ['general', 'domains', 'environment'] },
-  { label: 'Runtime', ids: ['storages', 'tasks', 'webhooks'] },
-  { label: 'Manage', ids: ['operations', 'danger'] },
+const NAV_ITEMS = [
+  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  ...SIDE_ITEMS.slice(0, 4),
+  { id: 'logs', label: 'Runtime Logs', icon: ScrollText },
+  { id: 'terminal', label: 'Terminal', icon: Terminal },
+  { id: 'tasks', label: 'Scheduled Tasks', icon: CalendarClock },
+  { id: 'webhooks', label: 'Webhooks', icon: Webhook },
+  { id: 'backups', label: 'Backups', icon: Archive },
+  { id: 'operations', label: 'Resource Operations', icon: Wrench },
+  { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
+] as const
+
+const SVC_NAV_GROUPS = [
+  { label: 'Settings', ids: ['general', 'domains', 'environment', 'storages'] },
+  { label: 'Observe & troubleshoot', ids: ['logs', 'terminal'] },
+  { label: 'Automation', ids: ['tasks', 'webhooks', 'backups'] },
+  { label: 'Operations', ids: ['operations', 'danger'] },
 ] as const
 
 type TopTabId = (typeof TOP_TABS)[number]['id']
 type SideId = (typeof SIDE_ITEMS)[number]['id']
+type NavId = (typeof NAV_ITEMS)[number]['id']
 
 function isTopTabId(v: string | undefined): v is TopTabId {
   return !!v && TOP_TABS.some((t) => t.id === v)
@@ -125,11 +140,19 @@ export function ServiceDetailPage() {
         const { tab: _t, side: _s, deploy: _d, ...rest } = prev
         const out: Record<string, unknown> = { ...rest }
         if (tab !== 'overview') out.tab = tab
-        if (nextSide !== 'general') out.side = nextSide
+        if (tab === 'configuration' && nextSide !== 'general') out.side = nextSide
         return out
       }) as never,
       replace: true,
     })
+  }
+
+  const goSection = (id: NavId) => {
+    if (id === 'overview' || id === 'logs' || id === 'terminal' || id === 'backups') {
+      setSvcNav({ tab: id, side: 'general' })
+      return
+    }
+    if (isSideId(id)) setSvcNav({ tab: 'configuration', side: id })
   }
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -172,11 +195,12 @@ export function ServiceDetailPage() {
   )
   const sideItems = useMemo(
     () =>
-      SIDE_ITEMS.map((item) =>
+      NAV_ITEMS.map((item) =>
         item.id === 'environment' && emptyEnv.length ? { ...item, badge: emptyEnv.length } : item,
       ),
     [emptyEnv.length],
   )
+  const section: NavId = topTab === 'configuration' ? side : topTab
 
   useEffect(() => {
     if (!svc.data) return
@@ -316,16 +340,12 @@ export function ServiceDetailPage() {
 
   if (svc.isLoading) {
     return (
-      <DetailPageSkeleton
-        withSideNav={topTab === 'configuration'}
-        tabs={5}
-        metrics={topTab !== 'configuration'}
-      />
+      <DetailPageSkeleton variant="resource" />
     )
   }
   if (svc.error || !svc.data) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
         <p className="text-error-500">{svc.error?.message || 'Service not found'}</p>
         {back}
       </div>
@@ -369,9 +389,49 @@ export function ServiceDetailPage() {
   ]
 
   return (
-    <div className="space-y-5">
-      {back}
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="space-y-3">
+      <div className="flex flex-col gap-2 md:flex-row md:items-start">
+        <ConfigSideNav
+          items={sideItems}
+          groups={SVC_NAV_GROUPS}
+          pinned={['overview']}
+          active={section}
+          onSelect={goSection}
+          header={
+            <div className="mb-2 flex items-center justify-between gap-1">
+              <Link
+                to={(projectId && envId ? '/projects/$projectId/environments/$envId' : '/projects') as never}
+                params={(projectId && envId ? { projectId, envId } : undefined) as never}
+                className="inline-flex h-7 min-w-0 items-center gap-1 rounded-md px-1.5 text-[13px] font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
+              >
+                <ChevronLeft className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
+                Back
+              </Link>
+              <a
+                href={docsURL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-brand-600 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-brand-400"
+              >
+                Docs
+                <span aria-hidden className="text-[10px]">
+                  ↗
+                </span>
+              </a>
+            </div>
+          }
+        />
+        <div className="min-w-0 flex-1 space-y-3">
+
+      {(stop.error || restart.error || save.error || saveDomains.error) && (
+        <p className="text-sm text-error-500">
+          {(stop.error || restart.error || save.error || saveDomains.error)?.message}
+        </p>
+      )}
+
+      {section === 'overview' && (
+        <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <ServiceLogo src={logo} name={s.name} className="h-10 w-10" />
           <div className="min-w-0">
@@ -384,12 +444,8 @@ export function ServiceDetailPage() {
                 projectId={projectId}
               />
             </h1>
+            {emptyEnv.length ? (
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
-              <span className="text-xs capitalize text-gray-500 dark:text-gray-400">
-                {titleCase(s.service_type)}
-              </span>
-              <StatusBadge status={s.status} />
-              {emptyEnv.length ? (
                 <button
                   type="button"
                   onClick={() => setSvcNav({ tab: 'configuration', side: 'environment' })}
@@ -397,8 +453,8 @@ export function ServiceDetailPage() {
                 >
                   {emptyEnv.length} env {emptyEnv.length === 1 ? 'var' : 'vars'} to fill
                 </button>
-              ) : null}
             </div>
+            ) : null}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -453,47 +509,6 @@ export function ServiceDetailPage() {
           </Btn>
         </div>
       </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 dark:border-gray-800">
-        <nav className="flex flex-wrap gap-1" role="tablist">
-          {TOP_TABS.map((t) => {
-            const Icon = t.icon
-            const active = topTab === t.id
-            return (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => setSvcNav({ tab: t.id })}
-                className={`relative inline-flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition ${
-                  active
-                    ? 'text-gray-900 dark:text-white'
-                    : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-                }`}
-              >
-                <Icon
-                  className={`h-3.5 w-3.5 shrink-0 ${active ? 'opacity-100' : 'opacity-70'}`}
-                  aria-hidden
-                />
-                {t.label}
-                {active && (
-                  <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-brand-500" />
-                )}
-              </button>
-            )
-          })}
-        </nav>
-      </div>
-
-      {(stop.error || restart.error || save.error || saveDomains.error) && (
-        <p className="text-sm text-error-500">
-          {(stop.error || restart.error || save.error || saveDomains.error)?.message}
-        </p>
-      )}
-
-      {topTab === 'overview' && (
-        <div className="space-y-6">
           <ResourceSetupBanner checks={setupChecks} />
           <ServiceOverview
             service={s}
@@ -509,10 +524,10 @@ export function ServiceDetailPage() {
         </div>
       )}
 
-      {topTab === 'backups' && <ServiceBackupsPanel svcId={svcId} />}
+      {section === 'backups' && <ServiceBackupsPanel svcId={svcId} />}
 
-      {topTab === 'logs' && (
-        <div className="space-y-6">
+      {section === 'logs' && (
+        <div className="space-y-3">
           {(deployBusy || deployLines.length > 0 || deployError) && (
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -535,7 +550,7 @@ export function ServiceDetailPage() {
         </div>
       )}
 
-      {topTab === 'terminal' && (
+      {section === 'terminal' && (
         <div className="space-y-3">
           {serverId ? (
             <ServerTerminal
@@ -545,38 +560,14 @@ export function ServiceDetailPage() {
               hideHostShell
             />
           ) : (
-            <div className="panel-card p-5 text-sm text-gray-500 dark:text-gray-400">
+            <div className="panel-card p-4 text-sm text-gray-500 dark:text-gray-400">
               This service has no server/destination assigned, so a container terminal cannot open yet.
             </div>
           )}
         </div>
       )}
 
-      {topTab === 'configuration' && (
-        <div className="flex flex-col gap-6 md:flex-row">
-          <ConfigSideNav
-            items={sideItems}
-            groups={SVC_SIDE_GROUPS}
-            active={side}
-            onSelect={(id) => setSvcNav({ tab: 'configuration', side: id })}
-            header={
-              <a
-                href={docsURL}
-                target="_blank"
-                rel="noreferrer"
-                className="mb-2 flex items-center gap-1.5 px-2 py-1.5 text-sm text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
-              >
-                Documentation
-                <span aria-hidden className="text-xs">
-                  ↗
-                </span>
-              </a>
-            }
-          />
-
-          <div className="min-w-0 flex-1 space-y-6">
-            <ResourceSetupBanner checks={setupChecks} />
-            {side === 'general' && (
+            {section === 'general' && (
               <GeneralPanel
                 s={s}
                 name={name}
@@ -602,8 +593,8 @@ export function ServiceDetailPage() {
                 onOpenUnitSettings={() => setSvcNav({ tab: 'configuration', side: 'environment' })}
               />
             )}
-            {side === 'domains' && (
-              <div className="panel-card space-y-4 p-5">
+            {section === 'domains' && (
+              <div className="panel-card space-y-3 p-4">
                 <DomainsPanel
                   value={fqdn}
                   onChange={setFqdn}
@@ -641,26 +632,26 @@ export function ServiceDetailPage() {
                 </label>
               </div>
             )}
-            {side === 'environment' && (
+            {section === 'environment' && (
               <EnvVarsPanel resourceType="service" resourceId={svcId} />
             )}
-            {side === 'storages' && (
+            {section === 'storages' && (
               <PersistentStoragesPanel
                 compose={s.docker_compose || s.docker_compose_raw || ''}
                 volumes={s.volumes}
               />
             )}
-            {side === 'tasks' && (
+            {section === 'tasks' && (
               <ScheduledTasksPanel
                 resourceType="service"
                 resourceId={svcId}
                 containerOptions={(units || []).map((u) => u.name)}
               />
             )}
-            {side === 'webhooks' && <ServiceWebhooksPanel serviceId={svcId} />}
-            {side === 'operations' && (
-              <div className="space-y-4">
-                <div className="panel-card space-y-3 p-5">
+            {section === 'webhooks' && <ServiceWebhooksPanel serviceId={svcId} />}
+            {section === 'operations' && (
+              <div className="space-y-3">
+                <div className="panel-card space-y-3 p-4">
                   <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
                     Resource Operations
                   </h2>
@@ -684,8 +675,8 @@ export function ServiceDetailPage() {
                 />
               </div>
             )}
-            {side === 'danger' && (
-              <div className="space-y-4">
+            {section === 'danger' && (
+              <div className="space-y-3">
                 <DangerZoneCard>
                   <div>
                     <h3 className="text-sm font-semibold text-error-500">Force deploy</h3>
@@ -740,9 +731,8 @@ export function ServiceDetailPage() {
                 />
               </div>
             )}
-          </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -792,13 +782,10 @@ function GeneralPanel({
   const composeDirty = composeDraft !== storedCompose
 
   return (
-    <form className="space-y-6" onSubmit={onSave}>
+    <form className="space-y-3" onSubmit={onSave}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Service stack</h2>
-          <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-            Name, compose services, and network membership.
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Btn primary type="submit">
@@ -813,7 +800,7 @@ function GeneralPanel({
         </div>
       </div>
 
-      <section className="panel-card space-y-4 p-5">
+      <section className="panel-card space-y-3 p-4">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Configuration</h3>
         <div className="grid gap-4 sm:grid-cols-2">
           <Input label="Service Name" value={name} onChange={setName} />
@@ -856,7 +843,7 @@ function GeneralPanel({
       </section>
 
       {showCompose && (
-        <section className="panel-card space-y-2 p-5">
+        <section className="panel-card space-y-2 p-4">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="mr-2 text-sm font-semibold text-gray-900 dark:text-white">
               Compose file
@@ -888,7 +875,7 @@ function GeneralPanel({
       )}
 
       {showDetails && (
-        <section className="panel-card grid gap-3 p-5 sm:grid-cols-2">
+        <section className="panel-card grid gap-3 p-4 sm:grid-cols-2">
           <DetailRow label="ID" value={s.id} mono />
           <DetailRow label="Type" value={s.service_type} />
           <DetailRow label="Status" value={s.status} />
@@ -1074,11 +1061,8 @@ function ServiceBackupsPanel({ svcId }: { svcId: string }) {
   })
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Archives <code className="text-xs">/data/dockfin/services/{svcId}</code> on the server.
-        </p>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <Btn primary disabled={runNow.isPending} onClick={() => runNow.mutate()}>
           {runNow.isPending ? 'Archiving…' : 'Run backup now'}
         </Btn>
@@ -1138,7 +1122,7 @@ function ServiceBackupsPanel({ svcId }: { svcId: string }) {
           </tbody>
         </table>
       </div>
-      <div className="panel-card space-y-3 p-5">
+      <div className="panel-card space-y-3 p-4">
         <h3 className="text-sm font-medium">Schedule</h3>
         <div className="grid gap-3 sm:grid-cols-2">
           <Input label="Cron" value={frequency} onChange={setFrequency} />
