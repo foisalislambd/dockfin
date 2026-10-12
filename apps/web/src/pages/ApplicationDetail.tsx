@@ -986,7 +986,7 @@ export function ApplicationDetailPage() {
   })
 
   if (app.isLoading) {
-    return <DetailPageSkeleton variant="resource" />
+    return <DetailPageSkeleton variant="resource" metrics />
   }
 
   const crumbs =
