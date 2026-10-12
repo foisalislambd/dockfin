@@ -1,17 +1,13 @@
 name: Release
 
-# Push to main → GitHub Release + GHCR images with the same X.Y.Z.
-# Scheme: 1.0.0 → 1.0.1 → … → 1.0.9 → 1.1.0 → … → 1.9.9 → 2.0.0
+# Push to main reads VERSION.md.
+# Release only when that X.Y.Z is higher than the latest vX.Y.Z tag.
+# Same or lower → no tag, no GitHub Release, no image publish.
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Exact version (e.g. 1.0.0). Empty = next automatic bump."
-        required: false
-        type: string
 
 permissions:
   contents: write
@@ -27,14 +23,6 @@ env:
 
 jobs:
   prepare:
-    # Skip automatic release when tip commit message has a skip marker:
-    #   [skip release]  |  [skip-release]  |  [skip_release]
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' &&
-       !contains(github.event.head_commit.message, '[skip release]') &&
-       !contains(github.event.head_commit.message, '[skip-release]') &&
-       !contains(github.event.head_commit.message, '[skip_release]'))
     runs-on: ubuntu-latest
     outputs:
       should_release: ${{ steps.ver.outputs.should_release }}
@@ -46,10 +34,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Resolve next version (tag after tests pass)
+      - name: Release only when VERSION.md is higher
         id: ver
-        env:
-          INPUT_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || '' }}
         run: |
           set -euo pipefail
           git fetch --tags --force
@@ -57,60 +43,45 @@ jobs:
           SHA="$(git rev-parse HEAD)"
           echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
 
-          EXISTING="$(git describe --tags --exact-match HEAD 2>/dev/null || true)"
-          if [[ -n "${EXISTING}" ]]; then
-            echo "HEAD already tagged as ${EXISTING} — skip"
+          skip() {
+            echo "$1"
             echo "should_release=false" >> "$GITHUB_OUTPUT"
             echo "version=" >> "$GITHUB_OUTPUT"
             echo "tag=" >> "$GITHUB_OUTPUT"
             exit 0
-          fi
-
-          next_ver() {
-            local cur="$1" major minor patch
-            IFS=. read -r major minor patch <<< "${cur}"
-            major="${major:-0}"; minor="${minor:-0}"; patch="${patch:-0}"
-            if (( patch < 9 )); then
-              echo "${major}.${minor}.$((patch + 1))"
-            elif (( minor < 9 )); then
-              echo "${major}.$((minor + 1)).0"
-            else
-              echo "$((major + 1)).0.0"
-            fi
           }
 
-          if [[ -n "${INPUT_VERSION}" ]]; then
-            VER="$(echo "${INPUT_VERSION}" | sed 's/^v//')"
-          else
-            LATEST="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1 || true)"
-            if [[ -z "${LATEST}" ]]; then
-              VER="1.0.0"
-            else
-              VER="$(next_ver "${LATEST#v}")"
-            fi
+          if [[ ! -f VERSION.md ]]; then
+            echo "VERSION.md is missing" >&2
+            exit 1
+          fi
+          VER="$(grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' VERSION.md | head -n1 || true)"
+          if [[ -z "${VER}" ]]; then
+            echo "VERSION.md has no X.Y.Z line" >&2
+            exit 1
           fi
 
-          if ! [[ "${VER}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Invalid version: ${VER}" >&2
-            exit 1
-          fi
-          MINOR="$(echo "${VER}" | cut -d. -f2)"
-          PATCH="$(echo "${VER}" | cut -d. -f3)"
-          if (( MINOR > 9 || PATCH > 9 )); then
-            echo "minor/patch must be 0–9 (got ${VER})" >&2
-            exit 1
+          LATEST="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1 || true)"
+          LATEST="${LATEST#v}"
+          if [[ -n "${LATEST}" ]]; then
+            LOWEST="$(printf '%s\n%s\n' "${VER}" "${LATEST}" | sort -V | head -n1)"
+            if [[ "${VER}" == "${LATEST}" ]]; then
+              skip "VERSION.md is ${VER}, same as latest tag — no release"
+            fi
+            if [[ "${LOWEST}" == "${VER}" ]]; then
+              skip "VERSION.md is ${VER}, lower than latest tag v${LATEST} — no release"
+            fi
           fi
 
           TAG="v${VER}"
           if git rev-parse "${TAG}" >/dev/null 2>&1; then
-            echo "Tag ${TAG} already exists" >&2
-            exit 1
+            skip "Tag ${TAG} already exists — no release"
           fi
 
           echo "should_release=true" >> "$GITHUB_OUTPUT"
           echo "version=${VER}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "Will release ${TAG} after verify (sha=${SHA})"
+          echo "Will release ${TAG} (previous ${LATEST:-none}, sha=${SHA})"
 
   verify:
     needs: prepare

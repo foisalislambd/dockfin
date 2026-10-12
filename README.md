@@ -113,16 +113,9 @@ cd apps/web && npm install && npm run dev   # http://localhost:5173
 
 ## Releases
 
-Push to `main` publishes the same version to GitHub Release + Docker Hub + GHCR  
-(`1.0.0` … `1.0.9` → `1.1.0`).
+The version lives in [VERSION.md](VERSION.md). A push to `main` publishes a GitHub Release and Docker images only when that `X.Y.Z` is **higher** than the latest `vX.Y.Z` tag. The same version, or a lower one, does not create a release.
 
-**Skip a release** — put this in the commit message:
-
-```text
-[skip release]
-```
-
-Example: `git commit -m "docs: tweak README [skip release]"`
+Bump the number in `VERSION.md` (for example `1.3.6` → `1.3.7`) in the commit that should be released.
 
 ---
 

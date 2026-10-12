@@ -6,32 +6,23 @@ This file lists people who can merge PRs and cut releases.
 |------|------|---------|
 | TBD  | Maintainer | GitHub @… |
 
-## Version scheme
+## Version
 
-- Format: `X.Y.Z` (git tag `vX.Y.Z`)
-- **Y and Z are 0–9 only** → `1.0.0` … `1.0.9` → `1.1.0` … `1.9.9` → `2.0.0`
+- Source of truth: [VERSION.md](VERSION.md) (`X.Y.Z`, git tag `vX.Y.Z`)
 - Same version for: GitHub Release, Docker Hub, GHCR, `dockfin version`
+- A release is created only when `VERSION.md` is **higher** than the latest `vX.Y.Z` tag
+- The same version, or a lower one, does not create a release
 
 ## Release process
 
 **Push to `main`** → [release.yml](.github/workflows/release.yml):
 
-1. Compute next `X.Y.Z`
-2. Run tests / builds
-3. Publish `foisalislambd/dockfin` + `ghcr.io/<owner>/dockfin` (`:X.Y.Z` and `:latest`)
-4. Create git tag + GitHub Release
+1. Read `X.Y.Z` from `VERSION.md`
+2. Compare it with the latest `vX.Y.Z` tag
+3. If it is higher: run tests / builds, publish `foisalislambd/dockfin` + `ghcr.io/<owner>/dockfin` (`:X.Y.Z` and `:latest`), then create the git tag and GitHub Release
+4. If it is the same or lower: stop. No tag, no release, no image publish
 
-### Skip release
-
-Put any of these in the **commit message** (tip commit on the push):
-
-- `[skip release]`
-- `[skip-release]`
-- `[skip_release]`
-
-Example: `git commit -m "chore: tweak docs [skip release]"`
-
-`workflow_dispatch` (Actions → Release → Run) always runs when started manually.
+To ship a release, raise the number in `VERSION.md` (for example `1.3.6` → `1.3.7`) in that commit.
 
 ### Required secrets
 

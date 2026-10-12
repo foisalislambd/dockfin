@@ -4,9 +4,9 @@ All notable changes to Dockfin will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-Versioning: `X.Y.Z` where **Y and Z are single digits 0–9**.
-After `1.0.9` the next release is `1.1.0`; after `1.9.9` it is `2.0.0`.
-Git tag, GitHub Release, and Docker image tags always share the same `X.Y.Z` (via GitHub Actions on push to `main`).
+Versioning: `X.Y.Z` in [VERSION.md](VERSION.md).
+A push to `main` creates a GitHub Release and Docker tags only when that version is higher than the latest `vX.Y.Z` tag.
+The same version, or a lower one, does not create a release. Git tag, GitHub Release, and Docker image tags share that `X.Y.Z`.
 
 ## [Unreleased]
 
