@@ -44,12 +44,9 @@ export function PanelSidebar() {
         >
           <BrandLogo className="h-8 w-8 shrink-0 rounded-lg" />
           {showLabels && (
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                {brand.name}
-              </p>
-              <p className="truncate text-[11px] text-gray-500 dark:text-gray-400">{brand.tagline}</p>
-            </div>
+            <p className="min-w-0 truncate text-sm font-semibold text-gray-900 dark:text-white">
+              {brand.name}
+            </p>
           )}
         </Link>
         {!isDesktop && (

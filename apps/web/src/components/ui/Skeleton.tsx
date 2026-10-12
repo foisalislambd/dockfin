@@ -147,10 +147,7 @@ export function AppShellSkeleton() {
       >
         <div className="panel-topbar flex items-center gap-3 px-4">
           <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <Skeleton className="h-3.5 w-20" />
-            <Skeleton className="h-2.5 w-24" />
-          </div>
+          <Skeleton className="h-3.5 w-20" />
         </div>
         <div className="flex flex-1 flex-col gap-0.5 overflow-hidden px-2.5 py-3">
           {[3, 5, 5].map((count, g) => (

@@ -19,7 +19,6 @@ import {
 export const appConfig = {
   brand: {
     name: 'Dockfin',
-    tagline: 'Self-hosted PaaS',
     letter: 'D',
     /** Full logo (icon + wordmark) — dark surfaces */
     logo: '/brand/dockfin-logo.png',
