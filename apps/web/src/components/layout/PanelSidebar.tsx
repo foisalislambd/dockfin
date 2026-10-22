@@ -97,7 +97,7 @@ export function PanelSidebar() {
                       className={`h-[18px] w-[18px] shrink-0 ${
                         active
                           ? 'text-white'
-                          : 'text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-300'
+                          : 'text-gray-600 dark:text-gray-300'
                       }`}
                       strokeWidth={1.75}
                     />
