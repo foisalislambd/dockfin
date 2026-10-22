@@ -49,11 +49,8 @@ export function ServiceWebhooksPanel({ serviceId }: Props) {
 
   if (info.isLoading) {
     return (
-      <div className="space-y-5" role="status" aria-label="Loading">
-        <div>
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="mt-2 h-3 w-72 max-w-full" />
-        </div>
+      <div className="space-y-4" role="status" aria-label="Loading">
+        <Skeleton className="h-6 w-28" />
         <div className="panel-card p-5">
           <PanelSkeleton rows={3} showHeader={false} />
         </div>
@@ -65,102 +62,107 @@ export function ServiceWebhooksPanel({ serviceId }: Props) {
   }
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Webhooks</h2>
-      </div>
+    <div className="space-y-4">
+      <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Webhooks</h2>
 
-      <section className="panel-card space-y-3 p-5">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Deploy webhook</h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Authenticate with an{' '}
+      <section className="panel-card space-y-4 p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Deploy webhook</h3>
           <Link
             to="/security"
             search={{ tab: 'api-tokens' }}
-            className="text-brand-600 hover:underline dark:text-brand-400"
+            className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
           >
-            API token
-          </Link>{' '}
-          that has the <code className="font-mono text-xs">deploy</code> ability, or with the
-          resource deploy token below.
-        </p>
-        <div>
-          <div className="mb-1 text-xs text-gray-500 dark:text-gray-400">Deploy URL</div>
-          <div className="flex flex-wrap items-start gap-2">
-            <code className="block flex-1 break-all rounded-lg bg-gray-50 px-3 py-2 font-mono text-xs dark:bg-white/5">
-              {deployUrl}
-            </code>
-            <Btn type="button" disabled={!deployUrl} onClick={() => void copy('url', deployUrl)}>
-              {copied === 'url' ? 'Copied' : 'Copy'}
-            </Btn>
-          </div>
+            API tokens
+          </Link>
         </div>
-        <div>
-          <div className="mb-1 text-xs text-gray-500 dark:text-gray-400">Example (API token)</div>
-          <pre className="overflow-x-auto rounded-lg bg-gray-50 p-3 font-mono text-[11px] text-gray-700 dark:bg-white/5 dark:text-gray-300">
-            {curlApi || '—'}
-          </pre>
-        </div>
+        <CopyRow
+          label="Deploy URL"
+          value={deployUrl}
+          copied={copied === 'url'}
+          onCopy={() => void copy('url', deployUrl)}
+        />
+        <ExampleBlock label="Example (API token)" text={curlApi} />
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Append <code className="font-mono">&amp;force=true</code> to force recreate. GET and POST
-          are both accepted.
+          Use an API token with the <code className="font-mono">deploy</code> ability. GET and POST both work.
+          Add <code className="font-mono">&amp;force=true</code> to recreate containers.
         </p>
       </section>
 
-      <section className="panel-card space-y-3 p-5">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Resource deploy token</h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Optional dedicated token for this service only. Shown once when generated — store it in
-          your CI secrets.
-        </p>
-        <div>
-          <div className="mb-1 text-xs text-gray-500 dark:text-gray-400">Webhook URL</div>
-          <div className="flex flex-wrap items-start gap-2">
-            <code className="block flex-1 break-all rounded-lg bg-gray-50 px-3 py-2 font-mono text-xs dark:bg-white/5">
-              {webhookUrl}
-            </code>
-            <Btn type="button" disabled={!webhookUrl} onClick={() => void copy('hook', webhookUrl)}>
-              {copied === 'hook' ? 'Copied' : 'Copy'}
-            </Btn>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      <section className="panel-card space-y-4 p-4 sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Resource deploy token</h3>
           <Btn primary type="button" onClick={() => gen.mutate()} disabled={gen.isPending}>
-            {gen.isPending
-              ? 'Generating…'
-              : info.data?.has_secret
-                ? 'Rotate deploy token'
-                : 'Generate deploy token'}
+            {gen.isPending ? 'Generating…' : info.data?.has_secret ? 'Rotate token' : 'Generate token'}
           </Btn>
-          {info.data?.has_secret && !secret && (
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              A token is already configured (value hidden).
-            </span>
-          )}
         </div>
-        {secret && (
+        <CopyRow
+          label="Webhook URL"
+          value={webhookUrl}
+          copied={copied === 'hook'}
+          onCopy={() => void copy('hook', webhookUrl)}
+        />
+        {info.data?.has_secret && !secret ? (
+          <p className="text-xs text-gray-500 dark:text-gray-400">A token is already set. Its value stays hidden.</p>
+        ) : null}
+        {secret ? (
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
-            <div className="text-xs font-medium text-amber-800 dark:text-amber-200">
-              Copy this token now — it will not be shown again
-            </div>
-            <code className="mt-1 block break-all font-mono text-sm">{secret}</code>
-            <div className="mt-2">
+            <p className="text-xs font-medium text-amber-800 dark:text-amber-200">
+              Copy this token now. It will not be shown again.
+            </p>
+            <code className="mt-2 block break-all font-mono text-xs sm:text-sm">{secret}</code>
+            <div className="mt-3">
               <Btn type="button" onClick={() => void copy('secret', secret)}>
                 {copied === 'secret' ? 'Copied' : 'Copy token'}
               </Btn>
             </div>
           </div>
-        )}
-        {(secret || info.data?.has_secret) && (
-          <div>
-            <div className="mb-1 text-xs text-gray-500 dark:text-gray-400">Example (resource token)</div>
-            <pre className="overflow-x-auto rounded-lg bg-gray-50 p-3 font-mono text-[11px] text-gray-700 dark:bg-white/5 dark:text-gray-300">
-              {curlSecret}
-            </pre>
-          </div>
-        )}
-        {gen.error && <p className="text-sm text-error-500">{gen.error.message}</p>}
+        ) : null}
+        {(secret || info.data?.has_secret) && <ExampleBlock label="Example (resource token)" text={curlSecret} />}
+        {gen.error ? <p className="text-sm text-error-500">{gen.error.message}</p> : null}
       </section>
+    </div>
+  )
+}
+
+function CopyRow({
+  label,
+  value,
+  copied,
+  onCopy,
+}: {
+  label: string
+  value: string
+  copied: boolean
+  onCopy: () => void
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">{label}</div>
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+        <code
+          title={value}
+          className="block min-w-0 flex-1 truncate rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-xs text-gray-800 dark:border-gray-800 dark:bg-white/5 dark:text-gray-200"
+        >
+          {value || '—'}
+        </code>
+        <div className="shrink-0">
+          <Btn type="button" disabled={!value} onClick={onCopy}>
+            {copied ? 'Copied' : 'Copy'}
+          </Btn>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ExampleBlock({ label, text }: { label: string; text: string }) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">{label}</div>
+      <pre className="max-w-full overflow-x-auto whitespace-pre-wrap break-all rounded-lg border border-gray-200 bg-gray-50 p-3 font-mono text-[11px] leading-5 text-gray-700 dark:border-gray-800 dark:bg-white/5 dark:text-gray-300">
+        {text || '—'}
+      </pre>
     </div>
   )
 }
