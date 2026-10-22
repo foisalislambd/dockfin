@@ -30,7 +30,7 @@ function BrandPanel({ className = '' }: { className?: string }) {
         />
         <h2 className="sr-only">{brand.name}</h2>
         <p className="mt-6 text-sm leading-relaxed text-brand-100/90 sm:text-base">{brand.loginDescription}</p>
-        <ul className="mt-8 space-y-3 text-left text-sm text-brand-100/85">
+        <ul className="mx-auto mt-8 w-fit space-y-3 text-left text-sm text-brand-100/85">
           {brand.loginFeatures.map((item) => (
             <li key={item} className="flex items-center gap-3">
               <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-500/30 text-xs text-brand-200">
@@ -378,6 +378,7 @@ export function RegisterPage() {
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
+              placeholder="Your name"
               className={inputClass}
             />
           </div>
@@ -391,6 +392,7 @@ export function RegisterPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
               className={inputClass}
             />
           </div>

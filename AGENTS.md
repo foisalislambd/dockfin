@@ -1,6 +1,83 @@
 # AGENTS.md — Dockfin development guide
 
-Practical guide for humans and AI agents working on this repo. Prefer these commands over inventing new workflows.
+Practical guide for humans and AI agents working on this repo. Prefer these commands over inventing new workflows. Do not commit unless the user asks. Do not print `.env` secrets.
+
+## Run Dockfin for development (default)
+
+Use this on a checkout when iterating on API or UI. It is `go run` plus local Postgres/Redis. It is separate from `scripts/install-dev.sh` (full Docker control plane) and `scripts/install.sh` (production GHCR image).
+
+Prerequisites: Go **1.26+**, Node.js **22+**, Docker. From the repo root, once:
+
+```bash
+cp .env.example .env
+# DOCKFIN_MASTER_KEY must be at least 32 characters
+```
+
+Start (repo root):
+
+```bash
+docker compose -f deploy/compose/docker-compose.dev.yml up -d
+# wait until: docker compose -f deploy/compose/docker-compose.dev.yml exec -T postgres pg_isready -U dockfin
+
+set -a && source .env && set +a
+go run ./cmd/dockfin migrate
+go run ./cmd/dockfin serve
+```
+
+Same targets via Make: `make migrate` then `make api`. Dashboard and API: `http://127.0.0.1:8000` (`/health`, `/api/v1/version`). First visit is `/login`; create the first user at `/register`. There is no seeded admin.
+
+UI while the API is already serving `apps/web/dist` (`DOCKFIN_WEB_DIR` in `.env`):
+
+```bash
+cd apps/web && npm install   # first time
+npm run build                # then hard-refresh http://127.0.0.1:8000
+```
+
+Live UI without rebuilding the SPA (second terminal, API still on :8000):
+
+```bash
+cd apps/web && npm run dev   # http://localhost:5173
+```
+
+`DOCKFIN_CORS_ORIGINS` must include `http://localhost:5173`. API code changes need a restart of `go run`. UI-only changes with Vite do not.
+
+Check it is up:
+
+```bash
+curl -s http://127.0.0.1:8000/health
+curl -s http://127.0.0.1:8000/api/v1/version
+```
+
+Do not start a second stack on port 8000 (`install-dev.sh` / `/data/dockfin` compose and this `go run` cannot share the port).
+
+## Where to change things
+
+| Task | Start here |
+|------|------------|
+| HTTP routes | `internal/httpapi/api.go` (`chi`, `/api/v1`) |
+| Auth (login, register, 2FA) | `internal/httpapi/auth.go`, UI `apps/web/src/pages/Auth.tsx` |
+| Dashboard routes | `apps/web/src/App.tsx` (TanStack Router) |
+| Pages | `apps/web/src/pages/*.tsx` |
+| Shared inputs / panels | `apps/web/src/components/` |
+| Compose prepare, magic env, Traefik labels | `internal/services/compose.go` |
+| One-click service templates | `templates/compose/` (`# name:`, `# port:`, `# logo:` headers) |
+| SQL schema | `migrations/` then `go run ./cmd/dockfin migrate` |
+| Config / env loading | `internal/config/config.go`, `.env.example` |
+| Deploy pipeline | `internal/deploy/` |
+| Proxy (Traefik / Caddy) | `internal/proxy/` |
+| Persistence | `internal/store/` |
+
+Keep diffs small and match the surrounding package. Service public domains belong in project environment variables (`SERVICE_URL_*` / `SERVICE_FQDN_*`), not instance `.env`.
+
+UI changes: open the affected screen and use it (type, submit, navigate). A screenshot of a static render is not enough. Shared state must still work on the other pages that read it.
+
+Tests after a Go change:
+
+```bash
+go test ./internal/services/ ./internal/httpapi/ ./internal/proxy/ -count=1
+```
+
+UI typecheck: `cd apps/web && npm run build`.
 
 ## Layout (what matters day-to-day)
 
@@ -327,7 +404,7 @@ cd /data/dockfin && docker compose logs -f dockfin
 cd /root/dockfin && sudo bash scripts/install-dev.sh
 
 # Find host binary serve PID
-ps -eo pid,cmd | grep '[g]oolify serve'
+ps -eo pid,cmd | grep '[d]ockfin serve'
 
 # Tail binary smoke logs
 tail -f /opt/dockfin-smoke/api.log
