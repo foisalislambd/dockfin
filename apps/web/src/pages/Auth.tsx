@@ -366,9 +366,6 @@ export function RegisterPage() {
       <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
         Create account
       </h1>
-      <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-        First account becomes the admin. Registration closes automatically after signup.
-      </p>
       <form onSubmit={onSubmit} className="mt-6 space-y-4">
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Name</label>
