@@ -79,7 +79,8 @@ export function ScheduledTasksPanel({ resourceType, resourceId, containerOptions
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Scheduled Tasks</h2>
+          <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Scheduled tasks</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Commands that run on a cron schedule.</p>
         </div>
         <Btn primary type="button" onClick={() => setShowForm((v) => !v)}>
           {showForm ? 'Cancel' : '+ Add'}

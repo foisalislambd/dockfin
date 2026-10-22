@@ -21,7 +21,7 @@ import {
   Webhook,
   Wrench,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { ConfigSideNav } from '../components/ConfigSideNav'
 import { DeployLogPanel } from '../components/DeployLogPanel'
@@ -550,12 +550,18 @@ export function ServiceDetailPage() {
         <ServiceFilesPanel volumes={s.volumes} onOpenTerminal={() => setSvcNav({ tab: 'terminal' })} />
       )}
 
-      {section === 'analytics' && <OverviewLiveMetrics kind="service" resourceId={svcId} />}
+      {section === 'analytics' && (
+        <div className="space-y-4">
+          <PageHeading title="Analytics" hint="CPU, memory, and disk from the running containers." />
+          <OverviewLiveMetrics kind="service" resourceId={svcId} />
+        </div>
+      )}
 
       {section === 'tags' && <ResourceTagsPanel resourceType="service" resourceId={svcId} />}
 
       {section === 'logs' && (
-        <div className="space-y-3">
+        <div className="space-y-4">
+          <PageHeading title="Runtime logs" hint="Live output from a container in this stack." />
           {(deployBusy || deployLines.length > 0 || deployError) && (
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -579,7 +585,8 @@ export function ServiceDetailPage() {
       )}
 
       {section === 'terminal' && (
-        <div className="space-y-3">
+        <div className="space-y-4">
+          <PageHeading title="Terminal" hint="Shell inside a container from this stack." />
           {serverId ? (
             <ServerTerminal
               serverId={serverId}
@@ -588,8 +595,8 @@ export function ServiceDetailPage() {
               hideHostShell
             />
           ) : (
-            <div className="panel-card p-4 text-sm text-gray-500 dark:text-gray-400">
-              This service has no server/destination assigned, so a container terminal cannot open yet.
+            <div className="panel-card px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+              Assign a destination server before opening a container shell.
             </div>
           )}
         </div>
@@ -622,7 +629,8 @@ export function ServiceDetailPage() {
               />
             )}
             {section === 'domains' && (
-              <div className="panel-card space-y-3 p-4">
+              <div className="space-y-4">
+              <div className="panel-card space-y-4 p-5">
                 <DomainsPanel
                   value={fqdn}
                   onChange={setFqdn}
@@ -635,6 +643,7 @@ export function ServiceDetailPage() {
                   destinationId={s.destination_id || undefined}
                   resourceId={svcId}
                   resourceName={s.name}
+                  title="Domains"
                 />
                 <label className={`flex items-start gap-3 text-sm ${httpsRedirectApplies ? '' : 'opacity-60'}`}>
                   <input
@@ -659,9 +668,15 @@ export function ServiceDetailPage() {
                   </span>
                 </label>
               </div>
+              </div>
             )}
             {section === 'environment' && (
-              <EnvVarsPanel resourceType="service" resourceId={svcId} />
+              <EnvVarsPanel
+                resourceType="service"
+                resourceId={svcId}
+                title="Environment variables"
+                subtitle="Values injected into every container in this stack."
+              />
             )}
             {section === 'storages' && (
               <PersistentStoragesPanel
@@ -678,22 +693,18 @@ export function ServiceDetailPage() {
             )}
             {section === 'webhooks' && <ServiceWebhooksPanel serviceId={svcId} />}
             {section === 'operations' && (
-              <div className="space-y-3">
-                <div className="panel-card space-y-3 p-4">
-                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-                    Resource Operations
-                  </h2>
-                  <div className="flex flex-wrap gap-2">
-                    <Btn primary onClick={() => void runDeploy()} disabled={deployBusy}>
-                      {deployBusy ? 'Deploying…' : 'Deploy / Restart stack'}
-                    </Btn>
-                    <Btn onClick={() => restart.mutate()} disabled={restart.isPending}>
-                      Restart
-                    </Btn>
-                    <Btn onClick={() => stop.mutate()} disabled={stop.isPending}>
-                      Stop
-                    </Btn>
-                  </div>
+              <div className="space-y-4">
+                <PageHeading title="Resource operations" hint="Deploy, restart, or move this stack." />
+                <div className="panel-card flex flex-wrap items-center gap-2 p-5">
+                  <Btn primary onClick={() => void runDeploy()} disabled={deployBusy}>
+                    {deployBusy ? 'Deploying…' : 'Deploy'}
+                  </Btn>
+                  <Btn onClick={() => restart.mutate()} disabled={restart.isPending}>
+                    {restart.isPending ? 'Restarting…' : 'Restart'}
+                  </Btn>
+                  <Btn onClick={() => stop.mutate()} disabled={stop.isPending}>
+                    {stop.isPending ? 'Stopping…' : 'Stop'}
+                  </Btn>
                 </div>
                 <MoveResourcePanel
                   resourceType="service"
@@ -704,7 +715,8 @@ export function ServiceDetailPage() {
               </div>
             )}
             {section === 'danger' && (
-              <div className="space-y-3">
+              <div className="space-y-4">
+                <PageHeading title="Danger zone" hint="These actions change or remove the running stack." />
                 <DangerZoneCard>
                   <div>
                     <h3 className="text-sm font-semibold text-error-500">Force deploy</h3>
@@ -765,6 +777,26 @@ export function ServiceDetailPage() {
   )
 }
 
+function PageHeading({
+  title,
+  hint,
+  children,
+}: {
+  title: string
+  hint?: string
+  children?: ReactNode
+}) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="min-w-0">
+        <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">{title}</h2>
+        {hint ? <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">{hint}</p> : null}
+      </div>
+      {children ? <div className="flex flex-wrap items-center gap-2">{children}</div> : null}
+    </div>
+  )
+}
+
 function GeneralPanel({
   s,
   name,
@@ -810,47 +842,31 @@ function GeneralPanel({
   const composeDirty = composeDraft !== storedCompose
 
   return (
-    <form className="space-y-3" onSubmit={onSave}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Service stack</h2>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Btn primary type="submit">
-            {saveBusy ? 'Saving…' : 'Save'}
-          </Btn>
-          <Btn type="button" onClick={() => setShowCompose(!showCompose)}>
-            {showCompose ? 'Hide Compose' : 'Edit Compose File'}
-          </Btn>
-          <Btn type="button" onClick={() => setShowDetails(!showDetails)}>
-            {showDetails ? 'Hide details' : 'Details'}
-          </Btn>
-        </div>
-      </div>
+    <form className="space-y-4" onSubmit={onSave}>
+      <PageHeading title="General" hint="Name, description, and the compose services in this stack.">
+        <Btn type="button" onClick={() => setShowCompose(!showCompose)}>
+          {showCompose ? 'Hide compose' : 'Edit compose'}
+        </Btn>
+        <Btn type="button" onClick={() => setShowDetails(!showDetails)}>
+          {showDetails ? 'Hide details' : 'Details'}
+        </Btn>
+        <Btn primary type="submit">
+          {saveBusy ? 'Saving…' : 'Save'}
+        </Btn>
+      </PageHeading>
 
-      <section className="panel-card space-y-3 p-4">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Configuration</h3>
+      <section className="panel-card space-y-4 p-5">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Input label="Service Name" value={name} onChange={setName} />
-          <Input
-            label="Description"
-            value={description}
-            onChange={setDescription}
-            required={false}
-          />
+          <Input label="Service name" value={name} onChange={setName} />
+          <Input label="Description" value={description} onChange={setDescription} required={false} />
         </div>
-        <label className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300">
-          <input type="checkbox" checked readOnly className="rounded border-gray-300" />
-          Connect To Predefined Network
-        </label>
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Stack joins the destination Docker network (usually <code>dockfin</code>) so Traefik can
-          route public domains.
+          The stack joins the destination Docker network, usually <code>dockfin</code>, so Traefik can route public domains.
         </p>
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Services</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Containers in this stack</h3>
         <div className="space-y-3">
           {units.map((u) => (
             <UnitCard
@@ -1055,14 +1071,10 @@ function ServiceFilesPanel({
 }) {
   const rows = volumes || []
   return (
-    <div className="space-y-3">
-      <div className="panel-card space-y-2 p-4">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Files</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Persistent files for this stack. Open a container shell to browse files inside a running container.
-        </p>
+    <div className="space-y-4">
+      <PageHeading title="Files" hint="Volumes mounted by this stack. Use the terminal to browse inside a container.">
         <Btn onClick={onOpenTerminal}>Open terminal</Btn>
-      </div>
+      </PageHeading>
       <div className="panel-card overflow-hidden">
         <table className="panel-table">
           <thead>
@@ -1101,17 +1113,17 @@ function ServiceImportBackupPanel({ units }: { units: ServiceUnit[] }) {
     /postgres|mysql|mariadb|mongo|redis|clickhouse/i.test(`${u.name} ${u.image}`),
   )
   return (
-    <div className="panel-card space-y-2 p-5">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Import Backup</h2>
+    <div className="space-y-4">
+      <PageHeading title="Import backup" hint="Restore a dump into a database container in this stack." />
       {databases.length === 0 ? (
-        <>
+        <div className="panel-card px-5 py-10 text-center">
           <p className="text-sm font-medium text-gray-900 dark:text-white">No compatible databases</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            This service does not contain a database that supports backup imports. Volume archives are restored from Backups.
+          <p className="mx-auto mt-1 max-w-md text-sm text-gray-500 dark:text-gray-400">
+            This stack has no database container. Restore volume archives from Backups instead.
           </p>
-        </>
+        </div>
       ) : (
-        <>
+        <div className="panel-card space-y-3 p-5">
           <p className="text-sm text-gray-500 dark:text-gray-400">
             These containers can hold data. Restore a finished archive from Backups, or import a dump on a standalone database resource.
           </p>
@@ -1123,7 +1135,7 @@ function ServiceImportBackupPanel({ units }: { units: ServiceUnit[] }) {
               </li>
             ))}
           </ul>
-        </>
+        </div>
       )}
     </div>
   )
@@ -1172,12 +1184,12 @@ function ServiceBackupsPanel({ svcId }: { svcId: string }) {
   })
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-end gap-3">
+    <div className="space-y-4">
+      <PageHeading title="Backups" hint="Archive this stack’s files and restore a finished run.">
         <Btn primary disabled={runNow.isPending} onClick={() => runNow.mutate()}>
           {runNow.isPending ? 'Archiving…' : 'Run backup now'}
         </Btn>
-      </div>
+      </PageHeading>
       {runNow.error && <p className="text-sm text-error-500">{runNow.error.message}</p>}
       <div className="panel-card overflow-hidden">
         <table className="panel-table">
@@ -1192,7 +1204,9 @@ function ServiceBackupsPanel({ svcId }: { svcId: string }) {
           <tbody>
             {(executions.data?.backup_executions || []).map((b) => (
               <tr key={b.id}>
-                <td className="capitalize">{b.status}</td>
+                <td>
+                  <StatusBadge status={b.status} />
+                </td>
                 <td className="font-mono text-xs">{b.filename}</td>
                 <td className="text-xs text-gray-500">
                   {b.started_at ? new Date(b.started_at).toLocaleString() : '—'}
@@ -1233,8 +1247,8 @@ function ServiceBackupsPanel({ svcId }: { svcId: string }) {
           </tbody>
         </table>
       </div>
-      <div className="panel-card space-y-3 p-4">
-        <h3 className="text-sm font-medium">Schedule</h3>
+      <div className="panel-card space-y-4 p-5">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Schedule</h3>
         <div className="grid gap-3 sm:grid-cols-2">
           <Input label="Cron" value={frequency} onChange={setFrequency} />
           <Input label="Retention" value={retention} onChange={setRetention} />

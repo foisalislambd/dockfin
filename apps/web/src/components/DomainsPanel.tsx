@@ -597,7 +597,7 @@ export function DomainsPanel({
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h3>
+          <h3 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">{title}</h3>
           <DnsGuideTooltip
             domains={local}
             serverIp={serverIp}
