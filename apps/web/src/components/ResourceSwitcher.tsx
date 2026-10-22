@@ -126,7 +126,7 @@ export function ResourceSwitcher({
                   onClick={() => go(item.id)}
                   className={`block w-full rounded-md px-2 py-1.5 text-left ${
                     item.id === currentId
-                      ? 'bg-brand-500/10 font-medium text-brand-700 dark:text-brand-300'
+                      ? 'bg-brand-500 font-medium text-white shadow-sm'
                       : 'text-gray-800 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5'
                   }`}
                 >

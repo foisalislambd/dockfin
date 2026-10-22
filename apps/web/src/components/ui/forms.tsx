@@ -262,7 +262,7 @@ export function FormSearchSelect(props: {
                     aria-selected={o.value === value}
                     className={`block w-full truncate px-3 py-2 text-left text-sm hover:bg-brand-50 dark:hover:bg-brand-500/10 ${
                       o.value === value
-                        ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-300'
+                        ? 'bg-brand-500 font-medium text-white'
                         : 'text-gray-800 dark:text-gray-200'
                     }`}
                     onClick={() => {

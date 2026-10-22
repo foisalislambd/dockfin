@@ -43,13 +43,13 @@ export function ConfigSideNav<T extends string>({
         onClick={() => onSelect(item.id)}
         className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] leading-5 ${
           isActive
-            ? 'bg-brand-50 font-semibold text-brand-800 ring-1 ring-brand-200 dark:bg-brand-500/15 dark:text-brand-100 dark:ring-brand-500/30'
+            ? 'bg-brand-500 font-semibold text-white shadow-sm'
             : 'font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-white/10'
         }`}
       >
         <Icon
           className={`h-4 w-4 shrink-0 ${
-            isActive ? 'text-brand-600 dark:text-brand-300' : 'text-gray-600 dark:text-gray-300'
+            isActive ? 'text-white' : 'text-gray-600 dark:text-gray-300'
           }`}
           aria-hidden
         />
