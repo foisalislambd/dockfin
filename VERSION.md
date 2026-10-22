@@ -1,6 +1,6 @@
 # Version
 
-1.3.8
+1.3.9
 
 A push to `main` creates a GitHub Release only when this version is **higher** than the latest `vX.Y.Z` tag. The same version, or a lower one, does not create a release.
 
