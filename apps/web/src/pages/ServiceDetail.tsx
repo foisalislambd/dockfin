@@ -3,16 +3,20 @@ import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import {
   AlertTriangle,
   Archive,
+  BarChart3,
   CalendarClock,
   ChevronLeft,
   ExternalLink,
+  Folder,
   Globe,
   HardDrive,
   LayoutDashboard,
   Rocket,
   ScrollText,
   Settings2,
+  Tags,
   Terminal,
+  Upload,
   Variable,
   Webhook,
   Wrench,
@@ -34,6 +38,8 @@ import { ResourceSwitcher } from '../components/ResourceSwitcher'
 import { ServiceLogo, logoForServiceType } from '../components/ServiceLogo'
 import { StatusBadge, statusTone } from '../components/StatusBadge'
 import { primaryVisitUrl, ServiceOverview } from '../components/AppOverview'
+import { OverviewLiveMetrics } from '../components/OverviewLiveMetrics'
+import { ResourceTagsPanel } from '../components/ResourceTagsPanel'
 import { ServiceWebhooksPanel } from '../components/ServiceWebhooksPanel'
 import { ServerTerminal } from '../components/Terminal'
 import { CodeEditor } from '../components/CodeEditor'
@@ -59,29 +65,41 @@ const SIDE_ITEMS = [
   { id: 'domains', label: 'Domains', icon: Globe },
   { id: 'environment', label: 'Environment Variables', icon: Variable },
   { id: 'storages', label: 'Persistent Storage', icon: HardDrive },
+  { id: 'files', label: 'Files', icon: Folder },
+  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   { id: 'tasks', label: 'Scheduled Tasks', icon: CalendarClock },
   { id: 'webhooks', label: 'Webhooks', icon: Webhook },
+  { id: 'import', label: 'Import Backup', icon: Upload },
   { id: 'operations', label: 'Resource Operations', icon: Wrench },
+  { id: 'tags', label: 'Tags', icon: Tags },
   { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
 ] as const
 
 const NAV_ITEMS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  ...SIDE_ITEMS.slice(0, 4),
+  { id: 'general', label: 'General', icon: Settings2 },
+  { id: 'domains', label: 'Domains', icon: Globe },
+  { id: 'environment', label: 'Environment Variables', icon: Variable },
+  { id: 'storages', label: 'Persistent Storage', icon: HardDrive },
   { id: 'logs', label: 'Runtime Logs', icon: ScrollText },
   { id: 'terminal', label: 'Terminal', icon: Terminal },
+  { id: 'files', label: 'Files', icon: Folder },
+  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   { id: 'tasks', label: 'Scheduled Tasks', icon: CalendarClock },
   { id: 'webhooks', label: 'Webhooks', icon: Webhook },
   { id: 'backups', label: 'Backups', icon: Archive },
+  { id: 'import', label: 'Import Backup', icon: Upload },
   { id: 'operations', label: 'Resource Operations', icon: Wrench },
+  { id: 'tags', label: 'Tags', icon: Tags },
   { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
 ] as const
 
 const SVC_NAV_GROUPS = [
   { label: 'Settings', ids: ['general', 'domains', 'environment', 'storages'] },
-  { label: 'Observe & troubleshoot', ids: ['logs', 'terminal'] },
-  { label: 'Automation', ids: ['tasks', 'webhooks', 'backups'] },
-  { label: 'Operations', ids: ['operations', 'danger'] },
+  { label: 'Observe & troubleshoot', ids: ['logs', 'terminal', 'files', 'analytics'] },
+  { label: 'Automation', ids: ['tasks', 'webhooks', 'backups', 'import'] },
+  { label: 'Operations', ids: ['operations', 'tags'] },
+  { label: 'Danger Zone', ids: ['danger'] },
 ] as const
 
 type TopTabId = (typeof TOP_TABS)[number]['id']
@@ -525,6 +543,16 @@ export function ServiceDetailPage() {
       )}
 
       {section === 'backups' && <ServiceBackupsPanel svcId={svcId} />}
+
+      {section === 'import' && <ServiceImportBackupPanel units={units} />}
+
+      {section === 'files' && (
+        <ServiceFilesPanel volumes={s.volumes} onOpenTerminal={() => setSvcNav({ tab: 'terminal' })} />
+      )}
+
+      {section === 'analytics' && <OverviewLiveMetrics kind="service" resourceId={svcId} />}
+
+      {section === 'tags' && <ResourceTagsPanel resourceType="service" resourceId={svcId} />}
 
       {section === 'logs' && (
         <div className="space-y-3">
@@ -1014,6 +1042,89 @@ function DetailRow({ label, value, mono }: { label: string; value: string; mono?
       <div className={`mt-0.5 text-sm text-gray-900 dark:text-white ${mono ? 'font-mono text-xs break-all' : ''}`}>
         {value}
       </div>
+    </div>
+  )
+}
+
+function ServiceFilesPanel({
+  volumes,
+  onOpenTerminal,
+}: {
+  volumes?: Service['volumes']
+  onOpenTerminal: () => void
+}) {
+  const rows = volumes || []
+  return (
+    <div className="space-y-3">
+      <div className="panel-card space-y-2 p-4">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Files</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Persistent files for this stack. Open a container shell to browse files inside a running container.
+        </p>
+        <Btn onClick={onOpenTerminal}>Open terminal</Btn>
+      </div>
+      <div className="panel-card overflow-hidden">
+        <table className="panel-table">
+          <thead>
+            <tr>
+              <th>Volume</th>
+              <th>Service</th>
+              <th>Mount</th>
+              <th>Host path</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((v) => (
+              <tr key={`${v.service}-${v.name}-${v.mount_path}`}>
+                <td className="font-medium">{v.name || '—'}</td>
+                <td>{v.service || '—'}</td>
+                <td className="font-mono text-xs">{v.mount_path || '—'}</td>
+                <td className="font-mono text-xs">{v.host_path || v.type || '—'}</td>
+              </tr>
+            ))}
+            {!rows.length && (
+              <tr>
+                <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                  No persistent volumes yet. Deploy the service to create them.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function ServiceImportBackupPanel({ units }: { units: ServiceUnit[] }) {
+  const databases = units.filter((u) =>
+    /postgres|mysql|mariadb|mongo|redis|clickhouse/i.test(`${u.name} ${u.image}`),
+  )
+  return (
+    <div className="panel-card space-y-2 p-5">
+      <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Import Backup</h2>
+      {databases.length === 0 ? (
+        <>
+          <p className="text-sm font-medium text-gray-900 dark:text-white">No compatible databases</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            This service does not contain a database that supports backup imports. Volume archives are restored from Backups.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            These containers can hold data. Restore a finished archive from Backups, or import a dump on a standalone database resource.
+          </p>
+          <ul className="divide-y divide-gray-100 dark:divide-white/10">
+            {databases.map((u) => (
+              <li key={u.name} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <span className="font-medium text-gray-900 dark:text-white">{u.name}</span>
+                <span className="truncate font-mono text-xs text-gray-500">{u.image}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   )
 }

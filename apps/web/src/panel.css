@@ -41,6 +41,12 @@
 /* Resource menu sits flush against the main sidebar, under the top bar. */
 .panel-subnav {
   border-radius: 0;
+  background-color: #ffffff;
+  box-shadow: none;
+}
+
+.dark .panel-subnav {
+  background-color: #101828;
 }
 
 @media (min-width: 768px) {

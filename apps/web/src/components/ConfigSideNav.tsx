@@ -1,5 +1,6 @@
-import type { LucideIcon } from 'lucide-react'
+import { ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useSidebar } from '../context/sidebar-context'
 
 export type SideNavItem<T extends string> = {
   id: T
@@ -31,6 +32,7 @@ export function ConfigSideNav<T extends string>({
   /** Items shown above the first group (Overview). */
   pinned?: readonly T[]
 }) {
+  const { isExpanded, isDesktop, toggleSidebar } = useSidebar()
   const byId = new Map(items.map((i) => [i.id, i]))
 
   const renderItem = (item: SideNavItem<T>) => {
@@ -44,7 +46,7 @@ export function ConfigSideNav<T extends string>({
         className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] leading-5 ${
           isActive
             ? 'bg-brand-500 font-semibold text-white shadow-sm'
-            : 'font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-white/10'
+            : 'font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/8'
         }`}
       >
         <Icon
@@ -80,7 +82,7 @@ export function ConfigSideNav<T extends string>({
       {pinnedItems.length ? <nav className="space-y-0.5">{pinnedItems.map(renderItem)}</nav> : null}
       {grouped.map((g) => (
         <div key={g.label} className="border-t border-gray-200 pt-2 first:border-t-0 first:pt-0 dark:border-gray-700">
-          <p className="mb-1 px-2 text-[11px] font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
+          <p className="mb-1 px-2 text-[11px] font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500">
             {g.label}
           </p>
           <nav className="space-y-0.5">{g.list.map(renderItem)}</nav>
@@ -92,9 +94,33 @@ export function ConfigSideNav<T extends string>({
   )
 
   return (
-    <aside className="panel-card panel-scrollbar panel-subnav w-full shrink-0 overflow-y-auto p-2">
-      {header}
-      {body}
+    <aside className="panel-subnav flex w-full shrink-0 flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+      <div className="panel-scrollbar min-h-0 flex-1 overflow-y-auto p-2">
+        {header}
+        {body}
+      </div>
+      {isDesktop && (
+        <div className="shrink-0 border-t border-gray-200 p-2.5 dark:border-gray-800">
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/5"
+            aria-label={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
+          >
+            {isExpanded ? (
+              <>
+                <ChevronLeft className="h-4 w-4 shrink-0" />
+                <span>Collapse</span>
+              </>
+            ) : (
+              <>
+                <ChevronRight className="h-4 w-4 shrink-0" />
+                <span>Expand</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </aside>
   )
 }
