@@ -103,7 +103,7 @@ export function DeploymentRows({
         const busy = d.status === 'queued' || d.status === 'in_progress'
         const title = (d.commit_message || '').trim() || d.current_stage || d.status
         return (
-          <div key={d.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5.5 hover:bg-gray-50 dark:hover:bg-white/[0.03]">
+          <div key={d.id} className="flex flex-wrap items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-white/[0.03]">
             <button
               type="button"
               className="min-w-0 flex-1 text-left"
@@ -618,14 +618,15 @@ export function ServiceOverview({
         {units.length ? (
           <div className="divide-y divide-gray-200 dark:divide-gray-800">
             {units.map((u) => (
-              <div key={u.name} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5.5">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{u.name}</p>
-                  <p className="mt-0.5 truncate font-mono text-xs text-gray-500 dark:text-gray-400">
-                    {u.image}
-                  </p>
+              <div
+                key={u.name}
+                className="grid grid-cols-1 items-center gap-2 px-4 py-3 sm:grid-cols-[minmax(8rem,1fr)_minmax(0,1.6fr)_auto] sm:gap-4"
+              >
+                <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{u.name}</p>
+                <p className="truncate font-mono text-xs text-gray-500 dark:text-gray-400">{u.image}</p>
+                <div className="sm:justify-self-end">
+                  <StatusBadge status={u.status || service.status} />
                 </div>
-                <StatusBadge status={u.status || service.status} />
               </div>
             ))}
           </div>
