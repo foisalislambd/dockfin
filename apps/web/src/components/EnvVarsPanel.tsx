@@ -67,6 +67,9 @@ export function EnvVarsPanel({
   const qc = useQueryClient()
   const queryKey = ['env-vars', resourceType, resourceId, isPreview ? 'preview' : 'prod']
   const [addOpen, setAddOpen] = useState(false)
+  const [editing, setEditing] = useState<EnvVar | null>(null)
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState<'default' | 'name_asc' | 'name_desc'>(sortByKey ? 'name_asc' : 'default')
   const vars = useQuery({
     queryKey,
     queryFn: () =>
@@ -74,28 +77,57 @@ export function EnvVarsPanel({
   })
 
   const sortedVars = useMemo(() => {
-    const list = vars.data?.environment_variables || []
-    if (!sortByKey) return list
-    return [...list].sort((a, b) => a.key.localeCompare(b.key))
-  }, [vars.data?.environment_variables, sortByKey])
+    const q = search.trim().toLowerCase()
+    let list = vars.data?.environment_variables || []
+    if (q) {
+      list = list.filter((v) => `${v.key} ${v.comment || ''}`.toLowerCase().includes(q))
+    }
+    if (sort === 'default') return list
+    const copy = [...list]
+    copy.sort((a, b) => a.key.localeCompare(b.key))
+    if (sort === 'name_desc') copy.reverse()
+    return copy
+  }, [vars.data?.environment_variables, search, sort])
 
   const emptyUser = useMemo(
-    () => (isPreview ? [] : emptyUserEnvVars(sortedVars)),
-    [isPreview, sortedVars],
+    () => (isPreview ? [] : emptyUserEnvVars(vars.data?.environment_variables || [])),
+    [isPreview, vars.data?.environment_variables],
   )
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          {title ? (
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
-          ) : null}
-          {subtitle ? <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{subtitle}</p> : null}
+      <div>
+        {title ? (
+          <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">{title}</h2>
+        ) : null}
+        <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+          {subtitle || 'Secrets and settings passed into this resource.'}
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search environment variables"
+          aria-label="Search environment variables"
+          className="panel-field h-8 w-full rounded-md px-3 text-[13px] sm:w-64"
+        />
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value as 'default' | 'name_asc' | 'name_desc')}
+          aria-label="Sort environment variables"
+          className="panel-field h-8 rounded-md px-2 text-[13px]"
+        >
+          <option value="default">Default order</option>
+          <option value="name_asc">Name A–Z</option>
+          <option value="name_desc">Name Z–A</option>
+        </select>
+        <div className="ml-auto">
+          <Btn primary type="button" onClick={() => setAddOpen(true)}>
+            Add
+          </Btn>
         </div>
-        <Btn primary type="button" onClick={() => setAddOpen(true)}>
-          + Add Environment Variable
-        </Btn>
       </div>
 
       {previewTabs ? (
@@ -137,25 +169,86 @@ export function EnvVarsPanel({
                   : `${emptyUser.length} variables still need a value. Fill them before deploying.`}
               </div>
             ) : null}
-            {sortedVars.map((v) => (
-              <EnvVarCard
-                key={v.id}
-                variable={v}
-                resourceType={resourceType}
-                resourceId={resourceId}
-                isPreview={isPreview}
-                needsValue={emptyUser.some((e) => e.id === v.id)}
-                onChanged={() => void qc.invalidateQueries({ queryKey })}
-              />
-            ))}
-            {!sortedVars.length && (
+            {sortedVars.length > 0 ? (
+              <div className="panel-card overflow-x-auto">
+                <table className="w-full min-w-[40rem] text-left text-[13px]">
+                  <thead className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                    <tr className="border-b border-gray-200 dark:border-gray-800">
+                      <th className="px-4 py-2">Name</th>
+                      <th className="px-2 py-2 text-center">Managed</th>
+                      <th className="px-2 py-2 text-center">Literal</th>
+                      <th className="px-2 py-2 text-center">Multiline</th>
+                      <th className="px-2 py-2 text-center">Buildtime</th>
+                      <th className="px-2 py-2 text-center">Runtime</th>
+                      <th className="px-4 py-2 text-right"> </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedVars.map((v) => {
+                      const needsValue = emptyUser.some((e) => e.id === v.id)
+                      return (
+                        <tr key={v.id} className="border-t border-gray-100 dark:border-white/8">
+                          <td className="px-4 py-2.5">
+                            <button
+                              type="button"
+                              className="max-w-[18rem] truncate text-left font-mono text-[13px] text-gray-900 hover:underline dark:text-white"
+                              onClick={() => setEditing(v)}
+                            >
+                              {v.is_locked ? '🔒 ' : ''}
+                              {v.key}
+                            </button>
+                            {needsValue ? (
+                              <span className="ml-2 rounded bg-error-500/15 px-1.5 py-0.5 text-[10px] font-medium text-error-500">
+                                Required
+                              </span>
+                            ) : null}
+                          </td>
+                          <Flag on={v.key.startsWith('SERVICE_')} />
+                          <Flag on={v.is_literal} />
+                          <Flag on={!!v.is_multiline} />
+                          <Flag on={v.is_buildtime} />
+                          <Flag on={v.is_runtime} />
+                          <td className="px-4 py-2.5 text-right">
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                              onClick={() => setEditing(v)}
+                            >
+                              Edit
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
               <div className="panel-card px-5 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
-                No environment variables yet. Click Add Environment Variable to create one.
+                {search.trim()
+                  ? 'No variables match your search.'
+                  : 'No environment variables yet. Use Add to create one.'}
               </div>
             )}
           </>
         )}
       </div>
+
+      {editing ? (
+        <Modal title="Edit environment variable" onClose={() => setEditing(null)} wide>
+          <EnvVarCard
+            variable={editing}
+            resourceType={resourceType}
+            resourceId={resourceId}
+            isPreview={isPreview}
+            needsValue={emptyUser.some((e) => e.id === editing.id)}
+            onChanged={() => {
+              setEditing(null)
+              void qc.invalidateQueries({ queryKey })
+            }}
+          />
+        </Modal>
+      ) : null}
 
       {addOpen && (
         <AddEnvVarModal
@@ -227,11 +320,7 @@ function EnvVarCard({
   const disabled = locked || save.isPending
 
   return (
-    <div
-      className={`panel-card space-y-4 p-4 ${locked ? 'opacity-90' : ''} ${
-        needsValue ? 'border-amber-300 ring-1 ring-amber-200 dark:border-amber-500/40 dark:ring-amber-500/20' : ''
-      }`}
-    >
+    <div className={`space-y-4 ${locked ? 'opacity-90' : ''}`}>
       {needsValue ? (
         <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Needs a value before deploy</p>
       ) : null}
@@ -540,6 +629,14 @@ function AddEnvVarModal({
         </div>
       </form>
     </Modal>
+  )
+}
+
+function Flag({ on }: { on: boolean }) {
+  return (
+    <td className="px-2 py-2.5 text-center text-gray-500 dark:text-gray-400">
+      {on ? <span className="text-emerald-500">✓</span> : '—'}
+    </td>
   )
 }
 

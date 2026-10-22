@@ -312,6 +312,10 @@ func (a *API) Router() http.Handler {
 				r.Get("/{serviceID}/backups", a.handleListServiceBackups)
 				r.Post("/{serviceID}/backups", a.handleRunServiceBackup)
 				r.Post("/{serviceID}/backups/restore", a.handleRestoreServiceBackup)
+				r.Get("/{serviceID}/domains", a.handleListServiceDomains)
+				r.Post("/{serviceID}/domains", a.handleCreateServiceDomain)
+				r.Patch("/{serviceID}/domains/{domainID}", a.handlePatchServiceDomain)
+				r.Delete("/{serviceID}/domains/{domainID}", a.handleDeleteServiceDomain)
 			})
 
 			r.Get("/mcp", a.handleMCPProbe)

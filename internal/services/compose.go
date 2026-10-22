@@ -30,6 +30,11 @@ type PrepareOpts struct {
 	BasicAuthUsers string
 	// Redirect is both|www|non-www (Coolify Direction). Magic domains should stay "both".
 	Redirect string
+	// NoIndex adds an X-Robots-Tag: noindex response header on the public router.
+	NoIndex bool
+	// ProxyService is the compose service that receives Traefik labels.
+	// Empty keeps the default web-service pick.
+	ProxyService string
 	// GPUEnabled injects NVIDIA device reservations on the primary service (compose).
 	GPUEnabled bool
 	GPUCount   int
@@ -1060,7 +1065,15 @@ func injectProxyLabels(doc map[string]any, opts PrepareOpts) {
 	}
 	router = sanitizeRouter(router)
 
-	target := pickProxyService(services)
+	target := ""
+	if name := strings.TrimSpace(opts.ProxyService); name != "" {
+		if _, ok := services[name]; ok {
+			target = name
+		}
+	}
+	if target == "" {
+		target = pickProxyService(services)
+	}
 	if target == "" {
 		return
 	}
@@ -1125,6 +1138,16 @@ func injectProxyLabels(doc map[string]any, opts PrepareOpts) {
 		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectregex.regex", mw)] = regex
 		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectregex.replacement", mw)] = replacement
 		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectregex.permanent", mw)] = "false"
+		key := fmt.Sprintf("traefik.http.routers.%s.middlewares", router)
+		if existing := labels[key]; existing != "" && !strings.Contains(existing, mw) {
+			labels[key] = existing + "," + mw
+		} else if labels[key] == "" {
+			labels[key] = mw
+		}
+	}
+	if opts.NoIndex {
+		mw := router + "-noindex"
+		labels[fmt.Sprintf("traefik.http.middlewares.%s.headers.customresponseheaders.X-Robots-Tag", mw)] = "noindex, nofollow"
 		key := fmt.Sprintf("traefik.http.routers.%s.middlewares", router)
 		if existing := labels[key]; existing != "" && !strings.Contains(existing, mw) {
 			labels[key] = existing + "," + mw

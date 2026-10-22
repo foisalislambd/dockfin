@@ -26,7 +26,7 @@ import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmM
 import { ConfigSideNav } from '../components/ConfigSideNav'
 import { DeployLogPanel } from '../components/DeployLogPanel'
 import { LiveLogViewer } from '../components/LiveLogViewer'
-import { DomainsPanel, domainsWantAutoHttps } from '../components/DomainsPanel'
+import { ServiceDomainsPanel } from '../components/ServiceDomainsPanel'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { LinksMenu } from '../components/LinksMenu'
 import { MoveResourcePanel } from '../components/MoveResourcePanel'
@@ -175,7 +175,6 @@ export function ServiceDetailPage() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [fqdn, setFqdn] = useState('')
-  const httpsRedirectApplies = useMemo(() => domainsWantAutoHttps(fqdn), [fqdn])
   const [showCompose, setShowCompose] = useState(false)
   const [composeDraft, setComposeDraft] = useState('')
   const [showDetails, setShowDetails] = useState(false)
@@ -256,10 +255,6 @@ export function ServiceDetailPage() {
       void qc.invalidateQueries({ queryKey: ['service', svcId] })
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed to save compose'),
-  })
-  const saveDomains = useMutation({
-    mutationFn: (nextFqdn: string) => api.updateService(svcId, { fqdn: nextFqdn }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['service', svcId] }),
   })
   const stop = useMutation({
     mutationFn: () => api.stopService(svcId),
@@ -441,9 +436,9 @@ export function ServiceDetailPage() {
         />
         <div className="min-w-0 flex-1 space-y-3">
 
-      {(stop.error || restart.error || save.error || saveDomains.error) && (
+      {(stop.error || restart.error || save.error) && (
         <p className="text-sm text-error-500">
-          {(stop.error || restart.error || save.error || saveDomains.error)?.message}
+          {(stop.error || restart.error || save.error)?.message}
         </p>
       )}
 
@@ -629,46 +624,13 @@ export function ServiceDetailPage() {
               />
             )}
             {section === 'domains' && (
-              <div className="space-y-4">
-              <div className="panel-card space-y-4 p-5">
-                <DomainsPanel
-                  value={fqdn}
-                  onChange={setFqdn}
-                  onSave={(next) => {
-                    setFqdn(next)
-                    saveDomains.mutate(next)
-                  }}
-                  saveBusy={saveDomains.isPending}
-                  serverId={serverId || undefined}
-                  destinationId={s.destination_id || undefined}
-                  resourceId={svcId}
-                  resourceName={s.name}
-                  title="Domains"
-                />
-                <label className={`flex items-start gap-3 text-sm ${httpsRedirectApplies ? '' : 'opacity-60'}`}>
-                  <input
-                    type="checkbox"
-                    className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
-                    checked={httpsRedirectApplies && s.is_force_https !== false}
-                    disabled={!httpsRedirectApplies}
-                    onChange={(e) => {
-                      if (!httpsRedirectApplies) return
-                      void api
-                        .updateService(svcId, { is_force_https: e.target.checked })
-                        .then(() => qc.invalidateQueries({ queryKey: ['service', svcId] }))
-                    }}
-                  />
-                  <span>
-                    <span className="font-medium text-gray-900 dark:text-white">Force HTTPS redirects</span>
-                    <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
-                      {httpsRedirectApplies
-                        ? 'Redirect HTTP to HTTPS. Redeploy to apply.'
-                        : 'Magic domains stay HTTP. Add a custom domain first.'}
-                    </span>
-                  </span>
-                </label>
-              </div>
-              </div>
+              <ServiceDomainsPanel
+                serviceId={svcId}
+                serviceName={s.name}
+                units={units}
+                serverId={serverId || undefined}
+                destinationId={s.destination_id || undefined}
+              />
             )}
             {section === 'environment' && (
               <EnvVarsPanel
@@ -679,10 +641,15 @@ export function ServiceDetailPage() {
               />
             )}
             {section === 'storages' && (
-              <PersistentStoragesPanel
-                compose={s.docker_compose || s.docker_compose_raw || ''}
-                volumes={s.volumes}
-              />
+              <div className="space-y-4">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] leading-5 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
+                  Volume mounts are read-only here. Edit the Compose file on General and redeploy to change them.
+                </div>
+                <PersistentStoragesPanel
+                  compose={s.docker_compose || s.docker_compose_raw || ''}
+                  volumes={s.volumes}
+                />
+              </div>
             )}
             {section === 'tasks' && (
               <ScheduledTasksPanel

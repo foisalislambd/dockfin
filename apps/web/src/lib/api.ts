@@ -656,6 +656,20 @@ export const api = {
       `/api/v1/services${environment_id ? `?environment_id=${environment_id}` : ''}`,
     ),
   getService: (id: string) => request<Service>(`/api/v1/services/${id}`),
+  serviceDomains: (id: string) =>
+    request<{ domains: ServiceDomain[] }>(`/api/v1/services/${id}/domains`),
+  createServiceDomain: (id: string, body: ServiceDomainInput) =>
+    request<ServiceDomain>(`/api/v1/services/${id}/domains`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateServiceDomain: (id: string, domainId: string, body: ServiceDomainInput) =>
+    request<ServiceDomain>(`/api/v1/services/${id}/domains/${domainId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteServiceDomain: (id: string, domainId: string) =>
+    request<{ status: string }>(`/api/v1/services/${id}/domains/${domainId}`, { method: 'DELETE' }),
   updateService: (
     id: string,
     body: {
@@ -1253,6 +1267,26 @@ export type TaggedResource = {
   resource_type: string
   resource_id: string
   name: string
+}
+export type ServiceDomain = {
+  id: string
+  service_id: string
+  unit_name: string
+  host: string
+  scheme: 'http' | 'https' | string
+  internal_port?: number | null
+  force_https: boolean
+  redirect: 'both' | 'www' | 'non-www' | string
+  noindex: boolean
+}
+export type ServiceDomainInput = {
+  unit_name?: string
+  host: string
+  scheme?: string
+  internal_port?: number | null
+  force_https?: boolean
+  redirect?: string
+  noindex?: boolean
 }
 export type Service = {
   id: string

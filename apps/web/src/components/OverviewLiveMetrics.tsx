@@ -586,7 +586,7 @@ export function OverviewLiveMetrics({
     refetchOnWindowFocus: true,
   })
   const rows = q.data?.containers || []
-  const { cpu, memUsed, memLimit, memPct, memCapped, diskIO } = summarize(rows)
+  const { cpu, memUsed, memPct, memCapped, diskIO } = summarize(rows)
   const [history, setHistory] = useState<HistoryPoint[]>([])
 
   useEffect(() => {

@@ -108,6 +108,38 @@ func RunDeploy(ctx context.Context, p DeployParams) error {
 		if p.Dest != nil {
 			opts.Network = p.Dest.Network
 		}
+		if domains, err := p.Store.ListServiceDomains(ctx, teamID, id); err == nil && len(domains) > 0 {
+			published := PublishedServiceDomains(domains)
+			if len(published) > 0 {
+				d := published[0]
+				if primary := proxy.PrimaryHost(svc.FQDN); primary != "" {
+					for _, row := range published {
+						if row.Host == primary {
+							d = row
+							break
+						}
+					}
+				}
+				if d.InternalPort != nil && *d.InternalPort > 0 {
+					opts.Port = strconv.Itoa(*d.InternalPort)
+				}
+				if (d.Redirect == "www" || d.Redirect == "non-www") && !proxy.IsMagicDomainHost(d.Host) {
+					opts.Redirect = d.Redirect
+				}
+				for _, row := range published {
+					if row.NoIndex {
+						opts.NoIndex = true
+						break
+					}
+				}
+				if name := strings.TrimSpace(d.UnitName); name != "" {
+					opts.ProxyService = name
+				}
+				if !d.ForceHTTPS || proxy.IsMagicDomainHost(d.Host) {
+					opts.SkipHTTPSRedirect = true
+				}
+			}
+		}
 		if u, host := PreferURLFromMagicEnv(existing); u != "" {
 			opts.BaseURL = u
 			if host != "" && host == fqdnHost && strings.TrimSpace(svc.FQDN) != "" {
