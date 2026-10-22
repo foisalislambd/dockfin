@@ -208,6 +208,7 @@ export function LoginPage() {
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
                   className={inputClass}
                 />
               </div>
@@ -222,6 +223,7 @@ export function LoginPage() {
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
                   className={`${inputClass} pr-11`}
                 />
                 <button
