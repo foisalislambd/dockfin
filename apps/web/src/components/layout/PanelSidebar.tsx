@@ -89,14 +89,14 @@ export function PanelSidebar() {
                     aria-current={active ? 'page' : undefined}
                     className={`group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
                       active
-                        ? 'bg-brand-50 text-brand-800 dark:bg-brand-500/15 dark:text-brand-200'
+                        ? 'bg-brand-500 text-white shadow-sm'
                         : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/8'
                     } ${!showLabels ? 'justify-center px-0' : ''}`}
                   >
                     <Icon
                       className={`h-[18px] w-[18px] shrink-0 ${
                         active
-                          ? 'text-brand-600 dark:text-brand-400'
+                          ? 'text-white'
                           : 'text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-300'
                       }`}
                       strokeWidth={1.75}
