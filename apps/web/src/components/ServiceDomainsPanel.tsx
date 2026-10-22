@@ -219,16 +219,16 @@ export function ServiceDomainsPanel({
               <span className="text-xs text-gray-500">{list.length} domain{list.length === 1 ? '' : 's'}</span>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[46rem] text-left text-[13px]">
+              <table className="w-full table-fixed text-left text-[13px]">
                 <thead className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
                   <tr>
-                    <th className="px-4 py-2">Domain</th>
-                    <th className="px-3 py-2">Protocol redirect</th>
-                    <th className="px-3 py-2">Domain redirect</th>
-                    <th className="px-3 py-2">Internal port</th>
-                    <th className="px-3 py-2">Indexing</th>
-                    <th className="px-3 py-2">DNS</th>
-                    <th className="px-4 py-2 text-right">Actions</th>
+                    <th className="w-[34%] px-4 py-2">Domain</th>
+                    <th className="hidden px-3 py-2 lg:table-cell">Protocol</th>
+                    <th className="hidden px-3 py-2 xl:table-cell">Redirect</th>
+                    <th className="hidden w-16 px-3 py-2 sm:table-cell">Port</th>
+                    <th className="hidden px-3 py-2 md:table-cell">Indexing</th>
+                    <th className="w-24 px-3 py-2">DNS</th>
+                    <th className="w-28 px-4 py-2 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -239,25 +239,31 @@ export function ServiceDomainsPanel({
                       dnsState === 'ok' ? 'DNS matches' : dnsState === 'failed' ? 'DNS mismatch' : dnsState === 'checking' ? 'Checking…' : 'Not checked'
                     return (
                       <tr key={row.id} className="border-t border-gray-100 dark:border-white/8">
-                        <td className="px-4 py-3">
-                          <a href={url} target="_blank" rel="noreferrer" className="truncate text-brand-600 hover:underline dark:text-brand-400">
+                        <td className="max-w-0 px-4 py-3">
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={url}
+                            className="block truncate text-brand-600 hover:underline dark:text-brand-400"
+                          >
                             {url}
                           </a>
                         </td>
-                        <td className="px-3 py-3 text-gray-600 dark:text-gray-300">
+                        <td className="hidden px-3 py-3 text-gray-600 lg:table-cell dark:text-gray-300">
                           {row.scheme === 'https' && row.force_https ? 'HTTP → HTTPS' : 'Disabled'}
                         </td>
-                        <td className="px-3 py-3 text-gray-600 dark:text-gray-300">
+                        <td className="hidden px-3 py-3 text-gray-600 xl:table-cell dark:text-gray-300">
                           {row.redirect === 'www' ? 'non-www → www' : row.redirect === 'non-www' ? 'www → non-www' : 'Disabled'}
                         </td>
-                        <td className="px-3 py-3 font-mono text-xs">{row.internal_port || '—'}</td>
-                        <td className="px-3 py-3">{row.noindex ? 'Blocked' : 'Allowed'}</td>
+                        <td className="hidden px-3 py-3 font-mono text-xs sm:table-cell">{row.internal_port || '—'}</td>
+                        <td className="hidden px-3 py-3 md:table-cell">{row.noindex ? 'Blocked' : 'Allowed'}</td>
                         <td className="px-3 py-3">
                           <button type="button" className="text-xs hover:underline" onClick={() => void checkDns([row.host])}>
                             {dnsLabel}
                           </button>
                         </td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-4 py-3 text-right whitespace-nowrap">
                           <button type="button" className="text-xs text-brand-600 hover:underline" onClick={() => openEdit(row)}>
                             Edit
                           </button>
