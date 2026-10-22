@@ -285,10 +285,6 @@ export function ServiceDomainsPanel({
         ))
       )}
 
-      <p className="text-xs text-gray-500 dark:text-gray-400">
-        Redeploy after saving. The oldest custom domain is the primary host: its container, port, and www redirect are what Traefik uses. Search indexing applies if any published domain blocks it.
-      </p>
-
       {open && (
         <Modal title={editing ? 'Edit domain' : 'Add domain'} onClose={() => setOpen(false)} wide>
           <form

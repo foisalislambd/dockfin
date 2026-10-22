@@ -56,7 +56,6 @@ export function ResourceTagsPanel({
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Tags</h2>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Labels that group this resource with others.</p>
       </div>
       <div className="panel-card space-y-3 p-5">
         <h3 className="text-sm font-medium text-gray-900 dark:text-white">Attached</h3>

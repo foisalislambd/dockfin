@@ -12,7 +12,6 @@ type Props = {
   resourceType: string
   resourceId: string
   title?: string
-  subtitle?: string
   /** When true, show Production / Preview tabs (applications with preview deploys). */
   previewTabs?: boolean
   /** Sort variables alphabetically by key (Coolify is_env_sorting_enabled). */
@@ -58,7 +57,6 @@ export function EnvVarsPanel({
   resourceType,
   resourceId,
   title = 'Environment Variables',
-  subtitle = '',
   previewTabs = false,
   sortByKey = false,
 }: Props) {
@@ -100,9 +98,6 @@ export function EnvVarsPanel({
         {title ? (
           <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">{title}</h2>
         ) : null}
-        <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-          {subtitle || 'Secrets and settings passed into this resource.'}
-        </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
