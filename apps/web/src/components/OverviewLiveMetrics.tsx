@@ -638,9 +638,6 @@ export function OverviewLiveMetrics({
               <p className="mt-1 text-2xl font-semibold tabular-nums text-gray-900 dark:text-white">
                 {cpu.toFixed(1)}%
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {cpu > 100 ? 'Over 100% means more than one CPU core' : 'of one host CPU'}
-              </p>
               <UsageBar value={Math.min(cpu, 100)} />
             </div>
             <div className="border-b border-gray-200 p-5 sm:border-b-0 sm:border-r dark:border-gray-800">
@@ -651,9 +648,6 @@ export function OverviewLiveMetrics({
               <p className="mt-1 text-2xl font-semibold tabular-nums text-gray-900 dark:text-white">
                 {fmtBytes(memUsed)}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {memCapped ? `${fmtBytes(memLimit)} container limit` : 'No memory cap on this stack'}
-              </p>
               <UsageBar value={memCapped ? Math.min(memPct, 100) : 0} />
             </div>
             <div className="p-5">
@@ -663,9 +657,6 @@ export function OverviewLiveMetrics({
               </div>
               <p className="mt-1 text-lg font-semibold tabular-nums text-gray-900 dark:text-white">
                 {diskIO || '—'}
-              </p>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Read / write across this stack. Volume size is not in this sample.
               </p>
             </div>
           </div>

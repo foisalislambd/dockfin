@@ -66,6 +66,10 @@
     border-radius: 0;
     box-shadow: none;
   }
+
+  .panel-subnav.is-collapsed {
+    width: 3.25rem;
+  }
 }
 
 .dark .panel-card {
