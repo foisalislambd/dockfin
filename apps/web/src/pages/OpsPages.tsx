@@ -6,7 +6,9 @@ import { CreatePageShell, FormActions, FormInput } from '../components/ui/forms'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { api } from '../lib/api'
 import { isSecretEnvKey } from '../lib/secrets'
-import { Btn, Header, Input } from './Servers'
+import { Btn } from '../components/ui/Button'
+import { Header } from '../components/ui/Header'
+import { Input } from '../components/ui/Input'
 
 export function StoragesPage() {
   const qc = useQueryClient()

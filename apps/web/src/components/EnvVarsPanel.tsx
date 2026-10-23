@@ -6,7 +6,8 @@ import { emptyUserEnvVars } from '../lib/env-readiness'
 import { useConfirm } from './ConfirmDialog'
 import { InfoHint } from './ui/forms'
 import { TableSkeleton } from './ui/Skeleton'
-import { Btn, Modal } from '../pages/Servers'
+import { Btn } from './ui/Button'
+import { Modal } from './ui/Modal'
 
 type Props = {
   resourceType: string

@@ -26,7 +26,8 @@ import {
 } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useConfirm } from '../components/ConfirmDialog'
-import { Btn, Header } from './Servers'
+import { Btn } from '../components/ui/Button'
+import { Header } from '../components/ui/Header'
 
 type TopTab = 'configuration' | 'backup' | 'email' | 'oauth' | 'scheduled' | 'profile'
 type ConfigSub = 'general' | 'advanced' | 'updates' | 'registries'

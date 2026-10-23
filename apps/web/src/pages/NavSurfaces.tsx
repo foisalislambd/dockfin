@@ -4,7 +4,7 @@ import { Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { PageSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { api, type Server, type Tag } from '../lib/api'
-import { Header } from './Servers'
+import { Header } from '../components/ui/Header'
 
 /** All destinations across every server, deep-linking to the server's Destinations tab. */
 export function DestinationsPage() {

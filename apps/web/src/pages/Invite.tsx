@@ -6,7 +6,7 @@ import { useAuth } from '../lib/auth'
 import { BrandLogo } from '../components/BrandLogo'
 import { ThemeToggle } from '../components/theme/ThemeToggle'
 import { PanelSkeleton } from '../components/ui/Skeleton'
-import { Btn } from './Servers'
+import { Btn } from '../components/ui/Button'
 
 function inviteToken() {
   try {

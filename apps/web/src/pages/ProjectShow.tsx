@@ -8,7 +8,10 @@ import { EnvResourcesSkeleton, PageSkeleton } from '../components/ui/Skeleton'
 import { useCatalogWindow } from '../hooks/use-catalog-window'
 import { api, LAST_ENV_KEY, type Environment } from '../lib/api'
 import { catalogMatchesQuery } from '../lib/new-resource-catalog'
-import { Btn, Header, Input, Modal } from './Servers'
+import { Btn } from '../components/ui/Button'
+import { Header } from '../components/ui/Header'
+import { Input } from '../components/ui/Input'
+import { Modal } from '../components/ui/Modal'
 
 export function ProjectShowPage() {
   const { projectId } = useParams({ strict: false }) as { projectId: string }

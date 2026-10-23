@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react'
 import { api, type ServiceDomain, type ServiceUnit } from '../lib/api'
 import { useToast } from './Toast'
 import { Modal } from './ui/Modal'
-import { Btn } from '../pages/Servers'
+import { Btn } from './ui/Button'
 
 type Draft = {
   unit_name: string

@@ -10,7 +10,10 @@ import {
   type CloudProviderToken,
   type Key,
 } from '../lib/api'
-import { Btn, Header, Input, Modal } from './Servers'
+import { Btn } from '../components/ui/Button'
+import { Header } from '../components/ui/Header'
+import { Input } from '../components/ui/Input'
+import { Modal } from '../components/ui/Modal'
 
 const TABS = [
   { id: 'private-keys', label: 'Private Keys', icon: KeyRound },

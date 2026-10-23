@@ -37,7 +37,8 @@ import { ConfigSideNav, type SideNavGroup, type SideNavItem } from '../component
 import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
 import { api } from '../lib/api'
 import { useLogStream } from '../lib/useLogStream'
-import { Btn, Input } from './Servers'
+import { Btn } from '../components/ui/Button'
+import { Input } from '../components/ui/Input'
 
 const DB_TABS = [
   { id: 'configuration', label: 'Configuration', icon: Settings2 },

@@ -6,7 +6,9 @@ import { BackLink } from '../components/BackLink'
 import { DetailPageSkeleton, PageSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { ResourceTabs, TabPanel } from '../components/ui/tabs'
 import { api } from '../lib/api'
-import { Btn, Input, Modal } from './Servers'
+import { Btn } from '../components/ui/Button'
+import { Input } from '../components/ui/Input'
+import { Modal } from '../components/ui/Modal'
 
 function randomSourceName() {
   const words = ['calm', 'bright', 'swift', 'quiet', 'bold', 'clear', 'noble', 'keen']

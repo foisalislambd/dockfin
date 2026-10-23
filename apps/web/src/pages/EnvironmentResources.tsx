@@ -13,7 +13,10 @@ import {
 import { useToast } from '../components/Toast'
 import { useCatalogWindow } from '../hooks/use-catalog-window'
 import { api, LAST_ENV_KEY, type Tag } from '../lib/api'
-import { Btn, Header, Input, Modal } from './Servers'
+import { Btn } from '../components/ui/Button'
+import { Header } from '../components/ui/Header'
+import { Input } from '../components/ui/Input'
+import { Modal } from '../components/ui/Modal'
 
 type ResourceKind = 'application' | 'database' | 'service'
 

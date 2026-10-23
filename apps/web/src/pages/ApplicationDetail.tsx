@@ -53,7 +53,8 @@ import { api, fetchAllEnvironments } from '../lib/api'
 import { deployBlockFromEnv, emptyUserEnvVars } from '../lib/env-readiness'
 import { gentleRefetchInterval } from '../lib/poll'
 import { useLogStream } from '../lib/useLogStream'
-import { Btn, Input } from './Servers'
+import { Btn } from '../components/ui/Button'
+import { Input } from '../components/ui/Input'
 
 /** URL buckets. Configuration sections live in ?side=; the rest are ?tab=. */
 const TOP_TABS = [

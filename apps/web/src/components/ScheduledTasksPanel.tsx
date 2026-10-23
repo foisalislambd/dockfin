@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { api, type ScheduledTask } from '../lib/api'
-import { Btn } from '../pages/Servers'
+import { Btn } from './ui/Button'
 import { PanelSkeleton, TableSkeleton } from './ui/Skeleton'
 
 const CRON_PRESETS = [

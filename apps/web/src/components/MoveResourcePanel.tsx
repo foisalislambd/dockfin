@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../lib/api'
-import { Btn } from '../pages/Servers'
+import { Btn } from './ui/Button'
 import { PanelSkeleton } from './ui/Skeleton'
 
 type Props = {

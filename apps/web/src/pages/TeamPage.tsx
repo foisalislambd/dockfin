@@ -6,7 +6,7 @@ import { useToast } from '../components/Toast'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { api, type Team } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { Btn } from './Servers'
+import { Btn } from '../components/ui/Button'
 
 function initials(name: string, email: string) {
   const src = (name || email || '?').trim()

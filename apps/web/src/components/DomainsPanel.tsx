@@ -2,7 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { Check, Copy, Info } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../lib/api'
-import { Btn } from '../pages/Servers'
+import { Btn } from './ui/Button'
 
 /** Extract bare hostname from a domain entry (scheme/path/port stripped). */
 export function hostFromDomainEntry(entry: string): string {

@@ -50,7 +50,8 @@ import { api, type Service, type ServiceUnit } from '../lib/api'
 import { deployBlockFromEnv, emptyUserEnvVars } from '../lib/env-readiness'
 import { useLogStream } from '../lib/useLogStream'
 import { safeExternalHref } from '../lib/url'
-import { Btn, Input } from './Servers'
+import { Btn } from '../components/ui/Button'
+import { Input } from '../components/ui/Input'
 
 const TOP_TABS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },

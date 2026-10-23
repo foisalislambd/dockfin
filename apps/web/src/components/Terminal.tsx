@@ -2,7 +2,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
-import { Btn } from '../pages/Servers'
+import { Btn } from './ui/Button'
 import '@xterm/xterm/css/xterm.css'
 
 type Props = {

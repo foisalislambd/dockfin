@@ -5,7 +5,9 @@ import { BackLink } from '../components/BackLink'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { FormPageSkeleton } from '../components/ui/Skeleton'
 import { api } from '../lib/api'
-import { Btn, Header, Input } from './Servers'
+import { Btn } from '../components/ui/Button'
+import { Header } from '../components/ui/Header'
+import { Input } from '../components/ui/Input'
 
 export function ProjectEditPage() {
   const { projectId } = useParams({ strict: false }) as { projectId: string }

@@ -5,7 +5,10 @@ import { useToast } from '../components/Toast'
 import { TabbedPageSkeleton } from '../components/ui/Skeleton'
 import { ResourceTabs } from '../components/ui/tabs'
 import { api, type NotificationSetting } from '../lib/api'
-import { Btn, Header, Input, Modal } from './Servers'
+import { Btn } from '../components/ui/Button'
+import { Header } from '../components/ui/Header'
+import { Input } from '../components/ui/Input'
+import { Modal } from '../components/ui/Modal'
 
 const CHANNELS = [
   { id: 'email', label: 'Email', hint: 'Team inbox', icon: Mail },

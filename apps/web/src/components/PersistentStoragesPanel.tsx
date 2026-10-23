@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { api, type AppVolume } from '../lib/api'
 import { useToast } from './Toast'
 import { TableSkeleton } from './ui/Skeleton'
-import { Btn, Input } from '../pages/Servers'
+import { Btn } from './ui/Button'
+import { Input } from './ui/Input'
 
 type ComposeVolume = {
   service: string

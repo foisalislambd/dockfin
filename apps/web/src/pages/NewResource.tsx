@@ -11,7 +11,7 @@ import {
   filterServiceTemplates,
   pageCatalog,
 } from '../lib/new-resource-catalog'
-import { Header } from './Servers'
+import { Header } from '../components/ui/Header'
 
 type AppOption = {
   id: string

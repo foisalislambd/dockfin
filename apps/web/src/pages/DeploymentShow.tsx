@@ -6,7 +6,7 @@ import { DeployLogPanel } from '../components/DeployLogPanel'
 import { SimpleDetailSkeleton } from '../components/ui/Skeleton'
 import { Meta } from '../components/ui/tabs'
 import { api } from '../lib/api'
-import { Btn } from './Servers'
+import { Btn } from '../components/ui/Button'
 
 export function DeploymentShowPage() {
   const { appId, deploymentId, projectId, envId } = useParams({ strict: false }) as {
