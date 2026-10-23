@@ -1371,20 +1371,17 @@ export function ServerDetailPage() {
         }
       />
       <div className="min-w-0 flex-1 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="truncate text-lg font-semibold tracking-tight text-gray-900 dark:text-white">{s.name}</h1>
-          <p className="font-mono text-xs text-gray-500 dark:text-gray-400">
-            {s.user_name}@{s.ip}:{s.port}
-          </p>
-        </div>
-        {tab === 'general' && (
-          <Btn onClick={() => validate.mutate()}>{validate.isPending ? 'Validating…' : 'Validate'}</Btn>
-        )}
-      </div>
-
       {tab === 'general' && (
         <TabPanel>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-semibold tracking-tight text-gray-900 dark:text-white">{s.name}</h1>
+              <p className="font-mono text-xs text-gray-500 dark:text-gray-400">
+                {s.user_name}@{s.ip}:{s.port}
+              </p>
+            </div>
+            <Btn onClick={() => validate.mutate()}>{validate.isPending ? 'Validating…' : 'Validate'}</Btn>
+          </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Meta label="Reachable" value={s.is_reachable ? 'Yes' : 'No'} />
             <Meta label="Docker" value={s.is_usable ? s.docker_version || 'ok' : 'Unavailable'} />
