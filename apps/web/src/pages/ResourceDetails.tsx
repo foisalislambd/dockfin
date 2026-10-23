@@ -4,13 +4,20 @@ import {
   Activity,
   AlertTriangle,
   Archive,
+  Box,
   Cloud,
+  FileKey,
+  KeyRound,
+  Layers,
+  ChevronLeft,
   LayoutDashboard,
   Network,
   Route,
   ScrollText,
   Settings2,
   Shield,
+  ShieldAlert,
+  SlidersHorizontal,
   Tags,
   Terminal,
   Trash2,
@@ -26,6 +33,7 @@ import { BackLink } from '../components/BackLink'
 import { ServiceLogo, logoForDatabaseEngine } from '../components/ServiceLogo'
 import { ServerTerminal } from '../components/Terminal'
 import { DetailPageSkeleton, PanelSkeleton, TableSkeleton } from '../components/ui/Skeleton'
+import { ConfigSideNav, type SideNavGroup, type SideNavItem } from '../components/ConfigSideNav'
 import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
 import { api } from '../lib/api'
 import { useLogStream } from '../lib/useLogStream'
@@ -48,18 +56,48 @@ function isDbTabId(v: string | undefined): v is DbTabId {
   return !!v && DB_TABS.some((t) => t.id === v)
 }
 
-const SERVER_TABS = [
-  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'metrics', label: 'Metrics', icon: Activity },
-  { id: 'sentinel', label: 'Sentinel', icon: Shield },
-  { id: 'cleanup', label: 'Docker Cleanup', icon: Trash2 },
-  { id: 'proxy', label: 'Proxy', icon: Route },
+const SERVER_NAV = [
+  { id: 'general', label: 'General', icon: Settings2 },
+  { id: 'advanced', label: 'Advanced', icon: SlidersHorizontal },
+  { id: 'private-key', label: 'Private Key', icon: KeyRound },
+  { id: 'ca', label: 'CA Certificate', icon: FileKey },
+  { id: 'tunnel', label: 'Cloudflare Tunnel', icon: Cloud },
   { id: 'destinations', label: 'Destinations', icon: Network },
-  { id: 'edge', label: 'Edge', icon: Cloud },
-  { id: 'settings', label: 'Settings', icon: Settings2 },
+  { id: 'swarm', label: 'Swarm', icon: Layers },
+  { id: 'proxy', label: 'Proxy', icon: Route },
+  { id: 'proxy-dynamic', label: 'Dynamic Configurations', icon: ScrollText },
+  { id: 'proxy-logs', label: 'Proxy Logs', icon: ScrollText },
+  { id: 'sentinel', label: 'Sentinel', icon: Shield },
+  { id: 'sentinel-logs', label: 'Sentinel Logs', icon: ScrollText },
+  { id: 'resources', label: 'Resources', icon: LayoutDashboard },
   { id: 'terminal', label: 'Terminal', icon: Terminal },
-  { id: 'danger', label: 'Danger', icon: AlertTriangle },
+  { id: 'images', label: 'Images', icon: Box },
+  { id: 'cleanup', label: 'Docker Cleanup', icon: Trash2 },
+  { id: 'registries', label: 'Registries', icon: Box },
+  { id: 'drains', label: 'Log Drains', icon: ScrollText },
+  { id: 'metrics', label: 'Metrics', icon: Activity },
+  { id: 'patches', label: 'Patching', icon: ShieldAlert },
+  { id: 'terminal-access', label: 'Terminal Access', icon: Terminal },
+  { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
+] as const
+
+type ServerSection = (typeof SERVER_NAV)[number]['id']
+
+const SERVER_NAV_GROUPS: readonly SideNavGroup<ServerSection>[] = [
+  { label: 'Settings', ids: ['general', 'advanced', 'private-key', 'ca'] },
+  { label: 'Networking', ids: ['tunnel', 'destinations', 'swarm'] },
+  { label: 'Platform', ids: ['proxy', 'proxy-dynamic', 'proxy-logs', 'sentinel', 'sentinel-logs', 'resources'] },
+  { label: 'Operations', ids: ['terminal', 'images', 'cleanup', 'registries', 'drains', 'metrics'] },
+  { label: 'Security', ids: ['patches', 'terminal-access'] },
+  { label: 'Danger Zone', ids: ['danger'] },
 ]
+
+function serverSection(raw?: string): ServerSection {
+  if (raw === 'overview' || raw === 'settings') return raw === 'overview' ? 'general' : 'advanced'
+  if (raw === 'edge') return 'tunnel'
+  if (raw && SERVER_NAV.some((item) => item.id === raw)) return raw as ServerSection
+  return 'general'
+}
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -866,7 +904,13 @@ function ServerMetricsView({
   )
 }
 
-function ServerEdgePanel({ serverId }: { serverId: string }) {
+function ServerEdgePanel({
+  serverId,
+  section,
+}: {
+  serverId: string
+  section: 'tunnel' | 'drains' | 'ca' | 'terminal-access' | 'patches'
+}) {
   const qc = useQueryClient()
   const ops = useQuery({
     queryKey: ['server-ops', serverId],
@@ -911,13 +955,10 @@ function ServerEdgePanel({ serverId }: { serverId: string }) {
 
   return (
     <div className="space-y-4">
+      {section === 'tunnel' && (
       <div className="panel-card space-y-4 p-5">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Cloudflare Tunnel</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Runs <code className="text-xs">cloudflare/cloudflared</code> on the host so services can
-            be reached without opening inbound ports.
-          </p>
+          <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Cloudflare Tunnel</h2>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Meta label="Enabled" value={ops.data?.cloudflare_tunnel_enabled ? 'Yes' : 'No'} />
@@ -943,15 +984,12 @@ function ServerEdgePanel({ serverId }: { serverId: string }) {
         )}
         {tunnel.error && <p className="text-sm text-error-500">{tunnel.error.message}</p>}
       </div>
+      )}
 
+      {section === 'drains' && (
       <div className="panel-card space-y-4 p-5">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Log drain</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Saved settings are written to{' '}
-            <code className="text-xs">/data/dockfin/log-drain.env</code> on the server for the log
-            shipper to consume.
-          </p>
+          <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Log Drains</h2>
         </div>
         <label className="flex items-center gap-3 text-sm">
           <input
@@ -998,13 +1036,12 @@ function ServerEdgePanel({ serverId }: { serverId: string }) {
           {patchOps.isPending ? 'Saving…' : 'Save log drain'}
         </Btn>
       </div>
+      )}
 
+      {section === 'ca' && (
       <div className="panel-card space-y-4 p-5">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">CA certificate</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Written to <code className="text-xs">/data/dockfin/ca/custom-ca.crt</code> on save.
-          </p>
+          <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">CA Certificate</h2>
         </div>
         <textarea
           value={caCert}
@@ -1017,14 +1054,12 @@ function ServerEdgePanel({ serverId }: { serverId: string }) {
           {patchOps.isPending ? 'Saving…' : 'Save certificate'}
         </Btn>
       </div>
+      )}
 
+      {section === 'terminal-access' && (
       <div className="panel-card space-y-4 p-5">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Terminal access</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Restrict who may open terminals on this server. Owners and admins always have access;
-            an empty list allows every team member.
-          </p>
+          <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Terminal Access</h2>
         </div>
         {memberList.length ? (
           <div className="space-y-2">
@@ -1073,13 +1108,12 @@ function ServerEdgePanel({ serverId }: { serverId: string }) {
           {patchOps.isPending ? 'Saving…' : 'Save terminal access'}
         </Btn>
       </div>
+      )}
 
+      {section === 'patches' && (
       <div className="panel-card space-y-4 p-5">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Security patches</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Lists pending OS package updates via the host package manager.
-          </p>
+          <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Patching</h2>
         </div>
         <Btn primary onClick={() => patches.mutate()}>
           {patches.isPending ? 'Checking…' : 'Check for updates'}
@@ -1096,6 +1130,7 @@ function ServerEdgePanel({ serverId }: { serverId: string }) {
         )}
         {patches.error && <p className="text-sm text-error-500">{patches.error.message}</p>}
       </div>
+      )}
 
       {warnings.length > 0 && (
         <p className="text-sm text-warning-500">{warnings.join(' · ')}</p>
@@ -1110,7 +1145,10 @@ export function ServerDetailPage() {
   const search = useSearch({ strict: false }) as { tab?: string }
   const nav = useNavigate()
   const qc = useQueryClient()
-  const [tab, setTab] = useState(search.tab || 'overview')
+  const tab = serverSection(search.tab)
+  const setTab = (id: ServerSection) => {
+    void nav({ to: '/servers/$serverId', params: { serverId }, search: { tab: id } })
+  }
   const [destName, setDestName] = useState('')
   const [destKind, setDestKind] = useState('standalone')
   const [destNetwork, setDestNetwork] = useState('dockfin')
@@ -1125,12 +1163,11 @@ export function ServerDetailPage() {
   const [proxyCfgValue, setProxyCfgValue] = useState('')
   const [freshToken, setFreshToken] = useState('')
   useEffect(() => {
-    setTab(search.tab || 'overview')
     setDestName('')
     setDestKind('standalone')
     setDestNetwork('dockfin')
     setFreshToken('')
-  }, [serverId, search.tab])
+  }, [serverId])
 
   const server = useQuery({ queryKey: ['server', serverId], queryFn: () => api.getServer(serverId) })
   const allServers = useQuery({ queryKey: ['servers'], queryFn: api.servers })
@@ -1152,12 +1189,12 @@ export function ServerDetailPage() {
   const ops = useQuery({
     queryKey: ['server-ops', serverId],
     queryFn: () => api.getServerOps(serverId),
-    enabled: tab === 'sentinel' || tab === 'cleanup' || tab === 'settings',
+    enabled: tab === 'sentinel' || tab === 'cleanup' || tab === 'advanced',
   })
   useEffect(() => {
     if (!ops.data) return
     setCleanupFreq(ops.data.docker_cleanup_frequency || '0 0 * * *')
-    setCleanupThreshold(String(ops.data.docker_cleanup_threshold || 80))
+    setCleanupThreshold(String(ops.data.docker_cleanup_threshold ?? 80))
     setForceCleanup(Boolean(ops.data.force_docker_cleanup))
   }, [ops.data])
   const cleanupExecs = useQuery({
@@ -1169,18 +1206,48 @@ export function ServerDetailPage() {
   const proxyDynamic = useQuery({
     queryKey: ['proxy-dynamic', serverId],
     queryFn: () => api.listProxyDynamic(serverId),
-    enabled: tab === 'proxy',
+    enabled: tab === 'proxy-dynamic',
   })
   const proxyLogs = useQuery({
     queryKey: ['proxy-logs', serverId],
     queryFn: () => api.proxyLogs(serverId),
-    enabled: tab === 'proxy',
+    enabled: tab === 'proxy-logs',
   })
   const sentinelLogs = useQuery({
     queryKey: ['sentinel-logs', serverId],
     queryFn: () => api.sentinelLogs(serverId),
-    enabled: tab === 'sentinel',
-    refetchInterval: tab === 'sentinel' ? 10000 : false,
+    enabled: tab === 'sentinel-logs',
+    refetchInterval: tab === 'sentinel-logs' ? 10000 : false,
+  })
+  const apps = useQuery({
+    queryKey: ['applications'],
+    queryFn: () => api.applications(),
+    enabled: tab === 'resources',
+  })
+  const databases = useQuery({
+    queryKey: ['databases'],
+    queryFn: () => api.databases(),
+    enabled: tab === 'resources',
+  })
+  const services = useQuery({
+    queryKey: ['services'],
+    queryFn: () => api.services(),
+    enabled: tab === 'resources',
+  })
+  const keys = useQuery({
+    queryKey: ['keys'],
+    queryFn: api.keys,
+    enabled: tab === 'private-key',
+  })
+  const hostImages = useQuery({
+    queryKey: ['server-images', serverId],
+    queryFn: () => api.serverImages(serverId),
+    enabled: tab === 'images',
+  })
+  const registries = useQuery({
+    queryKey: ['docker-registries'],
+    queryFn: api.dockerRegistries,
+    enabled: tab === 'registries',
   })
 
   const validate = useMutation({
@@ -1263,7 +1330,7 @@ export function ServerDetailPage() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['proxy-dynamic', serverId] }),
   })
 
-  if (server.isLoading) return <DetailPageSkeleton withSideNav={false} />
+  if (server.isLoading) return <DetailPageSkeleton withSideNav />
   if (server.error || !server.data) {
     return (
       <div className="space-y-4">
@@ -1276,22 +1343,47 @@ export function ServerDetailPage() {
   const s = server.data
   const serverDests = (destinations.data?.destinations || []).filter((d) => d.server_id === serverId)
 
+  const destIds = new Set(serverDests.map((d) => d.id))
+  const onServer = (destinationId?: string | null, resourceServerId?: string | null) => {
+    if (destinationId) return destIds.has(destinationId)
+    return resourceServerId === serverId
+  }
+  const resourcesLoading =
+    apps.isLoading || databases.isLoading || services.isLoading || destinations.isLoading
+  const attachedKey = (keys.data?.private_keys || []).find((k) => k.id === s.private_key_id)
+  const sideItems: SideNavItem<ServerSection>[] = SERVER_NAV.map((item) => item)
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <BackLink label="Servers" to="/servers" />
-          <h1 className="mt-2 text-xl font-semibold tracking-tight text-gray-900 dark:text-white">{s.name}</h1>
-          <p className="mt-1 font-mono text-sm text-gray-500 dark:text-gray-400">
+    <div className="flex flex-col gap-2 md:flex-row md:items-start">
+      <ConfigSideNav
+        items={sideItems}
+        groups={SERVER_NAV_GROUPS}
+        active={tab}
+        onSelect={setTab}
+        header={
+          <Link
+            to="/servers"
+            className="mb-2 inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-[13px] font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
+          >
+            <ChevronLeft className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
+            Servers
+          </Link>
+        }
+      />
+      <div className="min-w-0 flex-1 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="truncate text-lg font-semibold tracking-tight text-gray-900 dark:text-white">{s.name}</h1>
+          <p className="font-mono text-xs text-gray-500 dark:text-gray-400">
             {s.user_name}@{s.ip}:{s.port}
           </p>
         </div>
-        <Btn onClick={() => validate.mutate()}>{validate.isPending ? 'Validating…' : 'Validate'}</Btn>
+        {tab === 'general' && (
+          <Btn onClick={() => validate.mutate()}>{validate.isPending ? 'Validating…' : 'Validate'}</Btn>
+        )}
       </div>
 
-      <ResourceTabs tabs={SERVER_TABS} active={tab} onChange={setTab} />
-
-      {tab === 'overview' && (
+      {tab === 'general' && (
         <TabPanel>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Meta label="Reachable" value={s.is_reachable ? 'Yes' : 'No'} />
@@ -1340,21 +1432,24 @@ export function ServerDetailPage() {
                 {(sentinelMut.error || rotateToken.error || patchOps.error)?.message}
               </p>
             )}
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Logs</h3>
-                <button
-                  type="button"
-                  className="text-xs text-brand-600 dark:text-brand-400"
-                  onClick={() => setTab('metrics')}
-                >
-                  View metrics →
-                </button>
-              </div>
-              <pre className="max-h-64 overflow-auto rounded-lg bg-gray-950 p-3 font-mono text-xs text-gray-200">
-                {sentinelLogs.data?.logs || sentinelLogs.data?.error || 'No logs yet.'}
-              </pre>
-            </div>
+            <button
+              type="button"
+              className="text-xs font-medium text-brand-600 dark:text-brand-400"
+              onClick={() => setTab('sentinel-logs')}
+            >
+              View logs
+            </button>
+          </div>
+        </TabPanel>
+      )}
+
+      {tab === 'sentinel-logs' && (
+        <TabPanel>
+          <div className="panel-card space-y-3 p-5">
+            <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Sentinel Logs</h2>
+            <pre className="max-h-96 overflow-auto rounded-lg bg-gray-950 p-3 font-mono text-xs text-gray-200">
+              {sentinelLogs.data?.logs || sentinelLogs.data?.error || 'No logs yet.'}
+            </pre>
           </div>
         </TabPanel>
       )}
@@ -1385,7 +1480,9 @@ export function ServerDetailPage() {
                 onClick={() =>
                   patchOps.mutate({
                     docker_cleanup_frequency: cleanupFreq,
-                    docker_cleanup_threshold: Number(cleanupThreshold) || 80,
+                    docker_cleanup_threshold: cleanupThreshold.trim() === '' || !Number.isFinite(Number(cleanupThreshold))
+                      ? 80
+                      : Number(cleanupThreshold),
                     force_docker_cleanup: forceCleanup,
                   })
                 }
@@ -1440,7 +1537,8 @@ export function ServerDetailPage() {
                 Start proxy
               </Btn>
               <Btn onClick={() => stopProxy.mutate()}>Stop proxy</Btn>
-              <Btn onClick={() => void proxyLogs.refetch()}>Refresh logs</Btn>
+              <Btn onClick={() => setTab('proxy-logs')}>Proxy logs</Btn>
+              <Btn onClick={() => setTab('proxy-dynamic')}>Dynamic configs</Btn>
             </div>
             {s.proxy_type === 'none' && (
               <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -1452,10 +1550,16 @@ export function ServerDetailPage() {
                 {(startProxy.error || stopProxy.error)?.message}
               </p>
             )}
-            <div>
-              <h3 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
-                Dynamic Traefik configs
-              </h3>
+          </div>
+        </TabPanel>
+      )}
+
+      {tab === 'proxy-dynamic' && (
+        <TabPanel>
+          <div className="panel-card space-y-4 p-5">
+            <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">
+              Dynamic Configurations
+            </h2>
               <div className="space-y-2">
                 {(proxyDynamic.data?.configurations || []).map((c) => (
                   <div
@@ -1494,13 +1598,20 @@ export function ServerDetailPage() {
                   <p className="text-sm text-error-500">{saveProxyCfg.error.message}</p>
                 )}
               </div>
+          </div>
+        </TabPanel>
+      )}
+
+      {tab === 'proxy-logs' && (
+        <TabPanel>
+          <div className="panel-card space-y-3 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Proxy Logs</h2>
+              <Btn onClick={() => void proxyLogs.refetch()}>Refresh</Btn>
             </div>
-            <div>
-              <h3 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">Proxy logs</h3>
-              <pre className="max-h-64 overflow-auto rounded-lg bg-gray-950 p-3 font-mono text-xs text-gray-200">
-                {proxyLogs.data?.logs || proxyLogs.data?.error || 'No logs.'}
-              </pre>
-            </div>
+            <pre className="max-h-96 overflow-auto rounded-lg bg-gray-950 p-3 font-mono text-xs text-gray-200">
+              {proxyLogs.data?.logs || proxyLogs.data?.error || 'No logs.'}
+            </pre>
           </div>
         </TabPanel>
       )}
@@ -1553,13 +1664,174 @@ export function ServerDetailPage() {
         </TabPanel>
       )}
 
-      {tab === 'edge' && (
+      {(tab === 'tunnel' || tab === 'drains' || tab === 'ca' || tab === 'terminal-access' || tab === 'patches') && (
         <TabPanel>
-          <ServerEdgePanel serverId={serverId} />
+          <ServerEdgePanel key={tab} serverId={serverId} section={tab} />
         </TabPanel>
       )}
 
-      {tab === 'settings' && (
+      {tab === 'private-key' && (
+        <TabPanel>
+          <div className="panel-card space-y-3 p-5">
+            <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Private Key</h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Meta label="Key" value={attachedKey?.name || (s.private_key_id ? 'Attached' : 'None')} />
+              <Meta label="Host key" value={s.host_key_type || '—'} />
+            </div>
+            {s.host_key_fingerprint && (
+              <p className="break-all font-mono text-xs text-gray-500 dark:text-gray-400">{s.host_key_fingerprint}</p>
+            )}
+            <Link
+              to="/security"
+              search={{ tab: 'private-keys' }}
+              className="inline-flex h-8 items-center rounded-md border border-gray-200 px-2.5 text-xs font-medium hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-white/5"
+            >
+              Manage keys
+            </Link>
+          </div>
+        </TabPanel>
+      )}
+
+      {tab === 'swarm' && (
+        <TabPanel>
+          <div className="panel-card space-y-4 p-5">
+            <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Swarm</h2>
+            <label className="flex items-center gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={Boolean(s.is_swarm_manager)}
+                onChange={(e) => patchSettings.mutate({ is_swarm_manager: e.target.checked })}
+              />
+              <span className="font-medium text-gray-900 dark:text-white">Swarm manager</span>
+            </label>
+            <div className="space-y-2">
+              {serverDests
+                .filter((d) => d.kind === 'swarm')
+                .map((d) => (
+                  <div key={d.id} className="rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-800">
+                    <div className="font-medium text-gray-900 dark:text-white">{d.name}</div>
+                    <div className="font-mono text-xs text-gray-500">{d.network}</div>
+                  </div>
+                ))}
+              {!serverDests.some((d) => d.kind === 'swarm') && (
+                <p className="text-sm text-gray-500 dark:text-gray-400">No swarm destinations on this server.</p>
+              )}
+            </div>
+            {patchSettings.error && <p className="text-sm text-error-500">{patchSettings.error.message}</p>}
+          </div>
+        </TabPanel>
+      )}
+
+      {tab === 'resources' && (
+        <TabPanel>
+          <div className="space-y-2">
+            <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Resources</h2>
+            {[
+              ...(apps.data?.applications || [])
+                .filter((a) => onServer(a.destination_id))
+                .map((a) => ({ id: a.id, name: a.name, kind: 'Application', status: a.status, to: '/applications/$appId' as const, param: 'appId' })),
+              ...(databases.data?.databases || [])
+                .filter((d) => onServer(d.destination_id))
+                .map((d) => ({ id: d.id, name: d.name, kind: 'Database', status: d.status, to: '/databases/$dbId' as const, param: 'dbId' })),
+              ...(services.data?.services || [])
+                .filter((svc) => onServer(svc.destination_id, svc.server_id))
+                .map((svc) => ({ id: svc.id, name: svc.name, kind: 'Service', status: svc.status, to: '/services/$svcId' as const, param: 'svcId' })),
+            ].map((row) => (
+              <Link
+                key={row.id}
+                to={row.to}
+                params={{ [row.param]: row.id } as never}
+                className="panel-card flex items-center justify-between gap-3 p-4"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate font-medium text-gray-900 dark:text-white">{row.name}</span>
+                  <span className="text-xs text-gray-500">{row.kind}</span>
+                </span>
+                <span className="text-xs capitalize text-gray-500">{row.status}</span>
+              </Link>
+            ))}
+            {resourcesLoading && (
+              <p className="text-sm text-gray-500">Loading resources…</p>
+            )}
+            {destinations.error && (
+              <p className="text-sm text-error-500">{destinations.error.message}</p>
+            )}
+            {!resourcesLoading &&
+              !destinations.error &&
+              !(apps.data?.applications || []).some((a) => onServer(a.destination_id)) &&
+              !(databases.data?.databases || []).some((d) => onServer(d.destination_id)) &&
+              !(services.data?.services || []).some((svc) => onServer(svc.destination_id, svc.server_id)) && (
+                <div className="panel-card p-8 text-center text-sm text-gray-500">No resources on this server.</div>
+              )}
+          </div>
+        </TabPanel>
+      )}
+
+      {tab === 'images' && (
+        <TabPanel>
+          <div className="panel-card overflow-hidden">
+            <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
+              <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Images</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[36rem] text-left text-sm">
+                <thead className="text-xs text-gray-500">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">Repository</th>
+                    <th className="px-4 py-2 font-medium">Tag</th>
+                    <th className="px-4 py-2 font-medium">Size</th>
+                    <th className="px-4 py-2 font-medium">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(hostImages.data?.images || []).map((img) => (
+                    <tr key={`${img.id}-${img.repository}-${img.tag}`} className="border-t border-gray-100 dark:border-gray-800">
+                      <td className="max-w-0 px-4 py-2">
+                        <span className="block truncate font-mono text-xs" title={img.repository}>{img.repository}</span>
+                      </td>
+                      <td className="px-4 py-2 font-mono text-xs">{img.tag}</td>
+                      <td className="px-4 py-2 text-xs text-gray-500">{img.size}</td>
+                      <td className="px-4 py-2 text-xs text-gray-500">{img.created}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {hostImages.isLoading && <p className="px-4 py-6 text-sm text-gray-500">Loading images…</p>}
+            {hostImages.error && <p className="px-4 py-4 text-sm text-error-500">{hostImages.error.message}</p>}
+            {!hostImages.isLoading && !hostImages.error && !hostImages.data?.images?.length && (
+              <p className="px-4 py-6 text-sm text-gray-500">No images on this server.</p>
+            )}
+            {hostImages.data?.truncated && (
+              <p className="px-4 py-3 text-xs text-gray-500">Showing the first 500 images.</p>
+            )}
+          </div>
+        </TabPanel>
+      )}
+
+      {tab === 'registries' && (
+        <TabPanel>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Registries</h2>
+              <Link to="/settings" className="text-xs font-medium text-brand-600 dark:text-brand-400">
+                Manage
+              </Link>
+            </div>
+            {(registries.data?.docker_registries || []).map((r) => (
+              <div key={r.id} className="panel-card p-4">
+                <div className="font-medium text-gray-900 dark:text-white">{r.name}</div>
+                <div className="mt-1 truncate font-mono text-xs text-gray-500">{r.url}</div>
+              </div>
+            ))}
+            {!registries.data?.docker_registries?.length && !registries.isLoading && (
+              <div className="panel-card p-8 text-center text-sm text-gray-500">No registries yet.</div>
+            )}
+          </div>
+        </TabPanel>
+      )}
+
+      {tab === 'advanced' && (
         <TabPanel>
           <div className="panel-card space-y-4 p-5">
             <div className="flex items-center justify-between gap-3 border-b border-gray-200 pb-4 dark:border-gray-800">
@@ -1723,6 +1995,7 @@ export function ServerDetailPage() {
           </div>
         </TabPanel>
       )}
+      </div>
     </div>
   )
 }

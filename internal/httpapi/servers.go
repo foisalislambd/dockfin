@@ -170,6 +170,76 @@ func (a *API) handleDeleteServer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
+func (a *API) handleListHostImages(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "serverID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if _, err := a.Store.GetServer(r.Context(), currentTeamID(r), id); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	client, err := a.dialServer(r, id)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	// No pipe: a failing `docker images` must not be hidden by a later `head` success.
+	out, errOut, err := sshx.Run(client, "docker images --format '{{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}\t{{.CreatedSince}}'")
+	if err != nil {
+		msg := strings.TrimSpace(errOut)
+		if msg == "" {
+			msg = err.Error()
+		}
+		writeError(w, http.StatusBadGateway, msg)
+		return
+	}
+	images, truncated := parseDockerImageLines(out, 500)
+	writeJSON(w, http.StatusOK, map[string]any{"images": images, "truncated": truncated})
+}
+
+type hostImageRow struct {
+	Repository string `json:"repository"`
+	Tag        string `json:"tag"`
+	ID         string `json:"id"`
+	Size       string `json:"size"`
+	Created    string `json:"created"`
+}
+
+func parseDockerImageLines(out string, limit int) ([]hostImageRow, bool) {
+	if limit < 1 {
+		limit = 500
+	}
+	var images []hostImageRow
+	truncated := false
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 5)
+		if len(parts) < 5 {
+			continue
+		}
+		if len(images) >= limit {
+			truncated = true
+			break
+		}
+		images = append(images, hostImageRow{
+			Repository: parts[0],
+			Tag:        parts[1],
+			ID:         parts[2],
+			Size:       parts[3],
+			Created:    parts[4],
+		})
+	}
+	if images == nil {
+		images = []hostImageRow{}
+	}
+	return images, truncated
+}
+
 func (a *API) dialServer(r *http.Request, serverID uuid.UUID) (*ssh.Client, error) {
 	if a.Queue == nil || a.Queue.SSH == nil {
 		return nil, fmt.Errorf("ssh pool unavailable")

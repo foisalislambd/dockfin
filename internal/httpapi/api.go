@@ -188,6 +188,7 @@ func (a *API) Router() http.Handler {
 				r.Get("/{serverID}/docker-cleanup/executions", a.handleListDockerCleanupExecutions)
 				r.With(a.requireAdmin).Post("/{serverID}/exec", a.handleServerExec)
 				r.Get("/{serverID}/metrics", a.handleListServerMetrics)
+				r.Get("/{serverID}/images", a.handleListHostImages)
 			})
 
 			r.Get("/terminal/ws/{sessionID}", a.handleTerminalWS)

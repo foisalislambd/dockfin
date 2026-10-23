@@ -1007,6 +1007,11 @@ export const api = {
         limit: String(limit),
       }).toString()}`,
     ),
+  serverImages: (id: string) =>
+    request<{
+      images: Array<{ repository: string; tag: string; id: string; size: string; created: string }>
+      truncated?: boolean
+    }>(`/api/v1/servers/${id}/images`),
   serverMetrics: (id: string, limit = 60, live = false) =>
     request<{ metrics: ServerMetric[] }>(
       `/api/v1/servers/${id}/metrics?limit=${limit}${live ? '&live=1' : ''}`,
@@ -1166,6 +1171,9 @@ export type Server = {
   magic_domain?: string
   public_ip?: string
   jump_host_id?: string | null
+  private_key_id?: string | null
+  host_key_fingerprint?: string
+  host_key_type?: string
 }
 export type ServerOpsSettings = {
   sentinel_enabled: boolean
