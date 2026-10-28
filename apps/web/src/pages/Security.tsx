@@ -383,6 +383,15 @@ function CloudTokensPanel() {
     onSuccess: () => setMsg('Token is valid.'),
     onError: (e: Error) => setMsg(e.message),
   })
+  const syncZones = useMutation({
+    mutationFn: () => api.syncCloudflareZones(selected!.id),
+    onSuccess: (res) => {
+      const names = res.zones.map((z) => z.name).join(', ')
+      const kept = res.retained?.length ? ` Kept ${res.retained.join(', ')} because records still use them.` : ''
+      setMsg(res.zones.length ? `Synced ${res.zones.length} zone(s): ${names}.${kept}` : `No active zones on this token.${kept}`)
+    },
+    onError: () => setMsg(''),
+  })
   const remove = useMutation({
     mutationFn: () => api.deleteCloudToken(selected!.id),
     onSuccess: () => {
@@ -527,9 +536,9 @@ function CloudTokensPanel() {
               />
             </label>
             {msg && <p className="text-sm text-success-600 dark:text-success-400">{msg}</p>}
-            {(update.error || remove.error) && (
+            {(update.error || remove.error || syncZones.error) && (
               <p className="text-sm text-error-500">
-                {(update.error || remove.error)?.message}
+                {(update.error || remove.error || syncZones.error)?.message}
               </p>
             )}
             <div className="flex flex-wrap gap-2">
@@ -539,6 +548,11 @@ function CloudTokensPanel() {
               <Btn type="button" onClick={() => validate.mutate()} disabled={validate.isPending}>
                 Validate
               </Btn>
+              {selected.provider === 'cloudflare' && (
+                <Btn type="button" onClick={() => syncZones.mutate()} disabled={syncZones.isPending}>
+                  {syncZones.isPending ? 'Syncing zones…' : 'Sync zones'}
+                </Btn>
+              )}
               <Btn
                 type="button"
                 disabled={remove.isPending}

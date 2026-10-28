@@ -658,7 +658,11 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, appWithLinks(fresh))
+	payload := any(appWithLinks(fresh))
+	if body.FQDN != nil || body.DockerComposeDomains != nil || body.DestinationID != nil {
+		payload = attachDNSWarnings(payload, a.syncApplicationDNS(r.Context(), fresh))
+	}
+	writeJSON(w, http.StatusOK, payload)
 }
 
 func (a *API) handleRollbackApplication(w http.ResponseWriter, r *http.Request) {

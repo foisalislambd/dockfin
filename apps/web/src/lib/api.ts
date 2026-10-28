@@ -304,6 +304,11 @@ export const api = {
     request<{ status: string }>(`/api/v1/cloud-tokens/${id}`, { method: 'DELETE' }),
   validateCloudToken: (id: string) =>
     request<{ status: string }>(`/api/v1/cloud-tokens/${id}/validate`, { method: 'POST' }),
+  syncCloudflareZones: (id: string) =>
+    request<{ zones: { id: string; name: string }[]; retained: string[] }>(
+      `/api/v1/cloud-tokens/${id}/dns-zones/sync`,
+      { method: 'POST' },
+    ),
   cloudProviderDefaults: (id: string) =>
     request<CloudProviderDefaults>(`/api/v1/cloud-tokens/${id}/defaults`),
   provisionServer: (body: ProvisionServerBody) =>
@@ -469,7 +474,7 @@ export const api = {
       body: body ? JSON.stringify(body) : undefined,
     }),
   updateApplication: (id: string, body: Record<string, unknown>) =>
-    request<Application>(`/api/v1/applications/${id}`, {
+    request<Application & { dns_warnings?: string[] }>(`/api/v1/applications/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
@@ -507,7 +512,7 @@ export const api = {
     request<{ volumes: AppVolume[] }>(`/api/v1/applications/${id}/volumes`),
   upsertAppVolume: (
     id: string,
-    body: { name: string; mount_path: string; host_path?: string; is_file?: boolean },
+    body: { name: string; mount_path: string; host_path?: string; is_file?: boolean; content?: string },
   ) =>
     request<AppVolume>(`/api/v1/applications/${id}/volumes`, {
       method: 'POST',
@@ -517,6 +522,21 @@ export const api = {
     request<{ status: string }>(`/api/v1/applications/${id}/volumes/${volumeId}`, {
       method: 'DELETE',
     }),
+  listResourceVolumes: (resource: 'application' | 'database', id: string) =>
+    request<{ volumes: AppVolume[] }>(volumeURL(resource, id)),
+  getResourceVolume: (resource: 'application' | 'database', id: string, volumeId: string) =>
+    request<AppVolume>(`${volumeURL(resource, id)}/${volumeId}`),
+  upsertResourceVolume: (
+    resource: 'application' | 'database',
+    id: string,
+    body: { name: string; mount_path: string; host_path?: string; is_file?: boolean; content?: string },
+  ) =>
+    request<AppVolume>(volumeURL(resource, id), {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  deleteResourceVolume: (resource: 'application' | 'database', id: string, volumeId: string) =>
+    request<{ status: string }>(`${volumeURL(resource, id)}/${volumeId}`, { method: 'DELETE' }),
   detectCompose: (body: {
     git_repository: string
     git_branch?: string
@@ -677,9 +697,24 @@ export const api = {
       image?: string
       is_public?: boolean
       public_port?: number | null
+      enable_ssl?: boolean
       destination_id?: string
     },
   ) => request<Database>(`/api/v1/databases/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  databaseTLS: (id: string) =>
+    request<{
+      enabled: boolean
+      supported: boolean
+      common_name?: string
+      valid_until?: string
+      subject_alternative_names?: string[]
+      ca_common_name?: string
+      ca_valid_until?: string
+    }>(`/api/v1/databases/${id}/tls`),
+  databaseCA: (id: string) =>
+    request<{ common_name: string; certificate: string }>(`/api/v1/databases/${id}/tls/ca`),
+  regenerateDatabaseTLS: (id: string) =>
+    request<{ status: string }>(`/api/v1/databases/${id}/tls/regenerate`, { method: 'POST' }),
   startDatabase: (id: string) =>
     request(`/api/v1/databases/${id}/start`, { method: 'POST' }),
   stopDatabase: (id: string) =>
@@ -706,17 +741,17 @@ export const api = {
   serviceDomains: (id: string) =>
     request<{ domains: ServiceDomain[] }>(`/api/v1/services/${id}/domains`),
   createServiceDomain: (id: string, body: ServiceDomainInput) =>
-    request<ServiceDomain>(`/api/v1/services/${id}/domains`, {
+    request<ServiceDomain & { dns_warnings?: string[] }>(`/api/v1/services/${id}/domains`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),
   updateServiceDomain: (id: string, domainId: string, body: ServiceDomainInput) =>
-    request<ServiceDomain>(`/api/v1/services/${id}/domains/${domainId}`, {
+    request<ServiceDomain & { dns_warnings?: string[] }>(`/api/v1/services/${id}/domains/${domainId}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
   deleteServiceDomain: (id: string, domainId: string) =>
-    request<{ status: string }>(`/api/v1/services/${id}/domains/${domainId}`, { method: 'DELETE' }),
+    request<{ status: string; dns_warnings?: string[] }>(`/api/v1/services/${id}/domains/${domainId}`, { method: 'DELETE' }),
   updateService: (
     id: string,
     body: {
@@ -1569,12 +1604,19 @@ export type EnvVar = {
   is_build_secret?: boolean
   comment: string
 }
+function volumeURL(resource: 'application' | 'database', id: string) {
+  const root = resource === 'database' ? 'databases' : 'applications'
+  return `/api/v1/${root}/${id}/volumes`
+}
+
 export type AppVolume = {
   id: string
   name: string
   mount_path: string
   host_path?: string
   is_file?: boolean
+  has_content?: boolean
+  content?: string
   created_at?: string
 }
 export type SharedEnvVar = {
@@ -1595,6 +1637,7 @@ export type Database = {
   image?: string
   is_public?: boolean
   public_port?: number | null
+  enable_ssl?: boolean
   destination_id?: string | null
 }
 export type Template = {

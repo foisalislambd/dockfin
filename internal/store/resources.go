@@ -327,6 +327,7 @@ type Database struct {
 	Status        string          `json:"status"`
 	IsPublic      bool            `json:"is_public"`
 	PublicPort    *int            `json:"public_port"`
+	EnableSSL     bool            `json:"enable_ssl"`
 	EngineConfig  json.RawMessage `json:"engine_config"`
 	CreatedAt     time.Time       `json:"created_at"`
 }
@@ -1388,17 +1389,17 @@ func (s *Store) CreateDatabase(ctx context.Context, db *Database, credentialsEnc
 	err := s.Pool.QueryRow(ctx, `
 		INSERT INTO databases (team_id, environment_id, destination_id, name, description, engine, image, is_public, public_port, engine_config, credentials_enc)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-		RETURNING id, team_id, environment_id, destination_id, name, description, engine, image, status, is_public, public_port, engine_config, created_at
+		RETURNING id, team_id, environment_id, destination_id, name, description, engine, image, status, is_public, public_port, COALESCE(enable_ssl,false), engine_config, created_at
 	`, db.TeamID, db.EnvironmentID, db.DestinationID, db.Name, db.Description, db.Engine, db.Image, db.IsPublic, db.PublicPort, db.EngineConfig, credentialsEnc).Scan(
 		&db.ID, &db.TeamID, &db.EnvironmentID, &db.DestinationID, &db.Name, &db.Description, &db.Engine, &db.Image,
-		&db.Status, &db.IsPublic, &db.PublicPort, &db.EngineConfig, &db.CreatedAt,
+		&db.Status, &db.IsPublic, &db.PublicPort, &db.EnableSSL, &db.EngineConfig, &db.CreatedAt,
 	)
 	return db, err
 }
 
 func (s *Store) ListDatabases(ctx context.Context, teamID uuid.UUID, environmentID *uuid.UUID) ([]Database, error) {
 	q := `
-		SELECT id, team_id, environment_id, destination_id, name, description, engine, image, status, is_public, public_port, engine_config, created_at
+		SELECT id, team_id, environment_id, destination_id, name, description, engine, image, status, is_public, public_port, COALESCE(enable_ssl,false), engine_config, created_at
 		FROM databases WHERE team_id=$1`
 	args := []any{teamID}
 	if environmentID != nil {
@@ -1416,7 +1417,7 @@ func (s *Store) ListDatabases(ctx context.Context, teamID uuid.UUID, environment
 		var d Database
 		if err := rows.Scan(
 			&d.ID, &d.TeamID, &d.EnvironmentID, &d.DestinationID, &d.Name, &d.Description, &d.Engine, &d.Image,
-			&d.Status, &d.IsPublic, &d.PublicPort, &d.EngineConfig, &d.CreatedAt,
+			&d.Status, &d.IsPublic, &d.PublicPort, &d.EnableSSL, &d.EngineConfig, &d.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1428,11 +1429,11 @@ func (s *Store) ListDatabases(ctx context.Context, teamID uuid.UUID, environment
 func (s *Store) GetDatabase(ctx context.Context, teamID, id uuid.UUID) (*Database, error) {
 	var d Database
 	err := s.Pool.QueryRow(ctx, `
-		SELECT id, team_id, environment_id, destination_id, name, description, engine, image, status, is_public, public_port, engine_config, created_at
+		SELECT id, team_id, environment_id, destination_id, name, description, engine, image, status, is_public, public_port, COALESCE(enable_ssl,false), engine_config, created_at
 		FROM databases WHERE id=$1 AND team_id=$2
 	`, id, teamID).Scan(
 		&d.ID, &d.TeamID, &d.EnvironmentID, &d.DestinationID, &d.Name, &d.Description, &d.Engine, &d.Image,
-		&d.Status, &d.IsPublic, &d.PublicPort, &d.EngineConfig, &d.CreatedAt,
+		&d.Status, &d.IsPublic, &d.PublicPort, &d.EnableSSL, &d.EngineConfig, &d.CreatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
@@ -1467,6 +1468,9 @@ func (s *Store) DeleteDatabase(ctx context.Context, teamID, id uuid.UUID) error 
 	if _, err := tx.Exec(ctx, `DELETE FROM backup_executions WHERE team_id=$1 AND resource_type='database' AND resource_id=$2`, teamID, id); err != nil {
 		return err
 	}
+	if _, err := tx.Exec(ctx, `DELETE FROM ssl_certificates WHERE team_id=$1 AND resource_type='database' AND resource_id=$2`, teamID, id); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(ctx, `DELETE FROM databases WHERE id=$1 AND team_id=$2`, id, teamID); err != nil {
 		return err
 	}
@@ -1485,6 +1489,7 @@ type UpdateDatabaseInput struct {
 	Image         *string
 	IsPublic      *bool
 	PublicPort    **int
+	EnableSSL     *bool
 	DestinationID **uuid.UUID
 }
 
@@ -1509,15 +1514,18 @@ func (s *Store) UpdateDatabase(ctx context.Context, teamID, id uuid.UUID, in Upd
 	if in.PublicPort != nil {
 		db.PublicPort = *in.PublicPort
 	}
+	if in.EnableSSL != nil {
+		db.EnableSSL = *in.EnableSSL
+	}
 	if in.DestinationID != nil {
 		db.DestinationID = *in.DestinationID
 	}
 	tag, err := s.Pool.Exec(ctx, `
 		UPDATE databases SET
 			name=$3, description=$4, image=$5, is_public=$6, public_port=$7, destination_id=$8,
-			updated_at=NOW()
+			enable_ssl=$9, updated_at=NOW()
 		WHERE id=$1 AND team_id=$2
-	`, id, teamID, db.Name, db.Description, db.Image, db.IsPublic, db.PublicPort, db.DestinationID)
+	`, id, teamID, db.Name, db.Description, db.Image, db.IsPublic, db.PublicPort, db.DestinationID, db.EnableSSL)
 	if err != nil {
 		return nil, err
 	}

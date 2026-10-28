@@ -19,6 +19,8 @@ type Props = {
   volumes?: ComposeVolume[]
   /** When set, panel is editable (non-compose applications). */
   applicationId?: string
+  /** When set, panel edits database file and directory mounts. */
+  databaseId?: string
   editable?: boolean
 }
 
@@ -84,10 +86,14 @@ export function PersistentStoragesPanel({
   compose = '',
   volumes,
   applicationId,
+  databaseId,
   editable = false,
 }: Props) {
   if (editable && applicationId) {
-    return <EditableVolumesPanel applicationId={applicationId} />
+    return <EditableVolumesPanel resource="application" resourceId={applicationId} />
+  }
+  if (editable && databaseId) {
+    return <EditableVolumesPanel resource="database" resourceId={databaseId} />
   }
 
   const list =
@@ -131,52 +137,87 @@ export function PersistentStoragesPanel({
   )
 }
 
-function EditableVolumesPanel({ applicationId }: { applicationId: string }) {
+function EditableVolumesPanel({
+  resource,
+  resourceId,
+}: {
+  resource: 'application' | 'database'
+  resourceId: string
+}) {
   const qc = useQueryClient()
   const toast = useToast()
   const [name, setName] = useState('')
   const [mountPath, setMountPath] = useState('')
   const [hostPath, setHostPath] = useState('')
+  const [isFile, setIsFile] = useState(false)
+  const [content, setContent] = useState('')
+  const queryKey = ['resource-volumes', resource, resourceId]
 
   const vols = useQuery({
-    queryKey: ['app-volumes', applicationId],
-    queryFn: () => api.listAppVolumes(applicationId),
+    queryKey,
+    queryFn: () => api.listResourceVolumes(resource, resourceId),
   })
+
+  const clear = () => {
+    setName('')
+    setMountPath('')
+    setHostPath('')
+    setIsFile(false)
+    setContent('')
+  }
 
   const upsert = useMutation({
     mutationFn: () =>
-      api.upsertAppVolume(applicationId, {
+      api.upsertResourceVolume(resource, resourceId, {
         name: name.trim(),
         mount_path: mountPath.trim(),
         host_path: hostPath.trim() || undefined,
+        is_file: isFile,
+        content: isFile ? content : undefined,
       }),
     onSuccess: () => {
-      setName('')
-      setMountPath('')
-      setHostPath('')
-      void qc.invalidateQueries({ queryKey: ['app-volumes', applicationId] })
-      toast.success('Volume saved')
+      clear()
+      void qc.invalidateQueries({ queryKey })
+      toast.success(isFile ? 'File mount saved' : 'Volume saved')
     },
-    onError: (e: Error) => toast.error(e.message || 'Failed to save volume'),
+    onError: (e: Error) => toast.error(e.message || 'Failed to save mount'),
   })
 
   const remove = useMutation({
-    mutationFn: (volumeId: string) => api.deleteAppVolume(applicationId, volumeId),
+    mutationFn: (volumeId: string) => api.deleteResourceVolume(resource, resourceId, volumeId),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['app-volumes', applicationId] })
-      toast.success('Volume removed')
+      void qc.invalidateQueries({ queryKey })
+      toast.success('Mount removed')
     },
-    onError: (e: Error) => toast.error(e.message || 'Failed to delete volume'),
+    onError: (e: Error) => toast.error(e.message || 'Failed to delete mount'),
   })
 
+  const load = async (volume: AppVolume) => {
+    setName(volume.name)
+    setMountPath(volume.mount_path)
+    setHostPath(volume.host_path || '')
+    setIsFile(Boolean(volume.is_file))
+    setContent('')
+    if (volume.is_file) {
+      try {
+        const full = await api.getResourceVolume(resource, resourceId, volume.id)
+        setContent(full.content || '')
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Failed to load file')
+      }
+    }
+  }
+
   const list: AppVolume[] = vols.data?.volumes || []
+  const when = resource === 'database' ? 'start' : 'deploy'
 
   return (
     <div className="space-y-4">
+      <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Persistent storage</h2>
       <p className="text-sm text-gray-500 dark:text-gray-400">
-        Bind mounts applied on the next deploy as <code className="font-mono text-xs">-v host:mount</code>.
-        Leave host path empty to use{' '}
-        <code className="font-mono text-xs">/data/dockfin/applications/…/volumes/&lt;name&gt;</code>.
+        Bind mounts are applied on the next {when}. A file is written before the container starts,
+        so Docker does not turn a missing file into a directory. Leave the host path empty to keep
+        the file under Dockfin’s data directory, outside the database data folder.
       </p>
 
       <form
@@ -190,16 +231,31 @@ function EditableVolumesPanel({ applicationId }: { applicationId: string }) {
         <Input label="Name" value={name} onChange={setName} required />
         <Input label="Mount path" value={mountPath} onChange={setMountPath} required />
         <Input label="Host path (optional)" value={hostPath} onChange={setHostPath} required={false} />
+        <label className="flex items-center gap-2 text-sm sm:col-span-3">
+          <input type="checkbox" checked={isFile} onChange={(e) => setIsFile(e.target.checked)} />
+          <span>File mount. Directory mounts are created empty and keep their contents.</span>
+        </label>
+        {isFile && (
+          <label className="block text-sm sm:col-span-3">
+            <span className="mb-1 block text-gray-500 dark:text-gray-400">File content</span>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              className="panel-field h-36 w-full rounded-lg px-3 py-2 font-mono text-xs"
+              placeholder="Leave empty to keep an existing host file, or to create an empty one."
+            />
+          </label>
+        )}
         <div className="sm:col-span-3">
           <Btn primary type="submit" disabled={upsert.isPending || !name.trim() || !mountPath.trim()}>
-            {upsert.isPending ? 'Adding…' : 'Add volume'}
+            {upsert.isPending ? 'Saving…' : 'Save mount'}
           </Btn>
         </div>
       </form>
 
       <div className="panel-card overflow-hidden">
         {vols.isLoading ? (
-          <TableSkeleton rows={3} cols={3} />
+          <TableSkeleton rows={3} cols={4} />
         ) : (
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400">
@@ -207,6 +263,7 @@ function EditableVolumesPanel({ applicationId }: { applicationId: string }) {
               <th className="px-3 py-2">Name</th>
               <th className="px-3 py-2">Mount path</th>
               <th className="px-3 py-2">Host path</th>
+              <th className="px-3 py-2">Type</th>
               <th className="px-3 py-2" />
             </tr>
           </thead>
@@ -218,7 +275,15 @@ function EditableVolumesPanel({ applicationId }: { applicationId: string }) {
                 <td className="px-3 py-2 font-mono text-xs text-gray-500">
                   {v.host_path || '(default)'}
                 </td>
+                <td className="px-3 py-2 text-xs">{v.is_file ? 'File' : 'Directory'}</td>
                 <td className="px-3 py-2 text-right">
+                  <button
+                    type="button"
+                    className="mr-3 text-xs text-gray-500 hover:underline"
+                    onClick={() => void load(v)}
+                  >
+                    Edit
+                  </button>
                   <button
                     type="button"
                     className="text-xs text-error-500 hover:underline"
@@ -232,8 +297,8 @@ function EditableVolumesPanel({ applicationId }: { applicationId: string }) {
             ))}
             {!list.length && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                  No persistent volumes yet.
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  No mounts yet.
                 </td>
               </tr>
             )}

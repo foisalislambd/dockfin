@@ -84,20 +84,22 @@ export function ServiceDomainsPanel({
       if (editing) return api.updateServiceDomain(serviceId, editing.id, body)
       return api.createServiceDomain(serviceId, body)
     },
-    onSuccess: () => {
+    onSuccess: (saved) => {
       setOpen(false)
       setEditing(null)
       refresh()
       toast.success(editing ? 'Domain updated' : 'Domain added')
+      if (saved.dns_warnings?.length) toast.warning(saved.dns_warnings.join(' '))
     },
     onError: (e: Error) => toast.error(e.message || 'Could not save domain'),
   })
 
   const remove = useMutation({
     mutationFn: (id: string) => api.deleteServiceDomain(serviceId, id),
-    onSuccess: () => {
+    onSuccess: (saved) => {
       refresh()
       toast.success('Domain removed')
+      if (saved.dns_warnings?.length) toast.warning(saved.dns_warnings.join(' '))
     },
     onError: (e: Error) => toast.error(e.message || 'Could not remove domain'),
   })

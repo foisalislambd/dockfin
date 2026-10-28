@@ -23,6 +23,11 @@ func ContainerName(dbID string) string {
 	return "dockfin-db-" + dbID
 }
 
+// EngineDataPath is the in-container directory that must persist across recreates.
+func EngineDataPath(engine string) string {
+	return engineDataPath(engine)
+}
+
 // engineDataPath is the in-container directory that must persist across recreates.
 func engineDataPath(engine string) string {
 	switch engine {
@@ -47,7 +52,13 @@ func VolumeArgs(dbID, engine string) []string {
 }
 
 // Start launches a managed database container on the remote host with a durable bind mount.
-func Start(client *ssh.Client, db *store.Database, network, password string, extraEnv []string) error {
+// BindMount is an extra host file or directory mounted into the database container.
+type BindMount struct {
+	Host      string
+	Container string
+}
+
+func Start(client *ssh.Client, db *store.Database, network, password string, extraEnv []string, tls *TLSMaterial, mounts []BindMount) error {
 	if err := sshx.EnsureNetwork(client, network); err != nil {
 		return err
 	}
@@ -57,6 +68,20 @@ func Start(client *ssh.Client, db *store.Database, network, password string, ext
 	hostDir := HostDataDir(db.ID.String())
 	if _, errOut, err := sshx.RunArgs(client, "mkdir", "-p", hostDir); err != nil {
 		return fmt.Errorf("mkdir database data dir: %v %s", err, errOut)
+	}
+
+	if db.EnableSSL && tls == nil {
+		return fmt.Errorf("database ssl is enabled but no certificate was provided")
+	}
+	if db.EnableSSL && !SSLSupported(db.Engine) {
+		return fmt.Errorf("ssl is not supported for %s", db.Engine)
+	}
+	image := db.Image
+	if image == "" {
+		image = store.DefaultDBImage(db.Engine)
+	}
+	if err := installTLS(client, db.ID.String(), db.Engine, image, tls); err != nil {
+		return err
 	}
 
 	name := ContainerName(db.ID.String())
@@ -69,6 +94,15 @@ func Start(client *ssh.Client, db *store.Database, network, password string, ext
 		"--network", network,
 	}
 	args = append(args, VolumeArgs(db.ID.String(), db.Engine)...)
+	if tls != nil {
+		args = append(args, sslVolumeArgs(db.ID.String(), db.Engine)...)
+	}
+	for _, m := range mounts {
+		if m.Container == engineDataPath(db.Engine) {
+			return fmt.Errorf("mount path %s is the database data directory", m.Container)
+		}
+		args = append(args, "-v", m.Host+":"+m.Container)
+	}
 	// User env first, then engine credentials. Docker keeps the last -e, so a
 	// remote secret cannot replace the password Dockfin stored for this database.
 	args = append(args, extraEnv...)
@@ -77,7 +111,11 @@ func Start(client *ssh.Client, db *store.Database, network, password string, ext
 		args = append(args, "-p", fmt.Sprintf("%d:%d", *db.PublicPort, defaultPort(db.Engine)))
 	}
 	args = append(args, db.Image)
-	args = append(args, engineCmd(db.Engine, password)...)
+	cmd := engineCmd(db.Engine, password)
+	if tls != nil {
+		cmd = appendSSLCommand(db.Engine, cmd)
+	}
+	args = append(args, cmd...)
 
 	_, errOut, err := sshx.RunArgs(client, args...)
 	if err != nil {
@@ -97,12 +135,7 @@ func Stop(client *ssh.Client, dbID string) error {
 
 // RemoveData deletes the durable host data directory for a managed database.
 func RemoveData(client *ssh.Client, dbID string) error {
-	dir := HostDataDir(dbID)
-	_, errOut, err := sshx.RunArgs(client, "rm", "-rf", dir)
-	if err != nil {
-		return fmt.Errorf("remove database data: %v %s", err, errOut)
-	}
-	return nil
+	return runRemote(client, "remove database data", "rm", "-rf", HostDataDir(dbID))
 }
 
 func defaultPort(engine string) int {
@@ -135,6 +168,19 @@ func engineEnv(engine, password string) []string {
 		return nil
 	default:
 		return nil
+	}
+}
+
+func appendSSLCommand(engine string, cmd []string) []string {
+	extra := sslCommand(engine)
+	if len(extra) == 0 {
+		return cmd
+	}
+	switch engine {
+	case "redis", "keydb", "dragonfly":
+		return append(cmd, extra...)
+	default:
+		return extra
 	}
 }
 

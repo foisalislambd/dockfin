@@ -185,6 +185,30 @@ carries a `warnings` array.
 - [x] Key-name browser and import of missing references (invalid remote names are skipped, values are not stored)
 - [x] Resolution on application runtime/build/compose env, service `.env`, and database container env
 
+## File mounts
+- [x] Applications and databases can mount a directory or a text file
+- [x] File content is encrypted and written on the server before the container starts
+- [x] A missing file is created first, so Docker does not turn the mount into a directory
+- [x] Symbolic links are refused, and database mounts stay outside the engine data directory
+- [x] Compose applications keep their volumes in the compose file
+
+## Database TLS
+- [x] Per-database SSL switch for PostgreSQL, MySQL, MariaDB, MongoDB, Redis, KeyDB, and Dragonfly
+- [x] A server CA is generated once and signs a certificate whose common name is the database id
+- [x] Certificate and private key are encrypted; the API returns the CA certificate only
+- [x] Start mounts the certificate and turns TLS on for that engine
+- [x] Turning SSL off deletes the database certificate; the server CA is kept
+- [x] Regenerate drops the leaf certificate so the next start signs a new one
+
+## Managed DNS
+- [x] Sync Cloudflare zones from an existing cloud token (`POST /cloud-tokens/{id}/dns-zones/sync`)
+- [x] Saving an application, service, or preview hostname creates an A/AAAA record at the server's public address
+- [x] Records Dockfin creates carry `managed-by: dockfin` and are updated only while that comment is still present
+- [x] Existing records with the same address are referenced and never modified or deleted
+- [x] A conflicting record is left unchanged and the save still succeeds, with a warning
+- [x] A shared hostname is removed from Cloudflare only when the last resource releases it
+- [x] Magic sslip.io / nip.io hostnames are not sent to Cloudflare
+
 ## Polish
 - [x] Command palette (⌘K)
 - [x] CLI `dfin` (deploy/logs/apps/servers)

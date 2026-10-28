@@ -150,6 +150,7 @@ func (a *API) enqueuePreviewDeploy(ctx context.Context, app *store.Application, 
 		res.Message = err.Error()
 		return res
 	}
+	_ = a.syncManagedDNS(ctx, app.TeamID, "application_preview", preview.ID, dnsHostList(preview.FQDN), a.resolveAppServerID(ctx, app))
 	serverID := a.resolveAppServerID(ctx, app)
 	dep, err := a.Store.CreateDeployment(ctx, app.TeamID, app.ID, serverID, event.Commit, event.Message, false, true, false, event.PRNumber)
 	if err != nil {
@@ -181,6 +182,9 @@ func (a *API) cleanupPreview(ctx context.Context, app *store.Application, prID i
 		return res
 	}
 	a.cleanupPreviewRemote(ctx, app, prID)
+	if preview, err := a.Store.GetPreviewByPR(ctx, app.TeamID, app.ID, prID); err == nil && preview != nil {
+		_ = a.syncManagedDNS(ctx, app.TeamID, "application_preview", preview.ID, nil, nil)
+	}
 	if err := a.Store.DeletePreview(ctx, app.TeamID, app.ID, prID); err != nil {
 		if !errors.Is(err, store.ErrNotFound) {
 			res.Status = "failed"

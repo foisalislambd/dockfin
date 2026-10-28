@@ -6,11 +6,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/backup"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/worker"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 // previewFQDNFromTemplate expands Coolify-style {{pr_id}}.{{domain}} templates.
@@ -176,6 +176,7 @@ func (a *API) handleManualPreviewDeploy(w http.ResponseWriter, r *http.Request) 
 		mapStoreErr(w, err)
 		return
 	}
+	_ = a.syncManagedDNS(r.Context(), teamID, "application_preview", preview.ID, dnsHostList(preview.FQDN), a.resolveAppServerID(r.Context(), app))
 	if app.DestinationID == nil {
 		writeError(w, http.StatusBadRequest, "application has no destination")
 		return

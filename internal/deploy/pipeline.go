@@ -15,6 +15,7 @@ import (
 	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/sshdial"
 	"github.com/dockfin/dockfin/internal/sshx"
+	"github.com/dockfin/dockfin/internal/storagemount"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -1773,27 +1774,32 @@ func htpasswdBcryptCompose(user, pass string) string {
 	return strings.ReplaceAll(htpasswdBcrypt(user, pass), "$", "$$")
 }
 
-func (p *Pipeline) volumeArgs(ctx context.Context, client *ssh.Client, req Request) []string {
+func (p *Pipeline) volumeArgs(ctx context.Context, client *ssh.Client, req Request) ([]string, error) {
 	if p.Store == nil || req.App == nil || req.App.BuildPack == "dockercompose" {
-		return nil
+		return nil, nil
 	}
 	vols, err := p.Store.ListVolumes(ctx, req.TeamID, "application", req.App.ID)
-	if err != nil || len(vols) == 0 {
-		return nil
+	if err != nil {
+		return nil, err
+	}
+	if len(vols) == 0 {
+		return nil, nil
 	}
 	var args []string
 	for _, v := range vols {
 		host := strings.TrimSpace(v.HostPath)
 		if host == "" {
-			host = "/data/dockfin/applications/" + req.App.ID.String() + "/volumes/" + v.Name
+			host = storagemount.DefaultHost("application", req.App.ID.String(), v.Name, v.IsFile)
 		}
-		if client != nil && !v.IsFile {
-			_, _, _ = sshx.RunArgs(client, "mkdir", "-p", host)
-		} else if client != nil && v.IsFile {
-			parent := filepath.Dir(host)
-			if parent != "" && parent != "." {
-				_, _, _ = sshx.RunArgs(client, "mkdir", "-p", parent)
+		content := ""
+		if v.IsFile {
+			content, err = p.Store.VolumeContent(ctx, req.TeamID, v.ID)
+			if err != nil {
+				return nil, err
 			}
+		}
+		if err := storagemount.Prepare(client, host, v.IsFile, content); err != nil {
+			return nil, err
 		}
 		mount := v.MountPath
 		if !strings.HasPrefix(mount, "/") {
@@ -1801,7 +1807,7 @@ func (p *Pipeline) volumeArgs(ctx context.Context, client *ssh.Client, req Reque
 		}
 		args = append(args, "-v", host+":"+mount)
 	}
-	return args
+	return args, nil
 }
 
 func (p *Pipeline) customDockerRunArgs(app *store.Application) []string {

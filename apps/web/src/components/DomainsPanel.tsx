@@ -465,7 +465,8 @@ export function DomainDNSAlert({
       <div className="space-y-1 text-[11px] leading-relaxed text-error-700 dark:text-error-400">
         <p>
           At your DNS provider, create the A records above (copy Name + Value). Wait 1–5 minutes,
-          then save again.
+          then save again. If this team has synced Cloudflare zones, saving the domain writes the
+          record for you when Dockfin can own it.
         </p>
         {bad[0]?.resolved_ips?.length ? (
           <p>

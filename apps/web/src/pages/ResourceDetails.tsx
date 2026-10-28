@@ -27,6 +27,7 @@ import { useEffect, useState } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { useConfirm } from '../components/ConfirmDialog'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
+import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
 import { ResourceTagsPanel } from '../components/ResourceTagsPanel'
 import { LiveLogViewer } from '../components/LiveLogViewer'
 import { BackLink } from '../components/BackLink'
@@ -542,11 +543,20 @@ export function DatabaseDetailPage() {
 
   const [isPublic, setIsPublic] = useState(false)
   const [publicPort, setPublicPort] = useState('')
+  const [enableSSL, setEnableSSL] = useState(false)
+  const [caPem, setCaPem] = useState('')
+  const [caError, setCaError] = useState('')
   useEffect(() => {
     if (!db.data) return
     setIsPublic(Boolean(db.data.is_public))
     setPublicPort(db.data.public_port != null ? String(db.data.public_port) : '')
+    setEnableSSL(Boolean(db.data.enable_ssl))
   }, [db.data])
+  const tls = useQuery({
+    queryKey: ['database-tls', dbId],
+    queryFn: () => api.databaseTLS(dbId),
+    enabled: tab === 'configuration',
+  })
 
   const start = useMutation({
     mutationFn: () => api.startDatabase(dbId),
@@ -559,6 +569,13 @@ export function DatabaseDetailPage() {
   const patch = useMutation({
     mutationFn: (body: Parameters<typeof api.updateDatabase>[1]) => api.updateDatabase(dbId, body),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['database', dbId] }),
+  })
+  const patchSSL = useMutation({
+    mutationFn: (enabled: boolean) => api.updateDatabase(dbId, { enable_ssl: enabled }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['database', dbId] })
+      void qc.invalidateQueries({ queryKey: ['database-tls', dbId] })
+    },
   })
   const remove = useMutation({
     mutationFn: (body: Parameters<typeof api.deleteDatabase>[1]) => api.deleteDatabase(dbId, body),
@@ -667,6 +684,93 @@ export function DatabaseDetailPage() {
               </p>
             </div>
             {patch.error && <p className="text-sm text-error-500">{patch.error.message}</p>}
+          </div>
+
+          <div className="mt-6 panel-card space-y-4 p-5">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">SSL certificate</h3>
+            <label className="flex items-center gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={enableSSL}
+                disabled={tls.data?.supported === false}
+                onChange={(e) => setEnableSSL(e.target.checked)}
+              />
+              <span>
+                <span className="font-medium text-gray-900 dark:text-white">Enable SSL</span>
+                <span className="mt-0.5 block text-gray-500 dark:text-gray-400">
+                  Dockfin signs a certificate for this database with the server CA and mounts it on
+                  the next start. MySQL and MariaDB then require TLS. Redis and KeyDB keep the
+                  normal port and also listen for TLS on 6380. MongoDB allows both.
+                </span>
+              </span>
+            </label>
+            {tls.data?.supported === false && (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                SSL is not available for this engine.
+              </p>
+            )}
+            {tls.data?.common_name && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Certificate {tls.data.common_name}
+                {tls.data.valid_until ? ` · valid until ${new Date(tls.data.valid_until).toLocaleDateString()}` : ''}
+                {tls.data.ca_common_name ? ` · CA ${tls.data.ca_common_name}` : ''}
+              </p>
+            )}
+            {!tls.data?.common_name && enableSSL && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                The certificate is created the next time this database starts.
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Btn
+                primary
+                disabled={patchSSL.isPending || tls.data?.supported === false}
+                onClick={() => patchSSL.mutate(enableSSL)}
+              >
+                {patchSSL.isPending ? 'Saving…' : 'Save SSL'}
+              </Btn>
+              <Btn
+                type="button"
+                disabled={!enableSSL}
+                onClick={() => {
+                  setCaError('')
+                  void api
+                    .databaseCA(dbId)
+                    .then((res) => setCaPem(res.certificate))
+                    .catch((e: Error) => {
+                      setCaPem('')
+                      setCaError(e.message || 'CA certificate is not ready')
+                    })
+                }}
+              >
+                Show CA certificate
+              </Btn>
+              <Btn
+                type="button"
+                disabled={!tls.data?.common_name}
+                onClick={() => {
+                  void api.regenerateDatabaseTLS(dbId).then(() => {
+                    setCaPem('')
+                    void qc.invalidateQueries({ queryKey: ['database-tls', dbId] })
+                  })
+                }}
+              >
+                Regenerate on next start
+              </Btn>
+            </div>
+            {patchSSL.error && <p className="text-sm text-error-500">{patchSSL.error.message}</p>}
+            {caError && <p className="text-sm text-error-500">{caError}</p>}
+            {caPem && (
+              <textarea
+                readOnly
+                value={caPem}
+                className="panel-field h-36 w-full rounded-lg px-3 py-2 font-mono text-xs"
+              />
+            )}
+          </div>
+
+          <div className="mt-6">
+            <PersistentStoragesPanel databaseId={dbId} editable />
           </div>
         </TabPanel>
       )}

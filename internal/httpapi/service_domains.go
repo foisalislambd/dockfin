@@ -131,10 +131,10 @@ func domainInputFromBody(body serviceDomainBody, fallback store.ServiceDomain) (
 	}, ""
 }
 
-func (a *API) syncDomainsOntoService(r *http.Request, teamID, serviceID uuid.UUID) {
+func (a *API) syncDomainsOntoService(r *http.Request, teamID, serviceID uuid.UUID) []string {
 	list, err := a.Store.ListServiceDomains(r.Context(), teamID, serviceID)
 	if err != nil {
-		return
+		return nil
 	}
 	published := services.PublishedServiceDomains(list)
 	hosts := make([]string, 0, len(published))
@@ -150,6 +150,11 @@ func (a *API) syncDomainsOntoService(r *http.Request, teamID, serviceID uuid.UUI
 	_ = a.Store.UpdateServiceCompose(r.Context(), serviceID, "")
 	_ = a.Store.SetServiceForceHTTPS(r.Context(), teamID, serviceID, force)
 	a.rewriteServiceDomainEnv(r.Context(), teamID, serviceID, fqdn)
+	svc, err := a.Store.GetService(r.Context(), teamID, serviceID)
+	if err != nil {
+		return nil
+	}
+	return a.syncServiceDNS(r.Context(), teamID, svc, hosts)
 }
 
 func (a *API) handleListServiceDomains(w http.ResponseWriter, r *http.Request) {
@@ -248,8 +253,8 @@ func (a *API) handleCreateServiceDomain(w http.ResponseWriter, r *http.Request) 
 		mapStoreErr(w, err)
 		return
 	}
-	a.syncDomainsOntoService(r, teamID, id)
-	writeJSON(w, http.StatusCreated, created)
+	warnings := a.syncDomainsOntoService(r, teamID, id)
+	writeJSON(w, http.StatusCreated, attachDNSWarnings(created, warnings))
 }
 
 func (a *API) handlePatchServiceDomain(w http.ResponseWriter, r *http.Request) {
@@ -296,8 +301,8 @@ func (a *API) handlePatchServiceDomain(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	a.syncDomainsOntoService(r, teamID, id)
-	writeJSON(w, http.StatusOK, updated)
+	warnings := a.syncDomainsOntoService(r, teamID, id)
+	writeJSON(w, http.StatusOK, attachDNSWarnings(updated, warnings))
 }
 
 func (a *API) handleDeleteServiceDomain(w http.ResponseWriter, r *http.Request) {
@@ -316,6 +321,6 @@ func (a *API) handleDeleteServiceDomain(w http.ResponseWriter, r *http.Request) 
 		mapStoreErr(w, err)
 		return
 	}
-	a.syncDomainsOntoService(r, teamID, id)
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	warnings := a.syncDomainsOntoService(r, teamID, id)
+	writeJSON(w, http.StatusOK, attachDNSWarnings(map[string]string{"status": "deleted"}, warnings))
 }

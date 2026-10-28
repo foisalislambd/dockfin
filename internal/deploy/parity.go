@@ -146,7 +146,11 @@ func (p *Pipeline) dockerRunBaseArgs(ctx context.Context, client *ssh.Client, re
 	args = append(args, p.limitArgs(req.App)...)
 	args = append(args, p.gpuArgs(req.App)...)
 	args = append(args, p.stopTimeoutArgs(req.App)...)
-	args = append(args, p.volumeArgs(ctx, client, req)...)
+	volArgs, err := p.volumeArgs(ctx, client, req)
+	if err != nil {
+		return nil, err
+	}
+	args = append(args, volArgs...)
 	envArgs, err := p.runtimeEnvArgs(ctx, req)
 	if err != nil {
 		return nil, err
@@ -351,7 +355,10 @@ func (p *Pipeline) runSwarmService(ctx context.Context, client *ssh.Client, req 
 			args = append(args, "--publish", part)
 		}
 	}
-	volArgs := p.volumeArgs(ctx, client, req)
+	volArgs, err := p.volumeArgs(ctx, client, req)
+	if err != nil {
+		return err
+	}
 	for i := 0; i < len(volArgs); i++ {
 		if volArgs[i] != "-v" || i+1 >= len(volArgs) {
 			continue

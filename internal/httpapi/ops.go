@@ -394,6 +394,7 @@ func (a *API) handlePatchService(w http.ResponseWriter, r *http.Request) {
 		DockerComposeRaw *string `json:"docker_compose_raw"`
 		IsForceHTTPS     *bool   `json:"is_force_https"`
 	}
+	var dnsWarnings []string
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
 		return
@@ -461,6 +462,7 @@ func (a *API) handlePatchService(w http.ResponseWriter, r *http.Request) {
 			mapStoreErr(w, err)
 			return
 		}
+		dnsWarnings = a.syncServiceDNS(r.Context(), teamID, updated, dnsHostList(updated.FQDN))
 	}
 	if body.IsForceHTTPS != nil {
 		if err := a.Store.SetServiceForceHTTPS(r.Context(), teamID, id, *body.IsForceHTTPS); err != nil {
@@ -473,7 +475,7 @@ func (a *API) handlePatchService(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	writeJSON(w, http.StatusOK, serviceWithLinks(updated))
+	writeJSON(w, http.StatusOK, attachDNSWarnings(serviceWithLinks(updated), dnsWarnings))
 }
 
 func (a *API) handleStopService(w http.ResponseWriter, r *http.Request) {
@@ -522,6 +524,7 @@ func (a *API) handleDeleteService(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	_ = a.syncManagedDNS(r.Context(), teamID, "service", id, nil, nil)
 	if err := a.Store.DeleteService(r.Context(), teamID, id); err != nil {
 		mapStoreErr(w, err)
 		return

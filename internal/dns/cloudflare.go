@@ -12,8 +12,10 @@ import (
 )
 
 type CloudflareClient struct {
-	Token  string
-	HTTP   *http.Client
+	Token string
+	HTTP  *http.Client
+	// Base overrides the API origin in tests. Empty uses the public Cloudflare API.
+	Base string
 }
 
 func NewCloudflare(token string) *CloudflareClient {
@@ -153,12 +155,138 @@ func (c *CloudflareClient) findA(zoneID, hostname string) (string, error) {
 	return out.Result[0].ID, nil
 }
 
+func (c *CloudflareClient) base() string {
+	if strings.TrimSpace(c.Base) != "" {
+		return strings.TrimRight(c.Base, "/")
+	}
+	return "https://api.cloudflare.com/client/v4"
+}
+
+type CFZone struct {
+	ID   string
+	Name string
+}
+
+// ListZones returns active zones, following Cloudflare pagination.
+func (c *CloudflareClient) ListZones() ([]CFZone, error) {
+	if c.Token == "" {
+		return nil, fmt.Errorf("cloudflare token required")
+	}
+	var all []CFZone
+	for page := 1; page <= 50; page++ {
+		var out struct {
+			Result []struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"result"`
+			ResultInfo struct {
+				TotalPages int `json:"total_pages"`
+			} `json:"result_info"`
+		}
+		path := fmt.Sprintf("/zones?status=active&per_page=50&page=%d", page)
+		if err := c.do("GET", path, nil, &out); err != nil {
+			return nil, err
+		}
+		for _, z := range out.Result {
+			name := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(z.Name)), ".")
+			if z.ID == "" || name == "" {
+				continue
+			}
+			all = append(all, CFZone{ID: z.ID, Name: name})
+		}
+		if out.ResultInfo.TotalPages == 0 || page >= out.ResultInfo.TotalPages {
+			break
+		}
+	}
+	return all, nil
+}
+
+// ListAddressRecords returns A, AAAA, and CNAME records for hostname.
+func (c *CloudflareClient) ListAddressRecords(zoneID, hostname string) ([]RemoteRecord, error) {
+	hostname = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(hostname)), ".")
+	path := "/zones/" + url.PathEscape(zoneID) + "/dns_records?per_page=100&name=" + url.QueryEscape(hostname)
+	var out struct {
+		Result []RemoteRecord `json:"result"`
+	}
+	if err := c.do("GET", path, nil, &out); err != nil {
+		return nil, err
+	}
+	var recs []RemoteRecord
+	for _, rec := range out.Result {
+		switch strings.ToUpper(rec.Type) {
+		case "A", "AAAA", "CNAME":
+			rec.Name = strings.TrimSuffix(strings.ToLower(rec.Name), ".")
+			rec.Type = strings.ToUpper(rec.Type)
+			if rec.Name != hostname {
+				continue
+			}
+			recs = append(recs, rec)
+		}
+	}
+	return recs, nil
+}
+
+// CreateRecord creates a DNS record and returns the provider record id.
+func (c *CloudflareClient) CreateRecord(zoneID string, rec RemoteRecord) (string, error) {
+	body := map[string]any{
+		"type":    rec.Type,
+		"name":    rec.Name,
+		"content": rec.Content,
+		"ttl":     1,
+		"proxied": false,
+		"comment": rec.Comment,
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return "", err
+	}
+	var created struct {
+		Result struct {
+			ID string `json:"id"`
+		} `json:"result"`
+	}
+	if err := c.do("POST", "/zones/"+url.PathEscape(zoneID)+"/dns_records", raw, &created); err != nil {
+		return "", err
+	}
+	if created.Result.ID == "" {
+		return "", fmt.Errorf("cloudflare API: create returned no record id")
+	}
+	return created.Result.ID, nil
+}
+
+// UpdateContent changes only the record content. The ownership comment is left as stored.
+func (c *CloudflareClient) UpdateContent(zoneID, recordID, content string) error {
+	raw, err := json.Marshal(map[string]string{"content": content})
+	if err != nil {
+		return err
+	}
+	return c.do("PATCH", "/zones/"+url.PathEscape(zoneID)+"/dns_records/"+url.PathEscape(recordID), raw, nil)
+}
+
+// GetRecord loads one DNS record.
+func (c *CloudflareClient) GetRecord(zoneID, recordID string) (RemoteRecord, error) {
+	var out struct {
+		Result RemoteRecord `json:"result"`
+	}
+	if err := c.do("GET", "/zones/"+url.PathEscape(zoneID)+"/dns_records/"+url.PathEscape(recordID), nil, &out); err != nil {
+		return RemoteRecord{}, err
+	}
+	out.Result.Type = strings.ToUpper(out.Result.Type)
+	out.Result.Name = strings.TrimSuffix(strings.ToLower(out.Result.Name), ".")
+	return out.Result, nil
+}
+
+// DeleteRecord removes a DNS record.
+func (c *CloudflareClient) DeleteRecord(zoneID, recordID string) error {
+	return c.do("DELETE", "/zones/"+url.PathEscape(zoneID)+"/dns_records/"+url.PathEscape(recordID), nil, nil)
+}
+
 func (c *CloudflareClient) do(method, path string, body []byte, dest any) error {
 	var rdr io.Reader
 	if len(body) > 0 {
 		rdr = bytes.NewReader(body)
 	}
-	req, err := http.NewRequest(method, "https://api.cloudflare.com/client/v4"+path, rdr)
+	req, err := http.NewRequest(method, c.base()+path, rdr)
 	if err != nil {
 		return err
 	}

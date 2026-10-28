@@ -744,6 +744,7 @@ export function ApplicationDetailPage() {
       void qc.invalidateQueries({ queryKey: ['application', appId] })
       syncFromApp(updated)
       toast.success('Saved')
+      if (updated.dns_warnings?.length) toast.warning(updated.dns_warnings.join(' '))
     },
     onError: (e: Error) => toast.error(e.message || 'Save failed'),
   })

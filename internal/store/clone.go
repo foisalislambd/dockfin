@@ -217,19 +217,8 @@ func (s *Store) copyResourceExtras(ctx context.Context, teamID uuid.UUID, resour
 	}
 
 	if resourceType == "application" || resourceType == "database" || resourceType == "service" {
-		vols, err := s.ListVolumes(ctx, teamID, resourceType, fromID)
-		if err != nil {
+		if err := s.CloneVolumes(ctx, teamID, resourceType, fromID, toID); err != nil {
 			return err
-		}
-		for _, v := range vols {
-			host := v.HostPath
-			// Avoid sharing the source app's host path; leave blank so deploy recreates under new id.
-			if resourceType == "application" {
-				host = ""
-			}
-			if _, err := s.UpsertVolume(ctx, teamID, resourceType, toID, v.Name, v.MountPath, host, v.IsFile); err != nil {
-				return err
-			}
 		}
 	}
 	return nil

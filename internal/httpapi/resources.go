@@ -476,11 +476,12 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	warnings := a.syncApplicationDNS(r.Context(), created)
 	if webhookSecret != "" {
-		writeJSON(w, http.StatusCreated, appWithWebhookSecret(created, webhookSecret))
+		writeJSON(w, http.StatusCreated, attachDNSWarnings(appWithWebhookSecret(created, webhookSecret), warnings))
 		return
 	}
-	writeJSON(w, http.StatusCreated, created)
+	writeJSON(w, http.StatusCreated, attachDNSWarnings(created, warnings))
 }
 
 func appWithWebhookSecret(app *store.Application, secret string) map[string]any {
@@ -547,6 +548,12 @@ func (a *API) handleDeleteApplication(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if previews, err := a.Store.ListPreviews(r.Context(), teamID, id); err == nil {
+		for _, preview := range previews {
+			_ = a.syncManagedDNS(r.Context(), teamID, "application_preview", preview.ID, nil, nil)
+		}
+	}
+	_ = a.syncManagedDNS(r.Context(), teamID, "application", id, nil, nil)
 	if err := a.Store.DeleteApplication(r.Context(), teamID, id); err != nil {
 		mapStoreErr(w, err)
 		return
@@ -835,6 +842,7 @@ func (a *API) handleUpdateDatabase(w http.ResponseWriter, r *http.Request) {
 		Image         *string         `json:"image"`
 		IsPublic      *bool           `json:"is_public"`
 		PublicPort    json.RawMessage `json:"public_port"`
+		EnableSSL     *bool           `json:"enable_ssl"`
 		DestinationID *string         `json:"destination_id"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
@@ -847,6 +855,7 @@ func (a *API) handleUpdateDatabase(w http.ResponseWriter, r *http.Request) {
 		Description: body.Description,
 		Image:       body.Image,
 		IsPublic:    body.IsPublic,
+		EnableSSL:   body.EnableSSL,
 	}
 	if body.PublicPort != nil {
 		raw := bytes.TrimSpace(body.PublicPort)
@@ -865,6 +874,17 @@ func (a *API) handleUpdateDatabase(w http.ResponseWriter, r *http.Request) {
 			}
 			pp := &p
 			in.PublicPort = &pp
+		}
+	}
+	if body.EnableSSL != nil && *body.EnableSSL {
+		current, err := a.Store.GetDatabase(r.Context(), teamID, id)
+		if err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+		if !database.SSLSupported(current.Engine) {
+			writeError(w, http.StatusBadRequest, "ssl is not supported for "+current.Engine)
+			return
 		}
 	}
 	if body.DestinationID != nil {
@@ -890,6 +910,9 @@ func (a *API) handleUpdateDatabase(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		mapStoreErr(w, err)
 		return
+	}
+	if body.EnableSSL != nil && !*body.EnableSSL {
+		_ = a.Store.DeleteResourceCertificate(r.Context(), teamID, "database", id)
 	}
 	writeJSON(w, http.StatusOK, db)
 }
@@ -942,7 +965,20 @@ func (a *API) handleStartDatabase(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := database.Start(client, db, dest.Network, password, envMap); err != nil {
+	var tlsMat *database.TLSMaterial
+	if db.EnableSSL {
+		tlsMat, err = a.prepareDatabaseTLS(r.Context(), teamID, dest.ServerID, db)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+	mounts, err := a.databaseVolumeMounts(r, client, teamID, db)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := database.Start(client, db, dest.Network, password, envMap, tlsMat, mounts); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -1035,6 +1071,9 @@ func (a *API) handleDeleteDatabase(w http.ResponseWriter, r *http.Request) {
 				_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", cname)
 				if opts.volumes() {
 					_ = database.RemoveData(client, id.String())
+				}
+				if opts.configurations() {
+					_ = database.RemoveTLS(client, id.String())
 				}
 				if opts.networks() {
 					removeResourceScopedNetwork(client, id.String())
