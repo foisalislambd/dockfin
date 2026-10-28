@@ -297,6 +297,22 @@ func (p *Pipeline) fanOutAdditionalDestinations(ctx context.Context, primaryClie
 	return nil
 }
 
+func (p *Pipeline) envScopeIDs(ctx context.Context, req Request) (projectID, envID, serverID *uuid.UUID) {
+	if req.App == nil {
+		return nil, nil, nil
+	}
+	envID = &req.App.EnvironmentID
+	if req.Destination != nil {
+		serverID = &req.Destination.ServerID
+	}
+	if p.Store != nil {
+		if env, err := p.Store.GetEnvironment(ctx, req.TeamID, req.App.EnvironmentID); err == nil {
+			projectID = &env.ProjectID
+		}
+	}
+	return projectID, envID, serverID
+}
+
 func (p *Pipeline) runtimeEnvArgs(ctx context.Context, req Request) ([]string, error) {
 	if p.Store == nil {
 		return nil, nil
@@ -887,6 +903,8 @@ func (p *Pipeline) dockerBuildtimeEnv(ctx context.Context, req Request) (keys []
 	if req.PullRequestID > 0 {
 		apply(true)
 	}
+	projectID, envID, serverID := p.envScopeIDs(ctx, req)
+	p.Store.ApplySharedRefs(ctx, req.TeamID, projectID, envID, serverID, vals, literal)
 	if err := p.Store.ApplyRemoteSecrets(ctx, req.TeamID, "application", req.App.ID, vals, literal); err != nil {
 		return nil, nil, err
 	}

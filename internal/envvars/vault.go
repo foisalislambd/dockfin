@@ -64,3 +64,12 @@ func SubstituteVault(value string, secrets map[string]string) string {
 func ValidEnvKey(key string) bool {
 	return envKey.MatchString(key)
 }
+
+// vaultEnvKey is a name that is both a shell env key and a {{vault.KEY}} token.
+// Dots are valid in env names but cannot be written inside {{vault.KEY}}.
+var vaultEnvKey = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// ValidVaultEnvKey reports whether key can be imported as {{vault.KEY}}.
+func ValidVaultEnvKey(key string) bool {
+	return vaultEnvKey.MatchString(key)
+}

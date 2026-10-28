@@ -30,4 +30,7 @@ func TestValidEnvKey(t *testing.T) {
 	if ValidEnvKey("db-password") || ValidEnvKey("1ABC") || ValidEnvKey("") {
 		t.Fatal("expected invalid keys")
 	}
+	if !ValidVaultEnvKey("DB_PASSWORD") || ValidVaultEnvKey("_A.B") || ValidVaultEnvKey("1ABC") {
+		t.Fatal("vault env key must be expressible as {{vault.KEY}}")
+	}
 }

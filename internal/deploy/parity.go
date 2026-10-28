@@ -281,13 +281,21 @@ func (p *Pipeline) dockerBuildSecretArgs(ctx context.Context, req Request) (flag
 	}
 	values := map[string]string{}
 	literal := map[string]bool{}
-	for _, v := range vars {
-		if !v.IsBuildSecret || strings.TrimSpace(v.Key) == "" {
-			continue
+	apply := func(previewOnly bool) {
+		for _, v := range vars {
+			if !v.IsBuildSecret || v.IsPreview != previewOnly || strings.TrimSpace(v.Key) == "" {
+				continue
+			}
+			values[v.Key] = v.Value
+			literal[v.Key] = v.IsLiteral
 		}
-		values[v.Key] = v.Value
-		literal[v.Key] = v.IsLiteral
 	}
+	apply(false)
+	if req.PullRequestID > 0 {
+		apply(true)
+	}
+	projectID, envID, serverID := p.envScopeIDs(ctx, req)
+	p.Store.ApplySharedRefs(ctx, req.TeamID, projectID, envID, serverID, values, literal)
 	if err := p.Store.ApplyRemoteSecrets(ctx, req.TeamID, "application", req.App.ID, values, literal); err != nil {
 		return nil, nil, err
 	}

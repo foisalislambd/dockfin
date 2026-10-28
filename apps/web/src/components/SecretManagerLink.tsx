@@ -122,18 +122,15 @@ export function SecretManagerLink({ resourceType, resourceId }: Props) {
   })
 
   function currentSettings(): SecretManagerSettings {
-    if (provider === 'doppler') return { project: settings.project || '', config: settings.config || '' }
-    if (provider === 'infisical') {
-      return {
-        project_id: settings.project_id || '',
-        environment: settings.environment || '',
-        secret_path: settings.secret_path || '/',
-      }
-    }
-    return { mount: settings.mount || 'secret', path: settings.path || '' }
+    return scopedSettings(provider, settings)
   }
 
   const list = tokens.data?.integration_tokens || []
+  const formDirty =
+    !link.data ||
+    tokenId !== link.data.integration_token_id ||
+    JSON.stringify(currentSettings()) !==
+      JSON.stringify(scopedSettings(link.data.provider, { ...emptySettings(), ...link.data.settings }))
 
   return (
     <section className="panel-card space-y-3 p-4">
@@ -145,7 +142,9 @@ export function SecretManagerLink({ resourceType, resourceId }: Props) {
         </p>
       </div>
 
-      {list.length === 0 ? (
+      {tokens.isLoading ? (
+        <p className="text-sm text-gray-500">Loading tokens…</p>
+      ) : list.length === 0 ? (
         <p className="text-sm text-gray-600 dark:text-gray-300">
           No tokens yet.{' '}
           <Link to="/security" search={{ tab: 'secret-managers' }} className="text-brand-600 hover:underline dark:text-brand-400">
@@ -209,7 +208,7 @@ export function SecretManagerLink({ resourceType, resourceId }: Props) {
             </Btn>
             {link.data ? (
               <>
-                <Btn disabled={importAll.isPending} onClick={() => importAll.mutate()}>
+                <Btn disabled={importAll.isPending || formDirty} onClick={() => importAll.mutate()}>
                   Import missing
                 </Btn>
                 <Btn disabled={remove.isPending} onClick={() => remove.mutate()}>
@@ -233,9 +232,13 @@ export function SecretManagerLink({ resourceType, resourceId }: Props) {
                 {keys.map((key) => (
                   <li key={key} className="flex items-center justify-between gap-2 rounded-md px-2 py-1 hover:bg-gray-50 dark:hover:bg-white/5">
                     <code className="text-xs">{key}</code>
-                    <Btn disabled={addRef.isPending} onClick={() => addRef.mutate(key)}>
-                      Add {'{{vault.' + key + '}}'}
-                    </Btn>
+                    {/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) ? (
+                      <Btn disabled={addRef.isPending} onClick={() => addRef.mutate(key)}>
+                        Add {'{{vault.' + key + '}}'}
+                      </Btn>
+                    ) : (
+                      <span className="text-xs text-gray-400">Not a valid env name</span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -245,6 +248,19 @@ export function SecretManagerLink({ resourceType, resourceId }: Props) {
       )}
     </section>
   )
+}
+
+function scopedSettings(provider: string, raw: SecretManagerSettings): SecretManagerSettings {
+  if (provider === 'doppler') return { project: raw.project || '', config: raw.config || '' }
+  if (provider === 'infisical') {
+    return {
+      project_id: raw.project_id || '',
+      environment: raw.environment || '',
+      secret_path: raw.secret_path || '/',
+    }
+  }
+  if (provider === 'vault') return { mount: raw.mount || 'secret', path: raw.path || '' }
+  return {}
 }
 
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {

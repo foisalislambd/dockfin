@@ -1395,6 +1395,8 @@ func FormatEnvFile(env map[string]string) string {
 	var b strings.Builder
 	for _, k := range keys {
 		v := env[k]
+		// Compose expands $VAR inside .env values. $$ is a literal dollar.
+		v = strings.ReplaceAll(v, "$", "$$")
 		if strings.ContainsAny(v, "\n\r") {
 			v = strings.ReplaceAll(v, `\`, `\\`)
 			v = strings.ReplaceAll(v, `"`, `\"`)

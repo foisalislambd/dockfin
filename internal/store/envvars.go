@@ -192,49 +192,7 @@ func (s *Store) resolvedEnvMap(ctx context.Context, teamID uuid.UUID, resourceTy
 	if err != nil {
 		return nil, err
 	}
-	scopes := map[string]map[string]string{
-		"team":        {},
-		"project":     {},
-		"environment": {},
-		"server":      {},
-	}
-	loadShared := func(scopeType string, scopeID *uuid.UUID) error {
-		q := `SELECT key, value_enc FROM shared_environment_variables WHERE team_id=$1 AND scope_type=$2`
-		args := []any{teamID, scopeType}
-		if scopeID == nil {
-			q += ` AND scope_id IS NULL`
-		} else {
-			q += ` AND scope_id=$3`
-			args = append(args, *scopeID)
-		}
-		rows, err := s.Pool.Query(ctx, q, args...)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var key, enc string
-			if err := rows.Scan(&key, &enc); err != nil {
-				return err
-			}
-			plain, err := s.Box.DecryptString(enc)
-			if err != nil {
-				return err
-			}
-			scopes[scopeType][key] = plain
-		}
-		return rows.Err()
-	}
-	_ = loadShared("team", nil)
-	if projectID != nil {
-		_ = loadShared("project", projectID)
-	}
-	if envID != nil {
-		_ = loadShared("environment", envID)
-	}
-	if serverID != nil {
-		_ = loadShared("server", serverID)
-	}
+	scopes := s.sharedScopes(ctx, teamID, projectID, envID, serverID)
 
 	out := map[string]string{}
 	literal := map[string]bool{}
@@ -263,6 +221,68 @@ func (s *Store) resolvedEnvMap(ctx context.Context, teamID uuid.UUID, resourceTy
 		return nil, err
 	}
 	return out, nil
+}
+
+// ApplySharedRefs replaces {{team.KEY}} / {{project.KEY}} / {{environment.KEY}} / {{server.KEY}}.
+// Literal keys are left unchanged. A shared value may itself be {{vault.KEY}}; callers
+// resolve remote secrets after this so that reference is expanded once.
+func (s *Store) ApplySharedRefs(ctx context.Context, teamID uuid.UUID, projectID, envID, serverID *uuid.UUID, values map[string]string, literal map[string]bool) {
+	scopes := s.sharedScopes(ctx, teamID, projectID, envID, serverID)
+	for key, value := range values {
+		if literal[key] {
+			continue
+		}
+		values[key] = envvars.Resolve(value, scopes)
+	}
+}
+
+func (s *Store) sharedScopes(ctx context.Context, teamID uuid.UUID, projectID, envID, serverID *uuid.UUID) map[string]map[string]string {
+	scopes := map[string]map[string]string{
+		"team":        {},
+		"project":     {},
+		"environment": {},
+		"server":      {},
+	}
+	load := func(scopeType string, scopeID *uuid.UUID) {
+		if s.Pool == nil {
+			return
+		}
+		q := `SELECT key, value_enc FROM shared_environment_variables WHERE team_id=$1 AND scope_type=$2`
+		args := []any{teamID, scopeType}
+		if scopeID == nil {
+			q += ` AND scope_id IS NULL`
+		} else {
+			q += ` AND scope_id=$3`
+			args = append(args, *scopeID)
+		}
+		rows, err := s.Pool.Query(ctx, q, args...)
+		if err != nil {
+			return
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var key, enc string
+			if err := rows.Scan(&key, &enc); err != nil {
+				return
+			}
+			plain, err := s.Box.DecryptString(enc)
+			if err != nil {
+				return
+			}
+			scopes[scopeType][key] = plain
+		}
+	}
+	load("team", nil)
+	if projectID != nil {
+		load("project", projectID)
+	}
+	if envID != nil {
+		load("environment", envID)
+	}
+	if serverID != nil {
+		load("server", serverID)
+	}
+	return scopes
 }
 
 // ApplyRemoteSecrets replaces {{vault.KEY}} in values. Literal keys are left unchanged.

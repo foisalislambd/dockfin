@@ -322,7 +322,7 @@ func (a *API) handleImportSecretManager(w http.ResponseWriter, r *http.Request) 
 	already := []string{}
 	names := secretKeyNames(values)
 	for _, key := range names {
-		if !envvars.ValidEnvKey(key) {
+		if !envvars.ValidVaultEnvKey(key) {
 			skipped = append(skipped, key)
 			continue
 		}

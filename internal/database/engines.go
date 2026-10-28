@@ -69,8 +69,10 @@ func Start(client *ssh.Client, db *store.Database, network, password string, ext
 		"--network", network,
 	}
 	args = append(args, VolumeArgs(db.ID.String(), db.Engine)...)
-	args = append(args, engineEnv(db.Engine, password)...)
+	// User env first, then engine credentials. Docker keeps the last -e, so a
+	// remote secret cannot replace the password Dockfin stored for this database.
 	args = append(args, extraEnv...)
+	args = append(args, engineEnv(db.Engine, password)...)
 	if db.IsPublic && db.PublicPort != nil {
 		args = append(args, "-p", fmt.Sprintf("%d:%d", *db.PublicPort, defaultPort(db.Engine)))
 	}

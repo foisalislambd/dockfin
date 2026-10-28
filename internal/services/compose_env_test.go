@@ -5,6 +5,13 @@ import (
 	"testing"
 )
 
+func TestFormatEnvFileEscapesDollar(t *testing.T) {
+	got := FormatEnvFile(map[string]string{"TOKEN": `pa$$word`})
+	if got != "TOKEN=pa$$$$word\n" {
+		t.Fatalf("env file: %q", got)
+	}
+}
+
 func TestComposeEnvForUIGlobalUSDStyle(t *testing.T) {
 	raw := `
 services:
