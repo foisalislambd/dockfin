@@ -47,7 +47,7 @@ func VolumeArgs(dbID, engine string) []string {
 }
 
 // Start launches a managed database container on the remote host with a durable bind mount.
-func Start(client *ssh.Client, db *store.Database, network, password string) error {
+func Start(client *ssh.Client, db *store.Database, network, password string, extraEnv []string) error {
 	if err := sshx.EnsureNetwork(client, network); err != nil {
 		return err
 	}
@@ -70,6 +70,7 @@ func Start(client *ssh.Client, db *store.Database, network, password string) err
 	}
 	args = append(args, VolumeArgs(db.ID.String(), db.Engine)...)
 	args = append(args, engineEnv(db.Engine, password)...)
+	args = append(args, extraEnv...)
 	if db.IsPublic && db.PublicPort != nil {
 		args = append(args, "-p", fmt.Sprintf("%d:%d", *db.PublicPort, defaultPort(db.Engine)))
 	}

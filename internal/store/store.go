@@ -22,6 +22,9 @@ var ErrNotEmpty = errors.New("not empty")
 type Store struct {
 	Pool *pgxpool.Pool
 	Box  *crypto.Box
+	// ResolveRemoteSecrets fetches {{vault.KEY}} values at deploy time.
+	// Secret values are not persisted. Nil means references cannot be resolved.
+	ResolveRemoteSecrets func(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID) (map[string]string, error)
 }
 
 func New(pool *pgxpool.Pool, box *crypto.Box) *Store {

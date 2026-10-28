@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -135,7 +136,7 @@ func networkAliasArgs(app *store.Application, network string) []string {
 	return args
 }
 
-func (p *Pipeline) dockerRunBaseArgs(ctx context.Context, client *ssh.Client, req Request) []string {
+func (p *Pipeline) dockerRunBaseArgs(ctx context.Context, client *ssh.Client, req Request) ([]string, error) {
 	args := []string{
 		"--restart", restartPolicy(req.App),
 		"--network", req.Destination.Network,
@@ -146,9 +147,13 @@ func (p *Pipeline) dockerRunBaseArgs(ctx context.Context, client *ssh.Client, re
 	args = append(args, p.gpuArgs(req.App)...)
 	args = append(args, p.stopTimeoutArgs(req.App)...)
 	args = append(args, p.volumeArgs(ctx, client, req)...)
-	args = append(args, p.runtimeEnvArgs(ctx, req)...)
+	envArgs, err := p.runtimeEnvArgs(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	args = append(args, envArgs...)
 	args = append(args, p.customDockerRunArgs(req.App)...)
-	return args
+	return args, nil
 }
 
 func (p *Pipeline) shouldSkipRebuild(client *ssh.Client, req Request, imageTag string) bool {
@@ -266,23 +271,37 @@ func sanitizeContainerName(s string) string {
 	return out
 }
 
-func (p *Pipeline) dockerBuildSecretArgs(ctx context.Context, req Request) (flags []string, exports []string) {
+func (p *Pipeline) dockerBuildSecretArgs(ctx context.Context, req Request) (flags []string, exports []string, err error) {
 	if req.App == nil || !req.App.UseBuildSecrets || p.Store == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	vars, err := p.Store.ListEnvVars(ctx, req.TeamID, "application", req.App.ID, true)
 	if err != nil {
-		return nil, nil
+		return nil, nil, err
 	}
+	values := map[string]string{}
+	literal := map[string]bool{}
 	for _, v := range vars {
 		if !v.IsBuildSecret || strings.TrimSpace(v.Key) == "" {
 			continue
 		}
-		envName := "DOCKFIN_SECRET_" + v.Key
-		exports = append(exports, fmt.Sprintf("export %s=%s", envName, shellSingleQuote(v.Value)))
-		flags = append(flags, "--secret", fmt.Sprintf("id=%s,env=%s", v.Key, envName))
+		values[v.Key] = v.Value
+		literal[v.Key] = v.IsLiteral
 	}
-	return flags, exports
+	if err := p.Store.ApplyRemoteSecrets(ctx, req.TeamID, "application", req.App.ID, values, literal); err != nil {
+		return nil, nil, err
+	}
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		envName := "DOCKFIN_SECRET_" + key
+		exports = append(exports, fmt.Sprintf("export %s=%s", envName, shellSingleQuote(values[key])))
+		flags = append(flags, "--secret", fmt.Sprintf("id=%s,env=%s", key, envName))
+	}
+	return flags, exports, nil
 }
 
 func (p *Pipeline) isSwarmDeploy(req Request) bool {
@@ -342,7 +361,11 @@ func (p *Pipeline) runSwarmService(ctx context.Context, client *ssh.Client, req 
 		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,destination=%s", host, contPath))
 	}
 	args = append(args, p.limitArgs(req.App)...)
-	args = append(args, p.runtimeEnvArgs(ctx, req)...)
+	envArgs, err := p.runtimeEnvArgs(ctx, req)
+	if err != nil {
+		return err
+	}
+	args = append(args, envArgs...)
 	labelArgs := p.proxyLabelArgsReq(req)
 	for i := 0; i < len(labelArgs); i++ {
 		if labelArgs[i] == "-l" && i+1 < len(labelArgs) {

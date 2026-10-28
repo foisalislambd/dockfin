@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -205,6 +206,14 @@ func (s *Store) copyResourceExtras(ctx context.Context, teamID uuid.UUID, resour
 	}
 	for _, tag := range tags {
 		_ = s.AttachTag(ctx, teamID, tag.ID, resourceType, toID)
+	}
+
+	if link, err := s.GetSecretManagerLink(ctx, teamID, resourceType, fromID); err == nil {
+		if _, err := s.UpsertSecretManagerLink(ctx, teamID, resourceType, toID, link.IntegrationTokenID, link.Settings); err != nil {
+			return err
+		}
+	} else if !errors.Is(err, ErrNotFound) {
+		return err
 	}
 
 	if resourceType == "application" || resourceType == "database" || resourceType == "service" {

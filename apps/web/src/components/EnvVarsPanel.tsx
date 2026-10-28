@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Eye, EyeOff } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { api, type EnvVar } from '../lib/api'
+import { SecretManagerLink } from './SecretManagerLink'
 import { emptyUserEnvVars } from '../lib/env-readiness'
 import { useConfirm } from './ConfirmDialog'
 import { InfoHint } from './ui/forms'
@@ -95,6 +96,7 @@ export function EnvVarsPanel({
 
   return (
     <div className="space-y-4">
+      <SecretManagerLink resourceType={resourceType} resourceId={resourceId} />
       <div>
         {title ? (
           <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">{title}</h2>

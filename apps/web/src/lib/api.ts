@@ -329,6 +329,53 @@ export const api = {
   deleteCloudInitScript: (id: string) =>
     request<{ status: string }>(`/api/v1/cloud-init-scripts/${id}`, { method: 'DELETE' }),
 
+  integrationTokens: () =>
+    request<{ integration_tokens: IntegrationToken[] }>('/api/v1/integration-tokens'),
+  createIntegrationToken: (body: {
+    provider: 'doppler' | 'infisical' | 'vault'
+    name: string
+    token: string
+    metadata?: IntegrationTokenMetadata
+    validate?: boolean
+  }) =>
+    request<IntegrationToken>('/api/v1/integration-tokens', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  deleteIntegrationToken: (id: string) =>
+    request<{ status: string }>(`/api/v1/integration-tokens/${id}`, { method: 'DELETE' }),
+  validateIntegrationToken: (id: string) =>
+    request<{ status: string }>(`/api/v1/integration-tokens/${id}/validate`, { method: 'POST' }),
+  integrationTokenKeys: (id: string, settings: SecretManagerSettings) =>
+    request<{ keys: string[] }>(`/api/v1/integration-tokens/${id}/keys`, {
+      method: 'POST',
+      body: JSON.stringify({ settings }),
+    }),
+  secretManager: (resourceType: string, resourceId: string) =>
+    request<SecretManagerLink>(
+      `/api/v1/secret-manager?resource_type=${encodeURIComponent(resourceType)}&resource_id=${resourceId}`,
+    ),
+  saveSecretManager: (body: {
+    resource_type: string
+    resource_id: string
+    integration_token_id: string
+    settings: SecretManagerSettings
+  }) =>
+    request<SecretManagerLink>('/api/v1/secret-manager', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  deleteSecretManager: (resourceType: string, resourceId: string) =>
+    request<{ status: string }>(
+      `/api/v1/secret-manager?resource_type=${encodeURIComponent(resourceType)}&resource_id=${resourceId}`,
+      { method: 'DELETE' },
+    ),
+  importSecretManager: (resourceType: string, resourceId: string) =>
+    request<{ imported: string[]; skipped: string[]; existing: string[] }>('/api/v1/secret-manager/import', {
+      method: 'POST',
+      body: JSON.stringify({ resource_type: resourceType, resource_id: resourceId }),
+    }),
+
   projects: () => request<{ projects: Project[] }>('/api/v1/projects'),
   getProject: (id: string) => request<Project>(`/api/v1/projects/${id}`),
   createProject: (name: string, description = '') =>
@@ -1235,6 +1282,40 @@ export type Key = {
   in_use?: boolean
   created_at?: string
 }
+export type IntegrationTokenMetadata = {
+  base_url?: string
+  client_id?: string
+  namespace?: string
+}
+
+export type SecretManagerSettings = {
+  project?: string
+  config?: string
+  project_id?: string
+  environment?: string
+  secret_path?: string
+  mount?: string
+  path?: string
+}
+
+export type IntegrationToken = {
+  id: string
+  provider: 'doppler' | 'infisical' | 'vault' | string
+  name: string
+  metadata: IntegrationTokenMetadata
+  created_at: string
+}
+
+export type SecretManagerLink = {
+  id: string
+  resource_type: string
+  resource_id: string
+  integration_token_id: string
+  provider: string
+  token_name: string
+  settings: SecretManagerSettings
+}
+
 export type CloudProviderToken = {
   id: string
   provider: 'hetzner' | 'digitalocean' | 'vultr' | string

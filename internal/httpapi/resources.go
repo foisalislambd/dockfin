@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -936,7 +937,12 @@ func (a *API) handleStartDatabase(w http.ResponseWriter, r *http.Request) {
 			password = creds["password"]
 		}
 	}
-	if err := database.Start(client, db, dest.Network, password); err != nil {
+	envMap, err := a.databaseEnv(r, teamID, db, dest.ServerID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := database.Start(client, db, dest.Network, password, envMap); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -945,6 +951,28 @@ func (a *API) handleStartDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "running"})
+}
+
+func (a *API) databaseEnv(r *http.Request, teamID uuid.UUID, db *store.Database, serverID uuid.UUID) ([]string, error) {
+	var projectID *uuid.UUID
+	envID := db.EnvironmentID
+	if env, err := a.Store.GetEnvironment(r.Context(), teamID, db.EnvironmentID); err == nil {
+		projectID = &env.ProjectID
+	}
+	m, err := a.Store.ResolvedEnvMap(r.Context(), teamID, "database", db.ID, projectID, &envID, &serverID)
+	if err != nil {
+		return nil, err
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	args := make([]string, 0, len(keys)*2)
+	for _, k := range keys {
+		args = append(args, "-e", k+"="+m[k])
+	}
+	return args, nil
 }
 
 func (a *API) handleStopDatabase(w http.ResponseWriter, r *http.Request) {

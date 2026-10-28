@@ -3,11 +3,12 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/envvars"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -236,6 +237,7 @@ func (s *Store) resolvedEnvMap(ctx context.Context, teamID uuid.UUID, resourceTy
 	}
 
 	out := map[string]string{}
+	literal := map[string]bool{}
 	apply := func(previewOnly bool) {
 		for _, v := range vars {
 			if v.IsPreview != previewOnly {
@@ -246,8 +248,10 @@ func (s *Store) resolvedEnvMap(ctx context.Context, teamID uuid.UUID, resourceTy
 			}
 			if v.IsLiteral {
 				out[v.Key] = v.Value
+				literal[v.Key] = true
 				continue
 			}
+			literal[v.Key] = false
 			out[v.Key] = envvars.Resolve(v.Value, scopes)
 		}
 	}
@@ -255,7 +259,56 @@ func (s *Store) resolvedEnvMap(ctx context.Context, teamID uuid.UUID, resourceTy
 	if forPreview {
 		apply(true)
 	}
+	if err := s.ApplyRemoteSecrets(ctx, teamID, resourceType, resourceID, out, literal); err != nil {
+		return nil, err
+	}
 	return out, nil
+}
+
+// ApplyRemoteSecrets replaces {{vault.KEY}} in values. Literal keys are left unchanged.
+// Nothing is fetched when no reference is present. Missing keys fail the caller
+// so a placeholder is never written into a container.
+func (s *Store) ApplyRemoteSecrets(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID, values map[string]string, literal map[string]bool) error {
+	needs := false
+	for key, value := range values {
+		if literal[key] || !envvars.ContainsVaultRef(value) {
+			continue
+		}
+		needs = true
+		break
+	}
+	if !needs {
+		return nil
+	}
+	if s.ResolveRemoteSecrets == nil {
+		return fmt.Errorf("environment references {{vault.*}} but secret resolution is not configured")
+	}
+	secrets, err := s.ResolveRemoteSecrets(ctx, teamID, resourceType, resourceID)
+	if errors.Is(err, ErrNotFound) {
+		return fmt.Errorf("environment references {{vault.*}} but no secret manager is linked")
+	}
+	if err != nil {
+		return err
+	}
+	var missing []string
+	for key, value := range values {
+		if literal[key] {
+			continue
+		}
+		for _, name := range envvars.MissingVaultKeys(value, secrets) {
+			missing = append(missing, key+"→"+name)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("remote secret keys not found: %s", strings.Join(missing, ", "))
+	}
+	for key, value := range values {
+		if literal[key] || !envvars.ContainsVaultRef(value) {
+			continue
+		}
+		values[key] = envvars.SubstituteVault(value, secrets)
+	}
+	return nil
 }
 
 func (s *Store) UpsertSharedEnv(ctx context.Context, teamID uuid.UUID, scopeType string, scopeID *uuid.UUID, key, value string, literal bool) (*SharedEnvVar, error) {

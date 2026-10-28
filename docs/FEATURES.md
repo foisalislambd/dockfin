@@ -179,6 +179,12 @@ carries a `warnings` array.
 - [x] `GET /databases/{id}/metrics` (docker stats for `dockfin-db-{uuid}`)
 - [x] Database Metrics tab shows container stats above host metrics
 
+## Secret managers
+- [x] Team integration tokens for Doppler, Infisical, and HashiCorp Vault (token encrypted, never returned by the API)
+- [x] One secret source per application, database, or service (`{{vault.KEY}}` references; values fetched only at deploy)
+- [x] Key-name browser and import of missing references (invalid remote names are skipped, values are not stored)
+- [x] Resolution on application runtime/build/compose env, service `.env`, and database container env
+
 ## Polish
 - [x] Command palette (⌘K)
 - [x] CLI `dfin` (deploy/logs/apps/servers)

@@ -297,9 +297,9 @@ func (p *Pipeline) fanOutAdditionalDestinations(ctx context.Context, primaryClie
 	return nil
 }
 
-func (p *Pipeline) runtimeEnvArgs(ctx context.Context, req Request) []string {
+func (p *Pipeline) runtimeEnvArgs(ctx context.Context, req Request) ([]string, error) {
 	if p.Store == nil {
-		return nil
+		return nil, nil
 	}
 	var projectID, envID, serverID *uuid.UUID
 	envID = &req.App.EnvironmentID
@@ -314,14 +314,17 @@ func (p *Pipeline) runtimeEnvArgs(ctx context.Context, req Request) []string {
 	} else {
 		m, err = p.Store.ResolvedEnvMap(ctx, req.TeamID, "application", req.App.ID, projectID, envID, serverID)
 	}
-	if err != nil || len(m) == 0 {
-		return nil
+	if err != nil {
+		return nil, err
+	}
+	if len(m) == 0 {
+		return nil, nil
 	}
 	args := make([]string, 0, len(m)*2)
 	for k, v := range m {
 		args = append(args, "-e", k+"="+v)
 	}
-	return args
+	return args, nil
 }
 
 func (p *Pipeline) limitArgs(app *store.Application) []string {
@@ -733,7 +736,10 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 		return err
 	}
 
-	buildKeys, buildVals := p.dockerBuildtimeEnv(ctx, req)
+	buildKeys, buildVals, err := p.dockerBuildtimeEnv(ctx, req)
+	if err != nil {
+		return err
+	}
 	dockerfilePath := ""
 	inline := strings.TrimSpace(req.App.Dockerfile)
 	if inline != "" {
@@ -820,7 +826,10 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 			buildArgs = append(buildArgs, "--build-arg", "SOURCE_COMMIT="+commit)
 		}
 	}
-	secretFlags, secretExports := p.dockerBuildSecretArgs(ctx, req)
+	secretFlags, secretExports, err := p.dockerBuildSecretArgs(ctx, req)
+	if err != nil {
+		return err
+	}
 	if len(secretFlags) > 0 {
 		buildArgs = append(buildArgs, secretFlags...)
 	}
@@ -852,15 +861,16 @@ func (p *Pipeline) deployDockerfile(ctx context.Context, buildClient, deployClie
 // dockerBuildtimeEnv returns sorted build-time env keys and their values.
 // Production builds exclude is_preview vars; PR preview builds merge production
 // then overlay preview overrides (preview wins).
-func (p *Pipeline) dockerBuildtimeEnv(ctx context.Context, req Request) (keys []string, vals map[string]string) {
+func (p *Pipeline) dockerBuildtimeEnv(ctx context.Context, req Request) (keys []string, vals map[string]string, err error) {
 	vals = map[string]string{}
 	if p.Store == nil || req.App == nil {
-		return nil, vals
+		return nil, vals, nil
 	}
 	vars, err := p.Store.ListEnvVars(ctx, req.TeamID, "application", req.App.ID, true)
 	if err != nil || len(vars) == 0 {
-		return nil, vals
+		return nil, vals, err
 	}
+	literal := map[string]bool{}
 	apply := func(previewOnly bool) {
 		for _, v := range vars {
 			if !v.IsBuildtime || v.IsPreview != previewOnly {
@@ -870,17 +880,21 @@ func (p *Pipeline) dockerBuildtimeEnv(ctx context.Context, req Request) (keys []
 				continue
 			}
 			vals[v.Key] = v.Value
+			literal[v.Key] = v.IsLiteral
 		}
 	}
 	apply(false)
 	if req.PullRequestID > 0 {
 		apply(true)
 	}
+	if err := p.Store.ApplyRemoteSecrets(ctx, req.TeamID, "application", req.App.ID, vals, literal); err != nil {
+		return nil, nil, err
+	}
 	for k := range vals {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	return keys, vals
+	return keys, vals, nil
 }
 
 func (p *Pipeline) runBuiltImage(ctx context.Context, client *ssh.Client, req Request, name, imageTag string) error {
@@ -906,11 +920,15 @@ func (p *Pipeline) runWithHealthCutover(ctx context.Context, client *ssh.Client,
 
 	// Omit Traefik labels on the candidate so production traffic stays on the old
 	// container until health passes (avoids duplicate Host routers).
+	baseArgs, err := p.dockerRunBaseArgs(ctx, client, req)
+	if err != nil {
+		return err
+	}
 	args := []string{
 		"docker", "run", "-d",
 		"--name", candidate,
 	}
-	args = append(args, p.dockerRunBaseArgs(ctx, client, req)...)
+	args = append(args, baseArgs...)
 	args = append(args, image)
 
 	_, errOut, err := sshx.RunArgs(client, args...)
@@ -930,11 +948,16 @@ func (p *Pipeline) runWithHealthCutover(ctx context.Context, client *ssh.Client,
 	p.log("run", "Candidate healthy — cutting over with proxy labels")
 	// Production needs Traefik labels; rename cannot add them, so recreate under
 	// the final name then drop the unlabeled candidate.
+	finalBase, err := p.dockerRunBaseArgs(ctx, client, req)
+	if err != nil {
+		_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", candidate)
+		return err
+	}
 	finalArgs := []string{
 		"docker", "run", "-d",
 		"--name", name + "-cutover",
 	}
-	finalArgs = append(finalArgs, p.dockerRunBaseArgs(ctx, client, req)...)
+	finalArgs = append(finalArgs, finalBase...)
 	finalArgs = append(finalArgs, p.proxyLabelArgsReq(req)...)
 	finalArgs = append(finalArgs, image)
 
@@ -1152,7 +1175,11 @@ func (p *Pipeline) deployRailpack(ctx context.Context, buildClient, deployClient
 		return err
 	}
 	p.log("build", "Building with railpack CLI")
-	envFlags := p.railpackEnvFlags(ctx, req) + railpackCommandEnv(req.App)
+	envFlags, err := p.railpackEnvFlags(ctx, req)
+	if err != nil {
+		return err
+	}
+	envFlags += railpackCommandEnv(req.App)
 	noCache := ""
 	if req.ForceRebuild || (req.App != nil && req.App.IsDisableBuildCache) {
 		noCache = " --no-cache"
@@ -1210,10 +1237,13 @@ command -v %s >/dev/null
 	return nil
 }
 
-func (p *Pipeline) railpackEnvFlags(ctx context.Context, req Request) string {
-	envMap := p.composeExistingEnv(ctx, req)
+func (p *Pipeline) railpackEnvFlags(ctx context.Context, req Request) (string, error) {
+	envMap, err := p.composeExistingEnv(ctx, req)
+	if err != nil {
+		return "", err
+	}
 	if len(envMap) == 0 {
-		return ""
+		return "", nil
 	}
 	keys := make([]string, 0, len(envMap))
 	for k := range envMap {
@@ -1230,7 +1260,7 @@ func (p *Pipeline) railpackEnvFlags(ctx context.Context, req Request) string {
 		b.WriteString(" --env ")
 		b.WriteString(shellSingleQuote(k + "=" + v))
 	}
-	return b.String()
+	return b.String(), nil
 }
 
 func (p *Pipeline) deployCompose(ctx context.Context, client *ssh.Client, req Request) error {
@@ -1511,7 +1541,11 @@ func (p *Pipeline) adaptComposeForDockfin(ctx context.Context, client *ssh.Clien
 		opts.Network = req.Destination.Network
 	}
 	if p.Store != nil {
-		opts.ExistingEnv = p.composeExistingEnv(ctx, req)
+		envMap, err := p.composeExistingEnv(ctx, req)
+		if err != nil {
+			return "", err
+		}
+		opts.ExistingEnv = envMap
 	}
 	if user := strings.TrimSpace(req.App.HTTPBasicAuthUsername); user != "" && strings.TrimSpace(req.App.HTTPBasicAuthPasswordEnc) != "" && p.Store != nil {
 		if plain, err := p.Store.Box.DecryptString(req.App.HTTPBasicAuthPasswordEnc); err == nil && plain != "" {
@@ -1566,9 +1600,9 @@ func (p *Pipeline) adaptComposeForDockfin(ctx context.Context, client *ssh.Clien
 	return preparedPath, nil
 }
 
-func (p *Pipeline) composeExistingEnv(ctx context.Context, req Request) map[string]string {
+func (p *Pipeline) composeExistingEnv(ctx context.Context, req Request) (map[string]string, error) {
 	if p.Store == nil || req.App == nil {
-		return nil
+		return nil, nil
 	}
 	var projectID, envID, serverID *uuid.UUID
 	envID = &req.App.EnvironmentID
@@ -1588,15 +1622,18 @@ func (p *Pipeline) composeExistingEnv(ctx context.Context, req Request) map[stri
 		m, err = p.Store.ResolvedEnvMap(ctx, req.TeamID, "application", req.App.ID, projectID, envID, serverID)
 	}
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	return m
+	return m, nil
 }
 
 // writeComposeEnvFile writes Dockfin-managed vars to .env.dockfin (does not clobber repo .env).
 // Returns the remote path when a file was written, or "" when there was nothing to write.
 func (p *Pipeline) writeComposeEnvFile(ctx context.Context, client *ssh.Client, req Request, composePath string) (string, error) {
-	envMap := p.composeExistingEnv(ctx, req)
+	envMap, err := p.composeExistingEnv(ctx, req)
+	if err != nil {
+		return "", err
+	}
 	if len(envMap) == 0 {
 		return "", nil
 	}

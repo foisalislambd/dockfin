@@ -152,6 +152,22 @@ func (a *API) Router() http.Handler {
 				r.With(a.requireAdmin).Post("/{tokenID}/provision", a.handleProvisionServer)
 			})
 
+			r.Route("/integration-tokens", func(r chi.Router) {
+				r.Get("/", a.handleListIntegrationTokens)
+				r.Post("/", a.handleCreateIntegrationToken)
+				r.Patch("/{tokenID}", a.handleUpdateIntegrationToken)
+				r.Delete("/{tokenID}", a.handleDeleteIntegrationToken)
+				r.Post("/{tokenID}/validate", a.handleValidateIntegrationToken)
+				r.Post("/{tokenID}/keys", a.handleIntegrationTokenKeys)
+			})
+
+			r.Route("/secret-manager", func(r chi.Router) {
+				r.Get("/", a.handleGetSecretManagerLink)
+				r.Put("/", a.handlePutSecretManagerLink)
+				r.Delete("/", a.handleDeleteSecretManagerLink)
+				r.Post("/import", a.handleImportSecretManager)
+			})
+
 			r.Route("/cloud-init-scripts", func(r chi.Router) {
 				r.Get("/", a.handleListCloudInitScripts)
 				r.Post("/", a.handleCreateCloudInitScript)

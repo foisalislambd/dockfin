@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -15,12 +16,14 @@ import (
 	"github.com/dockfin/dockfin/internal/db"
 	"github.com/dockfin/dockfin/internal/httpapi"
 	"github.com/dockfin/dockfin/internal/scheduler"
+	"github.com/dockfin/dockfin/internal/secrets"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/dockfin/dockfin/internal/terminal"
 	"github.com/dockfin/dockfin/internal/version"
 	"github.com/dockfin/dockfin/internal/worker"
 	"github.com/dockfin/dockfin/internal/ws"
+	"github.com/google/uuid"
 )
 
 func main() {
@@ -108,6 +111,17 @@ func runServe() error {
 		return err
 	}
 	st := store.New(pool, box)
+	st.ResolveRemoteSecrets = func(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID) (map[string]string, error) {
+		mat, err := st.SecretManagerMaterial(ctx, teamID, resourceType, resourceID)
+		if err != nil {
+			return nil, err
+		}
+		var meta secrets.Metadata
+		var settings secrets.Settings
+		_ = json.Unmarshal(mat.Metadata, &meta)
+		_ = json.Unmarshal(mat.Settings, &settings)
+		return secrets.Fetch(ctx, mat.Provider, mat.Token, meta, settings)
+	}
 	sshPool := sshx.NewPool()
 	defer sshPool.Close()
 	hub := ws.NewHub()

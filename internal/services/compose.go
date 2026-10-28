@@ -1395,6 +1395,18 @@ func FormatEnvFile(env map[string]string) string {
 	var b strings.Builder
 	for _, k := range keys {
 		v := env[k]
+		if strings.ContainsAny(v, "\n\r") {
+			v = strings.ReplaceAll(v, `\`, `\\`)
+			v = strings.ReplaceAll(v, `"`, `\"`)
+			v = strings.ReplaceAll(v, "\r\n", `\n`)
+			v = strings.ReplaceAll(v, "\n", `\n`)
+			v = strings.ReplaceAll(v, "\r", `\r`)
+			b.WriteString(k)
+			b.WriteString(`="`)
+			b.WriteString(v)
+			b.WriteString("\"\n")
+			continue
+		}
 		if strings.ContainsAny(v, " \t#\"'") {
 			b.WriteString(k)
 			b.WriteByte('=')

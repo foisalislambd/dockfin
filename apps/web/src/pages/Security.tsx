@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Cloud, FileCode2, KeyRound, KeySquare } from 'lucide-react'
+import { Cloud, FileCode2, KeyRound, KeySquare, LockKeyhole } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { PanelSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { ResourceTabs, TabPanel } from '../components/ui/tabs'
@@ -14,12 +14,14 @@ import { Btn } from '../components/ui/Button'
 import { Header } from '../components/ui/Header'
 import { Input } from '../components/ui/Input'
 import { Modal } from '../components/ui/Modal'
+import { SecretManagersPanel } from './SecretManagersPanel'
 
 const TABS = [
   { id: 'private-keys', label: 'Private Keys', icon: KeyRound },
   { id: 'cloud-tokens', label: 'Cloud Tokens', icon: Cloud },
   { id: 'cloud-init', label: 'Cloud-Init Scripts', icon: FileCode2 },
   { id: 'api-tokens', label: 'API Tokens', icon: KeySquare },
+  { id: 'secret-managers', label: 'Secret Managers', icon: LockKeyhole },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -88,6 +90,11 @@ export function SecurityPage({ initialTab }: { initialTab?: TabId }) {
       {tab === 'api-tokens' && (
         <TabPanel>
           <ApiTokensPanel />
+        </TabPanel>
+      )}
+      {tab === 'secret-managers' && (
+        <TabPanel>
+          <SecretManagersPanel />
         </TabPanel>
       )}
     </div>

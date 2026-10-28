@@ -224,6 +224,10 @@ func RunDeploy(ctx context.Context, p DeployParams) error {
 		_ = p.Store.UpdateServiceStatus(ctx, id, "exited")
 		return fmt.Errorf("write compose: %w", err)
 	}
+	if err := writeServiceEnvFile(ctx, p, remoteDir); err != nil {
+		_ = p.Store.UpdateServiceStatus(ctx, id, "exited")
+		return err
+	}
 	emit("setup", "Compose file written")
 
 	project := "dockfin-svc-" + id.String()[:8]
@@ -481,4 +485,30 @@ func PreferURLFromMagicEnv(env map[string]string) (baseURL, fqdn string) {
 		return proxy.PublicURL(host), host
 	}
 	return "", ""
+}
+
+// writeServiceEnvFile writes resolved runtime env next to the compose file.
+// Docker Compose interpolates ${KEY} from that .env. Secret values are resolved
+// in memory and are not written back to the control-plane database.
+func writeServiceEnvFile(ctx context.Context, p DeployParams, remoteDir string) error {
+	svc := p.Service
+	if p.Store == nil || svc == nil || p.Client == nil {
+		return nil
+	}
+	var projectID *uuid.UUID
+	envID := svc.EnvironmentID
+	if env, err := p.Store.GetEnvironment(ctx, p.TeamID, svc.EnvironmentID); err == nil {
+		projectID = &env.ProjectID
+	}
+	m, err := p.Store.ResolvedEnvMap(ctx, p.TeamID, "service", svc.ID, projectID, &envID, svc.ServerID)
+	if err != nil {
+		return fmt.Errorf("resolve environment: %w", err)
+	}
+	if len(m) == 0 {
+		return nil
+	}
+	if err := sshx.WriteFile(p.Client, remoteDir+"/.env", []byte(FormatEnvFile(m))); err != nil {
+		return fmt.Errorf("write service env: %w", err)
+	}
+	return nil
 }
