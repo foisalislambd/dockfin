@@ -94,15 +94,21 @@ func cleanInitFilename(engine, name string) (string, error) {
 	if len(name) > 80 {
 		return "", fmt.Errorf("init script filename is too long")
 	}
-	lower := strings.ToLower(name)
+	if strings.HasPrefix(name, ".") {
+		return "", fmt.Errorf("init script filename must not start with a dot")
+	}
+	ext := ""
+	if i := strings.LastIndex(name, "."); i > 0 {
+		ext = name[i:]
+	}
 	switch engine {
 	case "mongodb":
-		if strings.HasSuffix(lower, ".js") || strings.HasSuffix(lower, ".sh") {
+		if ext == ".js" || ext == ".sh" {
 			return name, nil
 		}
 		return "", fmt.Errorf("mongodb init scripts must end in .js or .sh")
 	default:
-		if strings.HasSuffix(lower, ".sql") || strings.HasSuffix(lower, ".sh") {
+		if ext == ".sql" || ext == ".sh" {
 			return name, nil
 		}
 		return "", fmt.Errorf("%s init scripts must end in .sql or .sh", engine)
@@ -133,6 +139,9 @@ func InstallInitScripts(client *ssh.Client, dbID, engine string, scripts []InitS
 	if err := prepareInitDir(client, dir); err != nil {
 		return err
 	}
+	if _, errOut, err := sshx.RunArgs(client, "chmod", "755", dir); err != nil {
+		return fmt.Errorf("chmod %s: %v %s", dir, err, errOut)
+	}
 	if err := clearInitFiles(client, dir); err != nil {
 		return err
 	}
@@ -141,11 +150,9 @@ func InstallInitScripts(client *ssh.Client, dbID, engine string, scripts []InitS
 		if err := sshx.WriteFile(client, target, []byte(sc.Content)); err != nil {
 			return err
 		}
-		mode := "644"
-		if strings.HasSuffix(strings.ToLower(sc.Filename), ".sh") {
-			mode = "755"
-		}
-		if _, errOut, err := sshx.RunArgs(client, "chmod", mode, target); err != nil {
+		// 644 keeps .sh non-executable so PostgreSQL, MySQL, and MariaDB source it.
+		// An executable script without a shebang makes the first start fail.
+		if _, errOut, err := sshx.RunArgs(client, "chmod", "644", target); err != nil {
 			return fmt.Errorf("chmod %s: %v %s", target, err, errOut)
 		}
 	}
@@ -215,7 +222,6 @@ func clearInitFiles(client *ssh.Client, dir string) error {
 		return fmt.Errorf("list init scripts: %v %s", err, errOut)
 	}
 	for _, entry := range strings.Split(stdout, "\x00") {
-		entry = strings.TrimSpace(entry)
 		if entry == "" {
 			continue
 		}

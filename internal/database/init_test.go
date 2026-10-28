@@ -54,6 +54,12 @@ func TestNormalizeInitScripts(t *testing.T) {
 	}); err == nil {
 		t.Fatal("duplicate filename was accepted")
 	}
+	if _, err := NormalizeInitScripts("postgresql", []InitScript{{Filename: "Init.SQL", Content: "x"}}); err == nil {
+		t.Fatal("uppercase extension was accepted")
+	}
+	if _, err := NormalizeInitScripts("postgresql", []InitScript{{Filename: ".hidden.sql", Content: "x"}}); err == nil {
+		t.Fatal("dotfile was accepted")
+	}
 	if _, err := NormalizeInitScripts("postgresql", []InitScript{{Filename: "a.sql", Content: "a\x00b"}}); err == nil {
 		t.Fatal("binary content was accepted")
 	}

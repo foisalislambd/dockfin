@@ -30,6 +30,13 @@ export function DatabaseInitScripts({ databaseId }: { databaseId: string }) {
   if (scripts.isLoading) {
     return <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">Loading init scripts…</p>
   }
+  if (scripts.isError || !scripts.data) {
+    return (
+      <p className="mt-6 text-sm text-error-500">
+        {scripts.error instanceof Error ? scripts.error.message : 'Failed to load init scripts'}
+      </p>
+    )
+  }
   if (scripts.data && !scripts.data.supported) {
     return (
       <div className="mt-6">
