@@ -39,6 +39,7 @@ import { ServiceLogo, logoForServiceType } from '../components/ServiceLogo'
 import { StatusBadge, statusTone } from '../components/StatusBadge'
 import { primaryVisitUrl, ServiceOverview } from '../components/AppOverview'
 import { OverviewLiveMetrics } from '../components/OverviewLiveMetrics'
+import { TrafficSummary } from '../components/TrafficAnalytics'
 import { ResourceTagsPanel } from '../components/ResourceTagsPanel'
 import { ServiceWebhooksPanel } from '../components/ServiceWebhooksPanel'
 import { ServerTerminal } from '../components/Terminal'
@@ -550,6 +551,7 @@ export function ServiceDetailPage() {
         <div className="space-y-4">
           <PageHeading title="Analytics" />
           <OverviewLiveMetrics kind="service" resourceId={svcId} />
+          <TrafficSummary kind="service" id={svcId} />
         </div>
       )}
 

@@ -192,6 +192,20 @@ carries a `warnings` array.
 - [x] Symbolic links are refused, and database mounts stay outside the engine data directory
 - [x] Compose applications keep their volumes in the compose file
 
+## GitHub Actions runners
+- [x] A server can take organization workflow jobs for a custom label
+- [x] Each job runs in its own container and is removed when the job ends
+- [x] The host Docker socket is not mounted; Docker jobs use a private privileged daemon
+- [x] Pull request jobs are refused unless the server allows them
+- [x] Idle runners, long jobs, and jobs waiting for capacity are stopped
+
+## Traffic analytics
+- [x] A server can turn on Traefik JSON access logs; Caddy is refused
+- [x] Sentinel sends new log lines, and the API stores minute totals for host, path, method, and status
+- [x] Client addresses are stored in full, anonymized to a network, or not stored
+- [x] A sample threshold keeps the first requests for a host in a batch and then one in ten
+- [x] Totals older than the retention window are deleted, and an application or service sees only its own hosts
+
 ## Database init scripts
 - [x] PostgreSQL, MySQL, and MariaDB accept `.sql` and `.sh` files; MongoDB accepts `.js` and `.sh`
 - [x] Script bodies are encrypted and are not included in the database list

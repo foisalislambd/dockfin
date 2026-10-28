@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/crypto"
 	"github.com/dockfin/dockfin/internal/git"
 	"github.com/dockfin/dockfin/internal/git/githubapp"
 	"github.com/dockfin/dockfin/internal/store"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 func (a *API) handleListGitSources(w http.ResponseWriter, r *http.Request) {
@@ -26,19 +26,19 @@ func (a *API) handleListGitSources(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) handleCreateGitSource(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Name         string `json:"name"`
-		Provider     string `json:"provider"`
-		Organization string `json:"organization"`
-		AppID        string `json:"app_id"`
-		Slug         string `json:"slug"`
-		PrivateKey   string `json:"private_key"`
-		ClientID     string `json:"client_id"`
-		ClientSecret string `json:"client_secret"`
+		Name          string `json:"name"`
+		Provider      string `json:"provider"`
+		Organization  string `json:"organization"`
+		AppID         string `json:"app_id"`
+		Slug          string `json:"slug"`
+		PrivateKey    string `json:"private_key"`
+		ClientID      string `json:"client_id"`
+		ClientSecret  string `json:"client_secret"`
 		WebhookSecret string `json:"webhook_secret"`
-		HTMLURL      string `json:"html_url"`
-		APIURL       string `json:"api_url"`
-		CustomUser   string `json:"custom_user"`
-		CustomPort   int    `json:"custom_port"`
+		HTMLURL       string `json:"html_url"`
+		APIURL        string `json:"api_url"`
+		CustomUser    string `json:"custom_user"`
+		CustomPort    int    `json:"custom_port"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -547,7 +547,7 @@ func (a *API) handleGitHubAppEvents(w http.ResponseWriter, r *http.Request) {
 	case "installation", "installation_repositories", "github_app_authorization":
 		w.WriteHeader(http.StatusNoContent)
 		return
-	case "push", "pull_request":
+	case "push", "pull_request", "workflow_job":
 		// handled below
 	default:
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ignored", "reason": "unsupported event"})
@@ -583,6 +583,10 @@ func (a *API) handleGitHubAppEvents(w http.ResponseWriter, r *http.Request) {
 		}
 	} else if !git.VerifyGitHubSignature(whSecret, body, sig) {
 		writeError(w, http.StatusUnauthorized, "invalid webhook signature")
+		return
+	}
+	if eventName == "workflow_job" {
+		a.handleWorkflowJob(w, r, gs, sec, body)
 		return
 	}
 

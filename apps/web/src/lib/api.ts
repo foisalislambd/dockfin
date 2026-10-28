@@ -217,6 +217,21 @@ export const api = {
       method: 'DELETE',
     }),
   getServerOps: (id: string) => request<ServerOpsSettings>(`/api/v1/servers/${id}/ops`),
+  serverTraffic: (id: string, range = '24h') =>
+    request<TrafficReport>(`/api/v1/servers/${id}/traffic?range=${range}`),
+  githubRunners: (id: string) =>
+    request<{ config: GithubRunnerConfig | null; executions: GithubRunnerExecution[] }>(
+      `/api/v1/servers/${id}/github-runners`,
+    ),
+  saveGithubRunners: (id: string, body: GithubRunnerConfigInput) =>
+    request<GithubRunnerConfig>(`/api/v1/servers/${id}/github-runners`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  applicationTraffic: (id: string, range = '24h') =>
+    request<TrafficReport>(`/api/v1/applications/${id}/traffic?range=${range}`),
+  serviceTraffic: (id: string, range = '24h') =>
+    request<TrafficReport>(`/api/v1/services/${id}/traffic?range=${range}`),
   patchServerOps: (id: string, body: Partial<ServerOpsSettings>) =>
     request<{ status: string; warnings?: string[] }>(`/api/v1/servers/${id}/ops`, {
       method: 'PATCH',
@@ -1280,6 +1295,67 @@ export type ServerOpsSettings = {
   log_drain_config?: string
   ca_certificate?: string
   terminal_acl_user_ids: string[]
+  traffic_analytics_enabled?: boolean
+  traffic_sample_threshold?: number
+  traffic_retention_days?: number
+  traffic_ip_mode?: 'full' | 'anonymized' | 'off' | string
+}
+export type GithubRunnerConfig = {
+  id: string
+  git_source_id: string
+  git_source_name?: string
+  organization?: string
+  labels: string[]
+  enabled: boolean
+  allow_pull_requests: boolean
+  max_runners: number
+  docker_mode: 'none' | 'dind' | string
+  runner_image: string
+  cpu_limit: string
+  memory_limit: string
+  queue_wait_minutes: number
+  idle_timeout_minutes: number
+  job_timeout_minutes: number
+}
+
+export type GithubRunnerConfigInput = {
+  git_source_id: string
+  labels: string
+  enabled: boolean
+  allow_pull_requests: boolean
+  max_runners: number
+  docker_mode: string
+  runner_image: string
+  cpu_limit: string
+  memory_limit: string
+  queue_wait_minutes: number
+  idle_timeout_minutes: number
+  job_timeout_minutes: number
+}
+
+export type GithubRunnerExecution = {
+  id: string
+  status: string
+  repository?: string
+  workflow_name?: string
+  job_name?: string
+  html_url?: string
+  conclusion?: string
+  error_message?: string
+  runner_name?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export type TrafficReport = {
+  enabled: boolean
+  ip_mode: string
+  requests: number
+  series: { bucket: string; class: string; requests: number }[]
+  hosts: { name: string; requests: number }[]
+  paths: { host: string; path: string; requests: number }[]
+  statuses: { name: string; requests: number }[]
+  clients: { name: string; requests: number }[]
 }
 export type DockerCleanupExecution = {
   id: string

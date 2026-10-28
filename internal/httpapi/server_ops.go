@@ -6,11 +6,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/crypto"
+	"github.com/dockfin/dockfin/internal/proxy"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -69,6 +70,10 @@ func (a *API) handlePatchServerOps(w http.ResponseWriter, r *http.Request) {
 		LogDrainConfig                    *string   `json:"log_drain_config"`
 		CACertificate                     *string   `json:"ca_certificate"`
 		TerminalACLUserIDs                *[]string `json:"terminal_acl_user_ids"`
+		TrafficAnalyticsEnabled           *bool     `json:"traffic_analytics_enabled"`
+		TrafficSampleThreshold            *int      `json:"traffic_sample_threshold"`
+		TrafficRetentionDays              *int      `json:"traffic_retention_days"`
+		TrafficIPMode                     *string   `json:"traffic_ip_mode"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -122,20 +127,69 @@ func (a *API) handlePatchServerOps(w http.ResponseWriter, r *http.Request) {
 	if body.TerminalACLUserIDs != nil {
 		next.TerminalACLUserIDs = *body.TerminalACLUserIDs
 	}
+	if body.TrafficSampleThreshold != nil {
+		if *body.TrafficSampleThreshold < 0 || *body.TrafficSampleThreshold > 100000 {
+			writeError(w, http.StatusBadRequest, "sample threshold must be from 0 to 100000")
+			return
+		}
+		next.TrafficSampleThreshold = *body.TrafficSampleThreshold
+	}
+	if body.TrafficRetentionDays != nil {
+		if *body.TrafficRetentionDays < 1 || *body.TrafficRetentionDays > 90 {
+			writeError(w, http.StatusBadRequest, "retention must be from 1 to 90 days")
+			return
+		}
+		next.TrafficRetentionDays = *body.TrafficRetentionDays
+	}
+	if body.TrafficIPMode != nil {
+		mode := strings.TrimSpace(*body.TrafficIPMode)
+		if mode != "full" && mode != "anonymized" && mode != "off" {
+			writeError(w, http.StatusBadRequest, "ip mode must be full, anonymized, or off")
+			return
+		}
+		next.TrafficIPMode = mode
+	}
+	if body.TrafficAnalyticsEnabled != nil && *body.TrafficAnalyticsEnabled {
+		srv, err := a.Store.GetServer(r.Context(), teamID, id)
+		if err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+		if srv.ProxyType == "caddy" || srv.ProxyType == "none" {
+			writeError(w, http.StatusBadRequest, "traffic analytics needs the Traefik proxy")
+			return
+		}
+		next.TrafficAnalyticsEnabled = true
+	} else if body.TrafficAnalyticsEnabled != nil {
+		next.TrafficAnalyticsEnabled = false
+	}
 	if err := a.Store.SetServerOpsSettings(r.Context(), teamID, id, next); err != nil {
 		mapStoreErr(w, err)
 		return
 	}
+	if body.TrafficIPMode != nil && next.TrafficIPMode != cur.TrafficIPMode {
+		_ = a.Store.ClearTrafficClients(r.Context(), id)
+	}
 	syncDrain := body.LogDrainEnabled != nil || body.LogDrainType != nil || body.LogDrainConfig != nil
 	syncCA := body.CACertificate != nil
+	syncTraffic := cur.TrafficAnalyticsEnabled != next.TrafficAnalyticsEnabled
 	out := map[string]any{"status": "updated"}
-	if syncDrain || syncCA {
+	var warnings []string
+	if syncDrain || syncCA || syncTraffic {
 		client, dialErr := a.dialServer(r, id)
 		if dialErr != nil {
-			out["warnings"] = []string{"settings saved but not applied on the server: " + dialErr.Error()}
-		} else if warnings := applyEdgeSettings(client, next, syncDrain, syncCA); len(warnings) > 0 {
-			out["warnings"] = warnings
+			warnings = append(warnings, "settings saved but not applied on the server: "+dialErr.Error())
+		} else {
+			if syncDrain || syncCA {
+				warnings = append(warnings, applyEdgeSettings(client, next, syncDrain, syncCA)...)
+			}
+			if syncTraffic {
+				warnings = append(warnings, a.applyTrafficAnalytics(r, client, id, next)...)
+			}
 		}
+	}
+	if len(warnings) > 0 {
+		out["warnings"] = warnings
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -225,6 +279,44 @@ func (a *API) handleSentinelAction(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (a *API) applyTrafficAnalytics(r *http.Request, client *ssh.Client, serverID uuid.UUID, ops store.ServerOpsSettings) []string {
+	var warnings []string
+	enabled := "0"
+	if ops.TrafficAnalyticsEnabled {
+		enabled = "1"
+	}
+	body := fmt.Sprintf("ENABLED=%s\nMODE=%s\nTHRESHOLD=%d\n", enabled, ops.TrafficIPMode, ops.TrafficSampleThreshold)
+	_, _, _ = sshx.RunArgs(client, "mkdir", "-p", "/data/dockfin/sentinel")
+	if err := sshx.WriteFile(client, "/data/dockfin/sentinel/traffic.env", []byte(body)); err != nil {
+		return []string{"traffic settings saved but the server file was not written: " + err.Error()}
+	}
+	if proxy.ProxyStatus(client) == "running" {
+		srv, err := a.Store.GetServer(r.Context(), currentTeamID(r), serverID)
+		if err != nil {
+			warnings = append(warnings, "traffic file written but the proxy was not restarted: "+err.Error())
+		} else if srv.ProxyType == "" || srv.ProxyType == "traefik" {
+			network := "dockfin"
+			if dests, err := a.Store.ListDestinations(r.Context(), currentTeamID(r), &serverID); err == nil && len(dests) > 0 && dests[0].Network != "" {
+				network = dests[0].Network
+			}
+			if err := proxy.StartProxy(client, srv.ProxyType, a.Cfg.TraefikImage, a.Cfg.CaddyImage, network, a.Cfg.AcmeEmail); err != nil {
+				warnings = append(warnings, "traffic file written but the proxy was not restarted: "+err.Error())
+			} else {
+				_ = proxy.EnsureProxyJoinedResourceNetworks(client)
+				_ = a.Store.UpdateServerProxyStatus(r.Context(), serverID, "running")
+			}
+		}
+	}
+	if ops.SentinelEnabled {
+		if err := installSentinel(client, a.Cfg.PublicURL, serverID.String(), ops.SentinelToken, ops.SentinelMetricsRefreshRateSeconds); err != nil {
+			warnings = append(warnings, "proxy updated but Sentinel was not restarted: "+err.Error())
+		}
+	} else if ops.TrafficAnalyticsEnabled {
+		warnings = append(warnings, "request collection is on, but Sentinel is not running, so no lines are sent")
+	}
+	return warnings
+}
+
 func installSentinel(client *ssh.Client, publicURL, serverID, token string, refreshSec int) error {
 	if refreshSec <= 0 {
 		refreshSec = 30
@@ -247,6 +339,51 @@ PROC=/host/proc
 read_cpu() {
   awk '/^cpu / {print $2+$4, $2+$4+$5}' "$PROC/stat"
 }
+push_traffic() {
+  ENV=/hostroot/data/dockfin/sentinel/traffic.env
+  LOG=/hostroot/data/dockfin/proxy/traefik/access.log
+  [ -f "$ENV" ] || return 0
+  [ -f "$LOG" ] || return 0
+  enabled=$(sed -n 's/^ENABLED=//p' "$ENV" | head -n 1)
+  [ "$enabled" = "1" ] || return 0
+  size=$(wc -c < "$LOG" | tr -d ' ')
+  if [ ! -f /tmp/access.offset ]; then
+    echo "$size" > /tmp/access.offset
+    return 0
+  fi
+  off=$(tr -d ' \n' < /tmp/access.offset)
+  case $off in ''|*[!0-9]*) off=0 ;; esac
+  if [ "$size" -lt "$off" ]; then off=0; fi
+  if [ "$size" -eq "$off" ]; then return 0; fi
+  dd if="$LOG" bs=1 skip="$off" count=262144 of=/tmp/access.chunk 2>/dev/null || return 0
+  # Count original bytes through the last complete line. A partial last line stays
+  # for the next read. Advancing past it made the offset larger than the file,
+  # and the next loop then read the file again from the start.
+  ends=$(tail -c 1 /tmp/access.chunk | od -An -tu1 | tr -d ' \n')
+  awk -v ends="$ends" '
+    { n = NR; raw[NR] = $0; blen[NR] = length($0) + 1 }
+    END {
+      last = n
+      if (last > 400) last = 400
+      if (n <= 400 && ends != "10" && last > 0) last = last - 1
+      total = 0
+      for (i = 1; i <= last; i++) total += blen[i]
+      print total
+      for (i = 1; i <= last; i++) print raw[i]
+    }
+  ' /tmp/access.chunk > /tmp/access.meta || return 0
+  used=$(head -n 1 /tmp/access.meta | tr -d ' \n')
+  case $used in ''|*[!0-9]*) return 0 ;; esac
+  chunk=$(wc -c < /tmp/access.chunk | tr -d ' ')
+  if [ "$used" -eq 0 ] || [ "$used" -gt "$chunk" ]; then return 0; fi
+  tail -n +2 /tmp/access.meta > /tmp/access.lines
+  [ -s /tmp/access.lines ] || return 0
+  jq -R -s --arg sid "$SERVER_ID" --arg tok "$TOKEN" '{server_id:$sid,token:$tok,lines:(split("\n")|map(select(length>0)))}' /tmp/access.lines > /tmp/access.json || return 0
+  if wget -q -O /dev/null --header="Content-Type: application/json" --post-file=/tmp/access.json "$URL/api/v1/sentinel/traffic"; then
+    echo $((off + used)) > /tmp/access.offset
+  fi
+  rm -f /tmp/access.json /tmp/access.lines /tmp/access.chunk /tmp/access.meta
+}
 while true; do
   set -- $(read_cpu)
   U1=$1 T1=$2
@@ -265,6 +402,7 @@ while true; do
   BODY=$(printf '{"server_id":"%%s","token":"%%s","cpu_percent":%%s,"memory_used_bytes":%%s,"memory_total_bytes":%%s,"disk_used_bytes":%%s,"disk_total_bytes":%%s}' \
     "$SERVER_ID" "$TOKEN" "$CPU" "$MEM_USED" "$MEM_TOTAL" "$DISK_USED" "$DISK_TOTAL")
   wget -q -O /dev/null --header="Content-Type: application/json" --post-data="$BODY" "$URL/api/v1/sentinel/metrics" 2>/dev/null || true
+  push_traffic || true
   # INTERVAL already includes the 1s sample sleep above.
   REST=$((INTERVAL-1))
   if [ "$REST" -gt 0 ]; then sleep "$REST"; fi
@@ -283,7 +421,7 @@ done
 		"-v", "/proc:/host/proc:ro",
 		"-v", "/:/hostroot:ro",
 		"alpine:3.21",
-		"sh", "-c", "apk add --no-cache wget >/dev/null && exec sh /run.sh",
+		"sh", "-c", "apk add --no-cache wget jq >/dev/null && exec sh /run.sh",
 	)
 	if err != nil {
 		return fmt.Errorf("start sentinel: %v %s", err, errOut)

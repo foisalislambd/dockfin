@@ -14,19 +14,23 @@ import (
 
 // ServerOpsSettings holds Coolify-style sentinel / cleanup / edge settings.
 type ServerOpsSettings struct {
-	SentinelEnabled                     bool            `json:"sentinel_enabled"`
-	SentinelToken                       string          `json:"sentinel_token,omitempty"`
-	SentinelMetricsRefreshRateSeconds   int             `json:"sentinel_metrics_refresh_rate_seconds"`
-	DockerCleanupFrequency              string          `json:"docker_cleanup_frequency"`
-	DockerCleanupThreshold              int             `json:"docker_cleanup_threshold"`
-	ForceDockerCleanup                  bool            `json:"force_docker_cleanup"`
-	CloudflareTunnelToken               string          `json:"cloudflare_tunnel_token,omitempty"`
-	CloudflareTunnelEnabled             bool            `json:"cloudflare_tunnel_enabled"`
-	LogDrainEnabled                     bool            `json:"log_drain_enabled"`
-	LogDrainType                        string          `json:"log_drain_type,omitempty"`
-	LogDrainConfig                      string          `json:"log_drain_config,omitempty"`
-	CACertificate                       string          `json:"ca_certificate,omitempty"`
-	TerminalACLUserIDs                  []string        `json:"terminal_acl_user_ids"`
+	SentinelEnabled                   bool     `json:"sentinel_enabled"`
+	SentinelToken                     string   `json:"sentinel_token,omitempty"`
+	SentinelMetricsRefreshRateSeconds int      `json:"sentinel_metrics_refresh_rate_seconds"`
+	DockerCleanupFrequency            string   `json:"docker_cleanup_frequency"`
+	DockerCleanupThreshold            int      `json:"docker_cleanup_threshold"`
+	ForceDockerCleanup                bool     `json:"force_docker_cleanup"`
+	CloudflareTunnelToken             string   `json:"cloudflare_tunnel_token,omitempty"`
+	CloudflareTunnelEnabled           bool     `json:"cloudflare_tunnel_enabled"`
+	LogDrainEnabled                   bool     `json:"log_drain_enabled"`
+	LogDrainType                      string   `json:"log_drain_type,omitempty"`
+	LogDrainConfig                    string   `json:"log_drain_config,omitempty"`
+	CACertificate                     string   `json:"ca_certificate,omitempty"`
+	TerminalACLUserIDs                []string `json:"terminal_acl_user_ids"`
+	TrafficAnalyticsEnabled           bool     `json:"traffic_analytics_enabled"`
+	TrafficSampleThreshold            int      `json:"traffic_sample_threshold"`
+	TrafficRetentionDays              int      `json:"traffic_retention_days"`
+	TrafficIPMode                     string   `json:"traffic_ip_mode"`
 }
 
 type DockerCleanupExecution struct {
@@ -68,7 +72,11 @@ func (s *Store) GetServerOpsSettings(ctx context.Context, teamID, serverID uuid.
 		       COALESCE(log_drain_type,''),
 		       COALESCE(log_drain_config,''),
 		       COALESCE(ca_certificate,''),
-		       COALESCE(terminal_acl_user_ids, '[]'::jsonb)
+		       COALESCE(terminal_acl_user_ids, '[]'::jsonb),
+		       COALESCE(traffic_analytics_enabled, false),
+		       COALESCE(traffic_sample_threshold, 0),
+		       COALESCE(traffic_retention_days, 7),
+		       COALESCE(NULLIF(traffic_ip_mode,''), 'anonymized')
 		FROM server_settings WHERE server_id=$1
 	`, serverID).Scan(
 		&out.SentinelEnabled, &out.SentinelToken, &out.SentinelMetricsRefreshRateSeconds,
@@ -76,6 +84,7 @@ func (s *Store) GetServerOpsSettings(ctx context.Context, teamID, serverID uuid.
 		&out.CloudflareTunnelToken, &out.CloudflareTunnelEnabled,
 		&out.LogDrainEnabled, &out.LogDrainType, &out.LogDrainConfig,
 		&out.CACertificate, &acl,
+		&out.TrafficAnalyticsEnabled, &out.TrafficSampleThreshold, &out.TrafficRetentionDays, &out.TrafficIPMode,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return &ServerOpsSettings{
@@ -83,6 +92,8 @@ func (s *Store) GetServerOpsSettings(ctx context.Context, teamID, serverID uuid.
 			DockerCleanupThreshold:            80,
 			SentinelMetricsRefreshRateSeconds: 30,
 			TerminalACLUserIDs:                []string{},
+			TrafficRetentionDays:              7,
+			TrafficIPMode:                     "anonymized",
 		}, nil
 	}
 	if err != nil {
@@ -91,6 +102,12 @@ func (s *Store) GetServerOpsSettings(ctx context.Context, teamID, serverID uuid.
 	_ = json.Unmarshal(acl, &out.TerminalACLUserIDs)
 	if out.TerminalACLUserIDs == nil {
 		out.TerminalACLUserIDs = []string{}
+	}
+	if out.TrafficRetentionDays <= 0 {
+		out.TrafficRetentionDays = 7
+	}
+	if out.TrafficIPMode == "" {
+		out.TrafficIPMode = "anonymized"
 	}
 	return &out, nil
 }
@@ -115,6 +132,18 @@ func (s *Store) SetServerOpsSettings(ctx context.Context, teamID, serverID uuid.
 	if len(in.TerminalACLUserIDs) == 0 {
 		acl = []byte("[]")
 	}
+	retention := in.TrafficRetentionDays
+	if retention <= 0 {
+		retention = 7
+	}
+	mode := in.TrafficIPMode
+	if mode == "" {
+		mode = "anonymized"
+	}
+	threshold := in.TrafficSampleThreshold
+	if threshold < 0 {
+		threshold = 0
+	}
 	tag, err := s.Pool.Exec(ctx, `
 		UPDATE server_settings SET
 			sentinel_enabled=$2,
@@ -130,12 +159,17 @@ func (s *Store) SetServerOpsSettings(ctx context.Context, teamID, serverID uuid.
 			log_drain_config=$12,
 			ca_certificate=$13,
 			terminal_acl_user_ids=$14,
+			traffic_analytics_enabled=$15,
+			traffic_sample_threshold=$16,
+			traffic_retention_days=$17,
+			traffic_ip_mode=$18,
 			updated_at=NOW()
 		WHERE server_id=$1
 	`, serverID, in.SentinelEnabled, in.SentinelToken, refresh, freq, thresh, in.ForceDockerCleanup,
 		in.CloudflareTunnelToken, in.CloudflareTunnelEnabled,
 		in.LogDrainEnabled, in.LogDrainType, in.LogDrainConfig,
-		in.CACertificate, acl)
+		in.CACertificate, acl,
+		in.TrafficAnalyticsEnabled, threshold, retention, mode)
 	if err != nil {
 		return err
 	}

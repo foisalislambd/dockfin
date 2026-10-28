@@ -22,6 +22,7 @@ import {
   Terminal,
   Trash2,
   Variable,
+  Workflow,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
@@ -29,6 +30,8 @@ import { useConfirm } from '../components/ConfirmDialog'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
 import { DatabaseInitScripts } from '../components/DatabaseInitScripts'
+import { TrafficSettings, TrafficSummary } from '../components/TrafficAnalytics'
+import { GithubRunners } from '../components/GithubRunners'
 import { ResourceTagsPanel } from '../components/ResourceTagsPanel'
 import { LiveLogViewer } from '../components/LiveLogViewer'
 import { BackLink } from '../components/BackLink'
@@ -79,6 +82,7 @@ const SERVER_NAV = [
   { id: 'registries', label: 'Registries', icon: Box },
   { id: 'drains', label: 'Log Drains', icon: ScrollText },
   { id: 'metrics', label: 'Metrics', icon: Activity },
+  { id: 'github-runners', label: 'GitHub Runners', icon: Workflow },
   { id: 'patches', label: 'Patching', icon: ShieldAlert },
   { id: 'terminal-access', label: 'Terminal Access', icon: Terminal },
   { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
@@ -90,7 +94,7 @@ const SERVER_NAV_GROUPS: readonly SideNavGroup<ServerSection>[] = [
   { label: 'Settings', ids: ['general', 'advanced', 'private-key', 'ca'] },
   { label: 'Networking', ids: ['tunnel', 'destinations', 'swarm'] },
   { label: 'Platform', ids: ['proxy', 'proxy-dynamic', 'proxy-logs', 'sentinel', 'sentinel-logs', 'resources'] },
-  { label: 'Operations', ids: ['terminal', 'images', 'cleanup', 'registries', 'drains', 'metrics'] },
+  { label: 'Operations', ids: ['terminal', 'images', 'cleanup', 'registries', 'drains', 'metrics', 'github-runners'] },
   { label: 'Security', ids: ['patches', 'terminal-access'] },
   { label: 'Danger Zone', ids: ['danger'] },
 ]
@@ -1508,6 +1512,12 @@ export function ServerDetailPage() {
         </TabPanel>
       )}
 
+      {tab === 'github-runners' && (
+        <TabPanel>
+          <GithubRunners serverId={serverId} />
+        </TabPanel>
+      )}
+
       {tab === 'sentinel' && (
         <TabPanel>
           <div className="panel-card space-y-4 p-5">
@@ -1531,6 +1541,8 @@ export function ServerDetailPage() {
               <Btn onClick={() => sentinelMut.mutate('stop')}>Stop</Btn>
               <Btn onClick={() => rotateToken.mutate()}>Rotate token</Btn>
             </div>
+            <TrafficSettings serverId={serverId} />
+            <TrafficSummary kind="server" id={serverId} />
             {(sentinelMut.error || rotateToken.error || patchOps.error) && (
               <p className="text-sm text-error-500">
                 {(sentinelMut.error || rotateToken.error || patchOps.error)?.message}

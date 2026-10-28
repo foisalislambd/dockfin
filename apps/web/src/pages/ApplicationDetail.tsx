@@ -36,6 +36,7 @@ import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { LinksMenu } from '../components/LinksMenu'
 import { MoveResourcePanel } from '../components/MoveResourcePanel'
 import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
+import { TrafficSummary } from '../components/TrafficAnalytics'
 import { ResourceSetupBanner, type SetupCheck } from '../components/ResourceSetupBanner'
 import { ResourceSwitcher } from '../components/ResourceSwitcher'
 import { BackLink } from '../components/BackLink'
@@ -3400,6 +3401,7 @@ function AppMetricsSection({ appId, serverId }: { appId: string; serverId: strin
       <div>
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Metrics</h2>
       </div>
+      <TrafficSummary kind="application" id={appId} />
 
       <div className="panel-card overflow-hidden">
         <div className="border-b border-gray-200 px-3 py-2 text-sm font-medium dark:border-gray-800">

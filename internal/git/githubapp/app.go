@@ -23,6 +23,14 @@ type App struct {
 	APIURL        string // e.g. https://api.github.com
 	Name          string // GitHub App slug for install URL
 	Organization  string
+	HTTP          *http.Client
+}
+
+func (a *App) httpClient() *http.Client {
+	if a != nil && a.HTTP != nil {
+		return a.HTTP
+	}
+	return http.DefaultClient
 }
 
 func (a *App) apiBase() string {
@@ -94,7 +102,7 @@ func (a *App) InstallationToken(installationID string) (string, error) {
 	}
 	req.Header.Set("Authorization", "Bearer "+jwtStr)
 	req.Header.Set("Accept", "application/vnd.github+json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := a.httpClient().Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -181,12 +189,13 @@ func BuildManifest(name, publicBase, webhookPath, redirectPath, setupPath, setup
 	publicBase = strings.TrimRight(publicBase, "/")
 	webhookBase := publicBase + "/api/v1/webhooks"
 	perms := map[string]string{
-		"contents":       "read",
-		"metadata":       "read",
-		"emails":         "read",
-		"administration": "read",
+		"contents":                         "read",
+		"metadata":                         "read",
+		"emails":                           "read",
+		"administration":                   "read",
+		"organization_self_hosted_runners": "write",
 	}
-	events := []string{"push"}
+	events := []string{"push", "workflow_job"}
 	if previewDeployments {
 		perms["pull_requests"] = "write"
 		events = append(events, "pull_request")
@@ -286,7 +295,7 @@ func (a *App) listRepositoriesPage(installationID string, page int) ([]map[strin
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := a.httpClient().Do(req)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -317,7 +326,7 @@ func (a *App) ListBranches(installationID, owner, repo string) ([]string, error)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := a.httpClient().Do(req)
 	if err != nil {
 		return nil, err
 	}

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/dockfin/dockfin/internal/sshx"
+	"github.com/dockfin/dockfin/internal/storagemount"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -25,6 +26,12 @@ func StartTraefik(client *ssh.Client, image, network, acmeEmail string) error {
 		return err
 	}
 	_, _, _ = sshx.Run(client, "mkdir -p /data/dockfin/proxy/traefik/letsencrypt /data/dockfin/proxy/traefik/dynamic && touch /data/dockfin/proxy/traefik/letsencrypt/acme.json && chmod 600 /data/dockfin/proxy/traefik/letsencrypt/acme.json")
+	accessLog := trafficAnalyticsEnabled(client)
+	if accessLog {
+		if err := prepareAccessLog(client); err != nil {
+			return err
+		}
+	}
 	// Remove existing if any
 	_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", TraefikContainer)
 
@@ -38,25 +45,69 @@ func StartTraefik(client *ssh.Client, image, network, acmeEmail string) error {
 		"-v", "/var/run/docker.sock:/var/run/docker.sock:ro",
 		"-v", "/data/dockfin/proxy/traefik/letsencrypt:/letsencrypt",
 		"-v", "/data/dockfin/proxy/traefik/dynamic:/dynamic",
+	}
+	if accessLog {
+		args = append(args, "-v", "/data/dockfin/proxy/traefik/access.log:/traefik/access.log")
+	}
+	args = append(args,
 		image,
 		"--providers.docker=true",
 		"--providers.docker.exposedbydefault=false",
-		"--providers.docker.network=" + network,
+		"--providers.docker.network="+network,
 		"--providers.file.directory=/dynamic",
 		"--providers.file.watch=true",
 		"--entrypoints.http.address=:80",
 		"--entrypoints.https.address=:443",
 		"--certificatesresolvers.letsencrypt.acme.httpchallenge=true",
 		"--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=http",
-		"--certificatesresolvers.letsencrypt.acme.email=" + acmeEmail,
+		"--certificatesresolvers.letsencrypt.acme.email="+acmeEmail,
 		"--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json",
 		"--api.dashboard=false",
+	)
+	if accessLog {
+		args = append(args,
+			"--accesslog=true",
+			"--accesslog.filepath=/traefik/access.log",
+			"--accesslog.format=json",
+			"--accesslog.bufferingsize=100",
+		)
 	}
 	_, errOut, err := sshx.RunArgs(client, args...)
 	if err != nil {
 		return fmt.Errorf("start traefik: %v %s", err, errOut)
 	}
 	return nil
+}
+
+const accessLogHost = "/data/dockfin/proxy/traefik/access.log"
+
+func trafficAnalyticsEnabled(client *ssh.Client) bool {
+	out, _, err := sshx.RunArgs(client, "sed", "-n", "s/^ENABLED=//p", "/data/dockfin/sentinel/traffic.env")
+	return err == nil && strings.TrimSpace(out) == "1"
+}
+
+func prepareAccessLog(client *ssh.Client) error {
+	canonical, kind, err := storagemount.Inspect(client, accessLogHost)
+	if err != nil {
+		return err
+	}
+	if err := storagemount.AcceptCanonical(accessLogHost, canonical); err != nil {
+		return fmt.Errorf("%s: %w", accessLogHost, err)
+	}
+	switch kind {
+	case "file":
+		return nil
+	case "missing":
+		if _, errOut, err := sshx.RunArgs(client, "mkdir", "-p", "/data/dockfin/proxy/traefik"); err != nil {
+			return fmt.Errorf("mkdir proxy dir: %v %s", err, errOut)
+		}
+		if _, errOut, err := sshx.RunArgs(client, "touch", accessLogHost); err != nil {
+			return fmt.Errorf("create access log: %v %s", err, errOut)
+		}
+		return nil
+	default:
+		return fmt.Errorf("%s is not a file", accessLogHost)
+	}
 }
 
 func StopProxy(client *ssh.Client) error {

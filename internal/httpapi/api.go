@@ -99,6 +99,7 @@ func (a *API) Router() http.Handler {
 		r.Get("/webhooks/github/app/manifest", a.handleGitHubAppManifestCallback)
 		r.Post("/webhooks/github/app/events", a.handleGitHubAppEvents)
 		r.Post("/sentinel/metrics", a.handleSentinelMetrics)
+		r.Post("/sentinel/traffic", a.handleSentinelTraffic)
 
 		// Coolify-compatible deploy webhook (auth via Bearer API token or resource secret)
 		r.Get("/deploy", a.handleDeployByUUID)
@@ -205,6 +206,9 @@ func (a *API) Router() http.Handler {
 				r.Get("/{serverID}/docker-cleanup/executions", a.handleListDockerCleanupExecutions)
 				r.With(a.requireAdmin).Post("/{serverID}/exec", a.handleServerExec)
 				r.Get("/{serverID}/metrics", a.handleListServerMetrics)
+				r.Get("/{serverID}/traffic", a.handleServerTraffic)
+				r.Get("/{serverID}/github-runners", a.handleGetGithubRunners)
+				r.Put("/{serverID}/github-runners", a.handlePutGithubRunners)
 				r.Get("/{serverID}/images", a.handleListHostImages)
 			})
 
@@ -270,6 +274,7 @@ func (a *API) Router() http.Handler {
 				r.Get("/{appID}/additional-destinations", a.handleListAdditionalDestinations)
 				r.Put("/{appID}/additional-destinations", a.handleSetAdditionalDestinations)
 				r.Get("/{appID}/metrics", a.handleApplicationMetrics)
+				r.Get("/{appID}/traffic", a.handleApplicationTraffic)
 				r.Post("/{appID}/detect-compose", a.handleDetectComposeForApp)
 				r.Post("/{appID}/load-compose", a.handleLoadComposeForApp)
 				r.Get("/{appID}/deployments", a.handleListDeployments)
@@ -336,6 +341,7 @@ func (a *API) Router() http.Handler {
 				r.Post("/{serviceID}/webhook-secret", a.handleSetServiceWebhookSecret)
 				r.Get("/{serviceID}/containers", a.handleListServiceContainers)
 				r.Get("/{serviceID}/metrics", a.handleServiceMetrics)
+				r.Get("/{serviceID}/traffic", a.handleServiceTraffic)
 				r.Get("/{serviceID}/logs/stream", a.handleServiceLogsStream)
 				r.Get("/{serviceID}/backups", a.handleListServiceBackups)
 				r.Post("/{serviceID}/backups", a.handleRunServiceBackup)

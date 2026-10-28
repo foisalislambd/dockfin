@@ -8,23 +8,24 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/backup"
+	"github.com/dockfin/dockfin/internal/githubrunner"
 	"github.com/dockfin/dockfin/internal/proxy"
 	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/sshdial"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 )
 
 type Runner struct {
-	Store        *store.Store
-	SSH          *sshx.Pool
-	Logger       *slog.Logger
-	DataDir      string
-	DatabaseURL  string
-	cancel       context.CancelFunc
+	Store       *store.Store
+	SSH         *sshx.Pool
+	Logger      *slog.Logger
+	DataDir     string
+	DatabaseURL string
+	cancel      context.CancelFunc
 }
 
 func New(st *store.Store, pool *sshx.Pool, logger *slog.Logger, dataDir, databaseURL string) *Runner {
@@ -75,6 +76,7 @@ func (r *Runner) tick(ctx context.Context) {
 	r.runDockerCleanups(ctx, minute)
 	r.runAutoUpdate(ctx, minute)
 	r.repairProxyNetworks(ctx)
+	githubrunner.Reconcile(ctx, r.Store, r.SSH, r.Logger)
 }
 
 func (r *Runner) runTasks(ctx context.Context, minute time.Time) {
