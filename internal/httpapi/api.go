@@ -311,6 +311,8 @@ func (a *API) Router() http.Handler {
 				r.Get("/{dbID}/tls", a.handleGetDatabaseTLS)
 				r.Get("/{dbID}/tls/ca", a.handleGetDatabaseCA)
 				r.Post("/{dbID}/tls/regenerate", a.handleRegenerateDatabaseTLS)
+				r.Get("/{dbID}/init-scripts", a.handleGetDatabaseInitScripts)
+				r.Put("/{dbID}/init-scripts", a.handlePutDatabaseInitScripts)
 				r.Post("/{dbID}/stop", a.handleStopDatabase)
 				r.Get("/{dbID}/logs/stream", a.handleDatabaseLogsStream)
 				r.Get("/{dbID}/metrics", a.handleDatabaseMetrics)

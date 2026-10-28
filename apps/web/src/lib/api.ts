@@ -715,6 +715,15 @@ export const api = {
     request<{ common_name: string; certificate: string }>(`/api/v1/databases/${id}/tls/ca`),
   regenerateDatabaseTLS: (id: string) =>
     request<{ status: string }>(`/api/v1/databases/${id}/tls/regenerate`, { method: 'POST' }),
+  databaseInitScripts: (id: string) =>
+    request<{ supported: boolean; scripts: { filename: string; content: string }[] }>(
+      `/api/v1/databases/${id}/init-scripts`,
+    ),
+  saveDatabaseInitScripts: (id: string, scripts: { filename: string; content: string }[]) =>
+    request<{ supported: boolean; scripts: { filename: string; content: string }[] }>(
+      `/api/v1/databases/${id}/init-scripts`,
+      { method: 'PUT', body: JSON.stringify({ scripts }) },
+    ),
   startDatabase: (id: string) =>
     request(`/api/v1/databases/${id}/start`, { method: 'POST' }),
   stopDatabase: (id: string) =>

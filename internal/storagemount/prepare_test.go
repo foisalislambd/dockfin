@@ -60,8 +60,8 @@ func TestValidateResourceHost(t *testing.T) {
 	if err := ValidateResourceHost("database", id, "/data/dockfin/database-ssl/"+id+"/server.key"); err == nil {
 		t.Fatal("certificate directory was accepted")
 	}
-	if _, err := ResolveHost("application", id, "nginx.conf", "", true); err != nil {
-		t.Fatal(err)
+	if err := ValidateResourceHost("database", id, "/data/dockfin/database-init/"+id+"/01.sql"); err == nil {
+		t.Fatal("init script directory was accepted")
 	}
 }
 

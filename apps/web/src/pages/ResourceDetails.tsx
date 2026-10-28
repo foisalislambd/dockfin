@@ -28,6 +28,7 @@ import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmM
 import { useConfirm } from '../components/ConfirmDialog'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
+import { DatabaseInitScripts } from '../components/DatabaseInitScripts'
 import { ResourceTagsPanel } from '../components/ResourceTagsPanel'
 import { LiveLogViewer } from '../components/LiveLogViewer'
 import { BackLink } from '../components/BackLink'
@@ -772,6 +773,7 @@ export function DatabaseDetailPage() {
           <div className="mt-6">
             <PersistentStoragesPanel databaseId={dbId} editable />
           </div>
+          <DatabaseInitScripts databaseId={dbId} />
         </TabPanel>
       )}
 

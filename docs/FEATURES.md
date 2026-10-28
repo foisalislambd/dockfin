@@ -192,6 +192,13 @@ carries a `warnings` array.
 - [x] Symbolic links are refused, and database mounts stay outside the engine data directory
 - [x] Compose applications keep their volumes in the compose file
 
+## Database init scripts
+- [x] PostgreSQL, MySQL, and MariaDB accept `.sql` and `.sh` files; MongoDB accepts `.js` and `.sh`
+- [x] Script bodies are encrypted and are not included in the database list
+- [x] The next start writes them outside the data directory and mounts `/docker-entrypoint-initdb.d` read-only
+- [x] The image runs them only while the data directory is empty, in filename order
+- [x] Filenames cannot contain a path or shell metacharacters, and a mount cannot hide the init directory
+
 ## Database TLS
 - [x] Per-database SSL switch for PostgreSQL, MySQL, MariaDB, MongoDB, Redis, KeyDB, and Dragonfly
 - [x] A server CA is generated once and signs a certificate whose common name is the database id

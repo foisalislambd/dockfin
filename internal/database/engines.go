@@ -69,7 +69,7 @@ type BindMount struct {
 	Container string
 }
 
-func Start(client *ssh.Client, db *store.Database, network, password string, extraEnv []string, tls *TLSMaterial, mounts []BindMount) error {
+func Start(client *ssh.Client, db *store.Database, network, password string, extraEnv []string, tls *TLSMaterial, mounts []BindMount, scripts []InitScript) error {
 	if err := sshx.EnsureNetwork(client, network); err != nil {
 		return err
 	}
@@ -94,6 +94,13 @@ func Start(client *ssh.Client, db *store.Database, network, password string, ext
 	if err := installTLS(client, db.ID.String(), db.Engine, image, tls); err != nil {
 		return err
 	}
+	scripts, err := NormalizeInitScripts(db.Engine, scripts)
+	if err != nil {
+		return err
+	}
+	if err := InstallInitScripts(client, db.ID.String(), db.Engine, scripts); err != nil {
+		return err
+	}
 
 	name := ContainerName(db.ID.String())
 	_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", name)
@@ -114,6 +121,7 @@ func Start(client *ssh.Client, db *store.Database, network, password string, ext
 		}
 		args = append(args, "-v", m.Host+":"+m.Container)
 	}
+	args = append(args, InitVolumeArgs(db.ID.String(), scripts)...)
 	// User env first, then engine credentials. Docker keeps the last -e, so a
 	// remote secret cannot replace the password Dockfin stored for this database.
 	args = append(args, extraEnv...)

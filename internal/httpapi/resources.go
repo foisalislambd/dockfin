@@ -978,7 +978,12 @@ func (a *API) handleStartDatabase(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := database.Start(client, db, dest.Network, password, envMap, tlsMat, mounts); err != nil {
+	scripts, err := a.loadDatabaseInitScripts(r, teamID, db)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := database.Start(client, db, dest.Network, password, envMap, tlsMat, mounts, scripts); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -1074,6 +1079,7 @@ func (a *API) handleDeleteDatabase(w http.ResponseWriter, r *http.Request) {
 				}
 				if opts.configurations() {
 					_ = database.RemoveTLS(client, id.String())
+					_ = database.RemoveInit(client, id.String())
 				}
 				if opts.networks() {
 					removeResourceScopedNetwork(client, id.String())

@@ -221,5 +221,10 @@ func (s *Store) copyResourceExtras(ctx context.Context, teamID uuid.UUID, resour
 			return err
 		}
 	}
+	if resourceType == "database" {
+		if err := s.CopyDatabaseInitScripts(ctx, teamID, fromID, toID); err != nil {
+			return err
+		}
+	}
 	return nil
 }

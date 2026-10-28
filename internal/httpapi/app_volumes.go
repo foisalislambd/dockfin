@@ -127,6 +127,10 @@ func (a *API) handleUpsertVolume(w http.ResponseWriter, r *http.Request, resourc
 			writeError(w, http.StatusBadRequest, "mount path covers the database data directory")
 			return
 		}
+		if database.ReservesInitDir(body.MountPath) {
+			writeError(w, http.StatusBadRequest, "mount path is reserved for database init scripts")
+			return
+		}
 	}
 	if body.IsFile && body.Content != nil {
 		if err := storagemount.ValidateContent(*body.Content); err != nil {
@@ -223,6 +227,9 @@ func (a *API) databaseVolumeMounts(r *http.Request, client *ssh.Client, teamID u
 		}
 		if database.CoversDataDir(db.Engine, v.MountPath) {
 			return nil, fmt.Errorf("mount path %s covers the database data directory", v.MountPath)
+		}
+		if database.ReservesInitDir(v.MountPath) {
+			return nil, fmt.Errorf("mount path %s is reserved for database init scripts", v.MountPath)
 		}
 		content := ""
 		if v.IsFile {

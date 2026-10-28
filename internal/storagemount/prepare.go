@@ -81,6 +81,7 @@ func ValidateResourceHost(resourceType, resourceID, host string) error {
 	for _, root := range []string{
 		"/data/dockfin/databases",
 		"/data/dockfin/database-ssl",
+		"/data/dockfin/database-init",
 		"/data/dockfin/ca",
 		"/data/dockfin/proxy",
 		"/data/dockfin/backups",
