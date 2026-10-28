@@ -34,4 +34,13 @@ func TestSSLCommandLeavesPlainEnginesUntouched(t *testing.T) {
 	if tlsFileOwner("postgresql") != "postgres" || tlsFileOwner("mysql") != "mysql" {
 		t.Fatal("ssl files must be owned by the image user, not a fixed uid")
 	}
+	if !CoversDataDir("postgresql", "/var/lib/postgresql") || !CoversDataDir("postgresql", "/var/lib/postgresql/data/base") {
+		t.Fatal("a parent or child of the data directory should be rejected")
+	}
+	if CoversDataDir("postgresql", "/etc/postgresql") {
+		t.Fatal("a path outside the data directory was rejected")
+	}
+	if !CoversDataDir("redis", "/data/db") {
+		t.Fatal("redis data subdirectory should be rejected")
+	}
 }

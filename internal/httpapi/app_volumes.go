@@ -123,8 +123,8 @@ func (a *API) handleUpsertVolume(w http.ResponseWriter, r *http.Request, resourc
 			mapStoreErr(w, err)
 			return
 		}
-		if path.Clean(body.MountPath) == database.EngineDataPath(db.Engine) {
-			writeError(w, http.StatusBadRequest, "mount path is the database data directory")
+		if database.CoversDataDir(db.Engine, body.MountPath) {
+			writeError(w, http.StatusBadRequest, "mount path covers the database data directory")
 			return
 		}
 	}
@@ -134,9 +134,12 @@ func (a *API) handleUpsertVolume(w http.ResponseWriter, r *http.Request, resourc
 			return
 		}
 	}
-	if strings.TrimSpace(body.HostPath) == "" {
-		body.HostPath = storagemount.DefaultHost(resourceType, id.String(), body.Name, body.IsFile)
+	host, err := storagemount.ResolveHost(resourceType, id.String(), body.Name, body.HostPath, body.IsFile)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
+	body.HostPath = host
 	if err := validateVolumeHostPath(body.HostPath, isTeamAdmin(r)); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -147,8 +150,19 @@ func (a *API) handleUpsertVolume(w http.ResponseWriter, r *http.Request, resourc
 		return
 	}
 	for _, v := range existing {
-		if v.Name != strings.TrimSpace(body.Name) && v.MountPath == strings.TrimSpace(body.MountPath) {
+		if v.Name == strings.TrimSpace(body.Name) {
+			continue
+		}
+		if v.MountPath == strings.TrimSpace(body.MountPath) {
 			writeError(w, http.StatusBadRequest, "another mount already uses "+body.MountPath)
+			return
+		}
+		other := strings.TrimSpace(v.HostPath)
+		if other == "" {
+			other = storagemount.DefaultHost(resourceType, id.String(), v.Name, v.IsFile)
+		}
+		if path.Clean(other) == body.HostPath {
+			writeError(w, http.StatusBadRequest, "another mount already uses this host path")
 			return
 		}
 	}
@@ -203,9 +217,12 @@ func (a *API) databaseVolumeMounts(r *http.Request, client *ssh.Client, teamID u
 	}
 	var out []database.BindMount
 	for _, v := range vols {
-		host := strings.TrimSpace(v.HostPath)
-		if host == "" {
-			host = storagemount.DefaultHost("database", db.ID.String(), v.Name, v.IsFile)
+		host, err := storagemount.ResolveHost("database", db.ID.String(), v.Name, v.HostPath, v.IsFile)
+		if err != nil {
+			return nil, err
+		}
+		if database.CoversDataDir(db.Engine, v.MountPath) {
+			return nil, fmt.Errorf("mount path %s covers the database data directory", v.MountPath)
 		}
 		content := ""
 		if v.IsFile {

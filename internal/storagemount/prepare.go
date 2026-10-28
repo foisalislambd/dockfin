@@ -3,6 +3,8 @@
 package storagemount
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"path"
 	"strings"
@@ -42,17 +44,90 @@ fi
 // DefaultHost is the host path used when a mount does not set one.
 // Database mounts stay outside the engine data directory.
 func DefaultHost(resourceType, resourceID, name string, isFile bool) string {
-	safe := sanitizeName(name)
 	kind := "volumes"
 	if isFile {
 		kind = "files"
 	}
 	switch resourceType {
 	case "database":
-		return path.Join("/data/dockfin/database-files", resourceID, kind, safe)
+		return path.Join("/data/dockfin/database-files", resourceID, kind, pathSegment(name))
 	default:
-		return path.Join("/data/dockfin/applications", resourceID, kind, safe)
+		return path.Join("/data/dockfin/applications", resourceID, kind, pathSegment(name))
 	}
+}
+
+// ResolveHost returns the cleaned host path that will be created and mounted.
+func ResolveHost(resourceType, resourceID, name, stored string, isFile bool) (string, error) {
+	host := strings.TrimSpace(stored)
+	if host == "" {
+		host = DefaultHost(resourceType, resourceID, name, isFile)
+	}
+	host = path.Clean(host)
+	if err := ValidateResourceHost(resourceType, resourceID, host); err != nil {
+		return "", err
+	}
+	return host, nil
+}
+
+// ValidateResourceHost keeps a mount out of another resource and out of control-plane directories.
+func ValidateResourceHost(resourceType, resourceID, host string) error {
+	host = path.Clean(strings.TrimSpace(host))
+	if host == "/" || !strings.HasPrefix(host, "/") || strings.Contains(host, "..") {
+		return fmt.Errorf("invalid mount host path")
+	}
+	if host == "/data/dockfin/log-drain.env" {
+		return fmt.Errorf("host path %s is reserved", host)
+	}
+	for _, root := range []string{
+		"/data/dockfin/databases",
+		"/data/dockfin/database-ssl",
+		"/data/dockfin/ca",
+		"/data/dockfin/proxy",
+		"/data/dockfin/backups",
+		"/data/dockfin/services",
+	} {
+		if within(host, root) {
+			return fmt.Errorf("host path %s is reserved", host)
+		}
+	}
+	if within(host, "/data/dockfin/applications") {
+		own := "/data/dockfin/applications/" + resourceID
+		if resourceType != "application" || !within(host, own) {
+			return fmt.Errorf("host path belongs to another application")
+		}
+	}
+	if within(host, "/data/dockfin/database-files") {
+		own := "/data/dockfin/database-files/" + resourceID
+		if resourceType != "database" || !within(host, own) {
+			return fmt.Errorf("host path belongs to another database")
+		}
+	}
+	return nil
+}
+
+func within(host, root string) bool {
+	host = path.Clean(host)
+	root = path.Clean(root)
+	return host == root || strings.HasPrefix(host, root+"/")
+}
+
+func pathSegment(name string) string {
+	name = strings.TrimSpace(name)
+	if name != "" && name != "." && name != ".." && len(name) <= 80 && safeSegment(name) {
+		return name
+	}
+	sum := sha256.Sum256([]byte(name))
+	return sanitizeName(name) + "-" + hex.EncodeToString(sum[:4])
+}
+
+func safeSegment(name string) bool {
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func sanitizeName(name string) string {

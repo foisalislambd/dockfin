@@ -15,8 +15,16 @@ func TestDefaultHostStaysOutsideDatabaseData(t *testing.T) {
 	if host == data || strings.HasPrefix(host, data+"/") {
 		t.Fatalf("file mount %s is inside the database data directory", host)
 	}
-	if !strings.Contains(host, "/database-files/") || !strings.HasSuffix(host, "/files/my-cnf") {
+	if !strings.Contains(host, "/database-files/") || !strings.HasSuffix(host, "/files/my.cnf") {
 		t.Fatalf("host %s", host)
+	}
+	if DefaultHost("database", id, "my.cnf", true) == DefaultHost("database", id, "my-cnf", true) {
+		t.Fatal("different names collapsed to one host path")
+	}
+	spaced := DefaultHost("database", id, "my vol", true)
+	dashed := DefaultHost("database", id, "my-vol", true)
+	if spaced == dashed {
+		t.Fatal("unsafe name collapsed onto a safe name")
 	}
 	dir := DefaultHost("database", id, "extra", false)
 	if strings.HasPrefix(dir, data+"/") {
@@ -33,6 +41,27 @@ func TestAcceptCanonicalRejectsSymlinkRewrite(t *testing.T) {
 	}
 	if err := AcceptCanonical("/", "/"); err == nil {
 		t.Fatal("root was accepted")
+	}
+}
+
+func TestValidateResourceHost(t *testing.T) {
+	id := "11111111-1111-1111-1111-111111111111"
+	other := "22222222-2222-2222-2222-222222222222"
+	own := DefaultHost("application", id, "nginx.conf", true)
+	if err := ValidateResourceHost("application", id, own); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateResourceHost("application", id, "/data/dockfin/applications/"+other+"/files/a"); err == nil {
+		t.Fatal("another application's files were accepted")
+	}
+	if err := ValidateResourceHost("database", id, "/data/dockfin/databases/"+id+"/secret"); err == nil {
+		t.Fatal("database data directory was accepted")
+	}
+	if err := ValidateResourceHost("database", id, "/data/dockfin/database-ssl/"+id+"/server.key"); err == nil {
+		t.Fatal("certificate directory was accepted")
+	}
+	if _, err := ResolveHost("application", id, "nginx.conf", "", true); err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -5,6 +5,7 @@ package database
 import (
 	"fmt"
 	"path"
+	"strings"
 
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
@@ -26,6 +27,16 @@ func ContainerName(dbID string) string {
 // EngineDataPath is the in-container directory that must persist across recreates.
 func EngineDataPath(engine string) string {
 	return engineDataPath(engine)
+}
+
+// CoversDataDir reports whether a container path is the data directory, inside it, or a parent of it.
+func CoversDataDir(engine, mount string) bool {
+	data := path.Clean(engineDataPath(engine))
+	mount = path.Clean(mount)
+	if mount == "/" || data == "/" {
+		return true
+	}
+	return mount == data || strings.HasPrefix(mount, data+"/") || strings.HasPrefix(data, mount+"/")
 }
 
 // engineDataPath is the in-container directory that must persist across recreates.
@@ -98,8 +109,8 @@ func Start(client *ssh.Client, db *store.Database, network, password string, ext
 		args = append(args, sslVolumeArgs(db.ID.String(), db.Engine)...)
 	}
 	for _, m := range mounts {
-		if m.Container == engineDataPath(db.Engine) {
-			return fmt.Errorf("mount path %s is the database data directory", m.Container)
+		if CoversDataDir(db.Engine, m.Container) {
+			return fmt.Errorf("mount path %s covers the database data directory", m.Container)
 		}
 		args = append(args, "-v", m.Host+":"+m.Container)
 	}

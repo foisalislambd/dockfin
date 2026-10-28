@@ -216,8 +216,8 @@ function EditableVolumesPanel({
       <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Persistent storage</h2>
       <p className="text-sm text-gray-500 dark:text-gray-400">
         Bind mounts are applied on the next {when}. A file is written before the container starts,
-        so Docker does not turn a missing file into a directory. Leave the host path empty to keep
-        the file under Dockfin’s data directory, outside the database data folder.
+        so Docker does not turn a missing file into a directory. Leave the host path empty to store
+        it in this resource’s own directory.
       </p>
 
       <form

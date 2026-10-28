@@ -1787,9 +1787,9 @@ func (p *Pipeline) volumeArgs(ctx context.Context, client *ssh.Client, req Reque
 	}
 	var args []string
 	for _, v := range vols {
-		host := strings.TrimSpace(v.HostPath)
-		if host == "" {
-			host = storagemount.DefaultHost("application", req.App.ID.String(), v.Name, v.IsFile)
+		host, err := storagemount.ResolveHost("application", req.App.ID.String(), v.Name, v.HostPath, v.IsFile)
+		if err != nil {
+			return nil, err
 		}
 		content := ""
 		if v.IsFile {
