@@ -83,7 +83,7 @@
 - [x] Full GitHub App OAuth install UI
 
 ## Databases
-- [x] Unified engines table (8 engines)
+- [x] Unified engines table (9 engines, including SQLite as a mounted file)
 - [x] Remote start/stop over SSH
 - [x] S3 storage + scheduled backup APIs
 - [x] Backup dump helper

@@ -26,6 +26,7 @@ func TestVolumeArgs(t *testing.T) {
 		{"keydb", "/data"},
 		{"dragonfly", "/data"},
 		{"clickhouse", "/var/lib/clickhouse"},
+		{"sqlite", "/var/lib/sqlite"},
 	}
 	id := "db-uuid"
 	for _, tc := range cases {

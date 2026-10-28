@@ -52,6 +52,8 @@ func engineDataPath(engine string) string {
 		return "/data"
 	case "clickhouse":
 		return "/var/lib/clickhouse"
+	case "sqlite":
+		return sqliteDataDir
 	default:
 		return "/data"
 	}
@@ -70,6 +72,17 @@ type BindMount struct {
 }
 
 func Start(client *ssh.Client, db *store.Database, network, password string, extraEnv []string, tls *TLSMaterial, mounts []BindMount, scripts []InitScript) error {
+	var sqliteFiles string
+	if db.Engine == "sqlite" {
+		if db.IsPublic {
+			return fmt.Errorf("sqlite is a file and is not published on a port")
+		}
+		files, err := SqliteDatabases(db.EngineConfig)
+		if err != nil {
+			return err
+		}
+		sqliteFiles = files
+	}
 	if err := sshx.EnsureNetwork(client, network); err != nil {
 		return err
 	}
@@ -126,10 +139,24 @@ func Start(client *ssh.Client, db *store.Database, network, password string, ext
 	// remote secret cannot replace the password Dockfin stored for this database.
 	args = append(args, extraEnv...)
 	args = append(args, engineEnv(db.Engine, password)...)
+	if db.Engine == "sqlite" {
+		args = append(args,
+			"-e", "SQLITE_DATABASES="+sqliteFiles,
+			"--health-cmd", "healthcheck.sh",
+			"--health-interval", "15s",
+			"--health-timeout", "5s",
+			"--health-retries", "5",
+			"--health-start-period", "5s",
+		)
+	}
 	if db.IsPublic && db.PublicPort != nil {
 		args = append(args, "-p", fmt.Sprintf("%d:%d", *db.PublicPort, defaultPort(db.Engine)))
 	}
-	args = append(args, db.Image)
+	imageArg := db.Image
+	if imageArg == "" {
+		imageArg = image
+	}
+	args = append(args, imageArg)
 	cmd := engineCmd(db.Engine, password)
 	if tls != nil {
 		cmd = appendSSLCommand(db.Engine, cmd)

@@ -99,6 +99,7 @@ const DB_ENGINE_LOGOS: Record<string, string> = {
   dragonfly: '/svgs/dragonfly.svg',
   mongodb: '/svgs/mongodb.svg',
   clickhouse: '/svgs/clickhouse.svg',
+  sqlite: '/svgs/sqlite.svg',
 }
 
 export function logoForDatabaseEngine(engine?: string): string | undefined {

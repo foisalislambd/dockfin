@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/dockfin/dockfin/internal/database"
 	"github.com/dockfin/dockfin/internal/proxy"
 	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/sshdial"
@@ -1787,7 +1788,7 @@ func (p *Pipeline) volumeArgs(ctx context.Context, client *ssh.Client, req Reque
 	}
 	var args []string
 	for _, v := range vols {
-		host, err := storagemount.ResolveHost("application", req.App.ID.String(), v.Name, v.HostPath, v.IsFile)
+		host, err := appVolumeHost(ctx, p, req, v)
 		if err != nil {
 			return nil, err
 		}
@@ -1808,6 +1809,41 @@ func (p *Pipeline) volumeArgs(ctx context.Context, client *ssh.Client, req Reque
 		args = append(args, "-v", host+":"+mount)
 	}
 	return args, nil
+}
+
+// appVolumeHost allows an application to mount one SQLite data directory on the same server.
+// Every other host path still goes through the normal reserved-path check.
+func appVolumeHost(ctx context.Context, p *Pipeline, req Request, v store.Volume) (string, error) {
+	if id, ok := database.SqliteDataDirID(v.HostPath); ok {
+		dbID, err := uuid.Parse(id)
+		if err != nil {
+			return "", fmt.Errorf("sqlite data directory is not a database")
+		}
+		db, err := p.Store.GetDatabase(ctx, req.TeamID, dbID)
+		if err != nil {
+			return "", fmt.Errorf("sqlite data directory is not a database on this team")
+		}
+		if db.Engine != "sqlite" {
+			return "", fmt.Errorf("only a sqlite database directory can be mounted into an application")
+		}
+		if v.IsFile {
+			return "", fmt.Errorf("sqlite data directory cannot be mounted as a file")
+		}
+		if req.Destination == nil || db.DestinationID == nil {
+			return "", fmt.Errorf("application and sqlite database both need a destination")
+		}
+		dbDest, err := p.Store.GetDestination(ctx, req.TeamID, *db.DestinationID)
+		if err != nil {
+			return "", err
+		}
+		// Compare the server this deploy is using. An additional destination on
+		// another machine must not create an empty copy of the data directory.
+		if req.Destination.ServerID != dbDest.ServerID {
+			return "", fmt.Errorf("sqlite database is not on this server")
+		}
+		return database.HostDataDir(db.ID.String()), nil
+	}
+	return storagemount.ResolveHost("application", req.App.ID.String(), v.Name, v.HostPath, v.IsFile)
 }
 
 func (p *Pipeline) customDockerRunArgs(app *store.Application) []string {

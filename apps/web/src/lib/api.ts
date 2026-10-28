@@ -714,8 +714,14 @@ export const api = {
       public_port?: number | null
       enable_ssl?: boolean
       destination_id?: string
+      sqlite_databases?: string
     },
   ) => request<Database>(`/api/v1/databases/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  connectSqliteApplication: (id: string, application_id: string, mount_path?: string) =>
+    request<{ status: string; compose?: string; mount_path?: string; host_path?: string }>(
+      `/api/v1/databases/${id}/connect-application`,
+      { method: 'POST', body: JSON.stringify({ application_id, mount_path }) },
+    ),
   databaseTLS: (id: string) =>
     request<{
       enabled: boolean
@@ -1731,6 +1737,7 @@ export type Database = {
   public_port?: number | null
   enable_ssl?: boolean
   destination_id?: string | null
+  engine_config?: { sqlite_databases?: string }
 }
 export type Template = {
   type: string

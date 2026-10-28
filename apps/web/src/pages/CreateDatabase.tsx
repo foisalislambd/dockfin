@@ -20,6 +20,7 @@ const ENGINES = [
   { id: 'keydb', title: 'KeyDB', description: 'High-performance Redis fork.' },
   { id: 'dragonfly', title: 'Dragonfly', description: 'Modern Redis-compatible store.' },
   { id: 'clickhouse', title: 'ClickHouse', description: 'Columnar analytics database.' },
+  { id: 'sqlite', title: 'SQLite', description: 'A file the application mounts. No port or password.' },
 ]
 
 export function CreateDatabasePage() {

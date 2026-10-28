@@ -74,6 +74,8 @@ func DumpDatabase(client *ssh.Client, engine, container, password, outPath strin
 		return DumpMongo(client, container, password, outPath)
 	case "clickhouse":
 		return DumpContainerDir(client, container, "/var/lib/clickhouse", outPath)
+	case "sqlite":
+		return DumpContainerDir(client, container, "/var/lib/sqlite", outPath)
 	default:
 		return fmt.Errorf("backup not supported for engine %q", engine)
 	}
@@ -82,7 +84,7 @@ func DumpDatabase(client *ssh.Client, engine, container, password, outPath strin
 // DumpSupported reports whether DumpDatabase handles this engine.
 func DumpSupported(engine string) bool {
 	switch engine {
-	case "postgresql", "mysql", "mariadb", "redis", "keydb", "dragonfly", "mongodb", "clickhouse":
+	case "postgresql", "mysql", "mariadb", "redis", "keydb", "dragonfly", "mongodb", "clickhouse", "sqlite":
 		return true
 	default:
 		return false
@@ -146,7 +148,7 @@ func dumpContainerDirCmd(container, innerDir, outPath string) (string, error) {
 
 func allowedVolumeDir(d string) bool {
 	switch d {
-	case "/data", "/var/lib/clickhouse":
+	case "/data", "/var/lib/clickhouse", "/var/lib/sqlite":
 		return true
 	default:
 		return false
@@ -266,6 +268,8 @@ func RestoreDatabase(client *ssh.Client, engine, container, password, dumpPath s
 		return RestoreMongo(client, container, password, dumpPath)
 	case "clickhouse":
 		return RestoreClickHouse(client, container, dumpPath)
+	case "sqlite":
+		return RestoreContainerDir(client, container, dumpPath, "/var/lib/sqlite")
 	default:
 		return fmt.Errorf("restore not supported for engine %q", engine)
 	}
@@ -343,7 +347,7 @@ func DefaultFilename(engine, id string) string {
 		ext = "dump"
 	case "redis", "keydb":
 		ext = "rdb"
-	case "dragonfly", "clickhouse":
+	case "dragonfly", "clickhouse", "sqlite":
 		ext = "tar.gz"
 	case "mongodb":
 		ext = "archive"

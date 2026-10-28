@@ -30,6 +30,7 @@ import { useConfirm } from '../components/ConfirmDialog'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
 import { DatabaseInitScripts } from '../components/DatabaseInitScripts'
+import { SqliteDatabaseCard } from '../components/SqliteDatabase'
 import { TrafficSettings, TrafficSummary } from '../components/TrafficAnalytics'
 import { GithubRunners } from '../components/GithubRunners'
 import { S3DestinationPicker, S3ReplicaStatus, s3DestinationLabel } from '../components/S3Destinations'
@@ -648,6 +649,10 @@ export function DatabaseDetailPage() {
             <p className="mt-4 text-sm text-error-500">{(start.error || stop.error)?.message}</p>
           )}
 
+          {d.engine === 'sqlite' ? (
+            <SqliteDatabaseCard db={d} />
+          ) : (
+          <>
           <div className="mt-6 panel-card space-y-4 p-5">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Public networking</h3>
             <label className="flex items-center gap-3 text-sm">
@@ -769,6 +774,8 @@ export function DatabaseDetailPage() {
               />
             )}
           </div>
+          </>
+          )}
 
           <div className="mt-6">
             <PersistentStoragesPanel databaseId={dbId} editable />

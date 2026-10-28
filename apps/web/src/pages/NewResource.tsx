@@ -147,6 +147,13 @@ const DATABASES = [
       'ClickHouse is a column-oriented database that supports real-time analytics, business intelligence, observability, ML and GenAI, and more.',
     logo: '/svgs/clickhouse.svg',
   },
+  {
+    id: 'sqlite',
+    title: 'SQLite',
+    description:
+      'SQLite stores the database in a file. An application on the same server mounts that directory instead of connecting to a port.',
+    logo: '/svgs/sqlite.svg',
+  },
 ]
 
 function ResourceTile({

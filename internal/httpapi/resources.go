@@ -754,7 +754,33 @@ func (a *API) handleCreateDatabase(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	if body.Password == "" {
+	if body.Engine == "sqlite" {
+		if body.IsPublic {
+			writeError(w, http.StatusBadRequest, "sqlite is a file and is not published on a port")
+			return
+		}
+		files, err := database.NormalizeSqliteDatabases("")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if len(body.EngineConfig) > 0 && string(body.EngineConfig) != "null" {
+			var cfg struct {
+				Databases string `json:"sqlite_databases"`
+			}
+			if err := json.Unmarshal(body.EngineConfig, &cfg); err != nil {
+				writeError(w, http.StatusBadRequest, "invalid engine_config")
+				return
+			}
+			files, err = database.NormalizeSqliteDatabases(cfg.Databases)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+		}
+		body.EngineConfig, _ = json.Marshal(map[string]string{"sqlite_databases": files})
+		body.Password = ""
+	} else if body.Password == "" {
 		pw, err := crypto.RandomToken(12)
 		if err != nil {
 			mapStoreErr(w, err)
@@ -789,7 +815,11 @@ func (a *API) handleCreateDatabase(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"database": created, "password": body.Password})
+	out := map[string]any{"database": created}
+	if body.Engine != "sqlite" {
+		out["password"] = body.Password
+	}
+	writeJSON(w, http.StatusCreated, out)
 }
 
 func isValidHostnameList(fqdn string) bool {
@@ -837,13 +867,14 @@ func (a *API) handleUpdateDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Name          *string         `json:"name"`
-		Description   *string         `json:"description"`
-		Image         *string         `json:"image"`
-		IsPublic      *bool           `json:"is_public"`
-		PublicPort    json.RawMessage `json:"public_port"`
-		EnableSSL     *bool           `json:"enable_ssl"`
-		DestinationID *string         `json:"destination_id"`
+		Name            *string         `json:"name"`
+		Description     *string         `json:"description"`
+		Image           *string         `json:"image"`
+		IsPublic        *bool           `json:"is_public"`
+		PublicPort      json.RawMessage `json:"public_port"`
+		EnableSSL       *bool           `json:"enable_ssl"`
+		DestinationID   *string         `json:"destination_id"`
+		SqliteDatabases *string         `json:"sqlite_databases"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -875,6 +906,27 @@ func (a *API) handleUpdateDatabase(w http.ResponseWriter, r *http.Request) {
 			pp := &p
 			in.PublicPort = &pp
 		}
+	}
+	current, err := a.Store.GetDatabase(r.Context(), teamID, id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if current.Engine == "sqlite" && body.IsPublic != nil && *body.IsPublic {
+		writeError(w, http.StatusBadRequest, "sqlite is a file and is not published on a port")
+		return
+	}
+	if body.SqliteDatabases != nil {
+		if current.Engine != "sqlite" {
+			writeError(w, http.StatusBadRequest, "sqlite_databases is only for sqlite")
+			return
+		}
+		files, err := database.NormalizeSqliteDatabases(*body.SqliteDatabases)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		in.SqliteDatabases = &files
 	}
 	if body.EnableSSL != nil && *body.EnableSSL {
 		current, err := a.Store.GetDatabase(r.Context(), teamID, id)

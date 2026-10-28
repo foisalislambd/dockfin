@@ -309,6 +309,7 @@ func (a *API) Router() http.Handler {
 				r.Patch("/{dbID}", a.handleUpdateDatabase)
 				r.With(a.requireAdmin).Delete("/{dbID}", a.handleDeleteDatabase)
 				r.Post("/{dbID}/start", a.handleStartDatabase)
+				r.Post("/{dbID}/connect-application", a.handleConnectSqliteApplication)
 				r.Get("/{dbID}/volumes", a.handleListDatabaseVolumes)
 				r.Post("/{dbID}/volumes", a.handleUpsertDatabaseVolume)
 				r.Get("/{dbID}/volumes/{volumeID}", a.handleGetDatabaseVolume)

@@ -1374,6 +1374,8 @@ func DefaultDBImage(engine string) string {
 		return "docker.dragonflydb.io/dragonflydb/dragonfly:latest"
 	case "clickhouse":
 		return "clickhouse/clickhouse-server:24"
+	case "sqlite":
+		return "peakimages/sqlite:3.53.4-v0.1.0"
 	default:
 		return ""
 	}
@@ -1484,13 +1486,14 @@ func (s *Store) UpdateDatabaseStatus(ctx context.Context, id uuid.UUID, status s
 
 // UpdateDatabaseInput carries the safe, patchable fields for a database resource.
 type UpdateDatabaseInput struct {
-	Name          *string
-	Description   *string
-	Image         *string
-	IsPublic      *bool
-	PublicPort    **int
-	EnableSSL     *bool
-	DestinationID **uuid.UUID
+	Name            *string
+	Description     *string
+	Image           *string
+	IsPublic        *bool
+	PublicPort      **int
+	EnableSSL       *bool
+	DestinationID   **uuid.UUID
+	SqliteDatabases *string
 }
 
 // UpdateDatabase patches non-nil fields on a database, scoped to team, and returns the refreshed row.
@@ -1520,12 +1523,29 @@ func (s *Store) UpdateDatabase(ctx context.Context, teamID, id uuid.UUID, in Upd
 	if in.DestinationID != nil {
 		db.DestinationID = *in.DestinationID
 	}
+	if in.SqliteDatabases != nil {
+		cfg := map[string]any{}
+		if len(db.EngineConfig) > 0 && string(db.EngineConfig) != "null" {
+			if err := json.Unmarshal(db.EngineConfig, &cfg); err != nil {
+				return nil, err
+			}
+		}
+		cfg["sqlite_databases"] = *in.SqliteDatabases
+		raw, err := json.Marshal(cfg)
+		if err != nil {
+			return nil, err
+		}
+		db.EngineConfig = raw
+	}
+	if len(db.EngineConfig) == 0 {
+		db.EngineConfig = json.RawMessage(`{}`)
+	}
 	tag, err := s.Pool.Exec(ctx, `
 		UPDATE databases SET
 			name=$3, description=$4, image=$5, is_public=$6, public_port=$7, destination_id=$8,
-			enable_ssl=$9, updated_at=NOW()
+			enable_ssl=$9, engine_config=$10, updated_at=NOW()
 		WHERE id=$1 AND team_id=$2
-	`, id, teamID, db.Name, db.Description, db.Image, db.IsPublic, db.PublicPort, db.DestinationID, db.EnableSSL)
+	`, id, teamID, db.Name, db.Description, db.Image, db.IsPublic, db.PublicPort, db.DestinationID, db.EnableSSL, db.EngineConfig)
 	if err != nil {
 		return nil, err
 	}

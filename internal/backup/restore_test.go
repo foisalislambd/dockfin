@@ -34,8 +34,8 @@ func TestDefaultFilenamePostgresCustom(t *testing.T) {
 	if !strings.HasSuffix(DefaultFilename("mysql", "abc"), ".sql") {
 		t.Fatal("mysql should stay .sql")
 	}
-	if !strings.HasSuffix(DefaultFilename("dragonfly", "abc"), ".tar.gz") {
-		t.Fatal("dragonfly dumps are volume tarballs")
+	if !strings.HasSuffix(DefaultFilename("dragonfly", "abc"), ".tar.gz") || !strings.HasSuffix(DefaultFilename("sqlite", "abc"), ".tar.gz") {
+		t.Fatal("dragonfly and sqlite dumps are volume tarballs")
 	}
 }
 
@@ -58,4 +58,3 @@ func TestDumpContainerDirCmdSafeLeaf(t *testing.T) {
 		t.Fatal("expected invalid filename")
 	}
 }
-
