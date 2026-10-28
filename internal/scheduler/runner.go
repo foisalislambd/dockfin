@@ -277,11 +277,11 @@ func (r *Runner) runBackups(ctx context.Context, minute time.Time) {
 			r.Logger.Error("create backup execution", "err", err)
 			continue
 		}
-		go r.executeBackup(context.Background(), db, exec.ID, filename, b.S3StorageID, b.Retention)
+		go r.executeBackup(context.Background(), db, exec.ID, filename, store.DestinationIDs(b.S3StorageID, b.S3StorageIDs), b.Retention)
 	}
 }
 
-func (r *Runner) executeBackup(ctx context.Context, db *store.Database, execID uuid.UUID, filename string, s3StorageID *uuid.UUID, retention int) {
+func (r *Runner) executeBackup(ctx context.Context, db *store.Database, execID uuid.UUID, filename string, destinations []uuid.UUID, retention int) {
 	done := false
 	defer func() {
 		if !done {
@@ -308,11 +308,7 @@ func (r *Runner) executeBackup(ctx context.Context, db *store.Database, execID u
 	r.Logger.Info("scheduled backup finished", "db", db.ID, "file", filename, "bytes", size)
 	_ = backup.EnforceRemoteRetention(client, db.Engine, db.ID.String(), retention)
 
-	if s3StorageID != nil {
-		if err := r.uploadBackupToS3(ctx, client, db, execID, filename, path, *s3StorageID); err != nil {
-			r.Logger.Error("s3 upload after backup", "db", db.ID, "err", err)
-		}
-	}
+	r.replicateBackup(ctx, client, db.TeamID, execID, path, "backups/"+db.ID.String()+"/"+filename, destinations)
 }
 
 func (r *Runner) executeApplicationBackup(ctx context.Context, b store.ScheduledBackupRow, execID uuid.UUID, filename string) {
@@ -400,11 +396,7 @@ func (r *Runner) executeApplicationBackup(ctx context.Context, b store.Scheduled
 	r.Logger.Info("application backup finished", "app", app.ID, "file", filename, "bytes", size)
 	_ = backup.EnforceAppBackupRetention(client, app.ID.String(), b.Retention)
 
-	if b.S3StorageID != nil {
-		if err := r.uploadAppBackupToS3(ctx, client, app.TeamID, app.ID, execID, filename, path, *b.S3StorageID); err != nil {
-			r.Logger.Error("s3 upload after app backup", "app", app.ID, "err", err)
-		}
-	}
+	r.replicateBackup(ctx, client, app.TeamID, execID, path, "backups/applications/"+app.ID.String()+"/"+filename, store.DestinationIDs(b.S3StorageID, b.S3StorageIDs))
 }
 
 func (r *Runner) executeServiceBackup(ctx context.Context, b store.ScheduledBackupRow, execID uuid.UUID, filename string) {
@@ -459,9 +451,50 @@ func (r *Runner) executeServiceBackup(ctx context.Context, b store.ScheduledBack
 	_ = r.Store.FinishBackupExecution(ctx, execID, "finished", size, "")
 	done = true
 	_ = backup.EnforceServiceBackupRetention(client, svc.ID.String(), b.Retention)
+	r.replicateBackup(ctx, client, svc.TeamID, execID, out, "backups/services/"+svc.ID.String()+"/"+filename, store.DestinationIDs(b.S3StorageID, b.S3StorageIDs))
 }
 
-func (r *Runner) uploadAppBackupToS3(ctx context.Context, client *ssh.Client, teamID, appID, execID uuid.UUID, filename, remotePath string, s3ID uuid.UUID) error {
+func (r *Runner) replicateBackup(ctx context.Context, client *ssh.Client, teamID, execID uuid.UUID, remotePath, objectKey string, ids []uuid.UUID) {
+	if len(ids) == 0 {
+		return
+	}
+	var failed []string
+	for _, id := range ids {
+		name := id.String()
+		uploaded := false
+		key := ""
+		message := ""
+		err := r.copyBackupToS3(ctx, client, teamID, remotePath, objectKey, id)
+		if st, getErr := r.Store.GetS3Storage(ctx, teamID, id); getErr == nil && st.Name != "" {
+			name = st.Name
+		}
+		if err != nil {
+			message = backup.RedactS3Message(err.Error())
+			failed = append(failed, name+": "+message)
+			r.Logger.Error("s3 replica failed", "storage", id, "err", message)
+		} else {
+			uploaded = true
+			key = objectKey
+		}
+		if recErr := r.Store.RecordBackupS3Replica(ctx, execID, id, name, uploaded, key, message); recErr != nil {
+			failed = append(failed, name+": could not record the upload result")
+			r.Logger.Error("record s3 replica", "storage", id, "err", recErr)
+		}
+	}
+	if err := r.Store.RefreshBackupS3Summary(ctx, execID); err != nil {
+		r.Logger.Error("s3 replica summary", "err", err)
+	}
+	if len(failed) > 0 {
+		if err := r.Store.MarkBackupS3Incomplete(ctx, execID); err != nil {
+			r.Logger.Error("s3 replica incomplete", "err", err)
+		}
+		if err := r.Store.NoteBackupS3Failure(ctx, execID, strings.Join(failed, "; ")); err != nil {
+			r.Logger.Error("s3 replica note", "err", err)
+		}
+	}
+}
+
+func (r *Runner) copyBackupToS3(ctx context.Context, client *ssh.Client, teamID uuid.UUID, remotePath, objectKey string, s3ID uuid.UUID) error {
 	st, err := r.Store.GetS3Storage(ctx, teamID, s3ID)
 	if err != nil {
 		return err
@@ -478,49 +511,14 @@ func (r *Runner) uploadAppBackupToS3(ctx context.Context, client *ssh.Client, te
 	if err != nil {
 		return fmt.Errorf("decrypt secret key: %w", err)
 	}
-	objectKey := "backups/applications/" + appID.String() + "/" + filename
-	if err := backup.UploadRemoteToS3(client, remotePath, objectKey, backup.S3Creds{
+	return backup.UploadRemoteToS3(client, remotePath, objectKey, backup.S3Creds{
 		Endpoint:  st.Endpoint,
 		Bucket:    st.Bucket,
 		Region:    st.Region,
 		AccessKey: accessKey,
 		SecretKey: secretKey,
 		PathStyle: st.PathStyle,
-	}); err != nil {
-		return err
-	}
-	return r.Store.MarkBackupS3Uploaded(ctx, execID, objectKey)
-}
-
-func (r *Runner) uploadBackupToS3(ctx context.Context, client *ssh.Client, db *store.Database, execID uuid.UUID, filename, remotePath string, s3ID uuid.UUID) error {
-	st, err := r.Store.GetS3Storage(ctx, db.TeamID, s3ID)
-	if err != nil {
-		return err
-	}
-	akEnc, skEnc, err := r.Store.GetS3StorageSecrets(ctx, db.TeamID, s3ID)
-	if err != nil {
-		return err
-	}
-	accessKey, err := r.Store.Box.DecryptString(akEnc)
-	if err != nil {
-		return fmt.Errorf("decrypt access key: %w", err)
-	}
-	secretKey, err := r.Store.Box.DecryptString(skEnc)
-	if err != nil {
-		return fmt.Errorf("decrypt secret key: %w", err)
-	}
-	objectKey := "backups/" + db.ID.String() + "/" + filename
-	if err := backup.UploadRemoteToS3(client, remotePath, objectKey, backup.S3Creds{
-		Endpoint:  st.Endpoint,
-		Bucket:    st.Bucket,
-		Region:    st.Region,
-		AccessKey: accessKey,
-		SecretKey: secretKey,
-		PathStyle: st.PathStyle,
-	}); err != nil {
-		return err
-	}
-	return r.Store.MarkBackupS3Uploaded(ctx, execID, objectKey)
+	})
 }
 
 func (r *Runner) dialForResource(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID) (*ssh.Client, string, error) {

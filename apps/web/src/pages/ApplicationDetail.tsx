@@ -44,6 +44,7 @@ import { ServiceLogo, logoForApplication } from '../components/ServiceLogo'
 import { StatusBadge } from '../components/StatusBadge'
 import { ResourceTagsPanel } from '../components/ResourceTagsPanel'
 import { ScheduledTasksPanel } from '../components/ScheduledTasksPanel'
+import { S3DestinationPicker, S3ReplicaStatus, s3DestinationLabel } from '../components/S3Destinations'
 import { ServerTerminal } from '../components/Terminal'
 import { CodeEditor } from '../components/CodeEditor'
 import { LiveLogViewer } from '../components/LiveLogViewer'
@@ -3116,7 +3117,7 @@ function ApplicationBackupsPanel({ appId }: { appId: string }) {
     queryKey: ['app-volumes', appId],
     queryFn: () => api.listAppVolumes(appId),
   })
-  const [s3Id, setS3Id] = useState('')
+  const [s3Ids, setS3Ids] = useState<string[]>([])
   const [volumeId, setVolumeId] = useState('')
   const [frequency, setFrequency] = useState('0 0 * * *')
   const [retention, setRetention] = useState('7')
@@ -3128,7 +3129,7 @@ function ApplicationBackupsPanel({ appId }: { appId: string }) {
       api.createScheduledBackup({
         resource_type: 'application',
         resource_id: appId,
-        s3_storage_id: s3Id || undefined,
+        s3_storage_ids: s3Ids,
         volume_id: volumeId || undefined,
         frequency,
         retention: Number(retention) || 7,
@@ -3211,7 +3212,9 @@ function ApplicationBackupsPanel({ appId }: { appId: string }) {
                 </td>
                 <td className="px-3 py-2">{formatBytes(b.size_bytes)}</td>
                 <td className="px-3 py-2 font-mono text-xs">{b.filename || '—'}</td>
-                <td className="px-3 py-2 text-xs">{b.s3_uploaded ? 'yes' : '—'}</td>
+                <td className="px-3 py-2 text-xs">
+                  <S3ReplicaStatus execution={b} />
+                </td>
                 <td className="px-3 py-2 text-right">
                   {b.status === 'finished' ? (
                     <button
@@ -3273,7 +3276,7 @@ function ApplicationBackupsPanel({ appId }: { appId: string }) {
                 <td className="px-3 py-2 font-mono text-xs">{b.frequency}</td>
                 <td className="px-3 py-2">{b.retention}</td>
                 <td className="px-3 py-2 font-mono text-xs">{b.volume_id?.slice(0, 8) || 'all'}</td>
-                <td className="px-3 py-2 font-mono text-xs">{b.s3_storage_id?.slice(0, 8) || '—'}</td>
+                <td className="px-3 py-2 text-xs">{s3DestinationLabel(b, storages.data?.s3_storages || [])}</td>
                 <td className="px-3 py-2">{b.enabled ? 'yes' : 'no'}</td>
                 <td className="space-x-3 px-3 py-2">
                   <button
@@ -3341,21 +3344,14 @@ function ApplicationBackupsPanel({ appId }: { appId: string }) {
             ))}
           </select>
         </label>
-        <label className="block text-sm sm:col-span-2">
-          <span className="mb-1 block text-gray-500 dark:text-gray-400">S3 storage (optional)</span>
-          <select
-            value={s3Id}
-            onChange={(e) => setS3Id(e.target.value)}
-            className="panel-field w-full rounded-lg px-3 py-2 text-sm"
-          >
-            <option value="">None</option>
-            {(storages.data?.s3_storages || []).map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} ({s.bucket})
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="block text-sm sm:col-span-2">
+          <span className="mb-1 block text-gray-500 dark:text-gray-400">S3 storages (optional)</span>
+          <S3DestinationPicker
+            storages={storages.data?.s3_storages || []}
+            selected={s3Ids}
+            onChange={setS3Ids}
+          />
+        </div>
         {create.error && <p className="text-sm text-error-500 sm:col-span-2">{create.error.message}</p>}
         <div className="sm:col-span-2">
           <Btn primary type="submit">

@@ -11,6 +11,49 @@ import (
 	"testing"
 )
 
+func TestEnsureRunnerGroupAdoptsExistingName(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pemKey := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	var created int
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/app/installations/9/access_tokens":
+			_ = json.NewEncoder(w).Encode(map[string]string{"token": "installation-token"})
+		case "/orgs/acme/actions/runner-groups/4":
+			http.NotFound(w, r)
+		case "/orgs/acme/actions/runner-groups":
+			if r.Method == http.MethodPost {
+				created++
+				http.Error(w, `{"message":"already exists"}`, http.StatusConflict)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"runner_groups": []map[string]any{{"id": 11, "name": "Dockfin abcd1234"}},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	app := &App{
+		AppID: "1", PrivateKeyPEM: string(pemKey), APIURL: srv.URL, Organization: "acme", HTTP: srv.Client(),
+	}
+	got, err := app.EnsureRunnerGroup("9", "Dockfin abcd1234", 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ID != 11 {
+		t.Fatalf("id %d", got.ID)
+	}
+	if created != 0 {
+		t.Fatalf("created %d, list should have adopted the group", created)
+	}
+}
+
 func TestGenerateJITConfig(t *testing.T) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {

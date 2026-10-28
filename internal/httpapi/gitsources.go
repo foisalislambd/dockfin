@@ -586,6 +586,9 @@ func (a *API) handleGitHubAppEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if eventName == "workflow_job" {
+		if matched, matchedSec, err := a.Store.GetGitSourceByInstallation(r.Context(), appIDHeader, installationIDFromWebhook(body)); err == nil {
+			gs, sec = matched, matchedSec
+		}
 		a.handleWorkflowJob(w, r, gs, sec, body)
 		return
 	}

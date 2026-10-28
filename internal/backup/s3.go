@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"regexp"
 	"strings"
 
 	"github.com/dockfin/dockfin/internal/sshx"
@@ -50,4 +51,16 @@ func UploadRemoteToS3(client *ssh.Client, remotePath, objectKey string, c S3Cred
 		return fmt.Errorf("s3 upload: %v %s", err, errOut)
 	}
 	return nil
+}
+
+var s3CredentialRE = regexp.MustCompile(`://[^/\s]*@`)
+
+// RedactS3Message removes embedded S3 credentials from an upload error.
+func RedactS3Message(msg string) string {
+	msg = s3CredentialRE.ReplaceAllString(msg, "://")
+	msg = strings.TrimSpace(msg)
+	if len(msg) > 500 {
+		msg = msg[:500]
+	}
+	return msg
 }

@@ -41,6 +41,12 @@ func startReserved(ctx context.Context, st *store.Store, pool *sshx.Pool, reserv
 		return err
 	}
 	for _, argv := range PrepareArgs(reserved.ExecutionID, cfg.RunnerImage, cfg.DockerMode, cfg.CPULimit, cfg.MemoryLimit) {
+		if len(argv) >= 2 && argv[1] == "pull" {
+			if err := ensureImage(client, argv[len(argv)-1]); err != nil {
+				return err
+			}
+			continue
+		}
 		if err := runDocker(client, argv); err != nil {
 			return err
 		}
@@ -93,7 +99,7 @@ func startReserved(ctx context.Context, st *store.Store, pool *sshx.Pool, reserv
 			_ = app.DeleteRunner(sec.InstallationID, jit.ID)
 			return err
 		}
-		if _, stderr, err := sshx.RunArgs(client, "chmod", "644", hook); err != nil {
+		if _, stderr, err := sshx.RunArgs(client, "chmod", "755", hook); err != nil {
 			_ = app.DeleteRunner(sec.InstallationID, jit.ID)
 			return fmt.Errorf("install job hook: %s", strings.TrimSpace(stderr))
 		}
@@ -109,7 +115,22 @@ func startReserved(ctx context.Context, st *store.Store, pool *sshx.Pool, reserv
 		return err
 	}
 	_, _, _ = sshx.RunArgs(client, "rm", "-f", envPath)
-	return st.SetRunnerResult(ctx, reserved.ExecutionID, jit.ID, "idle", "")
+	idle, err := st.MarkRunnerIdle(ctx, reserved.ExecutionID, jit.ID)
+	if err != nil {
+		return err
+	}
+	if idle {
+		return nil
+	}
+	// in_progress can arrive before this returns. Leave a running job alone.
+	status, err := st.RunnerStatus(ctx, reserved.ExecutionID)
+	if err != nil {
+		return err
+	}
+	if status == "running" || status == "completed" {
+		return nil
+	}
+	return fmt.Errorf("runner start was cancelled")
 }
 
 func failStart(ctx context.Context, st *store.Store, pool *sshx.Pool, reserved *store.ReservedRunner, cause error) error {
@@ -171,7 +192,7 @@ func Reconcile(ctx context.Context, st *store.Store, pool *sshx.Pool, logger *sl
 				logger.Error("provision github runner", "execution", exec.ID, "err", err)
 			}
 		case "provisioning":
-			if now.Sub(exec.UpdatedAt) > 20*time.Minute {
+			if now.Sub(exec.UpdatedAt) > 45*time.Minute {
 				_ = st.SetRunnerResult(ctx, exec.ID, 0, "failed", "the runner did not become ready")
 				finishCleanup(ctx, st, pool, exec)
 			}
@@ -220,6 +241,16 @@ func appAndSecrets(ctx context.Context, st *store.Store, teamID, sourceID uuid.U
 		Name:          sec.Name,
 		Organization:  sec.Organization,
 	}, sec, nil
+}
+
+func ensureImage(client *ssh.Client, image string) error {
+	if _, _, err := sshx.RunArgs(client, "docker", "pull", image); err == nil {
+		return nil
+	}
+	if _, _, err := sshx.RunArgs(client, "docker", "image", "inspect", image); err == nil {
+		return nil
+	}
+	return fmt.Errorf("could not pull %s", image)
 }
 
 func runDocker(client *ssh.Client, argv []string) error {

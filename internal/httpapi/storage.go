@@ -108,12 +108,13 @@ func (a *API) handleListScheduledBackups(w http.ResponseWriter, r *http.Request)
 
 func (a *API) handleCreateScheduledBackup(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		ResourceType string `json:"resource_type"`
-		ResourceID   string `json:"resource_id"`
-		S3StorageID  string `json:"s3_storage_id"`
-		VolumeID     string `json:"volume_id"`
-		Frequency    string `json:"frequency"`
-		Retention    int    `json:"retention"`
+		ResourceType string   `json:"resource_type"`
+		ResourceID   string   `json:"resource_id"`
+		S3StorageID  string   `json:"s3_storage_id"`
+		S3StorageIDs []string `json:"s3_storage_ids"`
+		VolumeID     string   `json:"volume_id"`
+		Frequency    string   `json:"frequency"`
+		Retention    int      `json:"retention"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -145,18 +146,10 @@ func (a *API) handleCreateScheduledBackup(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "unsupported resource_type")
 		return
 	}
-	var s3ID *uuid.UUID
-	if body.S3StorageID != "" {
-		id, err := uuid.Parse(body.S3StorageID)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid s3_storage_id")
-			return
-		}
-		if _, err := a.Store.GetS3Storage(r.Context(), teamID, id); err != nil {
-			mapStoreErr(w, err)
-			return
-		}
-		s3ID = &id
+	storageIDs, err := a.backupDestinationIDs(r.Context(), teamID, body.S3StorageID, body.S3StorageIDs)
+	if err != nil {
+		writeBackupDestinationErr(w, err)
+		return
 	}
 	var volumeID *uuid.UUID
 	if body.VolumeID != "" {
@@ -176,7 +169,7 @@ func (a *API) handleCreateScheduledBackup(w http.ResponseWriter, r *http.Request
 		}
 		volumeID = &vid
 	}
-	b, err := a.Store.CreateScheduledBackup(r.Context(), teamID, body.ResourceType, rid, s3ID, volumeID, body.Frequency, body.Retention)
+	b, err := a.Store.CreateScheduledBackup(r.Context(), teamID, body.ResourceType, rid, storageIDs, volumeID, body.Frequency, body.Retention)
 	if err != nil {
 		mapStoreErr(w, err)
 		return
@@ -191,10 +184,11 @@ func (a *API) handlePatchScheduledBackup(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var body struct {
-		Frequency   *string `json:"frequency"`
-		Retention   *int    `json:"retention"`
-		Enabled     *bool   `json:"enabled"`
-		S3StorageID *string `json:"s3_storage_id"`
+		Frequency    *string   `json:"frequency"`
+		Retention    *int      `json:"retention"`
+		Enabled      *bool     `json:"enabled"`
+		S3StorageID  *string   `json:"s3_storage_id"`
+		S3StorageIDs *[]string `json:"s3_storage_ids"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -206,24 +200,20 @@ func (a *API) handlePatchScheduledBackup(w http.ResponseWriter, r *http.Request)
 		Retention: body.Retention,
 		Enabled:   body.Enabled,
 	}
-	if body.S3StorageID != nil {
-		raw := strings.TrimSpace(*body.S3StorageID)
-		if raw == "" {
-			var nilID *uuid.UUID
-			in.S3StorageID = &nilID
-		} else {
-			sid, err := uuid.Parse(raw)
-			if err != nil {
-				writeError(w, http.StatusBadRequest, "invalid s3_storage_id")
-				return
-			}
-			if _, err := a.Store.GetS3Storage(r.Context(), teamID, sid); err != nil {
-				mapStoreErr(w, err)
-				return
-			}
-			ptr := &sid
-			in.S3StorageID = &ptr
+	if body.S3StorageIDs != nil {
+		ids, err := a.backupDestinationIDs(r.Context(), teamID, "", *body.S3StorageIDs)
+		if err != nil {
+			writeBackupDestinationErr(w, err)
+			return
 		}
+		in.Destinations = &ids
+	} else if body.S3StorageID != nil {
+		ids, err := a.backupDestinationIDs(r.Context(), teamID, *body.S3StorageID, nil)
+		if err != nil {
+			writeBackupDestinationErr(w, err)
+			return
+		}
+		in.Destinations = &ids
 	}
 	b, err := a.Store.UpdateScheduledBackup(r.Context(), teamID, id, in)
 	if err != nil {
@@ -231,6 +221,47 @@ func (a *API) handlePatchScheduledBackup(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	writeJSON(w, http.StatusOK, b)
+}
+
+var errInvalidS3ID = errors.New("invalid s3 storage id")
+
+func (a *API) backupDestinationIDs(ctx context.Context, teamID uuid.UUID, legacy string, extra []string) ([]uuid.UUID, error) {
+	var raw []string
+	if extra != nil {
+		if strings.TrimSpace(legacy) != "" {
+			raw = append(raw, legacy)
+		}
+		raw = append(raw, extra...)
+	} else if strings.TrimSpace(legacy) != "" {
+		raw = []string{legacy}
+	}
+	ids := make([]uuid.UUID, 0, len(raw))
+	for _, item := range raw {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		id, err := uuid.Parse(item)
+		if err != nil {
+			return nil, errInvalidS3ID
+		}
+		if _, err := a.Store.GetS3Storage(ctx, teamID, id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return store.DedupeDestinationIDs(ids)
+}
+
+func writeBackupDestinationErr(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, errInvalidS3ID):
+		writeError(w, http.StatusBadRequest, "invalid s3 storage id")
+	case errors.Is(err, store.ErrTooManyS3Destinations):
+		writeError(w, http.StatusBadRequest, "at most 8 s3 storages")
+	default:
+		mapStoreErr(w, err)
+	}
 }
 
 func (a *API) handleDeleteScheduledBackup(w http.ResponseWriter, r *http.Request) {

@@ -1846,16 +1846,17 @@ type S3Storage struct {
 }
 
 type ScheduledBackup struct {
-	ID           uuid.UUID  `json:"id"`
-	TeamID       uuid.UUID  `json:"team_id"`
-	ResourceType string     `json:"resource_type"`
-	ResourceID   uuid.UUID  `json:"resource_id"`
-	S3StorageID  *uuid.UUID `json:"s3_storage_id,omitempty"`
-	VolumeID     *uuid.UUID `json:"volume_id,omitempty"`
-	Frequency    string     `json:"frequency"`
-	Enabled      bool       `json:"enabled"`
-	Retention    int        `json:"retention"`
-	CreatedAt    time.Time  `json:"created_at"`
+	ID           uuid.UUID   `json:"id"`
+	TeamID       uuid.UUID   `json:"team_id"`
+	ResourceType string      `json:"resource_type"`
+	ResourceID   uuid.UUID   `json:"resource_id"`
+	S3StorageID  *uuid.UUID  `json:"s3_storage_id,omitempty"`
+	S3StorageIDs []uuid.UUID `json:"s3_storage_ids"`
+	VolumeID     *uuid.UUID  `json:"volume_id,omitempty"`
+	Frequency    string      `json:"frequency"`
+	Enabled      bool        `json:"enabled"`
+	Retention    int         `json:"retention"`
+	CreatedAt    time.Time   `json:"created_at"`
 }
 
 func (s *Store) CreateS3Storage(ctx context.Context, teamID uuid.UUID, name, endpoint, bucket, region, accessKeyEnc, secretKeyEnc string, pathStyle bool) (*S3Storage, error) {
@@ -1916,32 +1917,51 @@ func (s *Store) GetS3StorageSecrets(ctx context.Context, teamID, id uuid.UUID) (
 }
 
 func (s *Store) DeleteS3Storage(ctx context.Context, teamID, id uuid.UUID) error {
-	tag, err := s.Pool.Exec(ctx, `DELETE FROM s3_storages WHERE id=$1 AND team_id=$2`, id, teamID)
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	tag, err := tx.Exec(ctx, `DELETE FROM s3_storages WHERE id=$1 AND team_id=$2`, id, teamID)
 	if err != nil {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
-	return nil
+	if err := promoteBackupPrimaries(ctx, tx, teamID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
-func (s *Store) CreateScheduledBackup(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID, s3ID, volumeID *uuid.UUID, frequency string, retention int) (*ScheduledBackup, error) {
+func (s *Store) CreateScheduledBackup(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID, storageIDs []uuid.UUID, volumeID *uuid.UUID, frequency string, retention int) (*ScheduledBackup, error) {
 	if frequency == "" {
 		frequency = "0 0 * * *"
 	}
 	if retention <= 0 {
 		retention = 7
 	}
+	storageIDs, err := DedupeDestinationIDs(storageIDs)
+	if err != nil {
+		return nil, err
+	}
 	var b ScheduledBackup
-	err := s.Pool.QueryRow(ctx, `
+	err = s.Pool.QueryRow(ctx, `
 		INSERT INTO scheduled_backups (team_id, resource_type, resource_id, s3_storage_id, volume_id, frequency, retention)
 		VALUES ($1,$2,$3,$4,$5,$6,$7)
 		RETURNING id, team_id, resource_type, resource_id, s3_storage_id, volume_id, frequency, enabled, retention, created_at
-	`, teamID, resourceType, resourceID, s3ID, volumeID, frequency, retention).Scan(
+	`, teamID, resourceType, resourceID, KeepPrimary(nil, storageIDs), volumeID, frequency, retention).Scan(
 		&b.ID, &b.TeamID, &b.ResourceType, &b.ResourceID, &b.S3StorageID, &b.VolumeID, &b.Frequency, &b.Enabled, &b.Retention, &b.CreatedAt,
 	)
-	return &b, err
+	if err != nil {
+		return nil, err
+	}
+	if err := s.replaceBackupDestinations(ctx, teamID, b.ID, storageIDs); err != nil {
+		_, _ = s.Pool.Exec(ctx, `DELETE FROM scheduled_backups WHERE id=$1 AND team_id=$2`, b.ID, teamID)
+		return nil, err
+	}
+	return s.GetScheduledBackup(ctx, teamID, b.ID)
 }
 
 type UpdateScheduledBackupInput struct {
@@ -1949,6 +1969,8 @@ type UpdateScheduledBackupInput struct {
 	Retention   *int
 	Enabled     *bool
 	S3StorageID **uuid.UUID // pointer to pointer: nil = omit, &nil = clear, &id = set
+	// Destinations replaces the whole set when non-nil. An empty slice clears it.
+	Destinations *[]uuid.UUID
 }
 
 func (s *Store) UpdateScheduledBackup(ctx context.Context, teamID, id uuid.UUID, in UpdateScheduledBackupInput) (*ScheduledBackup, error) {
@@ -1973,9 +1995,8 @@ func (s *Store) UpdateScheduledBackup(ctx context.Context, teamID, id uuid.UUID,
 	if in.Enabled != nil {
 		en = *in.Enabled
 	}
-	if in.S3StorageID != nil {
-		s3 = *in.S3StorageID
-	}
+	// The destination replace is the only writer of s3_storage_id. Writing it here first
+	// would leave the column and the destination list pointing at different storages if the replace failed.
 	_, err = s.Pool.Exec(ctx, `
 		UPDATE scheduled_backups
 		SET frequency=$3, retention=$4, enabled=$5, s3_storage_id=$6, updated_at=NOW()
@@ -1983,6 +2004,19 @@ func (s *Store) UpdateScheduledBackup(ctx context.Context, teamID, id uuid.UUID,
 	`, id, teamID, freq, ret, en, s3)
 	if err != nil {
 		return nil, err
+	}
+	if in.Destinations != nil {
+		if err := s.replaceBackupDestinations(ctx, teamID, id, *in.Destinations); err != nil {
+			return nil, err
+		}
+	} else if in.S3StorageID != nil {
+		var ids []uuid.UUID
+		if *in.S3StorageID != nil {
+			ids = []uuid.UUID{**in.S3StorageID}
+		}
+		if err := s.replaceBackupDestinations(ctx, teamID, id, ids); err != nil {
+			return nil, err
+		}
 	}
 	return s.GetScheduledBackup(ctx, teamID, id)
 }
@@ -2007,7 +2041,14 @@ func (s *Store) GetScheduledBackup(ctx context.Context, teamID, id uuid.UUID) (*
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
-	return &b, err
+	if err != nil {
+		return nil, err
+	}
+	one := []ScheduledBackup{b}
+	if err := s.attachBackupDestinations(ctx, one); err != nil {
+		return nil, err
+	}
+	return &one[0], nil
 }
 
 func (s *Store) ListScheduledBackups(ctx context.Context, teamID uuid.UUID) ([]ScheduledBackup, error) {
@@ -2027,23 +2068,30 @@ func (s *Store) ListScheduledBackups(ctx context.Context, teamID uuid.UUID) ([]S
 		}
 		out = append(out, b)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := s.attachBackupDestinations(ctx, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 type BackupExecution struct {
-	ID                uuid.UUID  `json:"id"`
-	TeamID            uuid.UUID  `json:"team_id"`
-	ScheduledBackupID *uuid.UUID `json:"scheduled_backup_id,omitempty"`
-	ResourceType      string     `json:"resource_type"`
-	ResourceID        uuid.UUID  `json:"resource_id"`
-	Status            string     `json:"status"`
-	SizeBytes         int64      `json:"size_bytes"`
-	Filename          string     `json:"filename"`
-	S3Uploaded        bool       `json:"s3_uploaded"`
-	S3Key             string     `json:"s3_key,omitempty"`
-	ErrorMessage      string     `json:"error_message"`
-	StartedAt         time.Time  `json:"started_at"`
-	FinishedAt        *time.Time `json:"finished_at,omitempty"`
+	ID                uuid.UUID         `json:"id"`
+	TeamID            uuid.UUID         `json:"team_id"`
+	ScheduledBackupID *uuid.UUID        `json:"scheduled_backup_id,omitempty"`
+	ResourceType      string            `json:"resource_type"`
+	ResourceID        uuid.UUID         `json:"resource_id"`
+	Status            string            `json:"status"`
+	SizeBytes         int64             `json:"size_bytes"`
+	Filename          string            `json:"filename"`
+	S3Uploaded        bool              `json:"s3_uploaded"`
+	S3Key             string            `json:"s3_key,omitempty"`
+	S3Replicas        []BackupS3Replica `json:"s3_replicas,omitempty"`
+	ErrorMessage      string            `json:"error_message"`
+	StartedAt         time.Time         `json:"started_at"`
+	FinishedAt        *time.Time        `json:"finished_at,omitempty"`
 }
 
 func (s *Store) CreateBackupExecution(ctx context.Context, teamID uuid.UUID, resourceType string, resourceID uuid.UUID, filename string) (*BackupExecution, error) {
@@ -2094,7 +2142,13 @@ func (s *Store) ListBackupExecutions(ctx context.Context, teamID uuid.UUID, reso
 		}
 		out = append(out, b)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := s.attachBackupReplicas(ctx, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (s *Store) GetBackupExecution(ctx context.Context, teamID, id uuid.UUID) (*BackupExecution, error) {
@@ -2222,6 +2276,7 @@ type ScheduledBackupRow struct {
 	ResourceType string
 	ResourceID   uuid.UUID
 	S3StorageID  *uuid.UUID
+	S3StorageIDs []uuid.UUID
 	VolumeID     *uuid.UUID
 	Frequency    string
 	Enabled      bool
@@ -2245,7 +2300,13 @@ func (s *Store) ListEnabledScheduledBackups(ctx context.Context) ([]ScheduledBac
 		}
 		out = append(out, b)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := s.attachRowDestinations(ctx, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (s *Store) BackupRanThisMinute(ctx context.Context, backupID uuid.UUID, minute time.Time) (bool, error) {

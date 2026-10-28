@@ -685,6 +685,8 @@ func mapStoreErr(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "environment variable is locked")
 	case errors.Is(err, store.ErrUnauthorized):
 		writeError(w, http.StatusForbidden, "forbidden")
+	case errors.Is(err, store.ErrTooManyS3Destinations):
+		writeError(w, http.StatusBadRequest, "at most 8 s3 storages")
 	default:
 		slog.Error("request error", "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")

@@ -89,6 +89,7 @@
 - [x] Backup dump helper
 - [x] Full restore UI
 - [x] Scheduled backup S3 upload
+- [x] Multiple S3 destinations per scheduled backup
 - [x] Patch API (`PATCH /databases/{id}`) + Configuration tab UI for `is_public`/`public_port` (requires restart/redeploy to take effect on the running container)
 - [x] Import backup (upload a dump, stored under `/data/dockfin/backups`, optional immediate restore)
 - [x] Logs tab (SSE stream from the `dockfin-db-{id}` container, mirrors application logs)

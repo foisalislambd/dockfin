@@ -414,6 +414,43 @@ func (s *Store) GetGitSourceByAppID(ctx context.Context, appID string) (*GitSour
 	return gs, sec, nil
 }
 
+// GetGitSourceByInstallation finds the GitHub App source for one installation of an App.
+func (s *Store) GetGitSourceByInstallation(ctx context.Context, appID, installationID string) (*GitSource, *GitSourceSecrets, error) {
+	appID = strings.TrimSpace(appID)
+	installationID = strings.TrimSpace(installationID)
+	if appID == "" || installationID == "" {
+		return nil, nil, ErrNotFound
+	}
+	row := s.Pool.QueryRow(ctx, `
+		SELECT `+gitSourceSelect+`,
+			(SELECT COUNT(*)::int FROM applications a WHERE a.git_source_id = git_sources.id),
+			client_secret_enc, private_key_enc, webhook_secret_enc
+		FROM git_sources
+		WHERE app_id=$1 AND installation_id=$2 AND is_public=FALSE
+		ORDER BY updated_at DESC NULLS LAST, created_at DESC
+		LIMIT 1
+	`, appID, installationID)
+	var appsCount int
+	var clientSecretEnc, privateKeyEnc, webhookSecretEnc string
+	gs, err := scanGitSource(func(dest ...any) error {
+		args := append(dest, &appsCount, &clientSecretEnc, &privateKeyEnc, &webhookSecretEnc)
+		return row.Scan(args...)
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	gs.Applications = appsCount
+	return gs, &GitSourceSecrets{
+		AppID: gs.AppID, InstallationID: gs.InstallationID, ClientID: gs.ClientID,
+		ClientSecretEnc: clientSecretEnc, PrivateKeyEnc: privateKeyEnc, WebhookSecretEnc: webhookSecretEnc,
+		Name: gs.Name, HTMLURL: gs.HTMLURL, APIURL: gs.APIURL, Organization: gs.Organization,
+		CustomUser: gs.CustomUser, CustomPort: gs.CustomPort,
+	}, nil
+}
+
 func (s *Store) SaveGitSetupState(ctx context.Context, state string, teamID, sourceID uuid.UUID, expires time.Time) error {
 	_, err := s.Pool.Exec(ctx, `
 		INSERT INTO git_source_setup_states (state, team_id, source_id, expires_at)

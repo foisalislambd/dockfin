@@ -194,6 +194,9 @@ func (s *Store) ListGithubRunnerExecutions(ctx context.Context, teamID, serverID
 
 // CreateRunnerExecution inserts a queued job once. created is false when the job already exists.
 func (s *Store) CreateRunnerExecution(ctx context.Context, in RunnerExecutionInput) (uuid.UUID, bool, error) {
+	if in.Labels == nil {
+		in.Labels = []string{}
+	}
 	labels, _ := json.Marshal(in.Labels)
 	if in.QueueWaitMinutes <= 0 {
 		in.QueueWaitMinutes = 60
@@ -313,6 +316,27 @@ func (s *Store) runnerConfigsTx(ctx context.Context, tx pgx.Tx, sourceID uuid.UU
 	return out, rows.Err()
 }
 
+// MarkRunnerIdle records that the container is waiting for a job.
+// It does not change a runner that GitHub has already marked running.
+func (s *Store) MarkRunnerIdle(ctx context.Context, id uuid.UUID, runnerID int64) (bool, error) {
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE github_runner_executions SET
+			runner_id=CASE WHEN $2 > 0 THEN $2 ELSE runner_id END,
+			status='idle', error_message='', ready_at=COALESCE(ready_at, NOW()), updated_at=NOW()
+		WHERE id=$1 AND status='provisioning'
+	`, id, runnerID)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+func (s *Store) RunnerStatus(ctx context.Context, id uuid.UUID) (string, error) {
+	var status string
+	err := s.Pool.QueryRow(ctx, `SELECT status FROM github_runner_executions WHERE id=$1`, id).Scan(&status)
+	return status, err
+}
+
 func (s *Store) SetRunnerResult(ctx context.Context, id uuid.UUID, runnerID int64, status, errMsg string) error {
 	_, err := s.Pool.Exec(ctx, `
 		UPDATE github_runner_executions SET
@@ -368,13 +392,23 @@ func (s *Store) MarkRunnerRunning(ctx context.Context, gitSourceID uuid.UUID, ru
 			WHERE git_source_id=$1 AND trigger_job_id=$2 AND id<>$3
 			FOR UPDATE
 		`, gitSourceID, jobID, row.ID).Scan(&otherStatus)
-		otherActive := otherErr == nil && (otherStatus == "queued" || otherStatus == "provisioning" || otherStatus == "idle" || otherStatus == "running")
-		if !otherActive {
+		// A queued row has no container yet. Only a started row means another runner already has this job.
+		otherStarted := otherErr == nil && (otherStatus == "provisioning" || otherStatus == "idle" || otherStatus == "running")
+		if !otherStarted {
 			if otherErr == nil {
-				_, _ = tx.Exec(ctx, `DELETE FROM github_runner_executions WHERE git_source_id=$1 AND trigger_job_id=$2 AND id<>$3`, gitSourceID, jobID, row.ID)
+				if _, err := tx.Exec(ctx, `DELETE FROM github_runner_executions WHERE git_source_id=$1 AND trigger_job_id=$2 AND id<>$3`, gitSourceID, jobID, row.ID); err != nil {
+					return uuid.Nil, err
+				}
+			}
+			// Free the original job id before inserting the replacement, or the unique key rejects it.
+			if _, err := tx.Exec(ctx, `UPDATE github_runner_executions SET trigger_job_id=$2 WHERE id=$1`, row.ID, jobID); err != nil {
+				return uuid.Nil, err
 			}
 			if row.ProvisionAttempts < 3 {
 				labels, _ := json.Marshal(row.Labels)
+				if labels == nil || string(labels) == "null" {
+					labels = []byte("[]")
+				}
 				var newID uuid.UUID
 				err = tx.QueryRow(ctx, `
 					INSERT INTO github_runner_executions (
@@ -388,10 +422,6 @@ func (s *Store) MarkRunnerRunning(ctx context.Context, gitSourceID uuid.UUID, ru
 					return uuid.Nil, err
 				}
 				requeue = newID
-			}
-			_, err = tx.Exec(ctx, `UPDATE github_runner_executions SET trigger_job_id=$2 WHERE id=$1`, row.ID, jobID)
-			if err != nil {
-				return uuid.Nil, err
 			}
 		}
 	}

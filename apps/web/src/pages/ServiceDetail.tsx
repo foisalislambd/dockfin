@@ -33,6 +33,7 @@ import { MoveResourcePanel } from '../components/MoveResourcePanel'
 import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
 import { ResourceSetupBanner, type SetupCheck } from '../components/ResourceSetupBanner'
 import { ScheduledTasksPanel } from '../components/ScheduledTasksPanel'
+import { S3DestinationPicker, S3ReplicaStatus, s3DestinationLabel } from '../components/S3Destinations'
 import { BackLink } from '../components/BackLink'
 import { ResourceSwitcher } from '../components/ResourceSwitcher'
 import { ServiceLogo, logoForServiceType } from '../components/ServiceLogo'
@@ -1112,6 +1113,8 @@ function ServiceBackupsPanel({ svcId }: { svcId: string }) {
       return list.some((b) => b.status === 'running') ? 2000 : false
     },
   })
+  const storages = useQuery({ queryKey: ['s3-storages'], queryFn: api.s3Storages })
+  const [s3Ids, setS3Ids] = useState<string[]>([])
   const [frequency, setFrequency] = useState('0 0 * * *')
   const [retention, setRetention] = useState('7')
   const mine = (backups.data?.scheduled_backups || []).filter(
@@ -1122,6 +1125,7 @@ function ServiceBackupsPanel({ svcId }: { svcId: string }) {
       api.createScheduledBackup({
         resource_type: 'service',
         resource_id: svcId,
+        s3_storage_ids: s3Ids,
         frequency,
         retention: Number(retention) || 7,
       }),
@@ -1155,6 +1159,7 @@ function ServiceBackupsPanel({ svcId }: { svcId: string }) {
             <tr>
               <th>Status</th>
               <th>File</th>
+              <th>S3</th>
               <th>Started</th>
               <th></th>
             </tr>
@@ -1166,6 +1171,9 @@ function ServiceBackupsPanel({ svcId }: { svcId: string }) {
                   <StatusBadge status={b.status} />
                 </td>
                 <td className="font-mono text-xs">{b.filename}</td>
+                <td className="text-xs">
+                  <S3ReplicaStatus execution={b} />
+                </td>
                 <td className="text-xs text-gray-500">
                   {b.started_at ? new Date(b.started_at).toLocaleString() : '—'}
                 </td>
@@ -1197,7 +1205,7 @@ function ServiceBackupsPanel({ svcId }: { svcId: string }) {
             ))}
             {!executions.data?.backup_executions?.length && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
                   No backup runs yet.
                 </td>
               </tr>
@@ -1211,12 +1219,15 @@ function ServiceBackupsPanel({ svcId }: { svcId: string }) {
           <Input label="Cron" value={frequency} onChange={setFrequency} />
           <Input label="Retention" value={retention} onChange={setRetention} />
         </div>
+        <S3DestinationPicker storages={storages.data?.s3_storages || []} selected={s3Ids} onChange={setS3Ids} />
         <Btn onClick={() => create.mutate()} disabled={create.isPending}>
           {create.isPending ? 'Saving…' : 'Add schedule'}
         </Btn>
         {mine.map((b) => (
           <div key={b.id} className="flex items-center justify-between text-sm">
-            <span className="font-mono text-xs">{b.frequency}</span>
+            <span className="font-mono text-xs">
+              {b.frequency} · {s3DestinationLabel(b, storages.data?.s3_storages || [])}
+            </span>
             <button type="button" className="text-error-500" onClick={() => removeSchedule.mutate(b.id)}>
               Remove
             </button>

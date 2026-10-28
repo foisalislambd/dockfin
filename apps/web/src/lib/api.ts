@@ -1007,6 +1007,7 @@ export const api = {
     resource_type: string
     resource_id: string
     s3_storage_id?: string
+    s3_storage_ids?: string[]
     volume_id?: string
     frequency?: string
     retention?: number
@@ -1017,7 +1018,13 @@ export const api = {
     }),
   updateScheduledBackup: (
     id: string,
-    body: { frequency?: string; retention?: number; enabled?: boolean; s3_storage_id?: string | null },
+    body: {
+      frequency?: string
+      retention?: number
+      enabled?: boolean
+      s3_storage_id?: string | null
+      s3_storage_ids?: string[]
+    },
   ) =>
     request<ScheduledBackup>(`/api/v1/scheduled-backups/${id}`, {
       method: 'PATCH',
@@ -1787,6 +1794,7 @@ export type ScheduledBackup = {
   resource_type: string
   resource_id: string
   s3_storage_id?: string | null
+  s3_storage_ids?: string[]
   volume_id?: string | null
   frequency: string
   enabled: boolean
@@ -1803,6 +1811,14 @@ export type BackupExecution = {
   error_message: string
   s3_uploaded?: boolean
   s3_key?: string
+  s3_replicas?: {
+    id: string
+    s3_storage_id?: string | null
+    storage_name: string
+    uploaded: boolean
+    object_key?: string
+    message?: string
+  }[]
   started_at: string
   finished_at?: string | null
 }

@@ -173,7 +173,7 @@ func (a *API) handleWorkflowJob(w http.ResponseWriter, r *http.Request, gs *stor
 			} else {
 				allowsPR = true
 			}
-			if wait == 0 || cfg.QueueWaitMinutes < wait {
+			if cfg.QueueWaitMinutes > wait {
 				wait = cfg.QueueWaitMinutes
 			}
 		}
@@ -259,6 +259,18 @@ func (a *API) githubApp(sec *store.GitSourceSecrets) *githubapp.App {
 		AppID: sec.AppID, ClientID: sec.ClientID, PrivateKeyPEM: key,
 		HTMLURL: sec.HTMLURL, APIURL: sec.APIURL, Name: sec.Name, Organization: sec.Organization,
 	}
+}
+
+func installationIDFromWebhook(body []byte) string {
+	var payload struct {
+		Installation struct {
+			ID int64 `json:"id"`
+		} `json:"installation"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil || payload.Installation.ID <= 0 {
+		return ""
+	}
+	return strconv.FormatInt(payload.Installation.ID, 10)
 }
 
 func jsonNumber(n int64) string {

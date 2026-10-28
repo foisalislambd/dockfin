@@ -41,6 +41,11 @@ func (a *App) EnsureRunnerGroup(installationID, name string, savedID int64) (Run
 			return RunnerGroup{}, fmt.Errorf("read runner group: %s", githubMessage(body, status))
 		}
 	}
+	if id, ok, err := a.findRunnerGroup(installationID, org, name); err != nil {
+		return RunnerGroup{}, err
+	} else if ok {
+		return RunnerGroup{ID: id}, nil
+	}
 	payload, _ := json.Marshal(map[string]any{
 		"name":                       name,
 		"visibility":                 "all",
@@ -55,9 +60,37 @@ func (a *App) EnsureRunnerGroup(installationID, name string, savedID int64) (Run
 	}
 	_ = json.Unmarshal(body, &out)
 	if status >= 300 || out.ID == 0 {
+		if id, ok, findErr := a.findRunnerGroup(installationID, org, name); findErr == nil && ok {
+			return RunnerGroup{ID: id}, nil
+		}
 		return RunnerGroup{}, fmt.Errorf("create runner group: %s", githubMessage(body, status))
 	}
 	return RunnerGroup{ID: out.ID}, nil
+}
+
+func (a *App) findRunnerGroup(installationID, org, name string) (int64, bool, error) {
+	body, status, err := a.orgJSON(http.MethodGet, installationID, "/orgs/"+org+"/actions/runner-groups?per_page=100", nil)
+	if err != nil {
+		return 0, false, err
+	}
+	if status >= 300 {
+		return 0, false, fmt.Errorf("list runner groups: %s", githubMessage(body, status))
+	}
+	var out struct {
+		Groups []struct {
+			ID   int64  `json:"id"`
+			Name string `json:"name"`
+		} `json:"runner_groups"`
+	}
+	if err := json.Unmarshal(body, &out); err != nil {
+		return 0, false, err
+	}
+	for _, group := range out.Groups {
+		if group.Name == name && group.ID > 0 {
+			return group.ID, true, nil
+		}
+	}
+	return 0, false, nil
 }
 
 // GenerateJITConfig registers one ephemeral runner. The encoded config must not be logged.
