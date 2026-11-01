@@ -18,7 +18,7 @@ export function PanelBackdrop() {
   return (
     <button
       type="button"
-      className="fixed inset-0 z-40 bg-gray-900/60 backdrop-blur-[2px] lg:hidden"
+      className="fixed top-[3.25rem] right-0 bottom-0 left-0 z-30 bg-gray-900/60 backdrop-blur-[2px] lg:hidden"
       onClick={closeMobileSidebar}
       aria-label="Close navigation"
     />

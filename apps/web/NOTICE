@@ -1,0 +1,9 @@
+Console interaction patterns in this dashboard — full-width top bar, sectioned
+sidebar, command palette, and `g` then letter navigation — are a clean-room
+reimplementation inspired by the Antirion console:
+
+  https://github.com/eliasbiondo/antirion
+
+Antirion is licensed under the Apache License, Version 2.0. No Antirion source
+was copied into Dockfin. Dockfin's color palette, logo, fonts, and product
+copy are Dockfin's own. Dockfin itself remains MIT licensed.

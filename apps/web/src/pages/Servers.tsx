@@ -4,6 +4,7 @@ import { Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { CatalogLoadMore } from '../components/CatalogLoadMore'
+import { UseThisHostButton } from '../components/UseThisHostButton'
 import { CreatePageShell, FormActions, FormInput, FormSelect } from '../components/ui/forms'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { useCatalogWindow } from '../hooks/use-catalog-window'
@@ -39,9 +40,11 @@ export function ServersPage() {
     <div className="space-y-6">
       <Header
         title="Servers"
+        subtitle="SSH hosts that run Docker. Add this machine or any other server."
         actions={
           <>
             <Btn onClick={() => setShowKey(true)}>Add SSH key</Btn>
+            <UseThisHostButton />
             <Link
               to="/servers/new"
               className="inline-flex h-8 items-center rounded-md bg-brand-500 px-2.5 text-xs font-medium text-white hover:bg-brand-600"
@@ -165,8 +168,20 @@ function ServerList({
             ))}
             {!servers.length && (
               <tr>
-                <td colSpan={5} className="panel-table-empty">
-                  No servers yet.
+                <td colSpan={5} className="px-4 py-10 text-center">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">No servers yet</p>
+                  <p className="mx-auto mt-1 max-w-md text-sm text-gray-500 dark:text-gray-400">
+                    Use the machine Dockfin is running on, or add another host over SSH.
+                  </p>
+                  <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                    <UseThisHostButton />
+                    <Link
+                      to="/servers/new"
+                      className="inline-flex h-8 items-center rounded-md bg-brand-500 px-2.5 text-xs font-medium text-white hover:bg-brand-600"
+                    >
+                      Add server
+                    </Link>
+                  </div>
                 </td>
               </tr>
             )}

@@ -2,9 +2,11 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { ChevronDown, LogOut, Settings } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useAuth } from '../../lib/auth'
+import { useConsoleUi } from './console-ui'
 
 export function UserMenu() {
   const { user, team, logout } = useAuth()
+  const { setShortcutsOpen } = useConsoleUi()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -78,6 +80,25 @@ export function UserMenu() {
               </p>
             )}
           </div>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              setShortcutsOpen(true)
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-gray-700 hover:bg-gray-50 focus-visible:bg-gray-50 focus-visible:outline-none dark:text-gray-300 dark:hover:bg-white/5"
+          >
+            Keyboard shortcuts
+          </button>
+          <Link
+            to="/team"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 focus-visible:bg-gray-50 focus-visible:outline-none dark:text-gray-300 dark:hover:bg-white/5"
+          >
+            Team
+          </Link>
           <Link
             to="/settings"
             role="menuitem"

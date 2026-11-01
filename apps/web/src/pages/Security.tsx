@@ -70,7 +70,10 @@ export function SecurityPage({ initialTab }: { initialTab?: TabId }) {
 
   return (
     <div className="space-y-6">
-      <Header title="Security" />
+      <Header
+        title="Keys & tokens"
+        subtitle="SSH keys, API tokens, cloud providers, and cloud-init scripts."
+      />
       <ResourceTabs tabs={[...TABS]} active={tab} onChange={changeTab} />
       {tab === 'private-keys' && (
         <TabPanel>

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { FolderKanban, Search } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CatalogLoadMore } from '../components/CatalogLoadMore'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { useCatalogWindow } from '../hooks/use-catalog-window'
@@ -17,7 +17,11 @@ export function ProjectsPage() {
   const nav = useNavigate()
   const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
   const envs = useQuery({ queryKey: ['all-environments'], queryFn: fetchAllEnvironments })
-  const [show, setShow] = useState(false)
+  const routeSearch = useSearch({ strict: false }) as { new?: string }
+  const [show, setShow] = useState(routeSearch.new === '1')
+  useEffect(() => {
+    if (routeSearch.new === '1') setShow(true)
+  }, [routeSearch.new])
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [search, setSearch] = useState('')
@@ -64,6 +68,7 @@ export function ProjectsPage() {
     <div className="space-y-6">
       <Header
         title="Projects"
+        subtitle="Apps, databases, and one-click services live in a project environment."
         actions={
           <Btn primary onClick={() => setShow(true)}>
             New project

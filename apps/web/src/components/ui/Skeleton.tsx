@@ -140,15 +140,21 @@ export function AuthSkeleton() {
 /** App chrome while auth resolves — mirrors AppShell (sidebar + header + content) */
 export function AppShellSkeleton() {
   return (
-    <div className="panel-shell panel-main flex h-dvh w-full overflow-hidden" role="status" aria-label="Loading">
+    <div className="panel-shell panel-main flex h-dvh w-full flex-col overflow-hidden" role="status" aria-label="Loading">
+      <div className="panel-topbar flex items-center gap-3 px-4">
+        <Skeleton className="h-8 w-8 shrink-0 rounded-md" />
+        <Skeleton className="h-3.5 w-24" />
+        <Skeleton className="ml-4 hidden h-8 max-w-md flex-1 rounded-md lg:block" />
+        <div className="ml-auto flex items-center gap-2">
+          <Skeleton className="h-8 w-8 rounded-md" />
+          <Skeleton className="h-8 w-8 rounded-full" />
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1">
       <div
         className="hidden shrink-0 border-r border-gray-200 dark:border-gray-800 lg:flex lg:flex-col"
         style={{ width: SIDEBAR_WIDTH_EXPANDED }}
       >
-        <div className="panel-topbar flex items-center gap-3 px-4">
-          <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
-          <Skeleton className="h-3.5 w-20" />
-        </div>
         <div className="flex flex-1 flex-col gap-0.5 overflow-hidden px-2.5 py-3">
           {[3, 5, 5].map((count, g) => (
             <div key={g} className={g > 0 ? 'mt-3' : ''}>
@@ -164,14 +170,6 @@ export function AppShellSkeleton() {
         </div>
       </div>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="panel-topbar flex items-center gap-3 px-4 sm:gap-4 sm:px-6">
-          <Skeleton className="h-8 w-8 rounded-md lg:hidden" />
-          <Skeleton className="hidden h-8 max-w-md flex-1 rounded-md lg:block" />
-          <div className="ml-auto flex items-center gap-2 sm:gap-3">
-            <Skeleton className="h-8 w-8 rounded-md" />
-            <Skeleton className="h-8 w-8 rounded-full" />
-          </div>
-        </div>
         <div className="min-h-0 flex-1 overflow-hidden px-2 py-3 sm:px-3 sm:py-3">
           <RoutePageSkeleton
             pathname={typeof window !== 'undefined' ? window.location.pathname : '/'}
@@ -179,6 +177,7 @@ export function AppShellSkeleton() {
             labelled={false}
           />
         </div>
+      </div>
       </div>
     </div>
   )

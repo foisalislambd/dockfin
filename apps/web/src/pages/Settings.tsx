@@ -466,7 +466,10 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <Header title="Settings" />
+      <Header
+        title="Settings"
+        subtitle="Instance domain, email, OAuth, backups, registries, and scheduled jobs."
+      />
 
       <nav className="flex flex-wrap gap-5 border-b border-gray-200 dark:border-gray-800">
         {topTabs.map((t) => {

@@ -56,6 +56,9 @@ export function GitSourcesPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">Sources</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            GitHub Apps used to list repositories and deploy from Git.
+          </p>
         </div>
         <Btn primary onClick={() => setShowForm(true)}>
           + Add

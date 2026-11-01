@@ -264,7 +264,7 @@ export function NotificationsPage() {
 
   return (
     <div className="space-y-6">
-      <Header title="Notifications" />
+      <Header title="Notifications" subtitle="Where Dockfin sends deploy and server alerts." />
 
       <ResourceTabs
         tabs={CHANNELS.map((c) => ({ id: c.id, label: c.label, icon: c.icon }))}

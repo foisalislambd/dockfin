@@ -36,7 +36,7 @@ export function DestinationsPage() {
 
   return (
     <div className="space-y-6">
-      <Header title="Destinations" />
+      <Header title="Destinations" subtitle="Docker networks on your servers. Resources deploy into one of these." />
       <div className="relative max-w-md">
         <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
         <input
@@ -179,7 +179,7 @@ export function TagsPage() {
 
   return (
     <div className="space-y-6">
-      <Header title="Tags" />
+      <Header title="Tags" subtitle="Labels you can attach to servers, projects, and resources." />
       {!allTags.length && (
         <div className="panel-card p-8 text-center text-sm text-gray-500 dark:text-gray-400">
           No tags yet. Attach tags to applications, databases, or services from their detail
@@ -271,7 +271,7 @@ export function AuditLogPage() {
   if (logs.isLoading) return <PageSkeleton cards={1} />
   return (
     <div className="space-y-6">
-      <Header title="Audit log" />
+      <Header title="Audit log" subtitle="Changes made in this team, newest first." />
       <div className="panel-card overflow-x-auto">
         <table className="panel-table">
           <thead>

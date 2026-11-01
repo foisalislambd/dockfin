@@ -195,6 +195,9 @@ const serverDetailRoute = createRoute({
 const projectsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/projects',
+  validateSearch: (search: Record<string, unknown>): { new?: string } => ({
+    new: search.new === '1' ? '1' : undefined,
+  }),
   component: ProjectsPage,
 })
 

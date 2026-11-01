@@ -9,8 +9,10 @@ import {
   type ReactNode,
 } from 'react'
 
-export const SIDEBAR_WIDTH_EXPANDED = 232
-export const SIDEBAR_WIDTH_COLLAPSED = 72
+export const SIDEBAR_WIDTH_EXPANDED = 240
+export const SIDEBAR_WIDTH_COLLAPSED = 64
+
+const SIDEBAR_PREF_KEY = 'dockfin:sidebar-expanded'
 
 type SidebarContextValue = {
   isExpanded: boolean
@@ -26,8 +28,22 @@ const SidebarContext = createContext<SidebarContextValue | null>(null)
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
   const isDesktop = useIsDesktop()
-  const [isExpanded, setIsExpanded] = useState(true)
+  const [isExpanded, setIsExpanded] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_PREF_KEY) !== '0'
+    } catch {
+      return true
+    }
+  })
   const [isMobileOpen, setIsMobileOpen] = useState(false)
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_PREF_KEY, isExpanded ? '1' : '0')
+    } catch {
+      /* private mode */
+    }
+  }, [isExpanded])
 
   const effectiveExpanded = isDesktop ? isExpanded : true
   const effectiveMobileOpen = isDesktop ? false : isMobileOpen

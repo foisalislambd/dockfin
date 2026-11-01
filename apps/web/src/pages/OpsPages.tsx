@@ -20,6 +20,7 @@ export function StoragesPage() {
     <div className="space-y-6">
       <Header
         title="S3 Storages"
+        subtitle="Where backups are uploaded. Up to eight destinations."
         actions={
           <Link
             to="/storages/new"
@@ -178,7 +179,10 @@ export function SharedVariablesPage({
 
   return (
     <div className="space-y-6">
-      <Header title={title} />
+      <Header
+        title={title}
+        subtitle="Copied into resources in this team, project, environment, or server."
+      />
 
       {!usingProps && (
         <div className="flex flex-wrap items-end gap-3">

@@ -79,6 +79,35 @@ Everything important lives in `/data/dockfin`. You don’t need to edit `.env` b
 
 ---
 
+## Dashboard
+
+The console is a Vite + React app. The API serves the built files from `DOCKFIN_WEB_DIR` (the production image bakes `apps/web/dist` in the same way). `cd apps/web && npm run dev` is the hot-reload UI on port 5173; `npm run build` is what `scripts/install-dev.sh` and the Docker image use.
+
+The shell is a full-width top bar (team, search, theme, account) with a sectioned sidebar underneath. `⌘K` / `Ctrl+K` opens search across pages and resources. `g` then a letter jumps to a page (`g` `p` projects, `g` `h` servers). `?` lists shortcuts. The first signed-in visit walks through adding a server (including this machine), creating a project, and deploying an app, database, or one-click service.
+
+Layout ideas — top bar, grouped navigation, command palette, go-to keys — are a clean-room reimplementation inspired by the [Antirion](https://github.com/eliasbiondo/antirion) console (Apache-2.0). No Antirion source is included. Dockfin keeps its own blue palette, logo, and fonts. See [apps/web/NOTICE](apps/web/NOTICE).
+
+<p>
+  <img src="docs/screenshots/login.png" alt="Sign in" width="720" />
+</p>
+<p>
+  <img src="docs/screenshots/dashboard.png" alt="Overview with first-run steps" width="720" />
+</p>
+<p>
+  <img src="docs/screenshots/command-palette.png" alt="Command palette" width="720" />
+</p>
+<p>
+  <img src="docs/screenshots/projects.png" alt="Projects" width="720" />
+</p>
+<p>
+  <img src="docs/screenshots/servers.png" alt="Servers empty state" width="720" />
+</p>
+<p>
+  <img src="docs/screenshots/settings-dark.png" alt="Settings in dark mode" width="720" />
+</p>
+
+---
+
 ## Local development
 
 ### Docker (build from this repo)
