@@ -40,6 +40,14 @@ type API struct {
 	SSH        interface{ Close() } // *sshx.Pool
 	Logger     *slog.Logger
 	TaskRunner TaskRunner
+
+	limiter     *requestLimiter
+	policy      RatePolicy
+	policySet   bool
+	httpMetrics *httpMetrics
+	openAPIJSON []byte
+	openAPIYAML []byte
+	openAPIOps  []documentedOp
 }
 
 // TaskRunner runs scheduled tasks on demand (wired to the scheduler runner).
@@ -57,6 +65,8 @@ func (a *API) Router() http.Handler {
 		r.Use(chimw.RealIP)
 	}
 	r.Use(recoverJSON(a.Logger))
+	r.Use(a.observe)
+	r.Use(a.rateLimit)
 	r.Use(cors.Handler(cors.Options{
 		AllowOriginFunc:  a.corsAllowOrigin,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
@@ -416,6 +426,12 @@ func (a *API) Router() http.Handler {
 			r.Get("/resource-tags", a.handleListResourceTags)
 		})
 	})
+
+	r.Get("/openapi.json", a.handleOpenAPI)
+	r.Get("/api/v1/openapi.json", a.handleOpenAPI)
+	r.Get("/metrics", a.handleMetrics)
+	r.Get("/api/docs", a.handleAPIDocs)
+	a.buildOpenAPI(r)
 
 	a.mountWebOrRoot(r)
 

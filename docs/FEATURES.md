@@ -236,14 +236,19 @@ carries a `warnings` array.
 - [x] Environment deploy freeze (`PUT /projects/{id}/environments/{envID}/freeze`) pauses dashboard, webhook, preview, MCP, and rollback deploys
 - [x] Owners and admins can override a freeze on a single manual deploy; webhooks stay skipped
 - [x] Home, environment, application, and service screens show the pause and what needs attention
+- [x] Turning a freeze on notifies channels that opted into `deploy_freeze`
+- [x] `dfin freeze` and `dfin unfreeze` pause or resume an environment; deploy and rollback accept `--override-freeze`
 - [x] Deployment list responses omit log blobs; the deployment detail endpoint still returns them
 - [x] Project and environment lists compute emptiness in one query
 - [x] JSON panic responses, `nosniff` / frame / referrer headers, and version on `/health`
+- [x] Global and per-route rate limits (auth, webhooks, sentinel) with `Retry-After`
+- [x] Prometheus text at `/metrics` and structured request logs
+- [x] OpenAPI 3.1 generated from the live router at `/openapi.json` and `/api/docs`, checked into `packages/openapi/openapi.yaml`
 
 ## Polish
 - [x] Command palette (⌘K)
-- [x] CLI `dfin` (deploy/logs/apps/servers)
+- [x] CLI `dfin` (deploy, rollback, freeze, logs, overview)
 - [x] Production install.sh
-- [x] OpenAPI skeleton
+- [x] OpenAPI document generated from the router
 - [x] Docs + FEATURES
 - [x] Embedded migrations
