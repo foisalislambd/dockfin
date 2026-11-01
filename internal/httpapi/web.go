@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/dockfin/dockfin/internal/services"
+	"github.com/go-chi/chi/v5"
 )
 
 func resolveWebDir(configured string) string {
@@ -32,7 +32,11 @@ func (a *API) mountWebOrRoot(r chi.Router) {
 		})
 	}
 
-	webDir := resolveWebDir(a.Cfg.WebDir)
+	configured := ""
+	if a != nil && a.Cfg != nil {
+		configured = a.Cfg.WebDir
+	}
+	webDir := resolveWebDir(configured)
 	if webDir != "" {
 		fileServer := http.FileServer(http.Dir(webDir))
 		r.Get("/*", func(w http.ResponseWriter, req *http.Request) {
@@ -87,6 +91,9 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
       <ul>
         <li>Health: <a href="/health">/health</a></li>
         <li>Version: <a href="/api/v1/version">/api/v1/version</a></li>
+        <li>OpenAPI: <a href="/openapi.json">/openapi.json</a></li>
+        <li>Route index: <a href="/api/docs">/api/docs</a></li>
+        <li>Metrics: <a href="/metrics">/metrics</a></li>
         <li>API base: <code>/api/v1</code></li>
       </ul>
     </div>

@@ -28,6 +28,10 @@ type Config struct {
 	BootstrapSSHUser string
 	BootstrapSSHPort int
 	TrustProxy       bool // honor X-Forwarded-* / RealIP only when true
+	// Rate limits are per client IP. Zero disables that bucket.
+	RateLimitPerMinute        int
+	AuthRateLimitPer15Min     int
+	WebhookRateLimitPerMinute int
 	// AllowUnsignedWebhooks skips HMAC when no webhook secret is configured.
 	// Never enable on an internet-exposed panel.
 	AllowUnsignedWebhooks bool
@@ -55,6 +59,9 @@ func Load() (*Config, error) {
 	cfg.BootstrapSelf = parseBool(getenv("DOCKFIN_BOOTSTRAP_SELF", "1"), true)
 	cfg.TrustProxy = parseBool(getenv("DOCKFIN_TRUST_PROXY", "0"), false)
 	cfg.AllowUnsignedWebhooks = parseBool(getenv("DOCKFIN_ALLOW_UNSIGNED_WEBHOOKS", "0"), false)
+	cfg.RateLimitPerMinute = parseNonNegInt(getenv("DOCKFIN_RATE_LIMIT_PER_MINUTE", "600"), 600)
+	cfg.AuthRateLimitPer15Min = parseNonNegInt(getenv("DOCKFIN_AUTH_RATE_LIMIT_PER_15M", "30"), 30)
+	cfg.WebhookRateLimitPerMinute = parseNonNegInt(getenv("DOCKFIN_WEBHOOK_RATE_LIMIT_PER_MINUTE", "120"), 120)
 	if p := getenv("DOCKFIN_BOOTSTRAP_SSH_PORT", ""); p != "" {
 		if n, err := fmt.Sscanf(p, "%d", &cfg.BootstrapSSHPort); n != 1 || err != nil || cfg.BootstrapSSHPort <= 0 {
 			cfg.BootstrapSSHPort = 22
@@ -106,6 +113,21 @@ func getenv(k, def string) string {
 		return v
 	}
 	return def
+}
+
+func parseNonNegInt(v string, def int) int {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return def
+	}
+	n := 0
+	for _, r := range v {
+		if r < '0' || r > '9' {
+			return def
+		}
+		n = n*10 + int(r-'0')
+	}
+	return n
 }
 
 func parseBool(v string, def bool) bool {

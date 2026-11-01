@@ -12,6 +12,14 @@ Browser (React) ──REST/SSE──► dockfin serve (Go)
                                   └── SSH ──► remote Docker / Traefik
 ```
 
+## HTTP surface
+
+The Chi router is the source of truth for the API. `Router()` walks itself and writes an OpenAPI 3.1 document served at `/openapi.json` (also `/api/v1/openapi.json`). `packages/openapi/openapi.yaml` is that document at the default rate-limit policy, with `info.version` kept at `dev` so release ldflags do not churn the file.
+
+Rate limits are sliding windows keyed by client IP. The global bucket is 600 requests/minute. Auth routes are 30 per 15 minutes, webhooks and `/api/v1/deploy` are 120 per minute, and sentinel ingest is 600 per minute. `/health`, `/metrics`, CORS preflight, and static assets are exempt. Zero in config disables that bucket. The failed-login throttle still applies on top.
+
+`GET /metrics` is Prometheus text. Series use the Chi route pattern, so UUIDs do not become labels. Request logs are structured and skip `/health` and `/metrics`.
+
 ## Domain model
 
 ```

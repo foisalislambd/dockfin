@@ -187,7 +187,59 @@ export function DashboardPage() {
         </div>
       ) : null}
 
-      {!hasServers && !overview.error && (
+      {!overview.error && (counts?.projects ?? 0) === 0 && (
+        <section className="panel-card border-brand-200 bg-brand-50/60 p-6 dark:border-brand-500/30 dark:bg-brand-500/10">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Get the first deploy out</h2>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+            Dockfin deploys to a Docker host you control. Three steps, then the pulse on this page starts filling in.
+          </p>
+          <ol className="mt-4 space-y-3 text-sm">
+            <li className="flex items-start gap-3">
+              <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${hasServers ? 'bg-success-500 text-white' : 'bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-200'}`}>
+                {hasServers ? '✓' : '1'}
+              </span>
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white">Add a server</p>
+                <p className="text-gray-600 dark:text-gray-300">
+                  {hasServers
+                    ? 'This host is already registered.'
+                    : 'A VPS install usually adds itself. Otherwise add the host under Servers.'}
+                </p>
+                {!hasServers && (
+                  <Link to="/servers" className="mt-1 inline-flex font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400">
+                    Go to Servers
+                  </Link>
+                )}
+              </div>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                2
+              </span>
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white">Create a project</p>
+                <p className="text-gray-600 dark:text-gray-300">Projects group environments, applications, databases, and services.</p>
+                <Link to="/projects" className="mt-1 inline-flex font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400">
+                  Create a project
+                </Link>
+              </div>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                3
+              </span>
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white">Deploy something</p>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Add an application from Git, or start a one-click service. Freeze the environment later if you need a quiet window.
+                </p>
+              </div>
+            </li>
+          </ol>
+        </section>
+      )}
+
+      {hasServers === false && (counts?.projects ?? 0) > 0 && !overview.error && (
         <div className="panel-card border-brand-200 bg-brand-50/60 p-6 dark:border-brand-500/30 dark:bg-brand-500/10">
           <h2 className="text-lg font-medium text-gray-900 dark:text-white">No servers yet</h2>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">

@@ -28,6 +28,11 @@ const EVENT_GROUPS: { title: string; events: { id: string; label: string; help?:
       { id: 'deployment_success', label: 'Deployment success' },
       { id: 'deployment_failure', label: 'Deployment failure' },
       {
+        id: 'deploy_freeze',
+        label: 'Deploy freeze',
+        help: 'An environment paused new deployments.',
+      },
+      {
         id: 'status_change',
         label: 'Container status changes',
         help: 'Stopped and restarted containers.',
@@ -64,6 +69,7 @@ const EVENT_GROUPS: { title: string; events: { id: string; label: string; help?:
 
 const DEFAULT_EVENTS = [
   'deployment_failure',
+  'deploy_freeze',
   'backup_failure',
   'scheduled_task_failure',
   'docker_cleanup_failure',

@@ -107,7 +107,7 @@ func IsCritical(eventType string) bool {
 	switch strings.ToLower(eventType) {
 	case "deployment_failed", "deployment_failure", "backup_failure", "backup_failed",
 		"scheduled_task_failure", "docker_cleanup_failure", "server_unreachable",
-		"server_disk_usage", "server_patch", "traefik_outdated", "test":
+		"server_disk_usage", "server_patch", "traefik_outdated", "deploy_freeze", "test":
 		return true
 	default:
 		return false
@@ -117,6 +117,7 @@ func IsCritical(eventType string) bool {
 func DefaultEvents() []string {
 	return []string{
 		"deployment_failure",
+		"deploy_freeze",
 		"backup_failure",
 		"scheduled_task_failure",
 		"docker_cleanup_failure",

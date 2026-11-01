@@ -119,6 +119,31 @@ Bump the number in `VERSION.md` (for example `1.3.6` → `1.3.7`) in the commit 
 
 ---
 
+## API, metrics, and the CLI
+
+| URL | What |
+|-----|------|
+| `/openapi.json` | OpenAPI 3.1 generated from the live router |
+| `/api/docs` | HTML index of the same routes |
+| `/metrics` | Prometheus counters (route pattern, not raw URLs) |
+| `/health` | Liveness plus the running version |
+
+Per-IP limits default to 600 requests/minute, 30 auth attempts per 15 minutes, and 120 webhook calls/minute. Set `DOCKFIN_RATE_LIMIT_PER_MINUTE`, `DOCKFIN_AUTH_RATE_LIMIT_PER_15M`, or `DOCKFIN_WEBHOOK_RATE_LIMIT_PER_MINUTE`. Zero disables that bucket.
+
+```bash
+export DOCKFIN_URL=http://127.0.0.1:8000
+export DOCKFIN_TOKEN=...          # API token
+dfin overview
+dfin freeze <project-uuid> <environment-uuid> --reason "maintenance"
+dfin deploy <application-uuid> --override-freeze
+dfin unfreeze <project-uuid> <environment-uuid>
+dfin logs <deployment-uuid>
+```
+
+Commands exit 0 on HTTP 2xx/3xx and 1 otherwise. `DOCKFIN_TEAM` sends `X-Team-ID`.
+
+---
+
 ## Docs & help
 
 | Link | |

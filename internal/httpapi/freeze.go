@@ -3,7 +3,9 @@ package httpapi
 import (
 	"context"
 	"net/http"
+	"strings"
 
+	"github.com/dockfin/dockfin/internal/notify"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -42,10 +44,26 @@ func (a *API) handleSetDeployFreeze(w http.ResponseWriter, r *http.Request) {
 		id := u.ID
 		userID = &id
 	}
-	env, err := a.Store.SetEnvironmentDeployFreeze(r.Context(), currentTeamID(r), pid, eid, userID, body.Frozen, reason)
+	teamID := currentTeamID(r)
+	env, err := a.Store.SetEnvironmentDeployFreeze(r.Context(), teamID, pid, eid, userID, body.Frozen, reason)
 	if err != nil {
 		mapStoreErr(w, err)
 		return
+	}
+	if body.Frozen {
+		envName := env.Name
+		note := strings.TrimSpace(env.DeployFreezeReason)
+		go func() {
+			msg := "Deployments paused for environment " + envName + "."
+			if note != "" {
+				msg += " " + note
+			}
+			(&notify.Dispatcher{Store: a.Store}).Send(context.Background(), teamID, notify.Event{
+				Type:    "deploy_freeze",
+				Title:   "Deployments paused",
+				Message: msg,
+			})
+		}()
 	}
 	writeJSON(w, http.StatusOK, env)
 }
