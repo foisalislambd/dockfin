@@ -37,6 +37,7 @@ import { LinksMenu } from '../components/LinksMenu'
 import { MoveResourcePanel } from '../components/MoveResourcePanel'
 import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
 import { TrafficSummary } from '../components/TrafficAnalytics'
+import { DeployFreezeNotice } from '../components/DeployFreezeNotice'
 import { ResourceSetupBanner, type SetupCheck } from '../components/ResourceSetupBanner'
 import { ResourceSwitcher } from '../components/ResourceSwitcher'
 import { BackLink } from '../components/BackLink'
@@ -51,6 +52,7 @@ import { LiveLogViewer } from '../components/LiveLogViewer'
 import { DetailPageSkeleton, PanelSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { DetailMoreItem, DetailMoreMenu } from '../components/DetailMoreMenu'
 import { useToast } from '../components/Toast'
+import { useAuth } from '../lib/auth'
 import { api, fetchAllEnvironments } from '../lib/api'
 import { deployBlockFromEnv, emptyUserEnvVars } from '../lib/env-readiness'
 import { gentleRefetchInterval } from '../lib/poll'
@@ -509,6 +511,8 @@ export function ApplicationDetailPage() {
   const qc = useQueryClient()
   const toast = useToast()
   const confirm = useConfirm()
+  const { team } = useAuth()
+  const canOverrideFreeze = team?.role === 'owner' || team?.role === 'admin'
   const nested = Boolean(projectId && envId)
 
   const setAppNav = (next: { tab?: TopTabId; side?: SideId }) => {
@@ -536,6 +540,12 @@ export function ApplicationDetailPage() {
   }
 
   const app = useQuery({ queryKey: ['application', appId], queryFn: () => api.application(appId) })
+  const freezeEnvId = envId || app.data?.environment_id || ''
+  const freezeEnv = useQuery({
+    queryKey: ['environment-by-id', freezeEnvId],
+    queryFn: () => api.getEnvironmentById(freezeEnvId),
+    enabled: Boolean(freezeEnvId),
+  })
   const allEnvs = useQuery({
     queryKey: ['all-environments'],
     queryFn: fetchAllEnvironments,
@@ -828,7 +838,8 @@ export function ApplicationDetailPage() {
   })
 
   const deploy = useMutation({
-    mutationFn: (vars: { force?: boolean } = {}) => api.deployApplication(appId, Boolean(vars.force)),
+    mutationFn: (vars: { force?: boolean; overrideFreeze?: boolean } = {}) =>
+      api.deployApplication(appId, Boolean(vars.force), Boolean(vars.overrideFreeze)),
     onSuccess: (dep) => {
       toast.success('Deploy queued')
       void qc.invalidateQueries({ queryKey: ['deployments', appId] })
@@ -892,7 +903,8 @@ export function ApplicationDetailPage() {
   })
 
   const rollback = useMutation({
-    mutationFn: (commit_sha?: string) => api.rollbackApplication(appId, true, commit_sha),
+    mutationFn: (commit_sha?: string) =>
+      api.rollbackApplication(appId, true, commit_sha, Boolean(freezeEnv.data?.deploy_frozen && canOverrideFreeze)),
     onSuccess: (dep) => {
       void qc.invalidateQueries({ queryKey: ['deployments', appId] })
       if (nested && projectId && envId) {
@@ -967,7 +979,15 @@ export function ApplicationDetailPage() {
     [envVarsQ.data?.environment_variables],
   )
 
-  const requestDeploy = (vars: { force?: boolean } = {}) => {
+  const requestDeploy = (vars: { force?: boolean; overrideFreeze?: boolean } = {}) => {
+    if (freezeEnv.data?.deploy_frozen && !vars.overrideFreeze) {
+      toast.warning(
+        freezeEnv.data.deploy_freeze_reason
+          ? `Deployments are frozen: ${freezeEnv.data.deploy_freeze_reason}`
+          : 'Deployments are frozen for this environment.',
+      )
+      return
+    }
     const gate = deployBlockFromEnv(envVarsQ)
     if (gate.block) {
       toast.warning(gate.message || 'Finish setup before deploying.')
@@ -1189,6 +1209,34 @@ export function ApplicationDetailPage() {
           </DetailMoreMenu>
         </div>
       </div>
+          {freezeEnv.data?.deploy_frozen ? (
+            <DeployFreezeNotice
+              reason={freezeEnv.data.deploy_freeze_reason}
+              action={
+                <>
+                  {resolvedProjectId && resolvedEnvId ? (
+                    <Link
+                      to="/projects/$projectId/environments/$envId/edit"
+                      params={{ projectId: resolvedProjectId, envId: resolvedEnvId }}
+                      className="text-xs font-medium text-amber-900 underline dark:text-amber-100"
+                    >
+                      Environment settings
+                    </Link>
+                  ) : null}
+                  {canOverrideFreeze ? (
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-amber-900 underline dark:text-amber-100"
+                      disabled={deploy.isPending}
+                      onClick={() => requestDeploy({ overrideFreeze: true })}
+                    >
+                      Deploy anyway
+                    </button>
+                  ) : null}
+                </>
+              }
+            />
+          ) : null}
           <ResourceSetupBanner checks={setupChecks} />
           <AppOverview
             app={a}

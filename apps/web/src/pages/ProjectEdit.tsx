@@ -5,6 +5,7 @@ import { BackLink } from '../components/BackLink'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
 import { FormPageSkeleton } from '../components/ui/Skeleton'
 import { api } from '../lib/api'
+import { useAuth } from '../lib/auth'
 import { Btn } from '../components/ui/Button'
 import { Header } from '../components/ui/Header'
 import { Input } from '../components/ui/Input'
@@ -150,15 +151,21 @@ export function EnvironmentEditPage() {
     queryKey: ['project', projectId],
     queryFn: () => api.getProject(projectId),
   })
+  const { team } = useAuth()
+  const canFreeze = team?.role === 'owner' || team?.role === 'admin'
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [frozen, setFrozen] = useState(false)
+  const [reason, setReason] = useState('')
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   useEffect(() => {
     if (!env.data) return
     setName(env.data.name)
     setDescription(env.data.description || '')
+    setFrozen(Boolean(env.data.deploy_frozen))
+    setReason(env.data.deploy_freeze_reason || '')
   }, [env.data])
 
   const save = useMutation({
@@ -167,6 +174,16 @@ export function EnvironmentEditPage() {
       void qc.invalidateQueries({ queryKey: ['environment', projectId, envId] })
       void qc.invalidateQueries({ queryKey: ['environments', projectId] })
       void qc.invalidateQueries({ queryKey: ['all-environments'] })
+    },
+  })
+
+  const freeze = useMutation({
+    mutationFn: () => api.setDeployFreeze(projectId, envId, frozen, reason),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['environment', projectId, envId] })
+      void qc.invalidateQueries({ queryKey: ['environments', projectId] })
+      void qc.invalidateQueries({ queryKey: ['environment-by-id'] })
+      void qc.invalidateQueries({ queryKey: ['overview'] })
     },
   })
 
@@ -246,6 +263,40 @@ export function EnvironmentEditPage() {
         <Input label="Description" value={description} onChange={setDescription} required={false} />
         {save.error && <p className="text-sm text-error-500">{save.error.message}</p>}
         {save.isSuccess && <p className="text-sm text-success-600 dark:text-success-400">Saved.</p>}
+      </form>
+
+      <form
+        className="panel-card max-w-xl space-y-4 p-5"
+        onSubmit={(e) => {
+          e.preventDefault()
+          freeze.mutate()
+        }}
+      >
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Deploy freeze</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Pause new deploys for this environment, including git webhooks and preview deploys. Restarts,
+            stops, and scheduled commands keep running. Owners and admins can still deploy once, on purpose.
+          </p>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
+          <input
+            type="checkbox"
+            checked={frozen}
+            disabled={!canFreeze}
+            onChange={(e) => setFrozen(e.target.checked)}
+          />
+          Pause new deployments
+        </label>
+        <Input label="Reason" value={reason} onChange={setReason} required={false} />
+        {!canFreeze ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">Only an owner or admin can change this.</p>
+        ) : null}
+        {freeze.error && <p className="text-sm text-error-500">{freeze.error.message}</p>}
+        {freeze.isSuccess && <p className="text-sm text-success-600 dark:text-success-400">Freeze updated.</p>}
+        <Btn primary type="submit" disabled={!canFreeze || freeze.isPending}>
+          {freeze.isPending ? 'Saving…' : 'Save freeze'}
+        </Btn>
       </form>
 
       <DangerZoneCard>

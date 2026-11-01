@@ -267,6 +267,21 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		strings.Contains(r.Header.Get("Accept"), "text/event-stream")
 	force := r.URL.Query().Get("force") == "true" || r.URL.Query().Get("force") == "1"
 	isWebhook := r.URL.Query().Get("uuid") != "" || strings.Contains(r.URL.Path, "/webhooks/")
+	override := false
+	if !isWebhook {
+		var body struct {
+			OverrideFreeze bool `json:"override_freeze"`
+		}
+		if err := decodeJSONOptional(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid json")
+			return
+		}
+		q := r.URL.Query().Get("override_freeze")
+		override = body.OverrideFreeze || q == "1" || q == "true"
+	}
+	if a.stopIfFrozen(w, r, svc.EnvironmentID, override) {
+		return
+	}
 
 	sid := serverID
 	dep, err := a.Store.CreateServiceDeployment(r.Context(), teamID, id, &sid, force, isWebhook, !isWebhook)

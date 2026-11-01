@@ -50,12 +50,13 @@ type TaskRunner interface {
 func (a *API) Router() http.Handler {
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
+	r.Use(securityHeaders)
 	// RealIP only when explicitly trusted — otherwise clients can spoof
 	// X-Forwarded-For and bypass login rate limits / API IP allowlists.
 	if a.Cfg != nil && a.Cfg.TrustProxy {
 		r.Use(chimw.RealIP)
 	}
-	r.Use(chimw.Recoverer)
+	r.Use(recoverJSON(a.Logger))
 	r.Use(cors.Handler(cors.Options{
 		AllowOriginFunc:  a.corsAllowOrigin,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
@@ -232,6 +233,7 @@ func (a *API) Router() http.Handler {
 			r.Post("/domains/check", a.handleCheckDomainDNS)
 			r.Post("/domains/cloudflare", a.handleCloudflareDNS)
 			r.Get("/audit-logs", a.handleListAuditLogs)
+			r.Get("/overview", a.handleOverview)
 
 			r.Route("/projects", func(r chi.Router) {
 				r.Get("/", a.handleListProjects)
@@ -243,6 +245,7 @@ func (a *API) Router() http.Handler {
 				r.Post("/{projectID}/environments", a.handleCreateEnvironment)
 				r.Get("/{projectID}/environments/{envID}", a.handleGetEnvironment)
 				r.Patch("/{projectID}/environments/{envID}", a.handleUpdateEnvironment)
+				r.Put("/{projectID}/environments/{envID}/freeze", a.handleSetDeployFreeze)
 				r.With(a.requireAdmin).Delete("/{projectID}/environments/{envID}", a.handleDeleteEnvironment)
 				r.Post("/{projectID}/environments/{envID}/clone", a.handleCloneEnvironment)
 				r.Get("/{projectID}/environments/{envID}/tags", a.handleListEnvironmentTags)
@@ -437,7 +440,7 @@ func timeoutExceptSSE(d time.Duration) func(http.Handler) http.Handler {
 const maxJSONBody = 1 << 20 // 1 MiB
 
 func handleHealthStatus(a *API, ctx context.Context) (int, map[string]any) {
-	body := map[string]any{"status": "ok", "service": "dockfin"}
+	body := map[string]any{"status": "ok", "service": "dockfin", "version": version.Version}
 	if a == nil || a.Store == nil || a.Store.Pool == nil {
 		return http.StatusOK, body
 	}
@@ -686,6 +689,8 @@ func mapStoreErr(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "environment variable is locked")
 	case errors.Is(err, store.ErrUnauthorized):
 		writeError(w, http.StatusForbidden, "forbidden")
+	case errors.Is(err, store.ErrDeployFrozen):
+		writeError(w, http.StatusLocked, err.Error())
 	case errors.Is(err, store.ErrTooManyS3Destinations):
 		writeError(w, http.StatusBadRequest, "at most 8 s3 storages")
 	default:

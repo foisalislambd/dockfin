@@ -31,6 +31,7 @@ import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { LinksMenu } from '../components/LinksMenu'
 import { MoveResourcePanel } from '../components/MoveResourcePanel'
 import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
+import { DeployFreezeNotice } from '../components/DeployFreezeNotice'
 import { ResourceSetupBanner, type SetupCheck } from '../components/ResourceSetupBanner'
 import { ScheduledTasksPanel } from '../components/ScheduledTasksPanel'
 import { S3DestinationPicker, S3ReplicaStatus, s3DestinationLabel } from '../components/S3Destinations'
@@ -48,6 +49,7 @@ import { CodeEditor } from '../components/CodeEditor'
 import { DetailPageSkeleton } from '../components/ui/Skeleton'
 import { useConfirm } from '../components/ConfirmDialog'
 import { useToast } from '../components/Toast'
+import { useAuth } from '../lib/auth'
 import { api, type Service, type ServiceUnit } from '../lib/api'
 import { deployBlockFromEnv, emptyUserEnvVars } from '../lib/env-readiness'
 import { useLogStream } from '../lib/useLogStream'
@@ -189,6 +191,8 @@ export function ServiceDetailPage() {
   const autoDeployed = useRef(false)
   const confirm = useConfirm()
   const toast = useToast()
+  const { team } = useAuth()
+  const canOverrideFreeze = team?.role === 'owner' || team?.role === 'admin'
 
   useEffect(() => {
     setShowCompose(false)
@@ -202,6 +206,12 @@ export function ServiceDetailPage() {
   }, [svcId])
 
   const svc = useQuery({ queryKey: ['service', svcId], queryFn: () => api.getService(svcId) })
+  const freezeEnvId = envId || svc.data?.environment_id || ''
+  const freezeEnv = useQuery({
+    queryKey: ['environment-by-id', freezeEnvId],
+    queryFn: () => api.getEnvironmentById(freezeEnvId),
+    enabled: Boolean(freezeEnvId),
+  })
   const templates = useQuery({ queryKey: ['templates'], queryFn: api.templates, enabled: false })
   const dests = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
   const envVarsQ = useQuery({
@@ -290,7 +300,15 @@ export function ServiceDetailPage() {
     },
   })
 
-  const runDeploy = async () => {
+  const runDeploy = async (overrideFreeze = false) => {
+    if (freezeEnv.data?.deploy_frozen && !overrideFreeze) {
+      toast.warning(
+        freezeEnv.data.deploy_freeze_reason
+          ? `Deployments are frozen: ${freezeEnv.data.deploy_freeze_reason}`
+          : 'Deployments are frozen for this environment.',
+      )
+      return
+    }
     const gate = deployBlockFromEnv(envVarsQ)
     if (gate.block) {
       toast.warning(gate.message || 'Finish setup before deploying.')
@@ -318,6 +336,7 @@ export function ServiceDetailPage() {
           setDeployLines((prev) => [...prev, `${prefix}${ev.line}`])
         },
         ac.signal,
+        overrideFreeze,
       )
       void qc.invalidateQueries({ queryKey: ['service', svcId] })
       void qc.invalidateQueries({ queryKey: ['services'] })
@@ -525,6 +544,34 @@ export function ServiceDetailPage() {
           </Btn>
         </div>
       </div>
+          {freezeEnv.data?.deploy_frozen ? (
+            <DeployFreezeNotice
+              reason={freezeEnv.data.deploy_freeze_reason}
+              action={
+                <>
+                  {projectId && envId ? (
+                    <Link
+                      to="/projects/$projectId/environments/$envId/edit"
+                      params={{ projectId, envId }}
+                      className="text-xs font-medium text-amber-900 underline dark:text-amber-100"
+                    >
+                      Environment settings
+                    </Link>
+                  ) : null}
+                  {canOverrideFreeze ? (
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-amber-900 underline dark:text-amber-100"
+                      disabled={deployBusy}
+                      onClick={() => void runDeploy(true)}
+                    >
+                      Deploy anyway
+                    </button>
+                  ) : null}
+                </>
+              }
+            />
+          ) : null}
           <ResourceSetupBanner checks={setupChecks} />
           <ServiceOverview
             service={s}

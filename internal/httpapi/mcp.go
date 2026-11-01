@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/mcp"
 	"github.com/dockfin/dockfin/internal/sshdial"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/version"
 	"github.com/dockfin/dockfin/internal/worker"
+	"github.com/google/uuid"
 )
 
 // mcpMaxItems bounds list results so an agent cannot pull an unbounded dump.
@@ -111,6 +111,11 @@ func (b *mcpBackend) DeployApplication(ctx context.Context, id string, forceRebu
 	if b.api.Queue == nil {
 		return nil, fmt.Errorf("deploy queue unavailable")
 	}
+	if msg, err := b.api.frozenDeployMessage(ctx, b.teamID, app.EnvironmentID); err != nil {
+		return nil, err
+	} else if msg != "" {
+		return nil, fmt.Errorf("%s", msg)
+	}
 	limit, _ := b.api.Store.GetDeploymentQueueLimit(ctx, dest.ServerID)
 	active, _ := b.api.Store.CountActiveDeployments(ctx, dest.ServerID)
 	if active >= limit {
@@ -189,6 +194,11 @@ func (b *mcpBackend) DeployService(ctx context.Context, id string) (any, error) 
 	}
 	if b.api.Queue == nil {
 		return nil, fmt.Errorf("deploy queue unavailable")
+	}
+	if msg, err := b.api.frozenDeployMessage(ctx, b.teamID, svc.EnvironmentID); err != nil {
+		return nil, err
+	} else if msg != "" {
+		return nil, fmt.Errorf("%s", msg)
 	}
 	sid := serverID
 	dep, err := b.api.Store.CreateServiceDeployment(ctx, b.teamID, svcID, &sid, false, false, true)

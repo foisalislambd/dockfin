@@ -10,6 +10,7 @@ import {
   logoForDatabaseEngine,
   logoForServiceType,
 } from '../components/ServiceLogo'
+import { DeployFreezeNotice } from '../components/DeployFreezeNotice'
 import { useToast } from '../components/Toast'
 import { useCatalogWindow } from '../hooks/use-catalog-window'
 import { api, LAST_ENV_KEY, type Tag } from '../lib/api'
@@ -391,6 +392,21 @@ export function EnvironmentResourcesPage() {
           }
         />
       </div>
+
+      {(envs.data?.environments || []).find((e) => e.id === envId)?.deploy_frozen ? (
+        <DeployFreezeNotice
+          reason={(envs.data?.environments || []).find((e) => e.id === envId)?.deploy_freeze_reason}
+          action={
+            <Link
+              to="/projects/$projectId/environments/$envId/edit"
+              params={{ projectId, envId }}
+              className="text-xs font-medium text-amber-900 underline dark:text-amber-100"
+            >
+              Change in settings
+            </Link>
+          }
+        />
+      ) : null}
 
       {!empty && (
         <div className="relative max-w-xl">

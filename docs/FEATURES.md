@@ -231,6 +231,15 @@ carries a `warnings` array.
 - [x] A shared hostname is removed from Cloudflare only when the last resource releases it
 - [x] Magic sslip.io / nip.io hostnames are not sent to Cloudflare
 
+## Fleet pulse and deploy freeze
+- [x] `GET /overview` — counts, 7-day deploy window, queue depth, recent deploys, and attention items (failed latest deploy, unhealthy status, failed backups)
+- [x] Environment deploy freeze (`PUT /projects/{id}/environments/{envID}/freeze`) pauses dashboard, webhook, preview, MCP, and rollback deploys
+- [x] Owners and admins can override a freeze on a single manual deploy; webhooks stay skipped
+- [x] Home, environment, application, and service screens show the pause and what needs attention
+- [x] Deployment list responses omit log blobs; the deployment detail endpoint still returns them
+- [x] Project and environment lists compute emptiness in one query
+- [x] JSON panic responses, `nosniff` / frame / referrer headers, and version on `/health`
+
 ## Polish
 - [x] Command palette (⌘K)
 - [x] CLI `dfin` (deploy/logs/apps/servers)
