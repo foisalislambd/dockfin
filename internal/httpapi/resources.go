@@ -648,11 +648,74 @@ func (a *API) handleDeploymentLogStream(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if _, err := a.Store.GetDeployment(r.Context(), currentTeamID(r), id); err != nil {
+	dep, err := a.Store.GetDeployment(r.Context(), currentTeamID(r), id)
+	if err != nil {
 		mapStoreErr(w, err)
 		return
 	}
-	a.Hub.SSEHandler(id)(w, r)
+	flusher, ok := w.(http.Flusher)
+	if !ok || a.Hub == nil {
+		writeError(w, http.StatusInternalServerError, "streaming unsupported")
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	for _, payload := range deploymentLogPayloads(dep.Logs) {
+		writeSSE(w, flusher, payload)
+	}
+	snap, _ := json.Marshal(map[string]any{
+		"type":   "status",
+		"status": dep.Status,
+		"stage":  dep.CurrentStage,
+		"error":  dep.ErrorMessage,
+		"line":   statusLine(dep.Status, dep.ErrorMessage),
+	})
+	writeSSE(w, flusher, snap)
+
+	ch := a.Hub.Subscribe(id)
+	defer a.Hub.Unsubscribe(id, ch)
+	notify := r.Context().Done()
+	for {
+		select {
+		case <-notify:
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			writeSSE(w, flusher, msg)
+		}
+	}
+}
+
+func writeSSE(w http.ResponseWriter, flusher http.Flusher, payload []byte) {
+	_, _ = w.Write([]byte("data: "))
+	_, _ = w.Write(payload)
+	_, _ = w.Write([]byte("\n\n"))
+	flusher.Flush()
+}
+
+func statusLine(status, errMsg string) string {
+	if strings.TrimSpace(errMsg) == "" {
+		return "status: " + status
+	}
+	return "status: " + status + " — " + errMsg
+}
+
+func deploymentLogPayloads(raw json.RawMessage) [][]byte {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	var entries []json.RawMessage
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		return nil
+	}
+	out := make([][]byte, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, []byte(entry))
+	}
+	return out
 }
 
 func (a *API) handleGitWebhook(w http.ResponseWriter, r *http.Request) {

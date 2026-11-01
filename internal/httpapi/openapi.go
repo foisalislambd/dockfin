@@ -387,7 +387,9 @@ func defaultLimitText(p RatePolicy) string {
 		itoa(p.AuthPer15Min) + " auth attempts per 15 minutes, " +
 		itoa(p.WebhookPerMinute) + " webhook calls/minute, and " +
 		itoa(p.SentinelPerMinute) + " sentinel ingests/minute. " +
-		"Set DOCKFIN_RATE_LIMIT_PER_MINUTE, DOCKFIN_AUTH_RATE_LIMIT_PER_15M, or DOCKFIN_WEBHOOK_RATE_LIMIT_PER_MINUTE to override. Zero disables a bucket. /health and /metrics are exempt."
+		"Set DOCKFIN_RATE_LIMIT_PER_MINUTE, DOCKFIN_AUTH_RATE_LIMIT_PER_15M, or DOCKFIN_WEBHOOK_RATE_LIMIT_PER_MINUTE to override. Zero disables a bucket. " +
+		"DOCKFIN_RATE_LIMIT_STORE=postgres shares the budget across replicas; the default is memory. " +
+		"/health is exempt. /metrics is exempt and public unless DOCKFIN_METRICS_TOKEN is set."
 }
 
 func itoa(n int) string {
@@ -547,9 +549,10 @@ var requestSchemas = map[string]any{
 		"email":    map[string]any{"type": "string"},
 		"password": map[string]any{"type": "string"},
 	}),
-	"POST /api/v1/auth/login/2fa": objSchema([]string{"challenge", "code"}, map[string]any{
-		"challenge": map[string]any{"type": "string"},
-		"code":      map[string]any{"type": "string"},
+	"POST /api/v1/auth/login/2fa": objSchema([]string{"challenge_id"}, map[string]any{
+		"challenge_id":  map[string]any{"type": "string"},
+		"code":          map[string]any{"type": "string"},
+		"recovery_code": map[string]any{"type": "string"},
 	}),
 	"POST /api/v1/auth/forgot-password": objSchema([]string{"email"}, map[string]any{
 		"email": map[string]any{"type": "string"},

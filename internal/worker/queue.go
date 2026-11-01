@@ -77,7 +77,7 @@ func (q *Queue) reclaim(ctx context.Context) {
 	for _, row := range rows {
 		// Stale in_progress from a crashed process → re-queue
 		if row.Status == "in_progress" {
-			_ = q.Store.SetDeploymentStatus(ctx, row.ID, "queued", "reclaimed after restart")
+			_ = q.markStatus(ctx, row.ID, "queued", "reclaimed after restart")
 		}
 		job := DeployJob{DeploymentID: row.ID, TeamID: row.TeamID}
 		select {
@@ -102,7 +102,7 @@ func (q *Queue) Enqueue(job DeployJob) error {
 	case q.jobs <- job:
 		return nil
 	default:
-		_ = q.Store.SetDeploymentStatus(context.Background(), job.DeploymentID, "failed", "deploy queue full")
+		_ = q.markStatus(context.Background(), job.DeploymentID, "failed", "deploy queue full")
 		return errQueueFull
 	}
 }
@@ -117,14 +117,14 @@ func (q *Queue) handle(ctx context.Context, job DeployJob) {
 	dep, err := q.Store.GetDeployment(ctx, job.TeamID, job.DeploymentID)
 	if err != nil {
 		slog.Error("deployment not found", "id", job.DeploymentID, "err", err)
-		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", "deployment not found")
+		_ = q.markStatus(ctx, job.DeploymentID, "failed", "deployment not found")
 		return
 	}
 	if dep.Status == "cancelled" || dep.Status == "finished" || dep.Status == "failed" {
 		return
 	}
 
-	_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "in_progress", "")
+	_ = q.markStatus(ctx, job.DeploymentID, "in_progress", "")
 	q.publish(job.DeploymentID, "status", "in_progress")
 
 	if dep.ServiceID != nil {
@@ -132,48 +132,48 @@ func (q *Queue) handle(ctx context.Context, job DeployJob) {
 		return
 	}
 	if dep.ApplicationID == nil {
-		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", "deployment has no application or service")
+		_ = q.markStatus(ctx, job.DeploymentID, "failed", "deployment has no application or service")
 		q.publish(job.DeploymentID, "status", "failed")
 		return
 	}
 
 	app, err := q.Store.GetApplication(ctx, job.TeamID, *dep.ApplicationID)
 	if err != nil {
-		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
+		_ = q.markStatus(ctx, job.DeploymentID, "failed", err.Error())
 		q.publish(job.DeploymentID, "status", "failed")
 		return
 	}
 	if app.DestinationID == nil {
-		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", "application has no destination")
+		_ = q.markStatus(ctx, job.DeploymentID, "failed", "application has no destination")
 		q.publish(job.DeploymentID, "status", "failed")
 		return
 	}
 	dest, err := q.Store.GetDestination(ctx, job.TeamID, *app.DestinationID)
 	if err != nil {
-		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
+		_ = q.markStatus(ctx, job.DeploymentID, "failed", err.Error())
 		q.publish(job.DeploymentID, "status", "failed")
 		return
 	}
 	srv, err := q.Store.GetServer(ctx, job.TeamID, dest.ServerID)
 	if err != nil {
-		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
+		_ = q.markStatus(ctx, job.DeploymentID, "failed", err.Error())
 		q.publish(job.DeploymentID, "status", "failed")
 		return
 	}
 	if srv.PrivateKeyID == nil {
-		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", "server has no private key")
+		_ = q.markStatus(ctx, job.DeploymentID, "failed", "server has no private key")
 		q.publish(job.DeploymentID, "status", "failed")
 		return
 	}
 	enc, err := q.Store.GetPrivateKeyMaterial(ctx, job.TeamID, *srv.PrivateKeyID)
 	if err != nil {
-		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
+		_ = q.markStatus(ctx, job.DeploymentID, "failed", err.Error())
 		q.publish(job.DeploymentID, "status", "failed")
 		return
 	}
 	priv, err := q.Store.Box.DecryptString(enc)
 	if err != nil {
-		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", "decrypt key: "+err.Error())
+		_ = q.markStatus(ctx, job.DeploymentID, "failed", "decrypt key: "+err.Error())
 		q.publish(job.DeploymentID, "status", "failed")
 		return
 	}
@@ -248,7 +248,7 @@ func (q *Queue) handle(ctx context.Context, job DeployJob) {
 			return
 		}
 		slog.Error("deployment failed", "id", job.DeploymentID, "err", err)
-		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
+		_ = q.markStatus(ctx, job.DeploymentID, "failed", err.Error())
 		if dep.PullRequestID > 0 {
 			_ = q.Store.UpdatePreviewStatus(ctx, job.TeamID, app.ID, dep.PullRequestID, "failed")
 		} else {
@@ -262,7 +262,7 @@ func (q *Queue) handle(ctx context.Context, job DeployJob) {
 		q.publish(job.DeploymentID, "status", "cancelled")
 		return
 	}
-	_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "finished", "")
+	_ = q.markStatus(ctx, job.DeploymentID, "finished", "")
 	if dep.PullRequestID == 0 {
 		sha := strings.TrimSpace(dep.CommitSHA)
 		if sha != "" && !strings.EqualFold(sha, "HEAD") {
@@ -276,12 +276,12 @@ func (q *Queue) handle(ctx context.Context, job DeployJob) {
 func (q *Queue) handleService(ctx context.Context, job DeployJob, dep *store.Deployment) {
 	svc, err := q.Store.GetService(ctx, job.TeamID, *dep.ServiceID)
 	if err != nil {
-		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
+		_ = q.markStatus(ctx, job.DeploymentID, "failed", err.Error())
 		q.publish(job.DeploymentID, "status", "failed")
 		return
 	}
 	if svc.DockerComposeRaw == "" && svc.DockerCompose == "" {
-		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", "service has no docker compose content")
+		_ = q.markStatus(ctx, job.DeploymentID, "failed", "service has no docker compose content")
 		q.publish(job.DeploymentID, "status", "failed")
 		return
 	}
@@ -298,32 +298,32 @@ func (q *Queue) handleService(ctx context.Context, job DeployJob, dep *store.Dep
 		var err error
 		dest, err = q.Store.GetDestination(ctx, job.TeamID, *svc.DestinationID)
 		if err != nil {
-			_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
+			_ = q.markStatus(ctx, job.DeploymentID, "failed", err.Error())
 			q.publish(job.DeploymentID, "status", "failed")
 			return
 		}
 		serverID = dest.ServerID
 	default:
-		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", "service has no server or destination")
+		_ = q.markStatus(ctx, job.DeploymentID, "failed", "service has no server or destination")
 		q.publish(job.DeploymentID, "status", "failed")
 		return
 	}
 
 	srv, err := q.Store.GetServer(ctx, job.TeamID, serverID)
 	if err != nil {
-		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
+		_ = q.markStatus(ctx, job.DeploymentID, "failed", err.Error())
 		q.publish(job.DeploymentID, "status", "failed")
 		return
 	}
 	if srv.PrivateKeyID == nil {
-		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", "server has no private key")
+		_ = q.markStatus(ctx, job.DeploymentID, "failed", "server has no private key")
 		q.publish(job.DeploymentID, "status", "failed")
 		return
 	}
 
 	client, err := sshdial.DialClient(ctx, q.Store, q.SSH, job.TeamID, serverID)
 	if err != nil {
-		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
+		_ = q.markStatus(ctx, job.DeploymentID, "failed", err.Error())
 		_ = q.Store.UpdateServiceStatus(ctx, svc.ID, "exited")
 		q.publish(job.DeploymentID, "status", "failed")
 		return
@@ -355,7 +355,7 @@ func (q *Queue) handleService(ctx context.Context, job DeployJob, dep *store.Dep
 			return
 		}
 		slog.Error("service deployment failed", "id", job.DeploymentID, "err", err)
-		_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "failed", err.Error())
+		_ = q.markStatus(ctx, job.DeploymentID, "failed", err.Error())
 		_ = q.Store.UpdateServiceStatus(ctx, svc.ID, "exited")
 		q.publish(job.DeploymentID, "status", "failed")
 		q.notifyDeploy(ctx, job.TeamID, svc.Name, "failed", err.Error())
@@ -365,7 +365,7 @@ func (q *Queue) handleService(ctx context.Context, job DeployJob, dep *store.Dep
 		q.publish(job.DeploymentID, "status", "cancelled")
 		return
 	}
-	_ = q.Store.SetDeploymentStatus(ctx, job.DeploymentID, "finished", "")
+	_ = q.markStatus(ctx, job.DeploymentID, "finished", "")
 	q.publish(job.DeploymentID, "status", "finished")
 	q.notifyDeploy(ctx, job.TeamID, svc.Name, "finished", "")
 }
@@ -384,6 +384,24 @@ func (q *Queue) notifyDeploy(ctx context.Context, teamID uuid.UUID, appName, sta
 		Title:   title,
 		Message: msg,
 	})
+}
+
+func (q *Queue) markStatus(ctx context.Context, id uuid.UUID, status, msg string) error {
+	err := q.Store.SetDeploymentStatus(ctx, id, status, msg)
+	if q.Hub != nil {
+		line := "status: " + status
+		if strings.TrimSpace(msg) != "" {
+			line += " — " + msg
+		}
+		q.Hub.Publish(id, map[string]any{
+			"type":   "status",
+			"status": status,
+			"error":  msg,
+			"stage":  status,
+			"line":   line,
+		})
+	}
+	return err
 }
 
 func (q *Queue) publish(id uuid.UUID, stage, line string) {

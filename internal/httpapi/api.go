@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dockfin/dockfin/internal/config"
@@ -48,6 +49,7 @@ type API struct {
 	openAPIJSON []byte
 	openAPIYAML []byte
 	openAPIOps  []documentedOp
+	maintOnce   sync.Once
 }
 
 // TaskRunner runs scheduled tasks on demand (wired to the scheduler runner).
@@ -56,6 +58,7 @@ type TaskRunner interface {
 }
 
 func (a *API) Router() http.Handler {
+	a.startMaintenance()
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
 	r.Use(securityHeaders)
@@ -131,6 +134,7 @@ func (a *API) Router() http.Handler {
 			r.Post("/teams", a.handleCreateTeam)
 
 			r.Get("/team/members", a.handleListTeamMembers)
+			r.Patch("/team/members/{userID}", a.handleUpdateTeamMemberRole)
 			r.Delete("/team/members/{userID}", a.handleRemoveTeamMember)
 			r.Get("/team/invitations", a.handleListInvitations)
 			r.Post("/team/invitations", a.handleCreateInvitation)

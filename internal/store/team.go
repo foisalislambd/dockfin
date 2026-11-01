@@ -182,6 +182,48 @@ func (s *Store) ListTeamMembers(ctx context.Context, teamID uuid.UUID) ([]TeamMe
 	return out, rows.Err()
 }
 
+// UpdateTeamMemberRole changes a member's role. Demoting the last owner is refused.
+func (s *Store) UpdateTeamMemberRole(ctx context.Context, teamID, userID uuid.UUID, role string) error {
+	switch role {
+	case "owner", "admin", "member":
+	default:
+		return errors.New("role must be owner, admin, or member")
+	}
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var current string
+	err = tx.QueryRow(ctx, `SELECT role FROM team_members WHERE team_id=$1 AND user_id=$2 FOR UPDATE`, teamID, userID).Scan(&current)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if current == role {
+		return tx.Commit(ctx)
+	}
+	if current == "owner" && role != "owner" {
+		var owners int
+		if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM team_members WHERE team_id=$1 AND role='owner'`, teamID).Scan(&owners); err != nil {
+			return err
+		}
+		if owners <= 1 {
+			return errors.New("cannot demote the last owner")
+		}
+	}
+	tag, err := tx.Exec(ctx, `UPDATE team_members SET role=$3 WHERE team_id=$1 AND user_id=$2`, teamID, userID, role)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return tx.Commit(ctx)
+}
+
 func (s *Store) RemoveTeamMember(ctx context.Context, teamID, userID uuid.UUID) error {
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {

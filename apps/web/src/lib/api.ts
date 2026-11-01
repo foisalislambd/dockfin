@@ -1069,7 +1069,31 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  auditLogs: () => request<{ audit_logs: AuditLog[] }>('/api/v1/audit-logs'),
+  auditLogs: (params?: {
+    q?: string
+    action?: string
+    category?: string
+    resource_type?: string
+    limit?: number
+    offset?: number
+  }) => {
+    const q = new URLSearchParams()
+    if (params?.q) q.set('q', params.q)
+    if (params?.action) q.set('action', params.action)
+    if (params?.category) q.set('category', params.category)
+    if (params?.resource_type) q.set('resource_type', params.resource_type)
+    if (params?.limit) q.set('limit', String(params.limit))
+    if (params?.offset) q.set('offset', String(params.offset))
+    const qs = q.toString()
+    return request<{ audit_logs: AuditLog[]; total: number; limit: number; offset: number }>(
+      `/api/v1/audit-logs${qs ? `?${qs}` : ''}`,
+    )
+  },
+  updateMemberRole: (userId: string, role: string) =>
+    request<{ status: string; role: string }>(`/api/v1/team/members/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    }),
   cloudflareDNS: (body: { hostname: string; server_id?: string; token_id?: string; ipv4?: string }) =>
     request<{ zone: string; name: string; type: string; content: string; action: string }>(
       '/api/v1/domains/cloudflare',
@@ -1901,9 +1925,12 @@ export type AuditLog = {
   team_id: string
   user_id?: string | null
   user_email?: string
+  actor_email?: string
   method: string
   path: string
   action: string
+  category?: string
+  summary?: string
   resource_type: string
   resource_id: string
   status_code: number

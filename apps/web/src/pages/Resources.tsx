@@ -59,6 +59,16 @@ export function ProjectsPage() {
   )
 
   if (projects.isLoading) return <PageSkeleton cards={2} />
+  if (projects.error) {
+    return (
+      <div className="space-y-4">
+        <Header title="Projects" />
+        <div className="panel-card border-error-200 p-4 text-sm text-error-500" role="alert">
+          Could not load projects. {projects.error.message}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

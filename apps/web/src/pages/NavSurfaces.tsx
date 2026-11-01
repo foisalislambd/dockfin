@@ -267,49 +267,125 @@ export function TagsPage() {
 }
 
 export function AuditLogPage() {
-  const logs = useQuery({ queryKey: ['audit-logs'], queryFn: api.auditLogs, refetchInterval: 8000 })
-  if (logs.isLoading) return <PageSkeleton cards={1} />
+  const [q, setQ] = useState('')
+  const [category, setCategory] = useState('')
+  const [offset, setOffset] = useState(0)
+  const limit = 50
+  const logs = useQuery({
+    queryKey: ['audit-logs', q, category, offset],
+    queryFn: () => api.auditLogs({ q, category, limit, offset }),
+    refetchInterval: 15000,
+  })
+  const rows = logs.data?.audit_logs || []
+  const total = logs.data?.total || 0
   return (
     <div className="space-y-6">
       <Header title="Audit log" />
-      <div className="panel-card overflow-x-auto">
-        <table className="panel-table">
-          <thead>
-            <tr>
-              <th>When</th>
-              <th>Who</th>
-              <th>Action</th>
-              <th>Resource</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(logs.data?.audit_logs || []).map((row) => (
-              <tr key={row.id}>
-                <td className="whitespace-nowrap text-xs text-gray-500">
-                  {row.created_at ? new Date(row.created_at).toLocaleString() : '—'}
-                </td>
-                <td className="text-sm">{row.user_email || '—'}</td>
-                <td className="font-mono text-xs">
-                  {row.method} {row.action}
-                </td>
-                <td className="font-mono text-xs">
-                  {row.resource_type}
-                  {row.resource_id ? ` ${row.resource_id.slice(0, 8)}` : ''}
-                </td>
-                <td className="text-xs">{row.status_code || '—'}</td>
-              </tr>
-            ))}
-            {!logs.data?.audit_logs?.length && (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
-                  No audit entries yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        Sign-ins, deploys, freezes, member changes, and resource create or delete actions. Owners and admins only.
+      </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <label className="block flex-1 text-xs font-medium text-gray-600 dark:text-gray-300">
+          Search
+          <input
+            value={q}
+            onChange={(e) => {
+              setOffset(0)
+              setQ(e.target.value)
+            }}
+            className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+            placeholder="Email, path, or summary"
+          />
+        </label>
+        <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
+          Category
+          <select
+            value={category}
+            onChange={(e) => {
+              setOffset(0)
+              setCategory(e.target.value)
+            }}
+            className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm sm:w-40 dark:border-gray-700 dark:bg-gray-900"
+          >
+            <option value="">All</option>
+            <option value="auth">Auth</option>
+            <option value="deploy">Deploy</option>
+            <option value="access">Access</option>
+            <option value="settings">Settings</option>
+            <option value="resource">Resource</option>
+          </select>
+        </label>
       </div>
+      {logs.isLoading ? <PageSkeleton cards={1} /> : null}
+      {logs.error ? (
+        <div className="panel-card border-error-200 p-4 text-sm text-error-500" role="alert">
+          Could not load the audit log. {logs.error.message}
+        </div>
+      ) : null}
+      {!logs.isLoading && !logs.error && (
+        <div className="panel-card overflow-x-auto">
+          <table className="panel-table min-w-[40rem]">
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Who</th>
+                <th>What</th>
+                <th>Resource</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td className="whitespace-nowrap text-xs text-gray-500">
+                    {row.created_at ? new Date(row.created_at).toLocaleString() : '—'}
+                  </td>
+                  <td className="text-sm">{row.actor_email || row.user_email || '—'}</td>
+                  <td className="text-sm">
+                    <div>{row.summary || `${row.method} ${row.action}`}</div>
+                    <div className="font-mono text-[11px] text-gray-500">{row.category || row.action}</div>
+                  </td>
+                  <td className="font-mono text-xs">
+                    {row.resource_type}
+                    {row.resource_id ? ` ${row.resource_id.slice(0, 8)}` : ''}
+                  </td>
+                  <td className="text-xs">{row.status_code || '—'}</td>
+                </tr>
+              ))}
+              {!rows.length && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                    No audit entries match.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          <div className="flex items-center justify-between gap-3 border-t border-gray-200 px-4 py-3 text-xs dark:border-gray-800">
+            <span className="text-gray-500">
+              {total} event{total === 1 ? '' : 's'}
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="rounded-md border border-gray-200 px-2 py-1 disabled:opacity-40 dark:border-gray-700"
+                disabled={offset === 0}
+                onClick={() => setOffset((n) => Math.max(0, n - limit))}
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                className="rounded-md border border-gray-200 px-2 py-1 disabled:opacity-40 dark:border-gray-700"
+                disabled={offset + limit >= total}
+                onClick={() => setOffset((n) => n + limit)}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

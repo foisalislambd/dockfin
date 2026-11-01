@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"crypto/subtle"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -87,8 +88,34 @@ func (a *API) metrics() *httpMetrics {
 }
 
 func (a *API) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	if !metricsAuthorized(a, r) {
+		w.Header().Set("WWW-Authenticate", "Bearer")
+		writeError(w, http.StatusUnauthorized, "metrics token required")
+		return
+	}
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	_, _ = w.Write([]byte(a.metrics().render()))
+}
+
+// metricsAuthorized allows /metrics when DOCKFIN_METRICS_TOKEN is unset.
+// A configured token must be sent as Authorization: Bearer.
+func metricsAuthorized(a *API, r *http.Request) bool {
+	token := ""
+	if a != nil && a.Cfg != nil {
+		token = a.Cfg.MetricsToken
+	}
+	if token == "" {
+		return true
+	}
+	got := ""
+	h := r.Header.Get("Authorization")
+	if len(h) > 7 && strings.EqualFold(h[:7], "bearer ") {
+		got = strings.TrimSpace(h[7:])
+	}
+	if len(got) != len(token) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(got), []byte(token)) == 1
 }
 
 func (a *API) observe(next http.Handler) http.Handler {

@@ -18,7 +18,11 @@ The Chi router is the source of truth for the API. `Router()` walks itself and w
 
 Rate limits are sliding windows keyed by client IP. The global bucket is 600 requests/minute. Auth routes are 30 per 15 minutes, webhooks and `/api/v1/deploy` are 120 per minute, and sentinel ingest is 600 per minute. `/health`, `/metrics`, CORS preflight, and static assets are exempt. Zero in config disables that bucket. The failed-login throttle still applies on top.
 
-`GET /metrics` is Prometheus text. Series use the Chi route pattern, so UUIDs do not become labels. Request logs are structured and skip `/health` and `/metrics`.
+`GET /metrics` is Prometheus text. Series use the Chi route pattern, so UUIDs do not become labels. Request logs are structured and skip `/health` and `/metrics`. Set `DOCKFIN_METRICS_TOKEN` to require `Authorization: Bearer` on `/metrics`.
+
+`DOCKFIN_RATE_LIMIT_STORE=postgres` stores sliding-window hits in `rate_limit_hits` so every API replica shares a budget. The default `memory` store stays inside the process. If Postgres errors, that process falls back to its memory window.
+
+Mutations and auth events are written to `audit_logs`. Owners and admins read them at `GET /api/v1/audit-logs`. A hourly prune drops rows older than `DOCKFIN_AUDIT_RETENTION_DAYS` (default 90). Responses send a Content-Security-Policy: scripts and connections stay on the panel origin, styles allow the inline rules the terminal injects, and the existing Google font hosts stay allowed.
 
 ## Domain model
 

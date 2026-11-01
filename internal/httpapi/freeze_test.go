@@ -42,6 +42,10 @@ func TestSecurityHeadersAndRecover(t *testing.T) {
 	if rec.Header().Get("X-Frame-Options") != "SAMEORIGIN" {
 		t.Fatal(rec.Header())
 	}
+	csp := rec.Header().Get("Content-Security-Policy")
+	if !strings.Contains(csp, "script-src 'self'") || !strings.Contains(csp, "worker-src 'self' blob:") || !strings.Contains(csp, "connect-src 'self'") {
+		t.Fatal(csp)
+	}
 }
 
 func TestHealthIncludesVersion(t *testing.T) {

@@ -52,6 +52,7 @@ func liveCall(base, token, team, method, path string, body any) (int, string, er
 type caller func(base, token, team, method, path string, body any) (int, string, error)
 
 func run(args []string, getenv func(string) string, stdout, stderr io.Writer, call caller) int {
+	args, asJSON := stripOpt(args, "--json")
 	if len(args) == 0 || args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
 		fmt.Fprint(stdout, usageText)
 		if len(args) == 0 {
@@ -84,15 +85,9 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer, ca
 		fmt.Fprintln(stdout, strings.TrimRight(base, "/")+"/openapi.json")
 		return 0
 	case "overview":
-		return printCall(stdout, stderr, call, base, token, team, http.MethodGet, "/api/v1/overview", nil)
-	case "servers":
-		return printCall(stdout, stderr, call, base, token, team, http.MethodGet, "/api/v1/servers", nil)
-	case "apps":
-		return printCall(stdout, stderr, call, base, token, team, http.MethodGet, "/api/v1/applications", nil)
-	case "services":
-		return printCall(stdout, stderr, call, base, token, team, http.MethodGet, "/api/v1/services", nil)
-	case "databases":
-		return printCall(stdout, stderr, call, base, token, team, http.MethodGet, "/api/v1/databases", nil)
+		return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodGet, "/api/v1/overview", nil)
+	case "servers", "projects", "environments", "apps", "applications", "services", "databases", "env", "domains":
+		return resourceCmd(asJSON, stdout, stderr, call, base, token, team, cmd, rest)
 	case "deploy":
 		id, flags := splitFlags(rest)
 		if id == "" {
@@ -103,7 +98,7 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer, ca
 			"force_rebuild":   flags["force"] == "true",
 			"override_freeze": flags["override-freeze"] == "true",
 		}
-		return printCall(stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/applications/"+id+"/deploy", body)
+		return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/applications/"+id+"/deploy", body)
 	case "rollback":
 		id, flags := splitFlags(rest)
 		if id == "" {
@@ -117,13 +112,13 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer, ca
 		if sha := flags["commit"]; sha != "" {
 			body["commit_sha"] = sha
 		}
-		return printCall(stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/applications/"+id+"/rollback", body)
+		return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/applications/"+id+"/rollback", body)
 	case "stop":
 		if len(rest) < 1 || strings.HasPrefix(rest[0], "-") {
 			fmt.Fprintln(stderr, "usage: dfin stop <application-uuid>")
 			return 1
 		}
-		return printCall(stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/applications/"+rest[0]+"/stop", nil)
+		return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/applications/"+rest[0]+"/stop", nil)
 	case "service-deploy":
 		id, flags := splitFlags(rest)
 		if id == "" {
@@ -134,24 +129,33 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer, ca
 		if flags["override-freeze"] == "true" {
 			path += "?override_freeze=1"
 		}
-		return printCall(stdout, stderr, call, base, token, team, http.MethodPost, path, nil)
+		return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, path, nil)
 	case "freeze":
-		return freezeCmd(stdout, stderr, call, base, token, team, rest, true)
+		return freezeCmd(asJSON, stdout, stderr, call, base, token, team, rest, true)
 	case "unfreeze":
-		return freezeCmd(stdout, stderr, call, base, token, team, rest, false)
+		return freezeCmd(asJSON, stdout, stderr, call, base, token, team, rest, false)
 	case "logs":
-		if len(rest) < 1 || strings.HasPrefix(rest[0], "-") {
-			fmt.Fprintln(stderr, "usage: dfin logs <deployment-uuid>")
+		pos, flags := splitFlags(rest)
+		id := strings.TrimSpace(pos)
+		if id == "" || strings.Contains(id, " ") {
+			fmt.Fprintln(stderr, "usage: dfin logs <deployment-uuid> [--follow]")
 			return 1
 		}
-		code, out, err := call(base, token, team, http.MethodGet, "/api/v1/deployments/"+rest[0], nil)
+		if flags["follow"] == "true" {
+			return followDeployment(stdout, stderr, call, base, token, team, id, asJSON)
+		}
+		code, out, err := call(base, token, team, http.MethodGet, "/api/v1/deployments/"+id, nil)
 		if err != nil {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
-		fmt.Fprint(stdout, formatDeployment(out))
-		if !strings.HasSuffix(out, "\n") {
-			fmt.Fprintln(stdout)
+		if asJSON {
+			fmt.Fprintln(stdout, strings.TrimSpace(out))
+		} else {
+			fmt.Fprint(stdout, formatDeployment(out))
+			if !strings.HasSuffix(out, "\n") && !strings.HasSuffix(formatDeployment(out), "\n") {
+				fmt.Fprintln(stdout)
+			}
 		}
 		return exitFor(code)
 	default:
@@ -160,7 +164,7 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer, ca
 	}
 }
 
-func freezeCmd(stdout, stderr io.Writer, call caller, base, token, team string, rest []string, frozen bool) int {
+func freezeCmd(asJSON bool, stdout, stderr io.Writer, call caller, base, token, team string, rest []string, frozen bool) int {
 	positionals, flagMap := splitFlags(rest)
 	ids := strings.Fields(positionals)
 	if len(ids) < 2 {
@@ -173,17 +177,47 @@ func freezeCmd(stdout, stderr io.Writer, call caller, base, token, team string, 
 	}
 	body := map[string]any{"frozen": frozen, "reason": flagMap["reason"]}
 	path := "/api/v1/projects/" + ids[0] + "/environments/" + ids[1] + "/freeze"
-	return printCall(stdout, stderr, call, base, token, team, http.MethodPut, path, body)
+	return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPut, path, body)
 }
 
-func printCall(stdout, stderr io.Writer, call caller, base, token, team, method, path string, body any) int {
+func printCall(asJSON bool, stdout, stderr io.Writer, call caller, base, token, team, method, path string, body any) int {
 	code, out, err := call(base, token, team, method, path, body)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
-	fmt.Fprintln(stdout, code, out)
+	writeResult(asJSON, stdout, code, out)
 	return exitFor(code)
+}
+
+func writeResult(asJSON bool, stdout io.Writer, code int, out string) {
+	out = strings.TrimSpace(out)
+	if asJSON {
+		if out == "" {
+			fmt.Fprintln(stdout, "{}")
+			return
+		}
+		fmt.Fprintln(stdout, out)
+		return
+	}
+	if code >= 400 {
+		fmt.Fprintf(stdout, "HTTP %d\n%s\n", code, out)
+		return
+	}
+	fmt.Fprintln(stdout, humanizeJSON(out))
+}
+
+func stripOpt(args []string, name string) ([]string, bool) {
+	found := false
+	out := make([]string, 0, len(args))
+	for _, a := range args {
+		if a == name {
+			found = true
+			continue
+		}
+		out = append(out, a)
+	}
+	return out, found
 }
 
 func exitFor(code int) int {
@@ -272,23 +306,28 @@ func envOr(getenv func(string) string, k, def string) string {
 const usageText = `dfin — Dockfin CLI
 
 Usage:
-  dfin version
-  dfin health [url]
-  dfin openapi
-  dfin overview
-  dfin servers
-  dfin apps
-  dfin services
-  dfin databases
-  dfin deploy <application-uuid> [--force] [--override-freeze]
-  dfin rollback <application-uuid> [--commit sha] [--override-freeze]
-  dfin stop <application-uuid>
-  dfin service-deploy <service-uuid> [--override-freeze]
-  dfin freeze <project-uuid> <environment-uuid> [--reason text]
-  dfin unfreeze <project-uuid> <environment-uuid>
-  dfin logs <deployment-uuid>
+  dfin [--json] version
+  dfin [--json] health [url]
+  dfin [--json] openapi
+  dfin [--json] overview
+  dfin [--json] servers list|get|create|delete
+  dfin [--json] projects list|get|create|update|delete
+  dfin [--json] environments list|get|create|update|delete
+  dfin [--json] apps list|get|create|delete
+  dfin [--json] services list|get|create|delete
+  dfin [--json] databases list|get|create|delete
+  dfin [--json] env list|set|unset
+  dfin [--json] domains list|create|delete
+  dfin [--json] deploy <application-uuid> [--force] [--override-freeze]
+  dfin [--json] rollback <application-uuid> [--commit sha] [--override-freeze]
+  dfin [--json] stop <application-uuid>
+  dfin [--json] service-deploy <service-uuid> [--override-freeze]
+  dfin [--json] freeze <project-uuid> <environment-uuid> [--reason text]
+  dfin [--json] unfreeze <project-uuid> <environment-uuid>
+  dfin [--json] logs <deployment-uuid> [--follow]
 
-Commands exit 0 on HTTP 2xx/3xx and 1 otherwise.
+Deletes that the API confirms by name take --confirm <name> and, when required, --password.
+Commands exit 0 on HTTP 2xx/3xx and 1 otherwise. --json prints the response body.
 
 Env:
   DOCKFIN_URL    default http://localhost:8000
