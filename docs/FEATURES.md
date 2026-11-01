@@ -244,6 +244,11 @@ carries a `warnings` array.
 - [x] Global and per-route rate limits (auth, webhooks, sentinel) with `Retry-After`
 - [x] Prometheus text at `/metrics` and structured request logs
 - [x] OpenAPI 3.1 generated from the live router at `/openapi.json` and `/api/docs`, checked into `packages/openapi/openapi.yaml`
+- [x] Audit log with filters, pagination, retention, and an owner/admin page
+- [x] Content-Security-Policy compatible with the built dashboard and web terminal
+- [x] Optional bearer token for `/metrics`
+- [x] Postgres-backed shared rate limit (`DOCKFIN_RATE_LIMIT_STORE=postgres`), in-process by default
+- [x] `dfin` CRUD for servers, projects, environments, apps, services, databases, env vars, and domains, with `--json` and `logs --follow`
 
 ## Polish
 - [x] Command palette (⌘K)

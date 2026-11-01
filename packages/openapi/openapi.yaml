@@ -16,7 +16,7 @@ components:
             name: dockfin_session
             type: apiKey
 info:
-    description: 'Self-hosted PaaS control plane. This document is generated from the live router, so every path here is a route the server registers. Authenticated routes accept a session cookie or a bearer API token. Configured rate limits per client IP: 600 requests/minute globally, 30 auth attempts per 15 minutes, 120 webhook calls/minute, and 600 sentinel ingests/minute. Set DOCKFIN_RATE_LIMIT_PER_MINUTE, DOCKFIN_AUTH_RATE_LIMIT_PER_15M, or DOCKFIN_WEBHOOK_RATE_LIMIT_PER_MINUTE to override. Zero disables a bucket. /health and /metrics are exempt.'
+    description: 'Self-hosted PaaS control plane. This document is generated from the live router, so every path here is a route the server registers. Authenticated routes accept a session cookie or a bearer API token. Configured rate limits per client IP: 600 requests/minute globally, 30 auth attempts per 15 minutes, 120 webhook calls/minute, and 600 sentinel ingests/minute. Set DOCKFIN_RATE_LIMIT_PER_MINUTE, DOCKFIN_AUTH_RATE_LIMIT_PER_15M, or DOCKFIN_WEBHOOK_RATE_LIMIT_PER_MINUTE to override. Zero disables a bucket. DOCKFIN_RATE_LIMIT_STORE=postgres shares the budget across replicas; the default is memory. /health is exempt. /metrics is exempt and public unless DOCKFIN_METRICS_TOKEN is set.'
     title: Dockfin API
     version: dev
 openapi: 3.1.0
@@ -2182,13 +2182,14 @@ paths:
                     application/json:
                         schema:
                             properties:
-                                challenge:
+                                challenge_id:
                                     type: string
                                 code:
                                     type: string
+                                recovery_code:
+                                    type: string
                             required:
-                                - challenge
-                                - code
+                                - challenge_id
                             type: object
                 required: true
             responses:
@@ -11840,6 +11841,60 @@ paths:
                 - cookieAuth: []
                 - bearerAuth: []
             summary: Delete member
+            tags:
+                - team
+        patch:
+            operationId: patchApiV1TeamMembersUserID
+            parameters:
+                - in: path
+                  name: userID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Update member
             tags:
                 - team
     /api/v1/teams:

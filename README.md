@@ -128,7 +128,22 @@ Bump the number in `VERSION.md` (for example `1.3.6` → `1.3.7`) in the commit 
 | `/metrics` | Prometheus counters (route pattern, not raw URLs) |
 | `/health` | Liveness plus the running version |
 
-Per-IP limits default to 600 requests/minute, 30 auth attempts per 15 minutes, and 120 webhook calls/minute. Set `DOCKFIN_RATE_LIMIT_PER_MINUTE`, `DOCKFIN_AUTH_RATE_LIMIT_PER_15M`, or `DOCKFIN_WEBHOOK_RATE_LIMIT_PER_MINUTE`. Zero disables that bucket.
+Per-IP limits default to 600 requests/minute, 30 auth attempts per 15 minutes, and 120 webhook calls/minute. Set `DOCKFIN_RATE_LIMIT_PER_MINUTE`, `DOCKFIN_AUTH_RATE_LIMIT_PER_15M`, or `DOCKFIN_WEBHOOK_RATE_LIMIT_PER_MINUTE`. Zero disables that bucket. `DOCKFIN_RATE_LIMIT_STORE=postgres` shares that budget across replicas (default `memory`).
+
+`/metrics` is public unless `DOCKFIN_METRICS_TOKEN` is set, in which case Prometheus must send `Authorization: Bearer <token>`.
+
+```bash
+dfin --json projects list
+dfin apps create --environment <env-uuid> --name web --git https://github.com/org/repo
+dfin env set --resource-type application --resource-id <app-uuid> --key PORT --value 8080
+dfin logs <deployment-uuid> --follow
+```
+
+Audit history is kept for `DOCKFIN_AUDIT_RETENTION_DAYS` (default 90). Owners and admins open it from the account menu.
+
+```bash
+bash scripts/e2e-smoke.sh
+```
 
 ```bash
 export DOCKFIN_URL=http://127.0.0.1:8000

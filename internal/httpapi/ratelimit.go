@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"context"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -8,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dockfin/dockfin/internal/config"
+	"github.com/dockfin/dockfin/internal/store"
 )
 
 // RatePolicy is the per-client-IP budget. A zero limit disables that bucket.
@@ -52,6 +55,52 @@ type requestLimiter struct {
 
 func newRequestLimiter() *requestLimiter {
 	return &requestLimiter{hits: map[string][]time.Time{}, now: time.Now}
+}
+
+// rateGate admits one request into a sliding window. ok is false when the
+// budget is spent. retry is how long the client should wait.
+type rateGate interface {
+	Allow(ctx context.Context, key string, limit int, window time.Duration) (ok bool, retry time.Duration)
+}
+
+func (l *requestLimiter) Allow(_ context.Context, key string, limit int, window time.Duration) (bool, time.Duration) {
+	return l.allow(key, limit, window)
+}
+
+// pgGate shares a budget in Postgres and falls back to the in-process window
+// when the database cannot answer. A fallback keeps one replica protected
+// during an outage instead of failing open.
+type pgGate struct {
+	store    *store.Store
+	log      *slog.Logger
+	fallback *requestLimiter
+}
+
+func (g *pgGate) Allow(ctx context.Context, key string, limit int, window time.Duration) (bool, time.Duration) {
+	if g == nil || g.store == nil {
+		if g != nil && g.fallback != nil {
+			return g.fallback.allow(key, limit, window)
+		}
+		return true, 0
+	}
+	ok, retry, err := g.store.AllowRateLimit(ctx, key, limit, window)
+	if err != nil {
+		if g.log != nil {
+			g.log.Warn("shared rate limit unavailable", "error", err.Error())
+		}
+		if g.fallback != nil {
+			return g.fallback.allow(key, limit, window)
+		}
+		return true, 0
+	}
+	return ok, retry
+}
+
+func (a *API) rateGate() rateGate {
+	if a != nil && a.Cfg != nil && a.Cfg.RateLimitStore == "postgres" && a.Store != nil {
+		return &pgGate{store: a.Store, log: a.Logger, fallback: a.requestLimiter()}
+	}
+	return a.requestLimiter()
 }
 
 func (l *requestLimiter) allow(key string, limit int, window time.Duration) (bool, time.Duration) {
@@ -186,15 +235,15 @@ func (a *API) rateLimit(next http.Handler) http.Handler {
 		policy := a.ratePolicy()
 		extra, exempt := classifyLimit(r.Method, path, policy)
 		ip := a.rateLimitIP(r)
-		lim := a.requestLimiter()
+		lim := a.rateGate()
 		if extra.limit > 0 {
-			if ok, retry := lim.allow(extra.name+":"+ip, extra.limit, extra.window); !ok {
+			if ok, retry := lim.Allow(r.Context(), extra.name+":"+ip, extra.limit, extra.window); !ok {
 				writeRateLimited(w, retry)
 				return
 			}
 		}
 		if !exempt && policy.GlobalPerMinute > 0 {
-			if ok, retry := lim.allow("global:"+ip, policy.GlobalPerMinute, time.Minute); !ok {
+			if ok, retry := lim.Allow(r.Context(), "global:"+ip, policy.GlobalPerMinute, time.Minute); !ok {
 				writeRateLimited(w, retry)
 				return
 			}

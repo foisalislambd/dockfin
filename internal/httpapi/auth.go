@@ -73,6 +73,7 @@ func (a *API) handleRegister(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
+	a.recordAuth(r, user, user.Email, "register", "Registered an account", http.StatusCreated)
 	token, err := crypto.RandomToken(32)
 	if err != nil {
 		mapStoreErr(w, err)
@@ -136,11 +137,17 @@ func (a *API) handleLogin(w http.ResponseWriter, r *http.Request) {
 		// An empty hash means an OAuth-only account — password login must be rejected.
 		_, _ = crypto.HashPassword("dockfin-login-timing-pad")
 		globalLoginLimiter.fail(ip)
+		if user != nil && hash == "" {
+			a.recordAuth(r, user, user.Email, "login_failed", "Password login rejected", http.StatusUnauthorized)
+		} else {
+			a.recordAuth(r, nil, body.Email, "login_failed", "Sign-in failed", http.StatusUnauthorized)
+		}
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
 	if !crypto.VerifyPassword(hash, body.Password) {
 		globalLoginLimiter.fail(ip)
+		a.recordAuth(r, user, user.Email, "login_failed", "Sign-in failed", http.StatusUnauthorized)
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
@@ -166,6 +173,7 @@ func (a *API) handleLogin(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
+	a.recordAuth(r, user, user.Email, "login", "Signed in", http.StatusOK)
 	writeJSON(w, http.StatusOK, map[string]any{"user": user, "team": teams[0], "teams": teams, "token": token})
 }
 

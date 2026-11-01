@@ -75,6 +75,40 @@ func (a *API) handleListTeamMembers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"members": list})
 }
 
+func (a *API) handleUpdateTeamMemberRole(w http.ResponseWriter, r *http.Request) {
+	actor := r.Context().Value(ctxRole).(string)
+	if actor != "owner" && actor != "admin" {
+		writeError(w, http.StatusForbidden, "admin or owner role required")
+		return
+	}
+	uid, err := uuid.Parse(chi.URLParam(r, "userID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var body struct {
+		Role string `json:"role"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	role := strings.ToLower(strings.TrimSpace(body.Role))
+	if actor != "owner" && role == "owner" {
+		writeError(w, http.StatusForbidden, "only an owner can grant the owner role")
+		return
+	}
+	if err := a.Store.UpdateTeamMemberRole(r.Context(), currentTeamID(r), uid, role); err != nil {
+		if err.Error() == "cannot demote the last owner" || err.Error() == "role must be owner, admin, or member" {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "role": role})
+}
+
 func (a *API) handleRemoveTeamMember(w http.ResponseWriter, r *http.Request) {
 	role := r.Context().Value(ctxRole).(string)
 	if role != "owner" && role != "admin" {

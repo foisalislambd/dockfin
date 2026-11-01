@@ -12,6 +12,13 @@ The same version, or a lower one, does not create a release. Git tag, GitHub Rel
 
 ### Added
 
+- Queryable audit log for owners and admins: auth, deploys, rollbacks, freezes, settings, member and role changes, and resource create/delete. Filter and paginate `GET /api/v1/audit-logs`. Retention is `DOCKFIN_AUDIT_RETENTION_DAYS` (default 90, `0` keeps rows). Unknown sign-in attempts are stored without a team and shown to every owner and admin
+- `PATCH /api/v1/team/members/{userID}` changes a member role. The last owner cannot be demoted
+- Optional `DOCKFIN_METRICS_TOKEN`. When set, `GET /metrics` requires `Authorization: Bearer`. Unset keeps the endpoint public
+- `DOCKFIN_RATE_LIMIT_STORE=postgres` shares the rate-limit budget across API replicas. The default remains the in-process window, which is also the fallback if Postgres cannot answer
+- `dfin` resource commands for servers, projects, environments, applications, services, databases, env vars, and service domains, plus `--json` and `logs --follow`
+- Live deploy progress on the deployment page (replayed log history, stage chips, failure text, one-click rollback) and a Content-Security-Policy that still allows the dashboard, Google fonts, and the web terminal
+- `scripts/e2e-smoke.sh` boots Postgres, migrates, and exercises health, CSP, metrics auth, register, and the audit log
 - Team pulse at `GET /api/v1/overview`: fleet counts, the last 7 days of deploys, queue depth, recent deployments, frozen environments, and attention items (failed deploys, unhealthy resources, failed backups)
 - Environment deploy freeze. New application, service, preview, webhook, MCP, and rollback deploys are refused until an owner or admin unfreezes the environment. Owners and admins can override one manual deploy. Webhooks are skipped instead of retried. Restarts, stops, and scheduled commands keep running
 - Dashboard, environment, application, and service screens for the pulse and the freeze
@@ -32,7 +39,7 @@ The same version, or a lower one, does not create a release. Git tag, GitHub Rel
 
 ### Security
 
-- API responses send `X-Content-Type-Options: nosniff`, `Referrer-Policy`, and `X-Frame-Options: SAMEORIGIN`
+- API responses send `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `X-Frame-Options: SAMEORIGIN`, and a Content-Security-Policy
 - Panics return the same JSON error shape as other API failures
 - Per-IP rate limits on the whole API, with tighter windows for auth and webhooks. The existing failed-login throttle still applies
 

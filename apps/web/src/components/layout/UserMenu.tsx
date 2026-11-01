@@ -1,5 +1,5 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ChevronDown, LogOut, Settings } from 'lucide-react'
+import { ChevronDown, LogOut, ScrollText, Settings } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useAuth } from '../../lib/auth'
 
@@ -78,6 +78,17 @@ export function UserMenu() {
               </p>
             )}
           </div>
+          {(team?.role === 'owner' || team?.role === 'admin') && (
+            <Link
+              to="/audit"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 focus-visible:bg-gray-50 focus-visible:outline-none dark:text-gray-300 dark:hover:bg-white/5"
+            >
+              <ScrollText className="h-3.5 w-3.5" aria-hidden />
+              Audit log
+            </Link>
+          )}
           <Link
             to="/settings"
             role="menuitem"

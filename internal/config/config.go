@@ -32,6 +32,11 @@ type Config struct {
 	RateLimitPerMinute        int
 	AuthRateLimitPer15Min     int
 	WebhookRateLimitPerMinute int
+	// RateLimitStore is "memory" (default) or "postgres". Postgres shares one
+	// budget across API replicas. An empty metrics token leaves /metrics public.
+	RateLimitStore     string
+	MetricsToken       string
+	AuditRetentionDays int
 	// AllowUnsignedWebhooks skips HMAC when no webhook secret is configured.
 	// Never enable on an internet-exposed panel.
 	AllowUnsignedWebhooks bool
@@ -62,6 +67,12 @@ func Load() (*Config, error) {
 	cfg.RateLimitPerMinute = parseNonNegInt(getenv("DOCKFIN_RATE_LIMIT_PER_MINUTE", "600"), 600)
 	cfg.AuthRateLimitPer15Min = parseNonNegInt(getenv("DOCKFIN_AUTH_RATE_LIMIT_PER_15M", "30"), 30)
 	cfg.WebhookRateLimitPerMinute = parseNonNegInt(getenv("DOCKFIN_WEBHOOK_RATE_LIMIT_PER_MINUTE", "120"), 120)
+	cfg.RateLimitStore = strings.ToLower(strings.TrimSpace(getenv("DOCKFIN_RATE_LIMIT_STORE", "memory")))
+	if cfg.RateLimitStore != "postgres" {
+		cfg.RateLimitStore = "memory"
+	}
+	cfg.MetricsToken = strings.TrimSpace(os.Getenv("DOCKFIN_METRICS_TOKEN"))
+	cfg.AuditRetentionDays = parseNonNegInt(getenv("DOCKFIN_AUDIT_RETENTION_DAYS", "90"), 90)
 	if p := getenv("DOCKFIN_BOOTSTRAP_SSH_PORT", ""); p != "" {
 		if n, err := fmt.Sscanf(p, "%d", &cfg.BootstrapSSHPort); n != 1 || err != nil || cfg.BootstrapSSHPort <= 0 {
 			cfg.BootstrapSSHPort = 22

@@ -153,7 +153,35 @@ export function TeamPage() {
                   </div>
                   <div className="truncate text-xs text-gray-500 dark:text-gray-400">{m.email}</div>
                 </div>
-                <RoleChip role={m.role} />
+                {team?.role === 'owner' && m.user_id !== user?.id ? (
+                  <label className="sr-only" htmlFor={`role-${m.user_id}`}>
+                    Role for {m.email}
+                  </label>
+                ) : (
+                  <RoleChip role={m.role} />
+                )}
+                {team?.role === 'owner' && m.user_id !== user?.id ? (
+                  <select
+                    id={`role-${m.user_id}`}
+                    aria-label={`Role for ${m.email}`}
+                    className="h-8 rounded-md border border-gray-200 bg-white px-2 text-xs dark:border-gray-700 dark:bg-gray-900"
+                    value={m.role}
+                    onChange={async (e) => {
+                      const role = e.target.value
+                      try {
+                        await api.updateMemberRole(m.user_id, role)
+                        toast.success(`Role set to ${role}`)
+                        void qc.invalidateQueries({ queryKey: ['team-members'] })
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : 'Could not change role')
+                      }
+                    }}
+                  >
+                    <option value="owner">owner</option>
+                    <option value="admin">admin</option>
+                    <option value="member">member</option>
+                  </select>
+                ) : null}
                 {canManage && m.user_id !== user?.id ? (
                   <button
                     type="button"

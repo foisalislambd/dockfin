@@ -62,6 +62,7 @@ func (a *API) handleLogin2FA(w http.ResponseWriter, r *http.Request) {
 	}
 	if !ok {
 		globalLoginLimiter.fail(ip)
+		a.recordAuth(r, user, user.Email, "login_failed", "Two-factor sign-in failed", http.StatusUnauthorized)
 		writeError(w, http.StatusUnauthorized, "invalid code")
 		return
 	}
@@ -74,6 +75,7 @@ func (a *API) handleLogin2FA(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
+	a.recordAuth(r, user, user.Email, "login", "Signed in with two-factor authentication", http.StatusOK)
 	writeJSON(w, http.StatusOK, map[string]any{"user": user, "team": teams[0], "teams": teams, "token": token})
 }
 
@@ -211,8 +213,10 @@ func (a *API) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 	}
 	user, _, err := a.Store.GetUserByEmail(r.Context(), email)
 	if err != nil {
+		a.recordAuth(r, nil, email, "password_reset_requested", "Password reset requested", http.StatusOK)
 		return
 	}
+	a.recordAuth(r, user, user.Email, "password_reset_requested", "Password reset requested", http.StatusOK)
 	inst, err := a.Store.GetInstanceSettings(r.Context())
 	if err != nil || (!inst.SMTPEnabled && !inst.ResendEnabled) {
 		return
@@ -307,5 +311,6 @@ func (a *API) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = a.Store.DeleteSessionsForUser(r.Context(), user.ID)
+	a.recordAuth(r, user, user.Email, "password_reset", "Password reset", http.StatusOK)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

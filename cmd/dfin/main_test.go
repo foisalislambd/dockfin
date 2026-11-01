@@ -83,6 +83,60 @@ func TestFormatDeployment(t *testing.T) {
 	}
 }
 
+func TestResourceCRUDAndJSON(t *testing.T) {
+	var method, path string
+	var body any
+	code := run([]string{"--json", "projects", "create", "--name", "web"}, func(string) string { return "" }, ioDiscard(), ioDiscard(), func(base, token, team, m, p string, b any) (int, string, error) {
+		method, path, body = m, p, b
+		return 201, `{"project":{"id":"p1","name":"web"}}`, nil
+	})
+	if code != 0 || method != "POST" || path != "/api/v1/projects" {
+		t.Fatalf("%d %s %s", code, method, path)
+	}
+	m := body.(map[string]any)
+	if m["name"] != "web" {
+		t.Fatal(m)
+	}
+	code = run([]string{"apps", "delete", "app-1", "--confirm", "web", "--password", "secret"}, func(string) string { return "" }, ioDiscard(), ioDiscard(), func(base, token, team, m, p string, b any) (int, string, error) {
+		path, body = p, b
+		return 200, `{"status":"ok"}`, nil
+	})
+	if code != 0 || path != "/api/v1/applications/app-1" {
+		t.Fatal(path)
+	}
+	del := body.(map[string]any)
+	if del["confirmation_name"] != "web" || del["password"] != "secret" {
+		t.Fatal(del)
+	}
+	code = run([]string{"env", "set", "--resource-type", "application", "--resource-id", "app-1", "--key", "PORT", "--value", "8080"}, func(string) string { return "" }, ioDiscard(), ioDiscard(), func(base, token, team, m, p string, b any) (int, string, error) {
+		body = b
+		if p != "/api/v1/env-vars" {
+			t.Fatal(p)
+		}
+		return 200, `{"key":"PORT"}`, nil
+	})
+	if code != 0 {
+		t.Fatal(code)
+	}
+	set := body.(map[string]any)
+	if set["key"] != "PORT" || set["value"] != "8080" {
+		t.Fatal(set)
+	}
+}
+
+func TestHumanizeAndSSE(t *testing.T) {
+	out := humanizeJSON(`{"servers":[{"id":"abc","name":"vps"}]}`)
+	if !strings.Contains(out, "vps") || !strings.Contains(out, "abc") {
+		t.Fatal(out)
+	}
+	if sseLine(`{"stage":"build","line":"done"}`) != "[build] done" {
+		t.Fatal(sseLine(`{"stage":"build","line":"done"}`))
+	}
+	if !terminalDeployStatus("failed") || terminalDeployStatus("in_progress") {
+		t.Fatal("status")
+	}
+}
+
 func TestOverviewAndOpenAPI(t *testing.T) {
 	var path string
 	code := run([]string{"overview"}, func(string) string { return "" }, ioDiscard(), ioDiscard(), func(base, token, team, method, p string, body any) (int, string, error) {
