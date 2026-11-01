@@ -71,6 +71,15 @@ func (a *API) enqueueAutoDeploy(ctx context.Context, app *store.Application, eve
 			return res
 		}
 	}
+	if msg, err := a.frozenDeployMessage(ctx, app.TeamID, app.EnvironmentID); err != nil {
+		res.Status = "failed"
+		res.Message = err.Error()
+		return res
+	} else if msg != "" {
+		res.Status = "skipped"
+		res.Message = msg
+		return res
+	}
 	serverID := a.resolveAppServerID(ctx, app)
 	dep, err := a.Store.CreateDeployment(ctx, app.TeamID, app.ID, serverID, event.Commit, event.Message, false, true, false, 0)
 	if err != nil {
@@ -138,6 +147,15 @@ func (a *API) enqueuePreviewDeploy(ctx context.Context, app *store.Application, 
 	if git.ShouldSkipDeployAny(event.CommitMessages) || git.ShouldSkipDeployAny([]string{event.Message}) {
 		res.Status = "skipped"
 		res.Message = "commit or title contains [skip ci] or [skip cd]"
+		return res
+	}
+	if msg, err := a.frozenDeployMessage(ctx, app.TeamID, app.EnvironmentID); err != nil {
+		res.Status = "failed"
+		res.Message = err.Error()
+		return res
+	} else if msg != "" {
+		res.Status = "skipped"
+		res.Message = msg
 		return res
 	}
 	fqdn := ""

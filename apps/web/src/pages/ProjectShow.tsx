@@ -177,7 +177,14 @@ function EnvironmentGrid({
               <Layers className="h-5 w-5" strokeWidth={1.75} />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="font-semibold text-gray-900 dark:text-white">{env.name}</div>
+              <div className="flex items-center gap-2">
+                <div className="font-semibold text-gray-900 dark:text-white">{env.name}</div>
+                {env.deploy_frozen ? (
+                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-500/15 dark:text-amber-200">
+                    Frozen
+                  </span>
+                ) : null}
+              </div>
               {env.description && (
                 <div className="mt-1 truncate text-sm text-gray-500 dark:text-gray-400">
                   {env.description}

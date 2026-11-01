@@ -98,6 +98,22 @@ paths:
       responses:
         "200":
           description: OK
+  /overview:
+    get:
+      summary: Team pulse (counts, recent deploys, attention, frozen environments)
+      security: [{ cookieAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /projects/{projectID}/environments/{envID}/freeze:
+    put:
+      summary: Pause or resume deployments for an environment
+      security: [{ cookieAuth: [] }]
+      responses:
+        "200":
+          description: Updated environment
+        "403":
+          description: Owner or admin required
   /services/templates:
     get:
       summary: Service catalog

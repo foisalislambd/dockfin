@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/crypto"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/dockfin/dockfin/internal/worker"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 // handleDeployByUUID is Coolify-compatible: GET|POST /api/v1/deploy?uuid=&force=
@@ -190,6 +190,13 @@ func (a *API) triggerApplicationDeploy(w http.ResponseWriter, r *http.Request, a
 	dest, err := a.Store.GetDestination(r.Context(), teamID, *app.DestinationID)
 	if err != nil {
 		mapStoreErr(w, err)
+		return
+	}
+	if msg, err := a.frozenDeployMessage(r.Context(), teamID, app.EnvironmentID); err != nil {
+		mapStoreErr(w, err)
+		return
+	} else if msg != "" {
+		writeError(w, http.StatusLocked, msg)
 		return
 	}
 	serverID := &dest.ServerID

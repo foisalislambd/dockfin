@@ -437,6 +437,12 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ name, description }),
     }),
+  setDeployFreeze: (projectId: string, envId: string, frozen: boolean, reason = '') =>
+    request<Environment>(`/api/v1/projects/${projectId}/environments/${envId}/freeze`, {
+      method: 'PUT',
+      body: JSON.stringify({ frozen, reason }),
+    }),
+  overview: () => request<TeamOverview>('/api/v1/overview'),
   deleteEnvironment: (projectId: string, envId: string, body?: DeleteResourceBody) =>
     request<{ status: string }>(`/api/v1/projects/${projectId}/environments/${envId}`, {
       method: 'DELETE',
@@ -493,10 +499,10 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
-  deployApplication: (id: string, force_rebuild = false) =>
+  deployApplication: (id: string, force_rebuild = false, override_freeze = false) =>
     request<Deployment>(`/api/v1/applications/${id}/deploy`, {
       method: 'POST',
-      body: JSON.stringify({ force_rebuild }),
+      body: JSON.stringify({ force_rebuild, override_freeze }),
     }),
   startApplication: (id: string) =>
     request<Application>(`/api/v1/applications/${id}/start`, { method: 'POST' }),
@@ -590,10 +596,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body || {}),
     }),
-  rollbackApplication: (id: string, force_rebuild = true, commit_sha?: string) =>
+  rollbackApplication: (id: string, force_rebuild = true, commit_sha?: string, override_freeze = false) =>
     request<Deployment>(`/api/v1/applications/${id}/rollback`, {
       method: 'POST',
-      body: JSON.stringify({ force_rebuild, commit_sha: commit_sha || undefined }),
+      body: JSON.stringify({ force_rebuild, commit_sha: commit_sha || undefined, override_freeze }),
     }),
   restoreApplicationBackup: (id: string, body: { execution_id?: string; filename?: string }) =>
     request<{ status: string; filename: string }>(`/api/v1/applications/${id}/backups/restore`, {
@@ -825,8 +831,10 @@ export const api = {
     id: string,
     onLine: (ev: { stage: string; line: string; status?: string }) => void,
     signal?: AbortSignal,
+    overrideFreeze = false,
   ): Promise<{ status: string }> => {
-    const res = await fetch(`${API_BASE}/api/v1/services/${id}/deploy?stream=1`, {
+    const freeze = overrideFreeze ? '&override_freeze=1' : ''
+    const res = await fetch(`${API_BASE}/api/v1/services/${id}/deploy?stream=1${freeze}`, {
       method: 'POST',
       credentials: 'include',
       headers: { Accept: 'text/event-stream' },
@@ -1477,6 +1485,65 @@ export type Environment = {
   project_id: string
   description?: string
   is_empty?: boolean
+  deploy_frozen?: boolean
+  deploy_freeze_reason?: string
+  deploy_frozen_at?: string
+}
+
+export type OverviewDeployment = {
+  id: string
+  status: string
+  resource_type: 'application' | 'service' | string
+  resource_id: string
+  resource_name: string
+  project_id?: string
+  project_name?: string
+  environment_id?: string
+  environment_name?: string
+  commit_sha: string
+  commit_message: string
+  error_message?: string
+  created_at: string
+  started_at?: string
+  finished_at?: string
+  duration_seconds?: number
+}
+
+export type AttentionItem = {
+  kind: 'deploy_failed' | 'unhealthy' | 'backup_failed' | string
+  resource_type: string
+  resource_id: string
+  resource_name: string
+  project_id?: string
+  project_name?: string
+  environment_id?: string
+  environment_name?: string
+  status?: string
+  message: string
+  at?: string
+}
+
+export type TeamOverview = {
+  counts: {
+    servers: number
+    projects: number
+    applications: number
+    databases: number
+    services: number
+  }
+  deploy_window: { finished: number; failed: number; active: number; cancelled: number }
+  queue: { queued: number; in_progress: number }
+  recent_projects: Project[]
+  deployments: OverviewDeployment[]
+  attention: AttentionItem[]
+  frozen_environments: Array<{
+    id: string
+    name: string
+    project_id: string
+    project_name: string
+    reason: string
+    frozen_at?: string
+  }>
 }
 export type Tag = {
   id: string

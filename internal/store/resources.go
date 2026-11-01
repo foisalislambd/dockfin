@@ -24,13 +24,31 @@ type Project struct {
 }
 
 type Environment struct {
-	ID          uuid.UUID `json:"id"`
-	TeamID      uuid.UUID `json:"team_id"`
-	ProjectID   uuid.UUID `json:"project_id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	CreatedAt   time.Time `json:"created_at"`
-	IsEmpty     bool      `json:"is_empty"`
+	ID                 uuid.UUID  `json:"id"`
+	TeamID             uuid.UUID  `json:"team_id"`
+	ProjectID          uuid.UUID  `json:"project_id"`
+	Name               string     `json:"name"`
+	Description        string     `json:"description"`
+	CreatedAt          time.Time  `json:"created_at"`
+	IsEmpty            bool       `json:"is_empty"`
+	DeployFrozen       bool       `json:"deploy_frozen"`
+	DeployFreezeReason string     `json:"deploy_freeze_reason"`
+	DeployFrozenAt     *time.Time `json:"deploy_frozen_at,omitempty"`
+	DeployFrozenBy     *uuid.UUID `json:"deploy_frozen_by,omitempty"`
+}
+
+const environmentSelect = `id, team_id, project_id, name, description, created_at, deploy_frozen, deploy_freeze_reason, deploy_frozen_at, deploy_frozen_by`
+
+func scanEnvironment(scan func(dest ...any) error) (*Environment, error) {
+	var e Environment
+	err := scan(
+		&e.ID, &e.TeamID, &e.ProjectID, &e.Name, &e.Description, &e.CreatedAt,
+		&e.DeployFrozen, &e.DeployFreezeReason, &e.DeployFrozenAt, &e.DeployFrozenBy,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &e, nil
 }
 
 type Application struct {
@@ -367,13 +385,14 @@ func (s *Store) CreateProject(ctx context.Context, teamID uuid.UUID, name, desc 
 		return nil, nil, err
 	}
 	var e Environment
-	err = tx.QueryRow(ctx, `
+	row := tx.QueryRow(ctx, `
 		INSERT INTO environments (team_id, project_id, name) VALUES ($1,$2,'production')
-		RETURNING id, team_id, project_id, name, description, created_at
-	`, teamID, p.ID).Scan(&e.ID, &e.TeamID, &e.ProjectID, &e.Name, &e.Description, &e.CreatedAt)
+		RETURNING `+environmentSelect, teamID, p.ID)
+	env, err := scanEnvironment(row.Scan)
 	if err != nil {
 		return nil, nil, err
 	}
+	e = *env
 	if err := tx.Commit(ctx); err != nil {
 		return nil, nil, err
 	}
@@ -384,7 +403,25 @@ func (s *Store) CreateProject(ctx context.Context, teamID uuid.UUID, name, desc 
 
 func (s *Store) ListProjects(ctx context.Context, teamID uuid.UUID) ([]Project, error) {
 	rows, err := s.Pool.Query(ctx, `
-		SELECT id, team_id, name, description, created_at FROM projects WHERE team_id=$1 ORDER BY name
+		SELECT p.id, p.team_id, p.name, p.description, p.created_at,
+			NOT EXISTS (
+				SELECT 1 FROM applications a
+				JOIN environments e ON e.id = a.environment_id
+				WHERE e.project_id = p.id AND a.team_id = p.team_id
+			)
+			AND NOT EXISTS (
+				SELECT 1 FROM databases d
+				JOIN environments e ON e.id = d.environment_id
+				WHERE e.project_id = p.id AND d.team_id = p.team_id
+			)
+			AND NOT EXISTS (
+				SELECT 1 FROM services svc
+				JOIN environments e ON e.id = svc.environment_id
+				WHERE e.project_id = p.id AND svc.team_id = p.team_id
+			)
+		FROM projects p
+		WHERE p.team_id=$1
+		ORDER BY p.name
 	`, teamID)
 	if err != nil {
 		return nil, err
@@ -393,14 +430,9 @@ func (s *Store) ListProjects(ctx context.Context, teamID uuid.UUID) ([]Project, 
 	var out []Project
 	for rows.Next() {
 		var p Project
-		if err := rows.Scan(&p.ID, &p.TeamID, &p.Name, &p.Description, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.TeamID, &p.Name, &p.Description, &p.CreatedAt, &p.IsEmpty); err != nil {
 			return nil, err
 		}
-		empty, err := s.ProjectIsEmpty(ctx, teamID, p.ID)
-		if err != nil {
-			return nil, err
-		}
-		p.IsEmpty = empty
 		out = append(out, p)
 	}
 	return out, rows.Err()
@@ -427,7 +459,13 @@ func (s *Store) GetProject(ctx context.Context, teamID, id uuid.UUID) (*Project,
 
 func (s *Store) ListEnvironments(ctx context.Context, teamID, projectID uuid.UUID) ([]Environment, error) {
 	rows, err := s.Pool.Query(ctx, `
-		SELECT id, team_id, project_id, name, description, created_at
+		SELECT id, team_id, project_id, name, description, created_at,
+			deploy_frozen, deploy_freeze_reason, deploy_frozen_at, deploy_frozen_by,
+			(
+				(SELECT COUNT(*) FROM applications WHERE environment_id = environments.id AND team_id = environments.team_id)
+				+ (SELECT COUNT(*) FROM databases WHERE environment_id = environments.id AND team_id = environments.team_id)
+				+ (SELECT COUNT(*) FROM services WHERE environment_id = environments.id AND team_id = environments.team_id)
+			) = 0
 		FROM environments WHERE team_id=$1 AND project_id=$2 ORDER BY name
 	`, teamID, projectID)
 	if err != nil {
@@ -437,14 +475,13 @@ func (s *Store) ListEnvironments(ctx context.Context, teamID, projectID uuid.UUI
 	var out []Environment
 	for rows.Next() {
 		var e Environment
-		if err := rows.Scan(&e.ID, &e.TeamID, &e.ProjectID, &e.Name, &e.Description, &e.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&e.ID, &e.TeamID, &e.ProjectID, &e.Name, &e.Description, &e.CreatedAt,
+			&e.DeployFrozen, &e.DeployFreezeReason, &e.DeployFrozenAt, &e.DeployFrozenBy,
+			&e.IsEmpty,
+		); err != nil {
 			return nil, err
 		}
-		empty, err := s.EnvironmentIsEmpty(ctx, teamID, e.ID)
-		if err != nil {
-			return nil, err
-		}
-		e.IsEmpty = empty
 		out = append(out, e)
 	}
 	return out, rows.Err()
@@ -454,11 +491,10 @@ func (s *Store) CreateEnvironment(ctx context.Context, teamID, projectID uuid.UU
 	if _, err := s.GetProject(ctx, teamID, projectID); err != nil {
 		return nil, err
 	}
-	var e Environment
-	err := s.Pool.QueryRow(ctx, `
+	row := s.Pool.QueryRow(ctx, `
 		INSERT INTO environments (team_id, project_id, name, description) VALUES ($1,$2,$3,$4)
-		RETURNING id, team_id, project_id, name, description, created_at
-	`, teamID, projectID, name, desc).Scan(&e.ID, &e.TeamID, &e.ProjectID, &e.Name, &e.Description, &e.CreatedAt)
+		RETURNING `+environmentSelect, teamID, projectID, name, desc)
+	e, err := scanEnvironment(row.Scan)
 	if err != nil {
 		if strings.Contains(err.Error(), "environments_project_id_name") || strings.Contains(err.Error(), "duplicate") {
 			return nil, ErrConflict
@@ -466,7 +502,7 @@ func (s *Store) CreateEnvironment(ctx context.Context, teamID, projectID uuid.UU
 		return nil, err
 	}
 	e.IsEmpty = true
-	return &e, nil
+	return e, nil
 }
 
 // ProjectIsEmpty mirrors Coolify Project::isEmpty — no apps/dbs/services in any env.
@@ -574,14 +610,11 @@ func (s *Store) DeleteProject(ctx context.Context, teamID, id uuid.UUID) error {
 }
 
 func (s *Store) UpdateEnvironment(ctx context.Context, teamID, projectID, envID uuid.UUID, name, description string) (*Environment, error) {
-	var e Environment
-	err := s.Pool.QueryRow(ctx, `
+	row := s.Pool.QueryRow(ctx, `
 		UPDATE environments SET name=$4, description=$5, updated_at=NOW()
 		WHERE id=$1 AND project_id=$2 AND team_id=$3
-		RETURNING id, team_id, project_id, name, description, created_at
-	`, envID, projectID, teamID, name, description).Scan(
-		&e.ID, &e.TeamID, &e.ProjectID, &e.Name, &e.Description, &e.CreatedAt,
-	)
+		RETURNING `+environmentSelect, envID, projectID, teamID, name, description)
+	e, err := scanEnvironment(row.Scan)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -596,7 +629,7 @@ func (s *Store) UpdateEnvironment(ctx context.Context, teamID, projectID, envID 
 		return nil, err
 	}
 	e.IsEmpty = empty
-	return &e, nil
+	return e, nil
 }
 
 func (s *Store) DeleteEnvironment(ctx context.Context, teamID, projectID, envID uuid.UUID) error {
@@ -1198,6 +1231,10 @@ func (s *Store) SetDeploymentBuildServer(ctx context.Context, deploymentID uuid.
 
 const deploymentColumns = `id, team_id, application_id, service_id, server_id, status, commit_sha, commit_message, pull_request_id, current_stage, logs, error_message, started_at, finished_at, created_at`
 
+// deploymentListColumns omits the JSON log blob. The deployment detail
+// endpoint still returns logs; list views only need status and metadata.
+const deploymentListColumns = `id, team_id, application_id, service_id, server_id, status, commit_sha, commit_message, pull_request_id, current_stage, '[]'::jsonb, error_message, started_at, finished_at, created_at`
+
 func scanDeployment(scan func(dest ...any) error) (*Deployment, error) {
 	var d Deployment
 	err := scan(
@@ -1241,11 +1278,9 @@ func (s *Store) GetDeployment(ctx context.Context, teamID, id uuid.UUID) (*Deplo
 }
 
 func (s *Store) ListDeployments(ctx context.Context, teamID, appID uuid.UUID, limit int) ([]Deployment, error) {
-	if limit <= 0 {
-		limit = 50
-	}
+	limit = clampListLimit(limit, 50, 100)
 	rows, err := s.Pool.Query(ctx, `
-		SELECT `+deploymentColumns+`
+		SELECT `+deploymentListColumns+`
 		FROM deployments WHERE team_id=$1 AND application_id=$2
 		ORDER BY created_at DESC LIMIT $3
 	`, teamID, appID, limit)
@@ -1265,11 +1300,9 @@ func (s *Store) ListDeployments(ctx context.Context, teamID, appID uuid.UUID, li
 }
 
 func (s *Store) ListServiceDeployments(ctx context.Context, teamID, serviceID uuid.UUID, limit int) ([]Deployment, error) {
-	if limit <= 0 {
-		limit = 50
-	}
+	limit = clampListLimit(limit, 50, 100)
 	rows, err := s.Pool.Query(ctx, `
-		SELECT `+deploymentColumns+`
+		SELECT `+deploymentListColumns+`
 		FROM deployments WHERE team_id=$1 AND service_id=$2
 		ORDER BY created_at DESC LIMIT $3
 	`, teamID, serviceID, limit)

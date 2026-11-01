@@ -693,8 +693,9 @@ func (a *API) handleRollbackApplication(w http.ResponseWriter, r *http.Request) 
 	}
 	// Rollback = redeploy a chosen finished commit (default: previous finished).
 	var body struct {
-		ForceRebuild bool   `json:"force_rebuild"`
-		CommitSHA    string `json:"commit_sha"`
+		ForceRebuild   bool   `json:"force_rebuild"`
+		CommitSHA      string `json:"commit_sha"`
+		OverrideFreeze bool   `json:"override_freeze"`
 	}
 	if err := decodeJSONOptional(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -703,6 +704,9 @@ func (a *API) handleRollbackApplication(w http.ResponseWriter, r *http.Request) 
 	app, err := a.Store.GetApplication(r.Context(), teamID, appID)
 	if err != nil {
 		mapStoreErr(w, err)
+		return
+	}
+	if a.stopIfFrozen(w, r, app.EnvironmentID, body.OverrideFreeze) {
 		return
 	}
 	if app.DestinationID == nil {

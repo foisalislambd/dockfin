@@ -10,6 +10,23 @@ The same version, or a lower one, does not create a release. Git tag, GitHub Rel
 
 ## [Unreleased]
 
+### Added
+
+- Team pulse at `GET /api/v1/overview`: fleet counts, the last 7 days of deploys, queue depth, recent deployments, frozen environments, and attention items (failed deploys, unhealthy resources, failed backups)
+- Environment deploy freeze. New application, service, preview, webhook, MCP, and rollback deploys are refused until an owner or admin unfreezes the environment. Owners and admins can override one manual deploy. Webhooks are skipped instead of retried. Restarts, stops, and scheduled commands keep running
+- Dashboard, environment, application, and service screens for the pulse and the freeze
+
+### Changed
+
+- Deployment list endpoints no longer return log payloads. Open a deployment to read its logs
+- Project and environment lists compute emptiness in a single query
+- `/health` includes the running version
+
+### Security
+
+- API responses send `X-Content-Type-Options: nosniff`, `Referrer-Policy`, and `X-Frame-Options: SAMEORIGIN`
+- Panics return the same JSON error shape as other API failures
+
 ## [1.0.0] - 2026-07-31
 
 ### Added

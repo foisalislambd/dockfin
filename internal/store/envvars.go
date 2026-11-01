@@ -453,10 +453,10 @@ func (s *Store) CancelDeployment(ctx context.Context, teamID, id uuid.UUID) erro
 }
 
 func (s *Store) GetEnvironment(ctx context.Context, teamID, id uuid.UUID) (*Environment, error) {
-	var e Environment
-	err := s.Pool.QueryRow(ctx, `
-		SELECT id, team_id, project_id, name, description, created_at FROM environments WHERE id=$1 AND team_id=$2
-	`, id, teamID).Scan(&e.ID, &e.TeamID, &e.ProjectID, &e.Name, &e.Description, &e.CreatedAt)
+	row := s.Pool.QueryRow(ctx, `
+		SELECT `+environmentSelect+` FROM environments WHERE id=$1 AND team_id=$2
+	`, id, teamID)
+	e, err := scanEnvironment(row.Scan)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -468,5 +468,5 @@ func (s *Store) GetEnvironment(ctx context.Context, teamID, id uuid.UUID) (*Envi
 		return nil, err
 	}
 	e.IsEmpty = empty
-	return &e, nil
+	return e, nil
 }

@@ -147,6 +147,7 @@ func (a *API) handleManualPreviewDeploy(w http.ResponseWriter, r *http.Request) 
 		GitBranch        string `json:"git_branch"`
 		CommitSHA        string `json:"commit_sha"`
 		ForceRebuild     bool   `json:"force_rebuild"`
+		OverrideFreeze   bool   `json:"override_freeze"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -164,6 +165,9 @@ func (a *API) handleManualPreviewDeploy(w http.ResponseWriter, r *http.Request) 
 	}
 	if !app.IsPreviewEnabled {
 		writeError(w, http.StatusBadRequest, "preview deployments disabled")
+		return
+	}
+	if a.stopIfFrozen(w, r, app.EnvironmentID, body.OverrideFreeze) {
 		return
 	}
 	branch := strings.TrimSpace(body.GitBranch)
