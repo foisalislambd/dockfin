@@ -1,0 +1,167 @@
+---
+import "../styles/global.css";
+import { Image } from "astro:assets";
+import mark from "../assets/mark.png";
+import StarIcon from "../components/StarIcon.astro";
+
+interface Props {
+  title: string;
+  description: string;
+  noindex?: boolean;
+  jsonLd?: Record<string, unknown> | null;
+}
+
+const { title, description, noindex = false, jsonLd = null } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const ogImage = new URL("/og.jpg", Astro.site);
+const imageAlt =
+  "Dockfin marketing image: a laptop showing the dashboard, deploy logs, apps, and servers on a navy and teal background.";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical.href} />
+    <meta name="theme-color" content="#07131f" />
+    <meta name="robots" content={noindex ? "noindex" : "index, follow"} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Dockfin" />
+    <meta property="og:url" content={canonical.href} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage.href} />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="720" />
+    <meta property="og:image:alt" content={imageAlt} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage.href} />
+    <meta name="twitter:image:alt" content={imageAlt} />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="preload" href="/fonts/instrument-serif-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/instrument-serif-400-italic.woff2" as="font" type="font/woff2" crossorigin />
+    {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
+  </head>
+  <body>
+    <a
+      class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-teal focus:px-3 focus:py-2 focus:text-[#042228]"
+      href="#content">Skip to content</a
+    >
+    <header class="sticky top-0 z-20 h-[72px] border-b border-white/10 bg-navy">
+      <div class="mx-auto flex h-[72px] w-[min(1120px,calc(100%-40px))] items-center gap-3.5">
+        <a class="mr-auto inline-flex items-center gap-2.5 text-lg font-semibold tracking-tight text-ink no-underline" href="/">
+          <Image src={mark} alt="" width={36} height={36} class="h-9 w-9" />
+          <span>Dockfin</span>
+        </a>
+        <nav id="site-nav" class="hidden items-center gap-5 lg:flex" data-nav aria-label="Primary">
+          <a class="font-medium text-muted no-underline hover:text-ink max-lg:border-t max-lg:border-white/10 max-lg:py-3.5 max-lg:text-[1.05rem]" href="/#features">Features</a>
+          <a class="font-medium text-muted no-underline hover:text-ink max-lg:border-t max-lg:border-white/10 max-lg:py-3.5 max-lg:text-[1.05rem]" href="/#deploy">Deploy</a>
+          <a class="font-medium text-muted no-underline hover:text-ink max-lg:border-t max-lg:border-white/10 max-lg:py-3.5 max-lg:text-[1.05rem]" href="/#compare">Compare</a>
+          <a class="font-medium text-muted no-underline hover:text-ink max-lg:border-t max-lg:border-white/10 max-lg:py-3.5 max-lg:text-[1.05rem]" href="/#install">Install</a>
+        </nav>
+        <a
+          class="inline-flex min-h-11 items-center gap-2 rounded-full bg-ink px-3.5 text-sm font-semibold text-navy no-underline hover:bg-white hover:text-navy"
+          href="https://github.com/foisalislambd/dockfin"
+        >
+          <StarIcon />
+          <span class="max-lg:hidden">Star on GitHub</span>
+          <span class="lg:hidden">Star</span>
+        </a>
+        <button
+          class="nav-toggle inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-[#081826]/70 text-ink lg:hidden"
+          type="button"
+          data-nav-toggle
+          aria-expanded="false"
+          aria-controls="site-nav"
+        >
+          <span class="sr-only">Menu</span>
+          <svg class="icon-open" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M3 5h14M3 10h14M3 15h14"></path>
+          </svg>
+          <svg class="icon-close" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M5 5l10 10M15 5L5 15"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+    <slot />
+    <footer class="px-0 pb-12 pt-7 text-sm text-faint">
+      <div class="mx-auto flex w-[min(1120px,calc(100%-40px))] flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5">
+        <p>© 2026 Dockfin Contributors · <a href="https://github.com/foisalislambd/dockfin/blob/main/LICENSE">MIT License</a></p>
+        <nav class="flex flex-wrap gap-x-4 gap-y-2" aria-label="Footer">
+          <a class="text-muted no-underline hover:text-ink" href="https://github.com/foisalislambd/dockfin">GitHub</a>
+          <a class="text-muted no-underline hover:text-ink" href="https://github.com/foisalislambd/dockfin/blob/main/docs/FEATURES.md">Features</a>
+          <a class="text-muted no-underline hover:text-ink" href="https://github.com/foisalislambd/dockfin/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+          <a class="text-muted no-underline hover:text-ink" href="https://github.com/foisalislambd/dockfin/blob/main/SECURITY.md">Security</a>
+          <a class="text-muted no-underline hover:text-ink" href="https://hub.docker.com/r/foisalislambd/dockfin">Docker Hub</a>
+        </nav>
+      </div>
+    </footer>
+    <script>
+      const nav = document.querySelector("[data-nav]");
+      const toggle = document.querySelector("[data-nav-toggle]");
+
+      function setOpen(open: boolean) {
+        if (!nav || !toggle) return;
+        nav.classList.toggle("is-open", open);
+        toggle.classList.toggle("is-open", open);
+        toggle.setAttribute("aria-expanded", open ? "true" : "false");
+        document.body.classList.toggle("nav-open", open);
+      }
+
+      toggle?.addEventListener("click", () => {
+        setOpen(!nav?.classList.contains("is-open"));
+      });
+      nav?.querySelectorAll("a").forEach((link) => {
+        link.addEventListener("click", () => setOpen(false));
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") setOpen(false);
+      });
+
+      function fallbackCopy(text: string) {
+        const area = document.createElement("textarea");
+        area.value = text;
+        area.setAttribute("readonly", "");
+        area.style.position = "fixed";
+        area.style.left = "-9999px";
+        document.body.appendChild(area);
+        area.select();
+        try {
+          document.execCommand("copy");
+        } catch {
+          /* The command stays selectable in the page. */
+        }
+        document.body.removeChild(area);
+      }
+
+      document.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((button) => {
+        const label = button.querySelector("[data-copy-label]");
+        const original = label?.textContent ?? button.textContent ?? "";
+        button.addEventListener("click", () => {
+          const text = button.getAttribute("data-copy") ?? "";
+          button.classList.add("is-copied");
+          if (label) label.textContent = "Copied";
+          else button.textContent = "Copied";
+          window.setTimeout(() => {
+            button.classList.remove("is-copied");
+            if (label) label.textContent = original;
+            else button.textContent = original;
+          }, 1600);
+          if (navigator.clipboard?.writeText) {
+            navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+          } else {
+            fallbackCopy(text);
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,298 @@
+---
+import { Image } from "astro:assets";
+import hero from "../assets/hero.jpg";
+import Terminal from "../components/Terminal.astro";
+import StarIcon from "../components/StarIcon.astro";
+import Base from "../layouts/Base.astro";
+
+const title = "Dockfin — self-hosted open-source alternative to Heroku and Vercel";
+const description =
+  "Self-hosted, MIT-licensed alternative to Heroku and Vercel. One Docker image deploys apps, databases, and one-click services to your own servers over SSH.";
+const installCommand =
+  "curl -fsSL https://raw.githubusercontent.com/foisalislambd/dockfin/main/scripts/install.sh | sudo bash";
+const updateCommand = "cd /data/dockfin && sudo docker compose pull && sudo docker compose up -d";
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Dockfin",
+  applicationCategory: "DeveloperApplication",
+  operatingSystem: "Linux",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+  },
+  license: "https://opensource.org/licenses/MIT",
+  codeRepository: "https://github.com/foisalislambd/dockfin",
+  url: "https://dockfin.foisal.org/",
+  description,
+  image: "https://dockfin.foisal.org/og.jpg",
+};
+
+const card =
+  "rounded-[18px] border border-white/10 bg-gradient-to-b from-[#102a3c]/95 to-[#081826]/95 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]";
+const kicker = "mb-2 font-mono text-xs uppercase tracking-[0.14em] text-teal";
+const linkBtn =
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-4 font-semibold no-underline";
+---
+
+<Base title={title} description={description} jsonLd={jsonLd}>
+  <main id="content">
+    <section class="pb-8 pt-10 lg:pt-14" id="top">
+      <div class="mx-auto w-[min(1120px,calc(100%-40px))]">
+        <p class="mb-3 font-mono text-xs uppercase tracking-[0.16em] text-teal">Self-hosted PaaS · Open source · MIT</p>
+        <h1 class="max-w-4xl font-serif text-[clamp(2.2rem,5.6vw,4.15rem)] font-normal leading-[1.02] tracking-tight">
+          You already pay for a VPS.
+          <span class="mt-[0.16em] block italic text-teal-soft">Why pay a platform to deploy onto someone else’s servers?</span>
+        </h1>
+        <p class="mt-5 max-w-2xl text-lg text-muted">
+          Heroku and Vercel are good at what they do. They are also a second bill, on computers you do not control. Dockfin is the panel you run yourself: one Docker image, a Go API and a React dashboard, deploying apps, databases, and one-click services to the machines you already pay for. Over SSH. Your data stays on your VPS.
+        </p>
+        <Terminal title="ubuntu / debian" command={installCommand} label="Copy install command">
+          <span class="select-none text-teal">$ </span>curl -fsSL https://raw.githubusercontent.com/<wbr />foisalislambd/<wbr />dockfin/<wbr />main/<wbr />scripts/<wbr />install.sh | sudo bash
+        </Terminal>
+        <div class="mt-5 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
+          <a class={`${linkBtn} bg-ink text-navy hover:bg-white hover:text-navy`} href="https://github.com/foisalislambd/dockfin">
+            <StarIcon />
+            Star on GitHub
+          </a>
+          <a class={`${linkBtn} border border-white/25 text-ink hover:border-teal hover:text-ink`} href="#features">See what it actually does</a>
+        </div>
+        <p class="mt-3.5 text-sm text-faint">
+          Needs an Ubuntu or Debian VPS with a public IP. Then open <code>http://YOUR_SERVER_IP:8000/</code> and register the first admin. Nothing is seeded for you.
+        </p>
+        <Image
+          src={hero}
+          alt="A laptop on a navy and teal background, showing the Dockfin dashboard with live deployment logs, healthy apps, and online servers."
+          widths={[480, 768, 1120, 1280]}
+          sizes="(min-width: 1160px) 1120px, calc(100vw - 40px)"
+          loading="eager"
+          fetchpriority="high"
+          class="mt-8 h-auto w-full rounded-[22px] shadow-[0_0_0_1px_rgba(158,246,236,0.22),0_40px_90px_rgba(0,0,0,0.48)]"
+        />
+        <div class="mt-8 grid gap-px overflow-hidden rounded-[18px] border border-white/10 bg-white/10 lg:grid-cols-3">
+          <article class="bg-[#081624]/95 p-5">
+            <h2 class="mb-1.5 text-base font-semibold">The server is already yours</h2>
+            <p class="text-[0.95rem] text-muted">Dockfin does not rent you another computer. It runs on the VPS you already pay for.</p>
+          </article>
+          <article class="bg-[#081624]/95 p-5">
+            <h2 class="mb-1.5 text-base font-semibold">One image, then the dashboard</h2>
+            <p class="text-[0.95rem] text-muted">
+              The script pulls <code>ghcr.io/foisalislambd/dockfin</code>. The same image is on <a href="https://hub.docker.com/r/foisalislambd/dockfin">Docker Hub</a>. API and dashboard ship together. Postgres starts beside them. The panel listens on port 8000.
+            </p>
+          </article>
+          <article class="bg-[#081624]/95 p-5">
+            <h2 class="mb-1.5 text-base font-semibold">SSH, not a second platform</h2>
+            <p class="text-[0.95rem] text-muted">State stays in Postgres. Deploys go out over SSH. Targets do not need a long-lived deploy agent. Ports 80 and 443 stay free for Traefik or Caddy.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="py-16" id="features">
+      <div class="mx-auto w-[min(1120px,calc(100%-40px))]">
+        <div class="mb-7 max-w-2xl">
+          <p class="mb-3 font-mono text-xs uppercase tracking-[0.16em] text-teal">What you feel on a bad Tuesday</p>
+          <h2 class="font-serif text-[clamp(2rem,4vw,3.35rem)] font-normal leading-tight tracking-tight">The deploy, the rollback, and the pause button.</h2>
+          <p class="mt-3 text-lg text-muted">A platform earns its keep the night something ships wrong. These are in the product today, not on a roadmap slide.</p>
+        </div>
+        <div class="grid gap-3.5 lg:grid-cols-6">
+          <article class={`${card} lg:col-span-3`}>
+            <p class={kicker}>Live deploy logs</p>
+            <h3 class="mb-2 text-lg font-semibold tracking-tight">Watch the run, not a spinner</h3>
+            <p class="text-muted">The deployment page replays the log and streams the rest while it happens. Pull, build, migrate, health check. When it fails, you are looking at the line that failed.</p>
+          </article>
+          <article class={`${card} lg:col-span-3`}>
+            <p class={kicker}>One-click rollback</p>
+            <h3 class="mb-2 text-lg font-semibold tracking-tight">Go back without rebuilding the past</h3>
+            <p class="text-muted">Previous images stay on the server. Roll back from the dashboard, or from <code>dfin</code>. A bad release does not have to become an archaeology project.</p>
+          </article>
+          <article class={`${card} lg:col-span-6`}>
+            <p class={kicker}>Per-environment deploy freeze</p>
+            <h3 class="mb-2 text-lg font-semibold tracking-tight">Pause deploys when you mean it</h3>
+            <p class="text-muted">Freeze an environment and new deploys wait: dashboard, webhooks, previews, MCP, and rollback. What is already running stays up. Restarts, stops, and scheduled commands keep working. Owners and admins can override a single manual deploy. <code>dfin freeze</code> and <code>dfin unfreeze</code> do the same thing from a shell.</p>
+          </article>
+          <article class={`${card} lg:col-span-3`}>
+            <p class={kicker}>Templates</p>
+            <h3 class="mb-2 text-lg font-semibold tracking-tight">Hundreds of one-click templates</h3>
+            <p class="text-muted">The catalog in the repo is about 360 Compose services. Point one at a server and deploy it. You can also paste your own Compose file when the catalog is not the thing you wanted.</p>
+          </article>
+          <article class={`${card} lg:col-span-3`}>
+            <p class={kicker}>dfin</p>
+            <h3 class="mb-2 text-lg font-semibold tracking-tight">A CLI for the same control plane</h3>
+            <p class="text-muted"><code>dfin --json projects list</code><br /><code>dfin logs &lt;deployment&gt; --follow</code></p>
+            <p class="mt-2.5 text-muted">Env vars, freeze, deploy, overview. Commands exit 0 on HTTP success and 1 otherwise. <code>DOCKFIN_TEAM</code> sends the team header when you have more than one.</p>
+          </article>
+          <article class={`${card} lg:col-span-2`}>
+            <p class={kicker}>OpenAPI</p>
+            <h3 class="mb-2 text-lg font-semibold tracking-tight">The API is the router</h3>
+            <p class="text-muted">OpenAPI 3.1 is generated from the live router at <code>/openapi.json</code>, with an HTML index at <code>/api/docs</code>. The spec is checked into the repo, so you can read it before you install.</p>
+          </article>
+          <article class={`${card} lg:col-span-2`}>
+            <p class={kicker}>Audit log</p>
+            <h3 class="mb-2 text-lg font-semibold tracking-tight">A memory for owners and admins</h3>
+            <p class="text-muted">Auth, deploys, rollbacks, freezes, settings, members, and role changes. Filter and page them. Retention defaults to 90 days.</p>
+          </article>
+          <article class={`${card} lg:col-span-2`}>
+            <p class={kicker}>2FA</p>
+            <h3 class="mb-2 text-lg font-semibold tracking-tight">TOTP, with recovery codes</h3>
+            <p class="text-muted">Turn it on, get the codes, and the next login asks for the second factor. Turn it off when you mean to. It is the normal kind of 2FA, not a checkbox that does nothing.</p>
+          </article>
+          <article class={`${card} lg:col-span-6`}>
+            <p class={kicker}>Team roles</p>
+            <h3 class="mb-2 text-lg font-semibold tracking-tight">Owner, admin, member. Not one shared root password.</h3>
+            <p class="text-muted">Signup creates a personal team. Shared teams are there when you need them, with invitations and API tokens. Roles are owner, admin, and member. The audit log and the deploy freeze follow those roles: owners and admins can see the history and override a freeze.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="py-16" id="deploy">
+      <div class="mx-auto w-[min(1120px,calc(100%-40px))]">
+        <div class="mb-7 max-w-2xl">
+          <p class="mb-3 font-mono text-xs uppercase tracking-[0.16em] text-teal">On the server</p>
+          <h2 class="font-serif text-[clamp(2rem,4vw,3.35rem)] font-normal leading-tight tracking-tight">Apps, databases, and the services you did not want to hand-write.</h2>
+          <p class="mt-3 text-lg text-muted">Git webhooks and env vars are part of the same deploy, not a side project.</p>
+        </div>
+        <div class="grid gap-3.5 md:grid-cols-2">
+          <article class={card}>
+            <p class={kicker}>Applications</p>
+            <h3 class="mb-2 text-lg font-semibold tracking-tight">Five ways in</h3>
+            <p class="text-muted">Dockerfile, Compose, a container image, Railpack, or a static site. Webhooks from GitHub, GitLab, Gitea, and Bitbucket. Env vars resolve when the deploy runs.</p>
+          </article>
+          <article class={card}>
+            <p class={kicker}>Databases</p>
+            <h3 class="mb-2 text-lg font-semibold tracking-tight">Postgres, MySQL, MongoDB, Redis, and more</h3>
+            <p class="text-muted">Nine engines, including SQLite as a mounted file. Start and stop them over SSH. Backups can go to S3.</p>
+          </article>
+          <article class={card}>
+            <p class={kicker}>Services</p>
+            <h3 class="mb-2 text-lg font-semibold tracking-tight">Hundreds of one-click templates</h3>
+            <p class="text-muted">About 360 in the repository, plus a custom Compose file when you already know what you want running.</p>
+          </article>
+          <article class={card}>
+            <p class={kicker}>Under the hood</p>
+            <h3 class="mb-2 text-lg font-semibold tracking-tight">Encrypted where it should be</h3>
+            <p class="text-muted">SSH private keys and env values are encrypted in Postgres. The master key is AES-256-GCM. Passwords are argon2id. Webhook signatures are required when a secret is set.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="py-16" id="how">
+      <div class="mx-auto w-[min(1120px,calc(100%-40px))]">
+        <div class="mb-7 max-w-2xl">
+          <p class="mb-3 font-mono text-xs uppercase tracking-[0.16em] text-teal">From a fresh VPS to a deploy</p>
+          <h2 class="font-serif text-[clamp(2rem,4vw,3.35rem)] font-normal leading-tight tracking-tight">Three steps. Then it is your panel.</h2>
+        </div>
+        <div class="grid gap-3.5 lg:grid-cols-3">
+          <article class={`${card} grid grid-cols-[auto_1fr] items-start gap-3.5`}>
+            <span class="grid h-9 w-9 place-items-center rounded-full border border-teal/40 font-mono text-sm text-teal">1</span>
+            <div>
+              <h3 class="mb-2 text-lg font-semibold tracking-tight">Run the install</h3>
+              <p class="text-muted">One command. It installs Docker if it is missing, generates secrets, and starts Postgres and Dockfin. Everything important lands in <code>/data/dockfin</code>. You do not hand-edit an env file to get the dashboard up.</p>
+            </div>
+          </article>
+          <article class={`${card} grid grid-cols-[auto_1fr] items-start gap-3.5`}>
+            <span class="grid h-9 w-9 place-items-center rounded-full border border-teal/40 font-mono text-sm text-teal">2</span>
+            <div>
+              <h3 class="mb-2 text-lg font-semibold tracking-tight">Register, once</h3>
+              <p class="text-muted">Open port 8000 and create the admin account. That VPS is added as a server for you. Create a project. Add other machines later, still over SSH.</p>
+            </div>
+          </article>
+          <article class={`${card} grid grid-cols-[auto_1fr] items-start gap-3.5`}>
+            <span class="grid h-9 w-9 place-items-center rounded-full border border-teal/40 font-mono text-sm text-teal">3</span>
+            <div>
+              <h3 class="mb-2 text-lg font-semibold tracking-tight">Deploy</h3>
+              <p class="text-muted">The control plane keeps the desired state. Workers build and restart containers on the server. Logs stream back to the dashboard.</p>
+            </div>
+          </article>
+        </div>
+        <ol class="mt-5 flex list-none flex-wrap gap-2 p-0">
+          <li class="rounded-full border border-white/15 bg-[#081826]/70 px-3 py-2 text-sm text-muted">prepare</li>
+          <li class="rounded-full border border-white/15 bg-[#081826]/70 px-3 py-2 text-sm text-muted">fetch</li>
+          <li class="rounded-full border border-white/15 bg-[#081826]/70 px-3 py-2 text-sm text-muted">build</li>
+          <li class="rounded-full border border-white/15 bg-[#081826]/70 px-3 py-2 text-sm text-muted">run</li>
+          <li class="rounded-full border border-white/15 bg-[#081826]/70 px-3 py-2 text-sm text-muted">health</li>
+          <li class="rounded-full border border-white/15 bg-[#081826]/70 px-3 py-2 text-sm text-muted">finalize</li>
+        </ol>
+        <p class="mt-3.5 text-sm text-faint">That is the deploy, in order: SSH and data dirs, git or image, build, replace the container, optional health wait, then status and notifications.</p>
+        <p class="mt-3.5 flex flex-wrap items-center gap-x-3.5 gap-y-2 text-sm text-faint">
+          <span>Update later:</span>
+          <code class="text-muted">{updateCommand}</code>
+          <button class="min-h-11 bg-transparent p-0 font-semibold text-teal underline underline-offset-4" type="button" data-copy={updateCommand} aria-label="Copy update command">
+            <span data-copy-label>Copy</span>
+          </button>
+        </p>
+      </div>
+    </section>
+
+    <section class="py-16" id="compare">
+      <div class="mx-auto w-[min(1120px,calc(100%-40px))]">
+        <div class="mb-7 max-w-2xl">
+          <p class="mb-3 font-mono text-xs uppercase tracking-[0.16em] text-teal">An honest fork in the road</p>
+          <h2 class="font-serif text-[clamp(2rem,4vw,3.35rem)] font-normal leading-tight tracking-tight">Why not Coolify or Dokku.</h2>
+          <p class="mt-3 text-lg text-muted">They are good tools. They are not this tool. If a landing page has to flatten that, it is selling you something.</p>
+        </div>
+        <div class="grid gap-3.5 lg:grid-cols-2">
+          <article class={card}>
+            <h3 class="mb-3 font-serif text-4xl font-normal">Coolify</h3>
+            <p class="text-muted">This is the closer cousin, and it has a head start. Same job in your head: your servers, SSH, Traefik or Caddy, build packs, a catalog of services. Dockfin follows that operator model and rebuilds the control plane in Go, with an API-first React dashboard, an OpenAPI spec generated from the live router, and the <code>dfin</code> CLI.</p>
+            <p class="mt-2.5 text-muted">If you want the project that has already met more strange servers in the wild, use Coolify. There is no user count on this page to pretend otherwise. Choose Dockfin when you want that shape as one MIT-licensed Go image, and a codebase you can still influence.</p>
+          </article>
+          <article class={card}>
+            <h3 class="mb-3 font-serif text-4xl font-normal">Dokku</h3>
+            <p class="text-muted">Dokku is a git-push PaaS. It is small, it is sharp, and the interface is <code>git push</code>. That is the right answer when one server and a buildpack-style deploy is the whole story.</p>
+            <p class="mt-2.5 text-muted">Dockfin is the panel in front of one or many Docker hosts: projects, environments, live logs, rollback, a deploy freeze, databases, and hundreds of one-click templates. If you do not want a dashboard, do not install one.</p>
+          </article>
+        </div>
+        <aside class={`${card} mt-3.5`}>
+          <h3 class="mb-2 text-lg font-semibold tracking-tight">Choose Dockfin when</h3>
+          <ul class="list-disc space-y-1.5 pl-5 text-muted">
+            <li>You already pay for the VPS, and you want the panel on it.</li>
+            <li>You want apps, databases, and service templates from one place, over SSH.</li>
+            <li>You want a CLI and an OpenAPI document, not only a UI.</li>
+            <li>You would rather help shape the tool than wait for someone else’s hosted plan.</li>
+          </ul>
+        </aside>
+      </div>
+    </section>
+
+    <section class="py-16" id="early">
+      <div class="mx-auto w-[min(1120px,calc(100%-40px))]">
+        <div class="rounded-[22px] border border-teal/30 bg-[radial-gradient(500px_180px_at_0%_0%,rgba(62,224,207,0.1),transparent_60%),rgba(8,24,38,0.8)] p-6 sm:p-8">
+          <p class="mb-3 font-mono text-xs uppercase tracking-[0.16em] text-teal">It is early. Help shape it.</p>
+          <h2 class="font-serif text-[clamp(2rem,4vw,3.35rem)] font-normal leading-tight tracking-tight">No logo wall. That would be a story, not a fact.</h2>
+          <p class="mt-4 max-w-3xl text-lg text-muted">This page will not invent a user count, a logo wall, or a customer quote. If those show up later, they will be real.</p>
+          <p class="mt-3.5 max-w-3xl text-lg text-muted">What exists today is a production install, a dashboard, and a public checklist: live logs, rollback, deploy freeze, hundreds of one-click templates, <code>dfin</code>, OpenAPI, an audit log, 2FA, and team roles. It is a lot of product for a project you can still bend. It is not a hosted service with a status page and a support contract. You run the image. You keep the disk. When something is rough, GitHub is the queue.</p>
+          <p class="mt-3.5 max-w-3xl text-lg text-muted">
+            Star the repository if you want the work where you will see it. Open a pull request if a gap is one you can close. <a href="https://github.com/foisalislambd/dockfin/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> is the door. The license is MIT, which includes the part where you can fork it and never ask. Security reports stay private — see <a href="https://github.com/foisalislambd/dockfin/blob/main/SECURITY.md">SECURITY.md</a>.
+          </p>
+          <div class="mt-6 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
+            <a class={`${linkBtn} bg-ink text-navy hover:bg-white hover:text-navy`} href="https://github.com/foisalislambd/dockfin">Star on GitHub</a>
+            <a class={`${linkBtn} border border-white/25 text-ink hover:border-teal hover:text-ink`} href="https://github.com/foisalislambd/dockfin/issues">Open an issue</a>
+            <a class={`${linkBtn} border border-white/25 text-ink hover:border-teal hover:text-ink`} href="https://github.com/foisalislambd/dockfin/blob/main/docs/FEATURES.md">Read the feature checklist</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pb-8 pt-4" id="install">
+      <div class="mx-auto w-[min(1120px,calc(100%-40px))]">
+        <div class="rounded-[28px] border border-teal/30 bg-[radial-gradient(600px_240px_at_100%_0%,rgba(62,224,207,0.18),transparent_55%),linear-gradient(180deg,#0e2436,#091826)] px-6 py-9 sm:px-8">
+          <p class="mb-3 font-mono text-xs uppercase tracking-[0.16em] text-teal">Install</p>
+          <h2 class="font-serif text-[clamp(2rem,4vw,3.35rem)] font-normal leading-tight tracking-tight">Put the panel on the server you already have.</h2>
+          <p class="mt-3 max-w-2xl text-lg text-muted">Ubuntu or Debian, a public IP, and one command. The script pulls the image from GitHub Container Registry, installs Docker if you do not have it, and leaves 80 and 443 alone for the proxy.</p>
+          <Terminal title="install.sh" command={installCommand} label="Copy install command">
+            <span class="select-none text-teal">$ </span>curl -fsSL https://raw.githubusercontent.com/<wbr />foisalislambd/<wbr />dockfin/<wbr />main/<wbr />scripts/<wbr />install.sh | sudo bash
+          </Terminal>
+          <div class="mt-5 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
+            <a class={`${linkBtn} bg-ink text-navy hover:bg-white hover:text-navy`} href="https://github.com/foisalislambd/dockfin">Star on GitHub</a>
+            <a class={`${linkBtn} border border-white/25 text-ink hover:border-teal hover:text-ink`} href="https://github.com/foisalislambd/dockfin#install-on-a-production-server">Install notes in the README</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</Base>

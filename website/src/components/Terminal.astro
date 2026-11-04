@@ -1,0 +1,29 @@
+---
+interface Props {
+  title: string;
+  command: string;
+  label?: string;
+}
+
+const { title, command, label = "Copy command" } = Astro.props;
+---
+
+<div class="mt-6 max-w-full overflow-hidden rounded-2xl border border-teal/30 bg-[#041019] shadow-[0_30px_70px_rgba(0,0,0,0.38)]">
+  <div class="flex min-h-12 items-center gap-2.5 border-b border-white/10 bg-[#0a1c2c] px-3 py-2">
+    <span class="inline-flex gap-1.5" aria-hidden="true">
+      <i class="block h-2 w-2 rounded-full bg-teal/45"></i>
+      <i class="block h-2 w-2 rounded-full bg-teal/70"></i>
+      <i class="block h-2 w-2 rounded-full bg-teal"></i>
+    </span>
+    <span class="font-mono text-xs text-faint">{title}</span>
+    <button
+      class="ml-auto inline-flex min-h-11 items-center rounded-full bg-teal px-4 text-sm font-semibold text-[#042228] hover:bg-[#67f0e2]"
+      type="button"
+      aria-label={label}
+      data-copy={command}
+    >
+      <span data-copy-label>Copy command</span>
+    </button>
+  </div>
+  <pre class="m-0 max-w-full overflow-x-auto whitespace-pre-wrap p-4 font-mono text-[0.82rem] leading-relaxed text-[#e7fff9]"><code><slot /></code></pre>
+</div>

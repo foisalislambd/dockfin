@@ -1,0 +1,145 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Instrument Serif";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/instrument-serif-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Instrument Serif";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/instrument-serif-400-italic.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: Outfit;
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/outfit-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: Outfit;
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/outfit-500.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: Outfit;
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/outfit-600.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/jetbrains-mono-400.woff2") format("woff2");
+}
+
+@theme {
+  --font-sans: Outfit, "Avenir Next", "Segoe UI", sans-serif;
+  --font-serif: "Instrument Serif", Palatino, Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --color-navy: #07131f;
+  --color-ink: #f4fbfc;
+  --color-muted: #c5d5e0;
+  --color-faint: #9eb4c3;
+  --color-teal: #3ee0cf;
+  --color-teal-soft: #9cf6ec;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    overflow-x: clip;
+    background-color: var(--color-navy);
+    background-image:
+      radial-gradient(980px 520px at 88% -8%, rgba(62, 224, 207, 0.16), transparent 58%),
+      radial-gradient(720px 480px at -12% 18%, rgba(18, 78, 120, 0.45), transparent 60%),
+      radial-gradient(640px 420px at 50% 120%, rgba(14, 90, 96, 0.22), transparent 55%);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 1.0625rem;
+    line-height: 1.6;
+  }
+
+  a {
+    color: var(--color-teal);
+    text-underline-offset: 0.18em;
+  }
+
+  a:hover {
+    color: #bffcf4;
+  }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    color: #d9fff8;
+    overflow-wrap: anywhere;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-teal);
+    outline-offset: 3px;
+  }
+
+  section[id] {
+    scroll-margin-top: 5.5rem;
+  }
+}
+
+@media (max-width: 1023px) {
+  #site-nav.is-open {
+    position: fixed;
+    z-index: 30;
+    top: 72px;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    background: #07131f;
+    padding: 0.5rem 1.25rem 1.75rem;
+  }
+
+  .nav-toggle .icon-close {
+    display: none;
+  }
+
+  .nav-toggle.is-open .icon-open {
+    display: none;
+  }
+
+  .nav-toggle.is-open .icon-close {
+    display: block;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body.nav-open {
+  overflow: hidden;
+}
