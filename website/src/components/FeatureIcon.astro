@@ -1,0 +1,99 @@
+---
+interface Props {
+  name: string;
+}
+
+const { name } = Astro.props;
+---
+
+<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  {name === "logs" && (
+    <>
+      <path d="M5 6h14"></path>
+      <path d="M5 12h9"></path>
+      <path d="M5 18h12"></path>
+    </>
+  )}
+  {name === "rollback" && (
+    <>
+      <path d="M4 12a8 8 0 1 0 2.3-5.6"></path>
+      <path d="M4 4v5h5"></path>
+    </>
+  )}
+  {name === "freeze" && (
+    <>
+      <circle cx="12" cy="12" r="8"></circle>
+      <path d="M10 9v6"></path>
+      <path d="M14 9v6"></path>
+    </>
+  )}
+  {name === "templates" && (
+    <>
+      <rect x="4" y="4" width="7" height="7" rx="1.5"></rect>
+      <rect x="13" y="4" width="7" height="7" rx="1.5"></rect>
+      <rect x="4" y="13" width="7" height="7" rx="1.5"></rect>
+      <rect x="13" y="13" width="7" height="7" rx="1.5"></rect>
+    </>
+  )}
+  {name === "cli" && (
+    <>
+      <rect x="3.5" y="5" width="17" height="14" rx="2"></rect>
+      <path d="M7 10l2.5 2L7 14"></path>
+      <path d="M12 14h5"></path>
+    </>
+  )}
+  {name === "api" && (
+    <>
+      <path d="M8 8 4 12l4 4"></path>
+      <path d="M16 8l4 4-4 4"></path>
+      <path d="M13 6l-2 12"></path>
+    </>
+  )}
+  {name === "audit" && (
+    <>
+      <path d="M8 4h6l4 4v12a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"></path>
+      <path d="M14 4v4h4"></path>
+      <path d="M9 13h6"></path>
+      <path d="M9 17h4"></path>
+    </>
+  )}
+  {name === "shield" && (
+    <path d="M12 3.5 19 6.5v5.2c0 4.2-2.8 7.2-7 8.8-4.2-1.6-7-4.6-7-8.8V6.5L12 3.5z"></path>
+  )}
+  {name === "users" && (
+    <>
+      <path d="M16 19v-1.2A3.8 3.8 0 0 0 12.2 14H7.8A3.8 3.8 0 0 0 4 17.8V19"></path>
+      <circle cx="10" cy="8.5" r="3"></circle>
+      <path d="M20 19v-1.1A3.4 3.4 0 0 0 17.2 14.6"></path>
+      <path d="M16 5.6a2.6 2.6 0 0 1 0 5"></path>
+    </>
+  )}
+  {name === "box" && (
+    <>
+      <path d="M12 3.5 20 8v8l-8 4.5L4 16V8l8-4.5z"></path>
+      <path d="M12 12 20 8"></path>
+      <path d="M12 12v8.5"></path>
+      <path d="M12 12 4 8"></path>
+    </>
+  )}
+  {name === "database" && (
+    <>
+      <ellipse cx="12" cy="6.5" rx="7" ry="2.5"></ellipse>
+      <path d="M5 6.5v11c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-11"></path>
+      <path d="M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"></path>
+    </>
+  )}
+  {name === "layers" && (
+    <>
+      <path d="M12 4 4 8l8 4 8-4-8-4z"></path>
+      <path d="M4 12l8 4 8-4"></path>
+      <path d="M4 16l8 4 8-4"></path>
+    </>
+  )}
+  {name === "lock" && (
+    <>
+      <rect x="5" y="11" width="14" height="9" rx="2"></rect>
+      <path d="M8 11V8a4 4 0 0 1 8 0v3"></path>
+    </>
+  )}
+</svg>

@@ -16,6 +16,8 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
 const ogImage = new URL("/og.jpg", Astro.site);
 const imageAlt =
   "Dockfin marketing image: a laptop showing the dashboard, deploy logs, apps, and servers on a navy and teal background.";
+const navLink =
+  "text-sm font-medium text-muted no-underline hover:text-ink max-lg:border-b max-lg:border-line max-lg:py-4 max-lg:text-base";
 ---
 
 <!doctype html>
@@ -26,7 +28,8 @@ const imageAlt =
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical.href} />
-    <meta name="theme-color" content="#07131f" />
+    <meta name="theme-color" content="#f6f8fb" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#070b12" media="(prefers-color-scheme: dark)" />
     <meta name="robots" content={noindex ? "noindex" : "index, follow"} />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Dockfin" />
@@ -45,29 +48,27 @@ const imageAlt =
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="preload" href="/fonts/instrument-serif-400.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/instrument-serif-400-italic.woff2" as="font" type="font/woff2" crossorigin />
     {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
   </head>
   <body>
     <a
-      class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-teal focus:px-3 focus:py-2 focus:text-[#042228]"
+      class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-brand focus:px-3 focus:py-2 focus:text-brand-fg"
       href="#content">Skip to content</a
     >
-    <header class="sticky top-0 z-20 h-[72px] border-b border-white/10 bg-navy">
-      <div class="mx-auto flex h-[72px] w-[min(1120px,calc(100%-40px))] items-center gap-3.5">
-        <a class="mr-auto inline-flex items-center gap-2.5 text-lg font-semibold tracking-tight text-ink no-underline" href="/">
-          <Image src={mark} alt="" width={36} height={36} class="h-9 w-9" />
-          <span>Dockfin</span>
+    <header class="sticky top-0 z-30 border-b border-line bg-bg/80 backdrop-blur-md">
+      <div class="mx-auto flex h-16 w-[min(1120px,calc(100%-2.5rem))] items-center gap-3">
+        <a class="mr-auto inline-flex items-center gap-2.5 text-[15px] font-semibold tracking-tight text-ink no-underline" href="/">
+          <Image src={mark} alt="" width={32} height={32} densities={[1, 2]} class="h-8 w-8" />
+          Dockfin
         </a>
-        <nav id="site-nav" class="hidden items-center gap-5 lg:flex" data-nav aria-label="Primary">
-          <a class="font-medium text-muted no-underline hover:text-ink max-lg:border-t max-lg:border-white/10 max-lg:py-3.5 max-lg:text-[1.05rem]" href="/#features">Features</a>
-          <a class="font-medium text-muted no-underline hover:text-ink max-lg:border-t max-lg:border-white/10 max-lg:py-3.5 max-lg:text-[1.05rem]" href="/#deploy">Deploy</a>
-          <a class="font-medium text-muted no-underline hover:text-ink max-lg:border-t max-lg:border-white/10 max-lg:py-3.5 max-lg:text-[1.05rem]" href="/#compare">Compare</a>
-          <a class="font-medium text-muted no-underline hover:text-ink max-lg:border-t max-lg:border-white/10 max-lg:py-3.5 max-lg:text-[1.05rem]" href="/#install">Install</a>
+        <nav id="site-nav" class="hidden items-center gap-6 lg:flex" data-nav aria-label="Primary">
+          <a class={navLink} href="/#features">Features</a>
+          <a class={navLink} href="/#deploy">Deploy</a>
+          <a class={navLink} href="/#compare">Compare</a>
+          <a class={navLink} href="/#install">Install</a>
         </nav>
         <a
-          class="inline-flex min-h-11 items-center gap-2 rounded-full bg-ink px-3.5 text-sm font-semibold text-navy no-underline hover:bg-white hover:text-navy"
+          class="inline-flex min-h-11 items-center gap-2 rounded-full bg-ink px-3.5 text-sm font-medium text-bg no-underline transition-opacity hover:opacity-90"
           href="https://github.com/foisalislambd/dockfin"
         >
           <StarIcon />
@@ -75,7 +76,7 @@ const imageAlt =
           <span class="lg:hidden">Star</span>
         </a>
         <button
-          class="nav-toggle inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-[#081826]/70 text-ink lg:hidden"
+          class="nav-toggle inline-flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-surface text-ink lg:hidden"
           type="button"
           data-nav-toggle
           aria-expanded="false"
@@ -92,10 +93,10 @@ const imageAlt =
       </div>
     </header>
     <slot />
-    <footer class="px-0 pb-12 pt-7 text-sm text-faint">
-      <div class="mx-auto flex w-[min(1120px,calc(100%-40px))] flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5">
+    <footer class="border-t border-line">
+      <div class="mx-auto flex w-[min(1120px,calc(100%-2.5rem))] flex-wrap items-center justify-between gap-4 py-8 text-sm text-muted">
         <p>© 2026 Dockfin Contributors · <a href="https://github.com/foisalislambd/dockfin/blob/main/LICENSE">MIT License</a></p>
-        <nav class="flex flex-wrap gap-x-4 gap-y-2" aria-label="Footer">
+        <nav class="flex flex-wrap gap-x-5 gap-y-2" aria-label="Footer">
           <a class="text-muted no-underline hover:text-ink" href="https://github.com/foisalislambd/dockfin">GitHub</a>
           <a class="text-muted no-underline hover:text-ink" href="https://github.com/foisalislambd/dockfin/blob/main/docs/FEATURES.md">Features</a>
           <a class="text-muted no-underline hover:text-ink" href="https://github.com/foisalislambd/dockfin/blob/main/docs/ARCHITECTURE.md">Architecture</a>
@@ -137,7 +138,7 @@ const imageAlt =
         try {
           document.execCommand("copy");
         } catch {
-          /* The command stays selectable in the page. */
+          /* The command stays visible and selectable. */
         }
         document.body.removeChild(area);
       }
@@ -147,11 +148,9 @@ const imageAlt =
         const original = label?.textContent ?? button.textContent ?? "";
         button.addEventListener("click", () => {
           const text = button.getAttribute("data-copy") ?? "";
-          button.classList.add("is-copied");
           if (label) label.textContent = "Copied";
           else button.textContent = "Copied";
           window.setTimeout(() => {
-            button.classList.remove("is-copied");
             if (label) label.textContent = original;
             else button.textContent = original;
           }, 1600);
