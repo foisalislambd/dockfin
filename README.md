@@ -8,6 +8,8 @@
 
 One Docker image = API + dashboard. MIT license. Your data stays on your VPS.
 
+Website: https://dockfin.foisal.org
+
 | Registry | Image |
 |----------|--------|
 | **GitHub Packages (GHCR)** — production default | `ghcr.io/foisalislambd/dockfin:latest` |

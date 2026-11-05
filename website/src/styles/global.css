@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2") format("woff2");
+}
+
+@theme inline {
+  --font-sans: "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-brand-fg: var(--brand-fg);
+  --color-glow: var(--glow);
+}
+
+:root {
+  --bg: #f6f8fb;
+  --surface: #ffffff;
+  --ink: #0d1b2a;
+  --muted: #3d5166;
+  --faint: #5c7084;
+  --line: #e2e8f0;
+  --brand: #0f5bd8;
+  --brand-fg: #ffffff;
+  --glow: rgba(15, 91, 216, 0.18);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #070b12;
+    --surface: #101826;
+    --ink: #f2f6fa;
+    --muted: #b7c5d4;
+    --faint: #93a4b6;
+    --line: rgba(255, 255, 255, 0.1);
+    --brand: #8ebcff;
+    --brand-fg: #061018;
+    --glow: rgba(90, 150, 255, 0.22);
+    color-scheme: dark;
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    overflow-x: clip;
+    background-color: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--brand) 28%, transparent);
+  }
+
+  a {
+    color: var(--brand);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.18em;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 3px;
+  }
+
+  section[id] {
+    scroll-margin-top: 5.25rem;
+  }
+}
+
+@media (max-width: 1023px) {
+  /* backdrop-filter on the header would trap position:fixed inside a 64px box */
+  body.nav-open header {
+    background: var(--bg);
+    backdrop-filter: none;
+  }
+
+  #site-nav.is-open {
+    position: fixed;
+    z-index: 40;
+    top: 64px;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    background: var(--bg);
+    padding: 0.5rem 1.25rem 2rem;
+  }
+
+  .nav-toggle .icon-close {
+    display: none;
+  }
+
+  .nav-toggle.is-open .icon-open {
+    display: none;
+  }
+
+  .nav-toggle.is-open .icon-close {
+    display: block;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body.nav-open {
+  overflow: hidden;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
