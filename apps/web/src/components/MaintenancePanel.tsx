@@ -40,7 +40,7 @@ export function MaintenancePanel({
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Maintenance mode</h3>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           Visitors to this resource&apos;s domains see a maintenance page. The containers keep running, and deploys still work.
-          Traefik applies the page immediately. Caddy servers keep the setting until the proxy is Traefik.
+          Traefik and Caddy both serve this page. A Caddy proxy started before this file was mounted needs one restart before the page appears.
         </p>
       </div>
       {q.isLoading && <p className="text-sm text-gray-500">Loading…</p>}
