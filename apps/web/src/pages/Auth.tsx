@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate } from '@tanstack/react-router'
 import { Eye, EyeOff, Lock, Mail, User } from 'lucide-react'
 import { api } from '../lib/api'
+import { getPasskey } from '../lib/webauthn'
 import { useAuth } from '../lib/auth'
 import { appConfig } from '../config/app.config'
 import { BrandLogo } from '../components/BrandLogo'
@@ -103,9 +104,18 @@ export function LoginPage() {
   const [otp, setOtp] = useState('')
   const [recovery, setRecovery] = useState('')
   const [providers, setProviders] = useState<Array<{ provider: string; name?: string }>>([])
+  const [passkeysOn, setPasskeysOn] = useState(false)
 
   useEffect(() => {
     let cancelled = false
+    void api
+      .passkeysEnabled()
+      .then((res) => {
+        if (!cancelled) setPasskeysOn(Boolean(res.enabled))
+      })
+      .catch(() => {
+        if (!cancelled) setPasskeysOn(false)
+      })
     void api
       .oauthProviders()
       .then((res) => {
@@ -277,6 +287,34 @@ export function LoginPage() {
           {busy ? 'Signing in…' : challengeId ? 'Verify' : 'Sign in'}
         </button>
       </form>
+      {!challengeId && passkeysOn ? (
+        <button
+          type="button"
+          disabled={busy}
+          className="mt-3 flex h-9 w-full items-center justify-center rounded-md border border-gray-200 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
+          onClick={() => {
+            setBusy(true)
+            setError('')
+            void api
+              .passkeyLoginBegin()
+              .then(async (begin) => {
+                const credential = await getPasskey(begin.options)
+                return api.passkeyLoginFinish(begin.session_id, credential)
+              })
+              .then(async (res) => {
+                if (res.status === '2fa_required' && res.challenge_id) {
+                  setChallengeId(res.challenge_id)
+                  return
+                }
+                await completeLogin()
+              })
+              .catch((err) => setError(err instanceof Error ? err.message : 'Passkey sign-in failed'))
+              .finally(() => setBusy(false))
+          }}
+        >
+          Sign in with a passkey
+        </button>
+      ) : null}
       {!challengeId && (
         <>
           <p className="mt-3 text-center text-sm">

@@ -78,8 +78,8 @@ func (a *API) handlePutMaintenance(w http.ResponseWriter, r *http.Request) {
 		} else {
 			warnings = append(warnings, "resource has no server yet")
 		}
-	} else if !strings.EqualFold(proxyType, "traefik") && proxyType != "" {
-		warnings = append(warnings, "maintenance page is served by Traefik dynamic config; this server uses "+proxyType)
+	} else if strings.EqualFold(proxyType, "none") {
+		warnings = append(warnings, "maintenance is saved; this server has no proxy to serve the page")
 	} else if client, err := a.dialServer(r, serverID); err != nil {
 		warnings = append(warnings, "saved; proxy update waits until the server answers SSH: "+err.Error())
 	} else if err := a.syncProxyEdge(r.Context(), client, teamID, serverID, network); err != nil {
@@ -481,27 +481,20 @@ func (a *API) syncProxyEdge(ctx context.Context, client *ssh.Client, teamID, ser
 			hosts = append(hosts, edgeHosts(t.ResourceID.String(), d.Host, t.Message, d.ForceHTTPS)...)
 		}
 	}
-	cfg, err := proxy.BuildMaintenanceConfig(hosts)
-	if err != nil {
-		return err
-	}
 	if network == "" {
 		network = "dockfin"
-	}
-	if err := proxy.SyncMaintenance(client, network, cfg); err != nil {
-		return err
 	}
 	ops, err := a.Store.GetServerOpsSettings(ctx, teamID, serverID)
 	if err != nil {
 		return err
 	}
-	raw, err := proxy.BuildCatchallYAML(proxy.CatchallConfig{
+	proxyType := "traefik"
+	if srv, err := a.Store.GetServer(ctx, teamID, serverID); err == nil && srv.ProxyType != "" {
+		proxyType = srv.ProxyType
+	}
+	return proxy.SyncEdgeWithHosts(client, proxyType, network, hosts, proxy.CatchallConfig{
 		Enabled: ops.ProxyCatchallEnabled, URL: ops.ProxyCatchallURL, Permanent: ops.ProxyCatchallPermanent,
 	})
-	if err != nil {
-		return err
-	}
-	return proxy.SyncCatchall(client, raw)
 }
 
 func edgeHosts(id, raw, message string, https bool) []proxy.MaintenanceHost {

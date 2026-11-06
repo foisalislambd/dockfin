@@ -30,6 +30,7 @@ export function ServerTerminal({
   const [status, setStatus] = useState<'idle' | 'connecting' | 'open' | 'closed'>('idle')
   const [error, setError] = useState('')
   const [container, setContainer] = useState(defaultContainer)
+  const [attach, setAttach] = useState(false)
 
   useEffect(() => {
     setContainer(defaultContainer)
@@ -60,7 +61,7 @@ export function ServerTerminal({
     disconnect()
     setStatus('connecting')
     try {
-      const { session_id } = await api.createTerminal(serverId, container || undefined)
+      const { session_id } = await api.createTerminal(serverId, container || undefined, attach && Boolean(container))
       if (!hostRef.current) return
 
       const compact = typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
@@ -185,6 +186,12 @@ export function ServerTerminal({
           />
         </label>
       )}
+      {container ? (
+        <label className="flex items-center gap-2 text-xs text-slate-300">
+          <input type="checkbox" checked={attach} onChange={(e) => setAttach(e.target.checked)} disabled={locked} />
+          Attach
+        </label>
+      ) : null}
       <div className="flex shrink-0 items-center">
         {status === 'open' ? (
           <Btn onClick={disconnect}>Disconnect</Btn>
@@ -224,7 +231,7 @@ export function ServerTerminal({
       {error && <p className="text-sm text-error-500">{error}</p>}
       {pane}
       <p className="text-xs text-gray-500 dark:text-gray-400">
-        Interactive SSH PTY over WebSocket. Sessions idle out after 30 minutes.
+        Interactive SSH PTY over WebSocket. Attach follows the container main process (detach with Ctrl-p Ctrl-q). Sessions idle out after 30 minutes.
       </p>
     </div>
   )

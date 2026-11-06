@@ -45,6 +45,7 @@ function lazyPage(loader: () => Promise<Record<string, unknown>>, name: string) 
 
 const DashboardPage = lazyPage(() => import('./pages/Dashboard'), 'DashboardPage')
 const ServersPage = lazyPage(() => import('./pages/Servers'), 'ServersPage')
+const FleetPage = lazyPage(() => import('./pages/Fleet'), 'FleetPage')
 const CreateServerPage = lazyPage(() => import('./pages/Servers'), 'CreateServerPage')
 const ProjectsPage = lazyPage(() => import('./pages/Resources'), 'ProjectsPage')
 const CreateApplicationPage = lazyPage(() => import('./pages/CreateApplication'), 'CreateApplicationPage')
@@ -175,6 +176,12 @@ const serversRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/servers',
   component: ServersPage,
+})
+
+const fleetRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/fleet',
+  component: FleetPage,
 })
 
 const createServerRoute = createRoute({
@@ -486,6 +493,7 @@ const routeTree = rootRoute.addChildren([
   appRoute.addChildren([
     dashboardRoute,
     serversRoute,
+    fleetRoute,
     createServerRoute,
     serverDetailRoute,
     projectsRoute,

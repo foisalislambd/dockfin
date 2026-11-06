@@ -77,3 +77,12 @@ func DockerExec(container string) (string, error) {
 	}
 	return fmt.Sprintf("docker exec -it %s sh", container), nil
 }
+
+// DockerAttach attaches to the container's main process. Ctrl-p Ctrl-q detaches
+// without stopping it, and signals from this session are not forwarded.
+func DockerAttach(container string) (string, error) {
+	if !ValidContainerName(container) {
+		return "", fmt.Errorf("invalid container name")
+	}
+	return fmt.Sprintf("docker logs --tail 100 %s 2>&1; exec docker attach --detach-keys=ctrl-p,ctrl-q --sig-proxy=false %s", container, container), nil
+}

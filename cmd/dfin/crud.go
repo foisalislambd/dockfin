@@ -437,6 +437,21 @@ func parityCmd(asJSON bool, stdout, stderr io.Writer, call caller, base, token, 
 			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, path+"/check", map[string]any{})
 		}
 		return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodGet, path, nil)
+	case "fleet":
+		return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodGet, "/api/v1/fleet/metrics", nil)
+	case "scan":
+		repo := sub
+		if repo == "list" || strings.HasPrefix(repo, "-") {
+			fmt.Fprintln(stderr, "usage: dfin scan <owner/repo> [--branch name]")
+			return 1
+		}
+		return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/git/scan", map[string]any{"repository": repo, "branch": flags["branch"]})
+	case "transfer":
+		if sub == "list" || len(ids) < 1 {
+			fmt.Fprintln(stderr, "usage: dfin transfer <server-uuid> <team-uuid>")
+			return 1
+		}
+		return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/servers/"+sub+"/transfer", map[string]any{"team_id": ids[0]})
 	default:
 		fmt.Fprintln(stderr, "unknown command")
 		return 1

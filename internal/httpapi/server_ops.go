@@ -208,8 +208,8 @@ func (a *API) handlePatchServerOps(w http.ResponseWriter, r *http.Request) {
 			mapStoreErr(w, err)
 			return
 		}
-		if srv.ProxyType != "" && !strings.EqualFold(srv.ProxyType, "traefik") {
-			warnings = append(warnings, "unknown-host response is written for Traefik; this server uses "+srv.ProxyType)
+		if strings.EqualFold(srv.ProxyType, "none") {
+			warnings = append(warnings, "catch-all is saved; this server has no proxy")
 		} else if client, dialErr := a.dialServer(r, id); dialErr != nil {
 			warnings = append(warnings, "catch-all saved but not applied: "+dialErr.Error())
 		} else if err := a.syncProxyEdge(r.Context(), client, teamID, id, "dockfin"); err != nil {

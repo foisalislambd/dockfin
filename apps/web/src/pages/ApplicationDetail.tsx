@@ -591,6 +591,8 @@ export function ApplicationDetailPage() {
 
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [cfg, setCfg] = useState<AppCfg>(emptyAppCfg)
+  const [scanNote, setScanNote] = useState('')
+  const [scanBusy, setScanBusy] = useState(false)
   const [extraDestIds, setExtraDestIds] = useState<string[]>([])
   const [httpBasicAuthPassword, setHttpBasicAuthPassword] = useState('')
   const [clearHttpBasicAuth, setClearHttpBasicAuth] = useState(false)
@@ -2452,6 +2454,33 @@ export function ApplicationDetailPage() {
                     onChange={(v) => setCfg({ ...cfg, git_branch: v })}
                     required={false}
                   />
+                  <div className="sm:col-span-2">
+                    <Btn
+                      type="button"
+                      disabled={scanBusy || !cfg.git_repository}
+                      onClick={() => {
+                        setScanBusy(true)
+                        setScanNote('')
+                        void api
+                          .gitScan(cfg.git_repository, cfg.git_branch)
+                          .then((res) => {
+                            setCfg((prev) => ({
+                              ...prev,
+                              build_pack: res.scan.build_pack || prev.build_pack,
+                              dockerfile: res.scan.dockerfile || prev.dockerfile,
+                              docker_compose_location: res.scan.compose_file || prev.docker_compose_location,
+                              publish_directory: res.scan.publish_directory || prev.publish_directory,
+                            }))
+                            setScanNote((res.scan.reasons || []).join(' '))
+                          })
+                          .catch((err) => setScanNote(err instanceof Error ? err.message : 'Scan failed'))
+                          .finally(() => setScanBusy(false))
+                      }}
+                    >
+                      {scanBusy ? 'Scanning…' : 'Smart scan'}
+                    </Btn>
+                    {scanNote ? <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{scanNote}</p> : null}
+                  </div>
                   {(gitSources.data?.git_sources || []).length > 0 && (
                     <label className="block text-sm sm:col-span-2">
                       <span className="mb-1 block text-gray-500 dark:text-gray-400">GitHub App</span>

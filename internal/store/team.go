@@ -25,11 +25,12 @@ type ApiToken struct {
 }
 
 type TeamMember struct {
-	UserID    uuid.UUID `json:"user_id"`
-	Email     string    `json:"email"`
-	Name      string    `json:"name"`
-	Role      string    `json:"role"`
-	CreatedAt time.Time `json:"created_at"`
+	UserID      uuid.UUID `json:"user_id"`
+	Email       string    `json:"email"`
+	Name        string    `json:"name"`
+	Role        string    `json:"role"`
+	AccessScope string    `json:"access_scope"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type TeamInvitation struct {
@@ -162,7 +163,7 @@ func (s *Store) GetApiTokenByPlain(ctx context.Context, plain string) (*ApiToken
 
 func (s *Store) ListTeamMembers(ctx context.Context, teamID uuid.UUID) ([]TeamMember, error) {
 	rows, err := s.Pool.Query(ctx, `
-		SELECT u.id, u.email, u.name, tm.role, tm.created_at
+		SELECT u.id, u.email, u.name, tm.role, COALESCE(tm.access_scope,'all'), tm.created_at
 		FROM team_members tm
 		JOIN users u ON u.id = tm.user_id
 		WHERE tm.team_id=$1
@@ -175,7 +176,7 @@ func (s *Store) ListTeamMembers(ctx context.Context, teamID uuid.UUID) ([]TeamMe
 	var out []TeamMember
 	for rows.Next() {
 		var m TeamMember
-		if err := rows.Scan(&m.UserID, &m.Email, &m.Name, &m.Role, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.UserID, &m.Email, &m.Name, &m.Role, &m.AccessScope, &m.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, m)

@@ -7,7 +7,7 @@ import { CatalogLoadMore } from '../components/CatalogLoadMore'
 import { CreatePageShell, FormActions, FormInput, FormSelect } from '../components/ui/forms'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { useCatalogWindow } from '../hooks/use-catalog-window'
-import { api, type Server } from '../lib/api'
+import { api, type Key, type Server } from '../lib/api'
 import { catalogMatchesQuery } from '../lib/new-resource-catalog'
 
 export { Btn } from '../components/ui/Button'
@@ -297,6 +297,147 @@ function SshServerForm() {
   )
 }
 
+function HostingerServerForm({
+  tokenId,
+  tokens,
+  onToken,
+  keyId,
+  onKey,
+  keys,
+  proxyType,
+  onProxy,
+}: {
+  tokenId: string
+  tokens: Array<{ id: string; name: string; provider: string }>
+  onToken: (id: string) => void
+  keyId: string
+  onKey: (id: string) => void
+  keys: Key[]
+  proxyType: string
+  onProxy: (v: string) => void
+}) {
+  const qc = useQueryClient()
+  const nav = useNavigate()
+  const options = useQuery({
+    queryKey: ['hostinger', tokenId],
+    queryFn: () => api.hostingerOptions(tokenId),
+    enabled: Boolean(tokenId),
+  })
+  const [name, setName] = useState('')
+  const [vmId, setVmId] = useState('')
+  const [itemId, setItemId] = useState('')
+  const [dataCenter, setDataCenter] = useState('')
+  const [template, setTemplate] = useState('')
+  const [hostname, setHostname] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [message, setMessage] = useState('')
+
+  const link = useMutation({
+    mutationFn: () =>
+      api.hostingerLink(tokenId, {
+        virtual_machine_id: Number(vmId),
+        name,
+        private_key_id: keyId || undefined,
+        proxy_type: proxyType,
+      }),
+    onSuccess: (res) => {
+      void qc.invalidateQueries({ queryKey: ['servers'] })
+      void nav({ to: '/servers/$serverId', params: { serverId: res.server.id } })
+    },
+  })
+  const purchase = useMutation({
+    mutationFn: () =>
+      api.hostingerPurchase(tokenId, {
+        confirm,
+        item_id: itemId,
+        data_center_id: Number(dataCenter),
+        template_id: Number(template),
+        hostname,
+        name,
+        private_key_id: keyId,
+        proxy_type: proxyType,
+      }),
+    onSuccess: (res) => {
+      if (res.server?.id) {
+        void qc.invalidateQueries({ queryKey: ['servers'] })
+        void nav({ to: '/servers/$serverId', params: { serverId: res.server.id } })
+        return
+      }
+      setMessage(res.message || 'Hostinger created the order. Link the VM once it has a public IP.')
+    },
+  })
+
+  return (
+    <div className="space-y-4">
+      <FormSelect label="Cloud token" value={tokenId} onChange={onToken}>
+        {tokens.map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.name} ({t.provider})
+          </option>
+        ))}
+      </FormSelect>
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        Linking an existing VPS does not charge the account. Purchasing does. A hostname is sent only when it
+        contains a dot. Game panel plans are not listed. HTTP 429 is a Hostinger rate limit. An order without a
+        virtual machine is waiting for payment in hPanel.
+      </p>
+      {(options.data?.limits || []).map((line) => (
+        <p key={line} className="text-xs text-gray-500 dark:text-gray-400">
+          {line}
+        </p>
+      ))}
+      {options.error ? <p className="text-sm text-error-500">{options.error.message}</p> : null}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormInput label="Name" value={name} onChange={setName} required={false} />
+        <FormSelect label="SSH key" value={keyId} onChange={onKey} required={false}>
+          <option value="">None</option>
+          {keys.map((k) => (
+            <option key={k.id} value={k.id}>
+              {k.name}
+            </option>
+          ))}
+        </FormSelect>
+        <FormSelect label="Proxy" value={proxyType} onChange={onProxy}>
+          <option value="traefik">Traefik</option>
+          <option value="caddy">Caddy</option>
+          <option value="none">None</option>
+        </FormSelect>
+        <FormSelect label="Existing virtual machine" value={vmId} onChange={setVmId} required={false}>
+          <option value="">Select a VM to link</option>
+          {(options.data?.virtual_machines || []).map((vm) => (
+            <option key={vm.id} value={String(vm.id)}>
+              {vm.id} · {vm.state} · {vm.ipv4?.[0]?.address || 'no IP yet'}
+            </option>
+          ))}
+        </FormSelect>
+      </div>
+      <Btn onClick={() => link.mutate()} disabled={!vmId || link.isPending}>
+        {link.isPending ? 'Linking…' : 'Link virtual machine'}
+      </Btn>
+      {link.error ? <p className="text-sm text-error-500">{link.error.message}</p> : null}
+      <div className="grid gap-4 border-t border-gray-200 pt-4 sm:grid-cols-2 dark:border-gray-800">
+        <FormSelect label="KVM plan" value={itemId} onChange={setItemId} required={false}>
+          <option value="">Select a plan</option>
+          {(options.data?.catalog || []).map((item) => (
+            <option key={String(item.id)} value={String(item.id)}>
+              {item.name || item.id}
+            </option>
+          ))}
+        </FormSelect>
+        <FormInput label="Data center id" value={dataCenter} onChange={setDataCenter} required={false} />
+        <FormInput label="Template id" value={template} onChange={setTemplate} required={false} />
+        <FormInput label="Hostname" value={hostname} onChange={setHostname} required={false} />
+        <FormInput label="Type PURCHASE to buy" value={confirm} onChange={setConfirm} required={false} />
+      </div>
+      <Btn primary onClick={() => purchase.mutate()} disabled={confirm !== 'PURCHASE' || purchase.isPending}>
+        {purchase.isPending ? 'Purchasing…' : 'Purchase VPS'}
+      </Btn>
+      {purchase.error ? <p className="text-sm text-error-500">{purchase.error.message}</p> : null}
+      {message ? <p className="text-sm text-gray-600 dark:text-gray-300">{message}</p> : null}
+    </div>
+  )
+}
+
 function CloudServerForm() {
   const qc = useQueryClient()
   const nav = useNavigate()
@@ -324,10 +465,12 @@ function CloudServerForm() {
     if (!keyId && keys.data?.private_keys?.[0]?.id) setKeyId(keys.data.private_keys[0].id)
   }, [keys.data, keyId])
 
+  const selectedToken = vpsTokens.find((t) => t.id === tokenId)
+  const hostinger = selectedToken?.provider === 'hostinger'
   const defaults = useQuery({
     queryKey: ['cloud-defaults', tokenId],
     queryFn: () => api.cloudProviderDefaults(tokenId),
-    enabled: Boolean(tokenId),
+    enabled: Boolean(tokenId) && !hostinger,
   })
 
   const provision = useMutation({
@@ -351,12 +494,27 @@ function CloudServerForm() {
   if (!tokens.isLoading && !vpsTokens.length) {
     return (
       <p className="text-sm text-gray-500 dark:text-gray-400">
-        No cloud provider tokens yet. Add a Hetzner, DigitalOcean, or Vultr API token under{' '}
+        No cloud provider tokens yet. Add a Hetzner, DigitalOcean, Vultr, or Hostinger API token under{' '}
         <Link to="/security" className="text-brand-600 dark:text-brand-400">
           Security → Cloud tokens
         </Link>
         .
       </p>
+    )
+  }
+
+  if (hostinger) {
+    return (
+      <HostingerServerForm
+        tokenId={tokenId}
+        tokens={vpsTokens}
+        onToken={setTokenId}
+        keyId={keyId}
+        onKey={setKeyId}
+        keys={keys.data?.private_keys || []}
+        proxyType={proxyType}
+        onProxy={setProxyType}
+      />
     )
   }
 

@@ -260,7 +260,7 @@ carries a `warnings` array.
 - [x] Settings can detect the instance public IPv4 and IPv6
 - [x] `dfin tokens`, `maintenance`, `files`, `flush-cache`, and `server-health`
 
-Not in this product, on purpose: Coolify scoped project ACLs, passkeys, Hostinger, GitLab system hooks, smart scan, CloudWatch log drains, a docker-attach console, a fleet-wide metrics page, server transfer, and Caddy maintenance or catch-all. Those jobs stay on Traefik where the proxy has to change live traffic.
+Still outside this product: image vulnerability scanning (syft/grype) and Coolify's full cross-instance secret bundle. Server transfer here moves an empty server to another team on the same Dockfin and can export metadata without the private key. Hostinger purchase charges that account, can return a payment-pending order, and is rate limited at HTTP 429. Swarm Caddy maintenance is not generated.
 
 ## Polish
 - [x] Command palette (⌘K)

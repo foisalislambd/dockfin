@@ -38,8 +38,8 @@ func (r *Runner) probeServer(ctx context.Context, c store.ServerHealthCandidate)
 	if err := r.Store.SaveServerHealth(ctx, next); err != nil {
 		r.Logger.Error("save server health", "server", c.ServerID, "err", err)
 	}
-	if client != nil && (c.ProxyType == "" || strings.EqualFold(c.ProxyType, "traefik")) {
-		if err := r.syncProxyEdge(ctx, client, c.TeamID, c.ServerID); err != nil {
+	if client != nil && !strings.EqualFold(c.ProxyType, "none") {
+		if err := r.syncProxyEdge(ctx, client, c.TeamID, c.ServerID, c.ProxyType); err != nil {
 			r.Logger.Error("sync proxy edge", "server", c.ServerID, "err", err)
 		}
 	}
@@ -53,7 +53,7 @@ func (r *Runner) probeServer(ctx context.Context, c store.ServerHealthCandidate)
 	_ = r.Store.UpdateServerReachability(ctx, c.ServerID, next.Reachable)
 }
 
-func (r *Runner) syncProxyEdge(ctx context.Context, client *ssh.Client, teamID, serverID uuid.UUID) error {
+func (r *Runner) syncProxyEdge(ctx context.Context, client *ssh.Client, teamID, serverID uuid.UUID, proxyType string) error {
 	targets, err := r.Store.ListServerMaintenance(ctx, teamID, serverID)
 	if err != nil {
 		return err
@@ -72,30 +72,22 @@ func (r *Runner) syncProxyEdge(ctx context.Context, client *ssh.Client, teamID, 
 			hosts = append(hosts, maintenanceHosts(t.ResourceID.String(), d.Host, t.Message, d.ForceHTTPS)...)
 		}
 	}
-	cfg, err := proxy.BuildMaintenanceConfig(hosts)
-	if err != nil {
-		return err
-	}
 	network := "dockfin"
 	if dests, err := r.Store.ListDestinations(ctx, teamID, &serverID); err == nil && len(dests) > 0 && dests[0].Network != "" {
 		network = dests[0].Network
-	}
-	if err := proxy.SyncMaintenance(client, network, cfg); err != nil {
-		return err
 	}
 	ops, err := r.Store.GetServerOpsSettings(ctx, teamID, serverID)
 	if err != nil {
 		return err
 	}
-	raw, err := proxy.BuildCatchallYAML(proxy.CatchallConfig{
+	if proxyType == "" {
+		proxyType = "traefik"
+	}
+	return proxy.SyncEdgeWithHosts(client, proxyType, network, hosts, proxy.CatchallConfig{
 		Enabled:   ops.ProxyCatchallEnabled,
 		URL:       ops.ProxyCatchallURL,
 		Permanent: ops.ProxyCatchallPermanent,
 	})
-	if err != nil {
-		return err
-	}
-	return proxy.SyncCatchall(client, raw)
 }
 
 func maintenanceHosts(id, raw, message string, https bool) []proxy.MaintenanceHost {

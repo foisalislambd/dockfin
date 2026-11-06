@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
+import { useAuth } from '../lib/auth'
 import { useConfirm } from '../components/ConfirmDialog'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
@@ -1156,6 +1157,7 @@ function ServerEdgePanel({
             <option value="newrelic">New Relic</option>
             <option value="axiom">Axiom</option>
             <option value="custom">Custom</option>
+            <option value="cloudwatch">CloudWatch</option>
           </select>
         </label>
         <label className="block text-sm">
@@ -1166,7 +1168,11 @@ function ServerEdgePanel({
             value={drainConfig}
             onChange={(e) => setDrainConfig(e.target.value)}
             rows={4}
-            placeholder='{"endpoint":"https://log-api.newrelic.com/log/v1","api_key":"…"}'
+            placeholder={
+              drainType === 'cloudwatch'
+                ? '{"region":"us-east-1","group":"dockfin","stream_prefix":"app","access_key_id":"…","secret_access_key":"…"}'
+                : '{"endpoint":"https://log-api.newrelic.com/log/v1","api_key":"…"}'
+            }
             className="w-full panel-field rounded-lg px-3 py-2 font-mono text-xs"
           />
         </label>
@@ -1381,6 +1387,8 @@ export function ServerDetailPage() {
   const [catchallOn, setCatchallOn] = useState(false)
   const [catchallURL, setCatchallURL] = useState('')
   const [catchallPermanent, setCatchallPermanent] = useState(false)
+  const [transferTeam, setTransferTeam] = useState('')
+  const { teams } = useAuth()
   const [proxyCfgName, setProxyCfgName] = useState('custom.yml')
   const [proxyCfgValue, setProxyCfgValue] = useState('')
   const [freshToken, setFreshToken] = useState('')
@@ -1784,7 +1792,7 @@ export function ServerDetailPage() {
             <div className="border-t border-gray-200 pt-4 dark:border-gray-800">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Unknown host</h3>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Traefik can answer hostnames that do not match a resource. Leave this off to keep the current proxy behavior.
+                Traefik and Caddy can answer hostnames that do not match a resource. Leave the redirect empty to serve the maintenance page. Leave this off to keep the current proxy behavior.
               </p>
               <label className="mt-3 flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={catchallOn} onChange={(e) => setCatchallOn(e.target.checked)} />
@@ -1817,6 +1825,49 @@ export function ServerDetailPage() {
                 {patchOps.isPending ? 'Saving…' : 'Save catch-all'}
               </Btn>
               {patchOps.error && <p className="text-sm text-error-500">{patchOps.error.message}</p>}
+              </div>
+            </div>
+            <div className="border-t border-gray-200 pt-4 dark:border-gray-800">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Transfer server</h3>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Moves this server and its destinations to another team you administer. Applications, services, and databases must be removed first. The SSH key is copied onto the target team. Export downloads metadata only; the private key stays here.
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <select
+                  className="panel-field rounded-lg px-3 py-2 text-sm"
+                  value={transferTeam}
+                  onChange={(e) => setTransferTeam(e.target.value)}
+                >
+                  <option value="">Target team</option>
+                  {(teams || []).map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                <Btn
+                  onClick={() => {
+                    if (!transferTeam) return
+                    void api.transferServer(serverId, transferTeam).then(() => nav({ to: '/servers' }))
+                  }}
+                >
+                  Transfer
+                </Btn>
+                <Btn
+                  onClick={() => {
+                    void api.exportServer(serverId).then((bundle) => {
+                      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' })
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = `server-${serverId}.json`
+                      a.click()
+                      URL.revokeObjectURL(url)
+                    })
+                  }}
+                >
+                  Export metadata
+                </Btn>
               </div>
             </div>
           </div>

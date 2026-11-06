@@ -12,7 +12,18 @@ The same version, or a lower one, does not create a release. Git tag, GitHub Rel
 
 ### Added
 
-- Traefik maintenance page for applications and services. Containers keep running. Caddy keeps the setting and reports that the page is applied only on Traefik
+- Project access for members: every project, or view / deploy / manage on chosen projects. Owners and admins are not scoped. Hidden projects return 404
+- Passkeys (WebAuthn) for registration and sign-in. Two-factor authentication still runs when it is enabled. The relying party is `DOCKFIN_PUBLIC_URL`
+- Hostinger: validate a token, list KVM plans and virtual machines, link an existing VPS, or purchase one after typing `PURCHASE`. Purchase charges the Hostinger account
+- GitLab system hooks for push and merge request events, matched to applications by `path_with_namespace`
+- Repository smart scan that suggests dockerfile, railpack, static, or compose from the git tree
+- CloudWatch log drains through the existing Vector container
+- Docker attach on the terminal (`docker logs` then `docker attach`, detach with Ctrl-p Ctrl-q)
+- Fleet page with the latest CPU, memory, and disk sample per server
+- Server transfer to another team when nothing is deployed on it, plus a metadata export/import that does not include the private key
+- Caddy maintenance page and unknown-host catch-all, using the same nginx page as Traefik
+- `dfin fleet`, `dfin scan`, and `dfin transfer`
+- Traefik maintenance page for applications and services. Containers keep running. Caddy serves the same page from its Caddyfile
 - Permanent (301) www redirects for applications and service domains. Temporary (302) stays the default
 - Container file browser for applications, services, and databases: list, read, write, mkdir, and delete text files up to 512 KiB
 - Redis, KeyDB, and Dragonfly `FLUSHALL`, confirmed in the API
