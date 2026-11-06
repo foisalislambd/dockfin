@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,6 +31,7 @@ type ImageScan struct {
 	Low          int             `json:"low"`
 	Unknown      int             `json:"unknown"`
 	Findings     json.RawMessage `json:"findings"`
+	Candidates   json.RawMessage `json:"candidates"`
 	Error        string          `json:"error,omitempty"`
 	CreatedAt    time.Time       `json:"created_at"`
 	FinishedAt   *time.Time      `json:"finished_at,omitempty"`
@@ -87,7 +89,7 @@ func (s *Store) ListImageScans(ctx context.Context, teamID uuid.UUID, limit int)
 	}
 	rows, err := s.Pool.Query(ctx, `
 		SELECT id, team_id, resource_type, resource_id, deployment_id, server_id, image_ref, status,
-			critical, high, medium, low, unknown, findings, error, created_at, finished_at
+			critical, high, medium, low, unknown, findings, candidates, error, created_at, finished_at
 		FROM image_scans WHERE team_id=$1 ORDER BY created_at DESC LIMIT $2
 	`, teamID, limit)
 	if err != nil {
@@ -100,7 +102,7 @@ func (s *Store) ListImageScans(ctx context.Context, teamID uuid.UUID, limit int)
 func (s *Store) GetImageScan(ctx context.Context, teamID, id uuid.UUID) (*ImageScan, error) {
 	rows, err := s.Pool.Query(ctx, `
 		SELECT id, team_id, resource_type, resource_id, deployment_id, server_id, image_ref, status,
-			critical, high, medium, low, unknown, findings, error, created_at, finished_at
+			critical, high, medium, low, unknown, findings, candidates, error, created_at, finished_at
 		FROM image_scans WHERE team_id=$1 AND id=$2
 	`, teamID, id)
 	if err != nil {
@@ -123,12 +125,15 @@ func scanImageRows(rows pgx.Rows) ([]ImageScan, error) {
 		var sc ImageScan
 		if err := rows.Scan(
 			&sc.ID, &sc.TeamID, &sc.ResourceType, &sc.ResourceID, &sc.DeploymentID, &sc.ServerID, &sc.ImageRef, &sc.Status,
-			&sc.Critical, &sc.High, &sc.Medium, &sc.Low, &sc.Unknown, &sc.Findings, &sc.Error, &sc.CreatedAt, &sc.FinishedAt,
+			&sc.Critical, &sc.High, &sc.Medium, &sc.Low, &sc.Unknown, &sc.Findings, &sc.Candidates, &sc.Error, &sc.CreatedAt, &sc.FinishedAt,
 		); err != nil {
 			return nil, err
 		}
 		if len(sc.Findings) == 0 {
 			sc.Findings = []byte("[]")
+		}
+		if len(sc.Candidates) == 0 {
+			sc.Candidates = []byte("{}")
 		}
 		out = append(out, sc)
 	}
@@ -136,6 +141,40 @@ func scanImageRows(rows pgx.Rows) ([]ImageScan, error) {
 		out = []ImageScan{}
 	}
 	return out, rows.Err()
+}
+
+func (s *Store) SetImageScanCandidates(ctx context.Context, teamID, id uuid.UUID, candidates []byte) error {
+	if len(candidates) == 0 {
+		candidates = []byte("{}")
+	}
+	tag, err := s.Pool.Exec(ctx, `UPDATE image_scans SET candidates=$3 WHERE team_id=$1 AND id=$2`, teamID, id, candidates)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) SetApplicationImageTag(ctx context.Context, teamID, id uuid.UUID, tag string) error {
+	tag = strings.TrimSpace(tag)
+	if tag == "" || len(tag) > 128 || strings.ContainsAny(tag, " \t\r\n") {
+		return errors.New("invalid image tag")
+	}
+	var pack string
+	err := s.Pool.QueryRow(ctx, `SELECT build_pack FROM applications WHERE id=$1 AND team_id=$2`, id, teamID).Scan(&pack)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if pack != "dockerimage" {
+		return errors.New("only a Docker image application can change its tag here")
+	}
+	_, err = s.Pool.Exec(ctx, `UPDATE applications SET docker_registry_image_tag=$3, updated_at=NOW() WHERE id=$1 AND team_id=$2`, id, teamID, tag)
+	return err
 }
 
 func (s *Store) ImageScanIgnores(ctx context.Context, teamID uuid.UUID) (map[string]struct{}, error) {

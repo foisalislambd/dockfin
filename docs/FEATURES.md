@@ -263,9 +263,10 @@ carries a `warnings` array.
 - [x] Image scans run Syft and Grype on the server that has the image, after a deploy and on demand (`POST /applications/{id}/image-scans`). Findings are stored and shown on Vulnerabilities. The instance gate is off, warn, or block.
 - [x] A secret bundle exports the server private key, environment variables, shared variables, and database credentials, encrypted with a passphrase (`POST /servers/{id}/bundle`, `POST /server-bundles`). Import stores them under this instance's master key.
 - [x] A Swarm manager starts Caddy or Traefik as a stack and runs the maintenance page as a Swarm service on the overlay network. The same Caddyfile holds maintenance and catch-all.
-- [ ] Same-instance server transfer still moves only an empty server. Metadata export still omits the private key; use the secret bundle to move secrets.
+- [x] Same-instance server transfer moves the server and the resources that run on it. Type MOVE to confirm. A project that also has resources on another server stays; this server's resources are copied into a new project. Git sources, Docker registries, S3 backup targets, and GitHub runner configurations stay on the original team. An application that also runs on another server blocks the transfer. Metadata export still omits the private key; use the secret bundle to move secrets.
+- [x] Newer image tags are chosen the way Coolify chooses them: same prefix and suffix, a patch on the same major.minor, a line on the same major, and a higher major for information only. Digests are recorded when the registry returns them. The tag is not treated as a fix until the next scan. Type UPGRADE to change a Docker image tag and deploy, or REBUILD to redeploy the current image. Both are audited.
 - [ ] Hostinger purchase charges that account, can return a payment-pending order, and is rate limited at HTTP 429.
-- [ ] Coolify canvas boards, the hosted subscription, and automatic "newer image that fixes the CVE" candidate upgrades are not part of Dockfin.
+- [ ] Coolify canvas boards and the hosted subscription are not part of Dockfin. Canvas was excluded on purpose. The hosted subscription does not apply to this self-hosted install.
 
 ## Polish
 - [x] Command palette (⌘K)

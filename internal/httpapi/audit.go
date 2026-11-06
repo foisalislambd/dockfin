@@ -186,6 +186,12 @@ func classifyAudit(method, path, action, resourceType string) (category, summary
 		return "auth", "Authentication " + action
 	case strings.HasSuffix(p, "/deploy"):
 		return "deploy", "Queued a deployment"
+	case strings.HasSuffix(p, "/image-upgrade"):
+		return "deploy", "Queued an image upgrade or rebuild"
+	case strings.HasSuffix(p, "/candidates"):
+		return "resource", "Checked newer image tags"
+	case strings.HasSuffix(p, "/transfer"):
+		return "access", "Transferred a server to another team"
 	case strings.HasSuffix(p, "/rollback"):
 		return "deploy", "Rolled back a deployment"
 	case strings.HasSuffix(p, "/freeze"):

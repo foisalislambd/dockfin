@@ -14,6 +14,8 @@ export function VulnerabilitiesPage() {
   const [gate, setGate] = useState('')
   const [error, setError] = useState('')
   const [open, setOpen] = useState<string | null>(null)
+  const [confirm, setConfirm] = useState('')
+  const [tag, setTag] = useState('')
 
   const save = useMutation({
     mutationFn: () => api.setImageScanPolicy(enabled ?? policy.data?.enabled ?? true, gate || policy.data?.gate || 'off'),
@@ -31,6 +33,23 @@ export function VulnerabilitiesPage() {
   const ignore = useMutation({
     mutationFn: (id: string) => api.ignoreVuln(id, 'dismissed from the vulnerabilities page'),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['image-scans'] }),
+  })
+  const candidates = useMutation({
+    mutationFn: (scanId: string) => api.imageCandidates(scanId),
+    onSuccess: (res) => {
+      setError('')
+      setTag(res.patch || res.line || '')
+      void qc.invalidateQueries({ queryKey: ['image-scans'] })
+    },
+    onError: (e: Error) => setError(e.message),
+  })
+  const upgrade = useMutation({
+    mutationFn: (input: { appId: string; confirm: string; tag?: string }) => api.imageUpgrade(input.appId, input.confirm, input.tag),
+    onSuccess: () => {
+      setError('')
+      setConfirm('')
+    },
+    onError: (e: Error) => setError(e.message),
   })
 
   const on = enabled ?? policy.data?.enabled ?? true
@@ -110,6 +129,55 @@ export function VulnerabilitiesPage() {
                       {(s.findings || []).length === 0 && !s.error ? (
                         <p className="text-sm text-gray-500">No findings stored.</p>
                       ) : null}
+                      <div className="mb-3 space-y-2">
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                          Check the registry for a newer tag on the same line. The tag is not scanned until you deploy it, so this does not claim the CVE is fixed.
+                        </p>
+                        <Btn disabled={candidates.isPending} onClick={() => candidates.mutate(s.id)}>
+                          {candidates.isPending ? 'Checking…' : 'Check newer tags'}
+                        </Btn>
+                        {s.candidates?.note ? <p className="text-sm text-gray-500">{s.candidates.note}</p> : null}
+                        {s.candidates?.current_tag ? (
+                          <p className="text-sm">
+                            Current tag {s.candidates.current_tag}
+                            {s.candidates.patch ? ` · patch ${s.candidates.patch}` : ''}
+                            {s.candidates.line ? ` · line ${s.candidates.line}` : ''}
+                            {s.candidates.major ? ` · major ${s.candidates.major} (not applied)` : ''}
+                            {s.candidates.floating ? ' · this tag floats' : ''}
+                          </p>
+                        ) : null}
+                        {s.candidates?.digests
+                          ? Object.entries(s.candidates.digests).map(([name, digest]) => (
+                              <p key={name} className="font-mono text-xs text-gray-500">
+                                {name} {digest}
+                              </p>
+                            ))
+                          : null}
+                        {s.resource_type === 'application' ? (
+                          <div className="flex flex-wrap items-end gap-2">
+                            <label className="block text-sm">
+                              <span className="mb-1 block text-gray-500">Tag</span>
+                              <input className="panel-field w-40 rounded-lg px-3 py-2" value={tag} onChange={(e) => setTag(e.target.value)} />
+                            </label>
+                            <label className="block text-sm">
+                              <span className="mb-1 block text-gray-500">Type UPGRADE or REBUILD</span>
+                              <input className="panel-field w-40 rounded-lg px-3 py-2" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+                            </label>
+                            <Btn
+                              primary
+                              disabled={upgrade.isPending || confirm !== 'UPGRADE'}
+                              onClick={() => upgrade.mutate({ appId: s.resource_id, confirm: 'UPGRADE', tag })}
+                            >
+                              Upgrade tag
+                            </Btn>
+                            <Btn disabled={upgrade.isPending || confirm !== 'REBUILD'} onClick={() => upgrade.mutate({ appId: s.resource_id, confirm: 'REBUILD' })}>
+                              Rebuild current image
+                            </Btn>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-500">Change a service image in its compose file, then scan again.</p>
+                        )}
+                      </div>
                       <ul className="space-y-1">
                         {(s.findings || []).map((f) => (
                           <li key={f.id + f.package} className="flex flex-wrap items-center gap-2 text-sm">

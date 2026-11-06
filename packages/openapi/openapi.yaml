@@ -1314,6 +1314,61 @@ paths:
             summary: Image scans image scan
             tags:
                 - applications
+    /api/v1/applications/{appID}/image-upgrade:
+        post:
+            operationId: postApiV1ApplicationsAppIDImageUpgrade
+            parameters:
+                - in: path
+                  name: appID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Image upgrade image upgrade
+            tags:
+                - applications
     /api/v1/applications/{appID}/images:
         get:
             operationId: getApiV1ApplicationsAppIDImages
@@ -7202,6 +7257,61 @@ paths:
                 - cookieAuth: []
                 - bearerAuth: []
             summary: Get image scan
+            tags:
+                - image-scans
+    /api/v1/image-scans/{scanID}/candidates:
+        post:
+            operationId: postApiV1ImageScansScanIDCandidates
+            parameters:
+                - in: path
+                  name: scanID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Create candidate
             tags:
                 - image-scans
     /api/v1/image-scans/ignores:

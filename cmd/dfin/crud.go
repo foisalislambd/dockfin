@@ -449,10 +449,14 @@ func parityCmd(asJSON bool, stdout, stderr io.Writer, call caller, base, token, 
 		return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/git/scan", map[string]any{"repository": repo, "branch": flags["branch"]})
 	case "transfer":
 		if sub == "list" || len(ids) < 1 {
-			fmt.Fprintln(stderr, "usage: dfin transfer <server-uuid> <team-uuid>")
+			fmt.Fprintln(stderr, "usage: dfin transfer <server-uuid> <team-uuid> --confirm MOVE")
 			return 1
 		}
-		return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/servers/"+sub+"/transfer", map[string]any{"team_id": ids[0]})
+		if flags["confirm"] != "MOVE" {
+			fmt.Fprintln(stderr, "usage: dfin transfer <server-uuid> <team-uuid> --confirm MOVE")
+			return 1
+		}
+		return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/servers/"+sub+"/transfer", map[string]any{"team_id": ids[0], "confirm": "MOVE"})
 	case "vulns":
 		switch sub {
 		case "list":
@@ -462,6 +466,23 @@ func parityCmd(asJSON bool, stdout, stderr io.Writer, call caller, base, token, 
 				return 1
 			}
 			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/applications/"+ids[0]+"/image-scans", map[string]any{})
+		case "candidates":
+			if !need(1, "dfin vulns candidates <scan-uuid>") {
+				return 1
+			}
+			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/image-scans/"+ids[0]+"/candidates", map[string]any{})
+		case "upgrade":
+			if !need(1, "dfin vulns upgrade <application-uuid> --tag TAG --confirm UPGRADE") || flags["confirm"] != "UPGRADE" || flags["tag"] == "" {
+				fmt.Fprintln(stderr, "usage: dfin vulns upgrade <application-uuid> --tag TAG --confirm UPGRADE")
+				return 1
+			}
+			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/applications/"+ids[0]+"/image-upgrade", map[string]any{"tag": flags["tag"], "confirm": "UPGRADE"})
+		case "rebuild":
+			if !need(1, "dfin vulns rebuild <application-uuid> --confirm REBUILD") || flags["confirm"] != "REBUILD" {
+				fmt.Fprintln(stderr, "usage: dfin vulns rebuild <application-uuid> --confirm REBUILD")
+				return 1
+			}
+			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/applications/"+ids[0]+"/image-upgrade", map[string]any{"confirm": "REBUILD"})
 		case "policy":
 			if flags["enabled"] != "" || flags["gate"] != "" {
 				enabled := flags["enabled"] != "false"
@@ -473,7 +494,7 @@ func parityCmd(asJSON bool, stdout, stderr io.Writer, call caller, base, token, 
 			}
 			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodGet, "/api/v1/settings/image-scanning", nil)
 		default:
-			fmt.Fprintln(stderr, "usage: dfin vulns | dfin vulns run <application-uuid> | dfin vulns policy")
+			fmt.Fprintln(stderr, "usage: dfin vulns | dfin vulns run <application-uuid> | dfin vulns candidates <scan-uuid> | dfin vulns upgrade <application-uuid> --tag TAG --confirm UPGRADE | dfin vulns rebuild <application-uuid> --confirm REBUILD | dfin vulns policy")
 			return 1
 		}
 	case "bundle":

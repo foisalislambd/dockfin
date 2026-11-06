@@ -206,10 +206,15 @@ func (a *API) handleTransferServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		TeamID string `json:"team_id"`
+		TeamID  string `json:"team_id"`
+		Confirm string `json:"confirm"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	if body.Confirm != "MOVE" {
+		writeError(w, http.StatusBadRequest, "type MOVE to transfer this server and the resources that run on it")
 		return
 	}
 	target, err := uuid.Parse(body.TeamID)
@@ -222,7 +227,8 @@ func (a *API) handleTransferServer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "you must be an owner or admin of the target team")
 		return
 	}
-	if err := a.Store.TransferServer(r.Context(), currentTeamID(r), target, serverID); err != nil {
+	res, err := a.Store.TransferServer(r.Context(), currentTeamID(r), target, serverID)
+	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			mapStoreErr(w, err)
 			return
@@ -230,7 +236,7 @@ func (a *API) handleTransferServer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "transferred"})
+	writeJSON(w, http.StatusOK, res)
 }
 
 func (a *API) handleExportServer(w http.ResponseWriter, r *http.Request) {

@@ -334,9 +334,12 @@ Usage:
   dfin [--json] server-health <server-uuid> [--check]
   dfin [--json] fleet
   dfin [--json] scan <owner/repo> [--branch name]
-  dfin [--json] transfer <server-uuid> <team-uuid>
+  dfin [--json] transfer <server-uuid> <team-uuid> --confirm MOVE
   dfin [--json] vulns
   dfin [--json] vulns run <application-uuid>
+  dfin [--json] vulns candidates <scan-uuid>
+  dfin [--json] vulns upgrade <application-uuid> --tag TAG --confirm UPGRADE
+  dfin [--json] vulns rebuild <application-uuid> --confirm REBUILD
   dfin [--json] vulns policy [--enabled true] [--gate off|warn|block]
   dfin [--json] bundle export <server-uuid> --passphrase TEXT
   dfin [--json] bundle import --passphrase TEXT --file path

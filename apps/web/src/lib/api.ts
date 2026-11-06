@@ -1349,10 +1349,18 @@ export const api = {
         recorded_at?: string | null
       }>
     }>('/api/v1/fleet/metrics'),
-  transferServer: (serverId: string, teamId: string) =>
-    request<{ status: string }>(`/api/v1/servers/${serverId}/transfer`, {
+  transferServer: (serverId: string, teamId: string, confirm: string) =>
+    request<{
+      server_id: string
+      applications: number
+      services: number
+      databases: number
+      projects: number
+      projects_split: number
+      warnings: string[]
+    }>(`/api/v1/servers/${serverId}/transfer`, {
       method: 'POST',
-      body: JSON.stringify({ team_id: teamId }),
+      body: JSON.stringify({ team_id: teamId, confirm }),
     }),
   exportServer: (serverId: string) => request<Record<string, unknown>>(`/api/v1/servers/${serverId}/export`),
   exportBundle: (serverId: string, passphrase: string) =>
@@ -1385,10 +1393,36 @@ export const api = {
         low: number
         unknown: number
         findings: Array<{ id: string; severity: string; package: string; version: string; fixed_version?: string }>
+        candidates?: {
+          image?: string
+          current_tag?: string
+          patch?: string
+          line?: string
+          major?: string
+          floating?: boolean
+          digests?: Record<string, string>
+          note?: string
+        }
         error?: string
         created_at: string
       }>
     }>('/api/v1/image-scans'),
+  imageCandidates: (scanId: string) =>
+    request<{
+      image: string
+      current_tag: string
+      patch?: string
+      line?: string
+      major?: string
+      floating?: boolean
+      digests?: Record<string, string>
+      note: string
+    }>(`/api/v1/image-scans/${scanId}/candidates`, { method: 'POST', body: '{}' }),
+  imageUpgrade: (appId: string, confirm: string, tag?: string) =>
+    request<{ id: string }>(`/api/v1/applications/${appId}/image-upgrade`, {
+      method: 'POST',
+      body: JSON.stringify({ confirm, tag: tag || '' }),
+    }),
   scanApplication: (appId: string, image?: string) =>
     request<{ id: string; status: string; critical: number; error?: string }>(`/api/v1/applications/${appId}/image-scans`, {
       method: 'POST',
