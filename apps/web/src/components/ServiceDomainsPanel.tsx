@@ -12,6 +12,7 @@ type Draft = {
   internal_port: string
   force_https: boolean
   redirect: string
+  redirect_permanent: boolean
   noindex: boolean
 }
 
@@ -22,6 +23,7 @@ const emptyDraft = (unit: string): Draft => ({
   internal_port: '',
   force_https: true,
   redirect: 'both',
+  redirect_permanent: false,
   noindex: false,
 })
 
@@ -79,6 +81,7 @@ export function ServiceDomainsPanel({
         internal_port: port,
         force_https: magic ? false : draft.force_https,
         redirect: magic ? 'both' : draft.redirect,
+        redirect_permanent: magic || draft.redirect === 'both' ? false : draft.redirect_permanent,
         noindex: draft.noindex,
       }
       if (editing) return api.updateServiceDomain(serviceId, editing.id, body)
@@ -160,6 +163,7 @@ export function ServiceDomainsPanel({
       internal_port: row.internal_port ? String(row.internal_port) : '',
       force_https: row.force_https,
       redirect: row.redirect || 'both',
+      redirect_permanent: Boolean(row.redirect_permanent),
       noindex: row.noindex,
     })
     setOpen(true)
@@ -175,7 +179,7 @@ export function ServiceDomainsPanel({
       })
       .then((d) => {
         const host = (d.fqdn || '').split(',')[0].replace(/^https?:\/\//, '')
-        setDraft((prev) => ({ ...prev, host, scheme: 'http', force_https: false, redirect: 'both' }))
+        setDraft((prev) => ({ ...prev, host, scheme: 'http', force_https: false, redirect: 'both', redirect_permanent: false }))
       })
       .catch((e: unknown) => toast.error(e instanceof Error ? e.message : 'Could not generate domain'))
   }
@@ -354,6 +358,15 @@ export function ServiceDomainsPanel({
                 <option value="www">Redirect to www</option>
                 <option value="non-www">Redirect to non-www</option>
               </select>
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={draft.redirect_permanent}
+                disabled={draft.redirect === 'both'}
+                onChange={(e) => setDraft({ ...draft, redirect_permanent: e.target.checked })}
+              />
+              Permanent redirect (301)
             </label>
             <label className="flex items-center gap-2 text-sm">
               <input

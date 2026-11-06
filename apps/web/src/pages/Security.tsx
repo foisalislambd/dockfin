@@ -941,19 +941,45 @@ function ApiTokensPanel() {
                     {t.expires_at ? new Date(t.expires_at).toLocaleString() : 'Never'}
                   </td>
                   <td className="px-3 py-2">
-                    <button
-                      type="button"
-                      className="text-error-500"
-                      onClick={() => {
-                        if (confirm(`Revoke token "${t.name}"?`)) {
-                          void api.deleteApiToken(t.id).then(() =>
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        className="text-brand-600"
+                        onClick={() => {
+                          void api.patchApiToken(t.id, { paused: !t.paused_at }).then(() =>
                             qc.invalidateQueries({ queryKey: ['api-tokens'] }),
                           )
-                        }
-                      }}
-                    >
-                      Revoke token
-                    </button>
+                        }}
+                      >
+                        {t.paused_at ? 'Resume' : 'Pause'}
+                      </button>
+                      <button
+                        type="button"
+                        className="text-brand-600"
+                        onClick={() => {
+                          if (!confirm(`Roll token "${t.name}"? The current secret stops working.`)) return
+                          void api.rollApiToken(t.id).then((res) => {
+                            setPlain(res.token)
+                            void qc.invalidateQueries({ queryKey: ['api-tokens'] })
+                          })
+                        }}
+                      >
+                        Roll
+                      </button>
+                      <button
+                        type="button"
+                        className="text-error-500"
+                        onClick={() => {
+                          if (confirm(`Revoke token "${t.name}"?`)) {
+                            void api.deleteApiToken(t.id).then(() =>
+                              qc.invalidateQueries({ queryKey: ['api-tokens'] }),
+                            )
+                          }
+                        }}
+                      >
+                        Revoke token
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -499,6 +499,43 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+  maintenance: (kind: 'applications' | 'services', id: string) =>
+    request<{
+      maintenance_enabled: boolean
+      maintenance_message: string
+    }>(`/api/v1/${kind}/${id}/maintenance`),
+  setMaintenance: (kind: 'applications' | 'services', id: string, enabled: boolean, message: string) =>
+    request<{ maintenance_enabled: boolean; maintenance_message: string; warnings?: string[] }>(
+      `/api/v1/${kind}/${id}/maintenance`,
+      { method: 'PUT', body: JSON.stringify({ enabled, message }) },
+    ),
+  containerFiles: (kind: 'applications' | 'services' | 'databases', id: string, path: string, container?: string) =>
+    request<{ path: string; container: string; entries: ContainerFile[] }>(
+      `/api/v1/${kind}/${id}/files?path=${encodeURIComponent(path)}${container ? `&container=${encodeURIComponent(container)}` : ''}`,
+    ),
+  readContainerFile: (kind: 'applications' | 'services' | 'databases', id: string, path: string, container?: string) =>
+    request<{ path: string; container: string; size: number; content: string }>(
+      `/api/v1/${kind}/${id}/files/content?path=${encodeURIComponent(path)}${container ? `&container=${encodeURIComponent(container)}` : ''}`,
+    ),
+  writeContainerFile: (kind: 'applications' | 'services' | 'databases', id: string, body: { path: string; container?: string; content: string }) =>
+    request<{ status: string }>(`/api/v1/${kind}/${id}/files/content`, { method: 'PUT', body: JSON.stringify(body) }),
+  mkdirContainer: (kind: 'applications' | 'services' | 'databases', id: string, body: { path: string; container?: string }) =>
+    request<{ status: string }>(`/api/v1/${kind}/${id}/files/mkdir`, { method: 'POST', body: JSON.stringify(body) }),
+  deleteContainerFile: (kind: 'applications' | 'services' | 'databases', id: string, body: { path: string; container?: string; confirm: string }) =>
+    request<{ status: string }>(`/api/v1/${kind}/${id}/files/content`, { method: 'DELETE', body: JSON.stringify(body) }),
+  flushDatabaseCache: (id: string) =>
+    request<{ status: string; output: string }>(`/api/v1/databases/${id}/flush-cache`, {
+      method: 'POST',
+      body: JSON.stringify({ confirm: 'FLUSH' }),
+    }),
+  serverHealth: (id: string) => request<ServerHealth>(`/api/v1/servers/${id}/health`),
+  checkServerHealth: (id: string) =>
+    request<{ health: ServerHealth; notices: Array<{ type: string; title: string; message: string }>; warnings?: string[] }>(
+      `/api/v1/servers/${id}/health/check`,
+      { method: 'POST' },
+    ),
+  detectPublicIP: () =>
+    request<{ public_ipv4: string; public_ipv6: string }>('/api/v1/settings/detect-public-ip', { method: 'POST' }),
   deployApplication: (id: string, force_rebuild = false, override_freeze = false) =>
     request<Deployment>(`/api/v1/applications/${id}/deploy`, {
       method: 'POST',
@@ -1015,6 +1052,13 @@ export const api = {
     }),
   deleteApiToken: (id: string) =>
     request<{ status: string }>(`/api/v1/api-tokens/${id}`, { method: 'DELETE' }),
+  patchApiToken: (id: string, body: { name?: string; abilities?: string[]; paused?: boolean; expires_in_days?: number }) =>
+    request<{ api_token: ApiToken }>(`/api/v1/api-tokens/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  rollApiToken: (id: string) =>
+    request<{ api_token: ApiToken; token: string }>(`/api/v1/api-tokens/${id}/roll`, { method: 'POST' }),
 
   scheduledBackups: () => request<{ scheduled_backups: ScheduledBackup[] }>('/api/v1/scheduled-backups'),
   createScheduledBackup: (body: {
@@ -1344,6 +1388,10 @@ export type ServerOpsSettings = {
   traffic_sample_threshold?: number
   traffic_retention_days?: number
   traffic_ip_mode?: 'full' | 'anonymized' | 'off' | string
+  disk_usage_notification_threshold?: number
+  proxy_catchall_enabled?: boolean
+  proxy_catchall_url?: string
+  proxy_catchall_permanent?: boolean
 }
 export type GithubRunnerConfig = {
   id: string
@@ -1590,6 +1638,7 @@ export type ServiceDomain = {
   internal_port?: number | null
   force_https: boolean
   redirect: 'both' | 'www' | 'non-www' | string
+  redirect_permanent?: boolean
   noindex: boolean
 }
 export type ServiceDomainInput = {
@@ -1599,6 +1648,7 @@ export type ServiceDomainInput = {
   internal_port?: number | null
   force_https?: boolean
   redirect?: string
+  redirect_permanent?: boolean
   noindex?: boolean
 }
 export type Service = {
@@ -1612,6 +1662,8 @@ export type Service = {
   server_id?: string | null
   fqdn?: string
   is_force_https?: boolean
+  maintenance_enabled?: boolean
+  maintenance_message?: string
   docker_compose?: string
   docker_compose_raw?: string
   links?: { label: string; url: string }[]
@@ -1681,6 +1733,9 @@ export type Application = {
   custom_docker_stop_timeout?: number
   custom_docker_restart_policy?: string
   redirect?: string
+  redirect_permanent?: boolean
+  maintenance_enabled?: boolean
+  maintenance_message?: string
   watch_paths?: string
   pre_deployment_command?: string
   post_deployment_command?: string
@@ -1878,6 +1933,26 @@ export type TeamInvitation = {
   expires_at: string
   created_at: string
 }
+export type ContainerFile = {
+  name: string
+  path: string
+  is_dir: boolean
+  size: number
+  mod_unix: number
+}
+export type ServerHealth = {
+  server_id: string
+  reachable: boolean
+  consecutive_failures: number
+  disk_used_percent?: number | null
+  disk_mount: string
+  traefik_image: string
+  traefik_outdated: boolean
+  patch_count: number
+  last_checked_at?: string | null
+  last_reachable_at?: string | null
+  last_error?: string
+}
 export type ApiToken = {
   id: string
   name: string
@@ -1885,6 +1960,7 @@ export type ApiToken = {
   abilities: string[]
   last_used_at?: string | null
   expires_at?: string | null
+  paused_at?: string | null
   created_at: string
 }
 export type ScheduledBackup = {

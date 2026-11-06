@@ -20,6 +20,7 @@ type ApiToken struct {
 	Abilities   []string   `json:"abilities"`
 	LastUsedAt  *time.Time `json:"last_used_at,omitempty"`
 	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
+	PausedAt    *time.Time `json:"paused_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 }
 
@@ -81,7 +82,7 @@ func (s *Store) CreateTeam(ctx context.Context, ownerUserID uuid.UUID, name, des
 
 func (s *Store) ListApiTokens(ctx context.Context, userID, teamID uuid.UUID) ([]ApiToken, error) {
 	rows, err := s.Pool.Query(ctx, `
-		SELECT id, user_id, team_id, name, token_prefix, abilities, last_used_at, expires_at, created_at
+		SELECT id, user_id, team_id, name, token_prefix, abilities, last_used_at, expires_at, paused_at, created_at
 		FROM api_tokens
 		WHERE user_id=$1 AND team_id=$2
 		ORDER BY created_at DESC
@@ -93,7 +94,7 @@ func (s *Store) ListApiTokens(ctx context.Context, userID, teamID uuid.UUID) ([]
 	var out []ApiToken
 	for rows.Next() {
 		var t ApiToken
-		if err := rows.Scan(&t.ID, &t.UserID, &t.TeamID, &t.Name, &t.TokenPrefix, &t.Abilities, &t.LastUsedAt, &t.ExpiresAt, &t.CreatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.UserID, &t.TeamID, &t.Name, &t.TokenPrefix, &t.Abilities, &t.LastUsedAt, &t.ExpiresAt, &t.PausedAt, &t.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, t)
@@ -116,9 +117,9 @@ func (s *Store) CreateApiToken(ctx context.Context, userID, teamID uuid.UUID, na
 	err := s.Pool.QueryRow(ctx, `
 		INSERT INTO api_tokens (user_id, team_id, name, token_hash, token_prefix, abilities, expires_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7)
-		RETURNING id, user_id, team_id, name, token_prefix, abilities, last_used_at, expires_at, created_at
+		RETURNING id, user_id, team_id, name, token_prefix, abilities, last_used_at, expires_at, paused_at, created_at
 	`, userID, teamID, name, HashToken(plainToken), prefix, abilities, expiresAt).Scan(
-		&t.ID, &t.UserID, &t.TeamID, &t.Name, &t.TokenPrefix, &t.Abilities, &t.LastUsedAt, &t.ExpiresAt, &t.CreatedAt,
+		&t.ID, &t.UserID, &t.TeamID, &t.Name, &t.TokenPrefix, &t.Abilities, &t.LastUsedAt, &t.ExpiresAt, &t.PausedAt, &t.CreatedAt,
 	)
 	return &t, err
 }
@@ -139,11 +140,11 @@ func (s *Store) DeleteApiToken(ctx context.Context, userID, teamID, tokenID uuid
 func (s *Store) GetApiTokenByPlain(ctx context.Context, plain string) (*ApiToken, *User, error) {
 	var t ApiToken
 	err := s.Pool.QueryRow(ctx, `
-		SELECT id, user_id, team_id, name, token_prefix, abilities, last_used_at, expires_at, created_at
+		SELECT id, user_id, team_id, name, token_prefix, abilities, last_used_at, expires_at, paused_at, created_at
 		FROM api_tokens
-		WHERE token_hash=$1 AND (expires_at IS NULL OR expires_at > NOW())
+		WHERE token_hash=$1 AND paused_at IS NULL AND (expires_at IS NULL OR expires_at > NOW())
 	`, HashToken(plain)).Scan(
-		&t.ID, &t.UserID, &t.TeamID, &t.Name, &t.TokenPrefix, &t.Abilities, &t.LastUsedAt, &t.ExpiresAt, &t.CreatedAt,
+		&t.ID, &t.UserID, &t.TeamID, &t.Name, &t.TokenPrefix, &t.Abilities, &t.LastUsedAt, &t.ExpiresAt, &t.PausedAt, &t.CreatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil, ErrNotFound

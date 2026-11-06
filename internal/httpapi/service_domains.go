@@ -12,13 +12,14 @@ import (
 )
 
 type serviceDomainBody struct {
-	UnitName     string `json:"unit_name"`
-	Host         string `json:"host"`
-	Scheme       string `json:"scheme"`
-	InternalPort *int   `json:"internal_port"`
-	ForceHTTPS   *bool  `json:"force_https"`
-	Redirect     string `json:"redirect"`
-	NoIndex      *bool  `json:"noindex"`
+	UnitName          string `json:"unit_name"`
+	Host              string `json:"host"`
+	Scheme            string `json:"scheme"`
+	InternalPort      *int   `json:"internal_port"`
+	ForceHTTPS        *bool  `json:"force_https"`
+	Redirect          string `json:"redirect"`
+	RedirectPermanent *bool  `json:"redirect_permanent"`
+	NoIndex           *bool  `json:"noindex"`
 }
 
 func defaultServiceUnit(prepared, raw string) string {
@@ -92,6 +93,13 @@ func domainInputFromBody(body serviceDomainBody, fallback store.ServiceDomain) (
 	if proxy.IsMagicDomainHost(host) {
 		redirect = "both"
 	}
+	permanent := fallback.RedirectPermanent
+	if body.RedirectPermanent != nil {
+		permanent = *body.RedirectPermanent
+	}
+	if redirect == "both" || proxy.IsMagicDomainHost(host) {
+		permanent = false
+	}
 	force := fallback.ForceHTTPS
 	if body.ForceHTTPS != nil {
 		force = *body.ForceHTTPS
@@ -121,13 +129,14 @@ func domainInputFromBody(body serviceDomainBody, fallback store.ServiceDomain) (
 		unit = fallback.UnitName
 	}
 	return store.ServiceDomainInput{
-		UnitName:     unit,
-		Host:         host,
-		Scheme:       scheme,
-		InternalPort: port,
-		ForceHTTPS:   force,
-		Redirect:     redirect,
-		NoIndex:      noindex,
+		UnitName:          unit,
+		Host:              host,
+		Scheme:            scheme,
+		InternalPort:      port,
+		ForceHTTPS:        force,
+		Redirect:          redirect,
+		RedirectPermanent: permanent,
+		NoIndex:           noindex,
 	}, ""
 }
 
@@ -207,13 +216,14 @@ func (a *API) handleListServiceDomains(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			updated, err := a.Store.UpdateServiceDomain(r.Context(), teamID, id, list[i].ID, store.ServiceDomainInput{
-				UnitName:     unit,
-				Host:         list[i].Host,
-				Scheme:       list[i].Scheme,
-				InternalPort: list[i].InternalPort,
-				ForceHTTPS:   list[i].ForceHTTPS,
-				Redirect:     list[i].Redirect,
-				NoIndex:      list[i].NoIndex,
+				UnitName:          unit,
+				Host:              list[i].Host,
+				Scheme:            list[i].Scheme,
+				InternalPort:      list[i].InternalPort,
+				ForceHTTPS:        list[i].ForceHTTPS,
+				Redirect:          list[i].Redirect,
+				RedirectPermanent: list[i].RedirectPermanent,
+				NoIndex:           list[i].NoIndex,
 			})
 			if err == nil && updated != nil {
 				list[i] = *updated

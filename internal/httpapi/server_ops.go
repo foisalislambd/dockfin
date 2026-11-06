@@ -74,6 +74,10 @@ func (a *API) handlePatchServerOps(w http.ResponseWriter, r *http.Request) {
 		TrafficSampleThreshold            *int      `json:"traffic_sample_threshold"`
 		TrafficRetentionDays              *int      `json:"traffic_retention_days"`
 		TrafficIPMode                     *string   `json:"traffic_ip_mode"`
+		DiskUsageNotificationThreshold    *int      `json:"disk_usage_notification_threshold"`
+		ProxyCatchallEnabled              *bool     `json:"proxy_catchall_enabled"`
+		ProxyCatchallURL                  *string   `json:"proxy_catchall_url"`
+		ProxyCatchallPermanent            *bool     `json:"proxy_catchall_permanent"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -149,6 +153,28 @@ func (a *API) handlePatchServerOps(w http.ResponseWriter, r *http.Request) {
 		}
 		next.TrafficIPMode = mode
 	}
+	if body.DiskUsageNotificationThreshold != nil {
+		if *body.DiskUsageNotificationThreshold < 1 || *body.DiskUsageNotificationThreshold > 100 {
+			writeError(w, http.StatusBadRequest, "disk notification threshold must be from 1 to 100")
+			return
+		}
+		next.DiskUsageNotificationThreshold = *body.DiskUsageNotificationThreshold
+	}
+	if body.ProxyCatchallEnabled != nil {
+		next.ProxyCatchallEnabled = *body.ProxyCatchallEnabled
+	}
+	if body.ProxyCatchallURL != nil {
+		next.ProxyCatchallURL = strings.TrimSpace(*body.ProxyCatchallURL)
+	}
+	if body.ProxyCatchallPermanent != nil {
+		next.ProxyCatchallPermanent = *body.ProxyCatchallPermanent
+	}
+	if next.ProxyCatchallEnabled && next.ProxyCatchallURL != "" {
+		if _, err := proxy.BuildCatchallYAML(proxy.CatchallConfig{Enabled: true, URL: next.ProxyCatchallURL, Permanent: next.ProxyCatchallPermanent}); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
 	if body.TrafficAnalyticsEnabled != nil && *body.TrafficAnalyticsEnabled {
 		srv, err := a.Store.GetServer(r.Context(), teamID, id)
 		if err != nil {
@@ -173,8 +199,23 @@ func (a *API) handlePatchServerOps(w http.ResponseWriter, r *http.Request) {
 	syncDrain := body.LogDrainEnabled != nil || body.LogDrainType != nil || body.LogDrainConfig != nil
 	syncCA := body.CACertificate != nil
 	syncTraffic := cur.TrafficAnalyticsEnabled != next.TrafficAnalyticsEnabled
+	syncCatch := body.ProxyCatchallEnabled != nil || body.ProxyCatchallURL != nil || body.ProxyCatchallPermanent != nil
 	out := map[string]any{"status": "updated"}
 	var warnings []string
+	if syncCatch {
+		srv, err := a.Store.GetServer(r.Context(), teamID, id)
+		if err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+		if srv.ProxyType != "" && !strings.EqualFold(srv.ProxyType, "traefik") {
+			warnings = append(warnings, "unknown-host response is written for Traefik; this server uses "+srv.ProxyType)
+		} else if client, dialErr := a.dialServer(r, id); dialErr != nil {
+			warnings = append(warnings, "catch-all saved but not applied: "+dialErr.Error())
+		} else if err := a.syncProxyEdge(r.Context(), client, teamID, id, "dockfin"); err != nil {
+			warnings = append(warnings, err.Error())
+		}
+	}
 	if syncDrain || syncCA || syncTraffic {
 		client, dialErr := a.dialServer(r, id)
 		if dialErr != nil {

@@ -16,6 +16,7 @@ type Event struct {
 	Type     string
 	Title    string
 	Message  string
+	Commit   string
 	Critical bool
 }
 
@@ -58,6 +59,7 @@ type EmailConfig struct {
 	ResendEnabled            bool   `json:"resend_enabled"`
 	ResendAPIKey             string `json:"resend_api_key"`
 	Recipients               string `json:"recipients"` // comma-separated; empty = team members
+	IncludeCommitDetails     bool   `json:"include_commit_details"`
 }
 
 func EventAllowed(events []string, want string) bool {

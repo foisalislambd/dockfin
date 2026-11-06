@@ -30,6 +30,8 @@ type PrepareOpts struct {
 	BasicAuthUsers string
 	// Redirect is both|www|non-www (Coolify Direction). Magic domains should stay "both".
 	Redirect string
+	// RedirectPermanent makes the www redirect a 301. False keeps the 302.
+	RedirectPermanent bool
 	// NoIndex adds an X-Robots-Tag: noindex response header on the public router.
 	NoIndex bool
 	// ProxyService is the compose service that receives Traefik labels.
@@ -1137,7 +1139,11 @@ func injectProxyLabels(doc map[string]any, opts PrepareOpts) {
 		}
 		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectregex.regex", mw)] = regex
 		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectregex.replacement", mw)] = replacement
-		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectregex.permanent", mw)] = "false"
+		perm := "false"
+		if opts.RedirectPermanent {
+			perm = "true"
+		}
+		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectregex.permanent", mw)] = perm
 		key := fmt.Sprintf("traefik.http.routers.%s.middlewares", router)
 		if existing := labels[key]; existing != "" && !strings.Contains(existing, mw) {
 			labels[key] = existing + "," + mw

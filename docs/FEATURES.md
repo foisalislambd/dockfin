@@ -31,6 +31,8 @@
 - [x] Custom CA certificate pushed to `/data/dockfin/ca/custom-ca.crt`
 - [x] Terminal ACL (`terminal_acl_user_ids`) enforced on terminal create
 - [x] Pending OS security patch check
+- [x] Server health page: reachability, disk threshold, Traefik image age, and a manual check that emits the existing notification events
+- [x] Traefik unknown-host catch-all (off by default; 503 or redirect)
 
 ## Projects
 - [x] Projects + production environment
@@ -51,7 +53,9 @@
 - [x] Preview environment variables (prod/preview tabs + deploy merge)
 - [x] Deploy key selector on Git Source panel
 - [x] Application Backups top tab (volume/dir → S3)
-- [x] WWW redirect (`both` / `www` / `non-www`)
+- [x] WWW redirect (`both` / `www` / `non-www`), including a permanent 301 option
+- [x] Maintenance page without stopping the containers (Traefik file provider; Caddy stores the flag and warns)
+- [x] Container file browser (list, read, write, mkdir, delete)
 - [x] Advanced: disable build cache, shallow clone, Git LFS, GPU, stop timeout, restart policy
 - [x] Additional destinations (multi-server fan-out via image transfer)
 - [x] Per-container metrics (`docker stats`)
@@ -96,6 +100,8 @@
 - [x] Terminal tab (reuses `ServerTerminal` against the database container)
 - [x] Metrics tab (links to the destination server's host metrics)
 - [x] Tags tab (`ResourceTagsPanel`, resourceType=database)
+- [x] Files tab for the database container
+- [x] Redis / KeyDB / Dragonfly flush (`FLUSHALL`)
 
 ## Services
 - [x] Catalog loader (builtin + templates/compose)
@@ -249,6 +255,12 @@ carries a `warnings` array.
 - [x] Optional bearer token for `/metrics`
 - [x] Postgres-backed shared rate limit (`DOCKFIN_RATE_LIMIT_STORE=postgres`), in-process by default
 - [x] `dfin` CRUD for servers, projects, environments, apps, services, databases, env vars, and domains, with `--json` and `logs --follow`
+- [x] API tokens can be paused, resumed, and rolled. Paused tokens fail authentication
+- [x] Deployment emails can include the commit SHA and message
+- [x] Settings can detect the instance public IPv4 and IPv6
+- [x] `dfin tokens`, `maintenance`, `files`, `flush-cache`, and `server-health`
+
+Not in this product, on purpose: Coolify scoped project ACLs, passkeys, Hostinger, GitLab system hooks, smart scan, CloudWatch log drains, a docker-attach console, a fleet-wide metrics page, server transfer, and Caddy maintenance or catch-all. Those jobs stay on Traefik where the proxy has to change live traffic.
 
 ## Polish
 - [x] Command palette (⌘K)

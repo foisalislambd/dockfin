@@ -257,6 +257,14 @@ func (s *Store) UpdateServerStatus(ctx context.Context, id uuid.UUID, reachable,
 	return err
 }
 
+// UpdateServerReachability records an SSH health result without clearing docker or proxy fields.
+func (s *Store) UpdateServerReachability(ctx context.Context, id uuid.UUID, reachable bool) error {
+	_, err := s.Pool.Exec(ctx, `
+		UPDATE servers SET is_reachable=$2, last_checked_at=NOW(), updated_at=NOW() WHERE id=$1
+	`, id, reachable)
+	return err
+}
+
 func (s *Store) UpdateServerProxyStatus(ctx context.Context, id uuid.UUID, proxyStatus string) error {
 	_, err := s.Pool.Exec(ctx, `
 		UPDATE servers SET proxy_status=$2, updated_at=NOW() WHERE id=$1

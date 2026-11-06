@@ -96,6 +96,7 @@ type EmailCfg = {
   resend_enabled: boolean
   resend_api_key: string
   recipients: string
+  include_commit_details: boolean
 }
 
 type DiscordCfg = { webhook_url: string; ping_enabled: boolean }
@@ -121,6 +122,7 @@ function defaultConfig(ch: ChannelId): Record<string, unknown> {
         resend_enabled: false,
         resend_api_key: '',
         recipients: '',
+        include_commit_details: false,
       }
     case 'discord':
       return { webhook_url: '', ping_enabled: false }
@@ -518,6 +520,12 @@ function EmailFields({
         required={false}
       />
       <FieldHelp>Comma-separated. Empty means all team members.</FieldHelp>
+      <SwitchRow
+        label="Include commit details"
+        help="Add the commit SHA and message to deployment emails."
+        checked={!!cfg.include_commit_details}
+        onChange={(v) => setCfg({ include_commit_details: v })}
+      />
     </div>
   )
 }

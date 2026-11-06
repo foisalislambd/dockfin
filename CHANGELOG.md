@@ -12,6 +12,16 @@ The same version, or a lower one, does not create a release. Git tag, GitHub Rel
 
 ### Added
 
+- Traefik maintenance page for applications and services. Containers keep running. Caddy keeps the setting and reports that the page is applied only on Traefik
+- Permanent (301) www redirects for applications and service domains. Temporary (302) stays the default
+- Container file browser for applications, services, and databases: list, read, write, mkdir, and delete text files up to 512 KiB
+- Redis, KeyDB, and Dragonfly `FLUSHALL`, confirmed in the API
+- API token pause, resume, and roll. A paused token cannot authenticate
+- Server health checks for reachability (alert after two failures, and again when it recovers), disk use, an outdated Traefik image, and pending OS patches. The same events were already selectable in Notifications
+- Optional commit SHA and message on deployment emails
+- Traefik catch-all for unknown hosts (503, or a redirect). Existing servers stay off so an upgrade does not change the edge
+- Detect the instance public IPv4/IPv6 from Settings
+- `dfin` commands: `tokens`, `maintenance`, `files`, `flush-cache`, and `server-health`
 - Queryable audit log for owners and admins: auth, deploys, rollbacks, freezes, settings, member and role changes, and resource create/delete. Filter and paginate `GET /api/v1/audit-logs`. Retention is `DOCKFIN_AUDIT_RETENTION_DAYS` (default 90, `0` keeps rows). Unknown sign-in attempts are stored without a team and shown to every owner and admin
 - `PATCH /api/v1/team/members/{userID}` changes a member role. The last owner cannot be demoted
 - Optional `DOCKFIN_METRICS_TOKEN`. When set, `GET /metrics` requires `Authorization: Bearer`. Unset keeps the endpoint public

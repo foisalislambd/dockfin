@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -315,6 +316,129 @@ func resourceCmd(asJSON bool, stdout, stderr io.Writer, call caller, base, token
 		}
 	default:
 		fmt.Fprintln(stderr, "unknown resource")
+		return 1
+	}
+}
+
+func parityCmd(asJSON bool, stdout, stderr io.Writer, call caller, base, token, team, cmd string, rest []string) int {
+	sub := "list"
+	args := rest
+	if len(rest) > 0 && !strings.HasPrefix(rest[0], "-") {
+		sub = rest[0]
+		args = rest[1:]
+	}
+	pos, flags := splitFlags(args)
+	ids := strings.Fields(pos)
+	need := func(n int, usage string) bool {
+		if len(ids) < n {
+			fmt.Fprintln(stderr, "usage:", usage)
+			return false
+		}
+		return true
+	}
+	switch cmd {
+	case "tokens":
+		switch sub {
+		case "list":
+			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodGet, "/api/v1/api-tokens", nil)
+		case "pause", "resume":
+			if !need(1, "dfin tokens pause|resume <token-uuid>") {
+				return 1
+			}
+			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPatch, "/api/v1/api-tokens/"+ids[0], map[string]any{"paused": sub == "pause"})
+		case "roll":
+			if !need(1, "dfin tokens roll <token-uuid>") {
+				return 1
+			}
+			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/api-tokens/"+ids[0]+"/roll", map[string]any{})
+		default:
+			fmt.Fprintln(stderr, "usage: dfin tokens list|pause|resume|roll")
+			return 1
+		}
+	case "maintenance":
+		if sub != "get" && sub != "set" {
+			fmt.Fprintln(stderr, "usage: dfin maintenance get|set <applications|services> <uuid> [--enabled true] [--message text]")
+			return 1
+		}
+		if !need(2, "dfin maintenance "+sub+" <applications|services> <uuid>") {
+			return 1
+		}
+		if ids[0] != "applications" && ids[0] != "services" {
+			fmt.Fprintln(stderr, "resource must be applications or services")
+			return 1
+		}
+		path := "/api/v1/" + ids[0] + "/" + ids[1] + "/maintenance"
+		if sub == "get" {
+			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodGet, path, nil)
+		}
+		enabled := flags["enabled"] == "true" || flags["enabled"] == "1"
+		return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPut, path, map[string]any{
+			"enabled": enabled,
+			"message": flags["message"],
+		})
+	case "files":
+		if !need(2, "dfin files list|read|write|mkdir|rm <applications|services|databases> <uuid> --path /") {
+			return 1
+		}
+		kind := ids[0]
+		if kind != "applications" && kind != "services" && kind != "databases" {
+			fmt.Fprintln(stderr, "resource must be applications, services, or databases")
+			return 1
+		}
+		if flags["path"] == "" {
+			flags["path"] = "/"
+		}
+		q := url.Values{}
+		q.Set("path", flags["path"])
+		if flags["container"] != "" {
+			q.Set("container", flags["container"])
+		}
+		basePath := "/api/v1/" + kind + "/" + ids[1] + "/files"
+		switch sub {
+		case "list":
+			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodGet, basePath+"?"+q.Encode(), nil)
+		case "read":
+			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodGet, basePath+"/content?"+q.Encode(), nil)
+		case "write":
+			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPut, basePath+"/content", map[string]any{
+				"path": flags["path"], "container": flags["container"], "content": flags["content"],
+			})
+		case "mkdir":
+			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, basePath+"/mkdir", map[string]any{
+				"path": flags["path"], "container": flags["container"],
+			})
+		case "rm":
+			if flags["confirm"] == "" {
+				fmt.Fprintln(stderr, "usage: dfin files rm <kind> <uuid> --path /file --confirm filename")
+				return 1
+			}
+			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodDelete, basePath+"/content", map[string]any{
+				"path": flags["path"], "container": flags["container"], "confirm": flags["confirm"],
+			})
+		default:
+			fmt.Fprintln(stderr, "usage: dfin files list|read|write|mkdir|rm")
+			return 1
+		}
+	case "flush-cache":
+		id := sub
+		if id == "list" || strings.HasPrefix(id, "-") {
+			fmt.Fprintln(stderr, "usage: dfin flush-cache <database-uuid>")
+			return 1
+		}
+		return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/databases/"+id+"/flush-cache", map[string]any{"confirm": "FLUSH"})
+	case "server-health":
+		id := sub
+		if id == "list" || strings.HasPrefix(id, "-") {
+			fmt.Fprintln(stderr, "usage: dfin server-health <server-uuid> [--check]")
+			return 1
+		}
+		path := "/api/v1/servers/" + id + "/health"
+		if flags["check"] == "true" {
+			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, path+"/check", map[string]any{})
+		}
+		return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodGet, path, nil)
+	default:
+		fmt.Fprintln(stderr, "unknown command")
 		return 1
 	}
 }

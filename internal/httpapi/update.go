@@ -60,6 +60,7 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 		PrivateKeyID                     *string                         `json:"private_key_id"`
 		IsBuildServerEnabled             *bool                           `json:"is_build_server_enabled"`
 		IsForceHTTPS                     *bool                           `json:"is_force_https"`
+		RedirectPermanent                *bool                           `json:"redirect_permanent"`
 		IsPreviewEnabled                 *bool                           `json:"is_preview_enabled"`
 		IsAutoDeployEnabled              *bool                           `json:"is_auto_deploy_enabled"`
 		IsGitSubmodulesEnabled           *bool                           `json:"is_git_submodules_enabled"`
@@ -444,6 +445,24 @@ func (a *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "redirect must be both, www, or non-www")
 			return
 		}
+	}
+	if body.RedirectPermanent != nil || (body.Redirect != nil && app.Redirect == "both" && app.RedirectPermanent) {
+		cur, err := a.Store.GetResourceControl(r.Context(), teamID, "application", appID)
+		if err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+		if body.RedirectPermanent != nil {
+			cur.RedirectPermanent = *body.RedirectPermanent
+		}
+		if app.Redirect == "both" {
+			cur.RedirectPermanent = false
+		}
+		if err := a.Store.UpsertResourceControl(r.Context(), *cur); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+		app.RedirectPermanent = cur.RedirectPermanent
 	}
 	if body.DockerRegistryID != nil {
 		if *body.DockerRegistryID == "" {

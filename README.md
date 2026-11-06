@@ -155,6 +155,8 @@ dfin freeze <project-uuid> <environment-uuid> --reason "maintenance"
 dfin deploy <application-uuid> --override-freeze
 dfin unfreeze <project-uuid> <environment-uuid>
 dfin logs <deployment-uuid>
+dfin maintenance set applications <app-uuid> --enabled true --message "Back at 18:00"
+dfin server-health <server-uuid> --check
 ```
 
 Commands exit 0 on HTTP 2xx/3xx and 1 otherwise. `DOCKFIN_TEAM` sends `X-Team-ID`.

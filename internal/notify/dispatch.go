@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/mailer"
 	"github.com/dockfin/dockfin/internal/store"
+	"github.com/google/uuid"
 )
 
 // Dispatcher sends events to all enabled team notification channels.
@@ -78,6 +78,9 @@ func (d *Dispatcher) sendChannel(ctx context.Context, teamID uuid.UUID, channel,
 	case "email":
 		var cfg EmailConfig
 		_ = json.Unmarshal([]byte(cfgJSON), &cfg)
+		if cfg.IncludeCommitDetails && strings.TrimSpace(event.Commit) != "" {
+			event.Message = strings.TrimSpace(event.Message + "\n" + event.Commit)
+		}
 		return d.sendEmail(ctx, teamID, cfg, event)
 	default:
 		return nil

@@ -76,6 +76,7 @@ func (r *Runner) tick(ctx context.Context) {
 	r.runDockerCleanups(ctx, minute)
 	r.runAutoUpdate(ctx, minute)
 	r.repairProxyNetworks(ctx)
+	r.runServerHealth(ctx)
 	githubrunner.Reconcile(ctx, r.Store, r.SSH, r.Logger)
 }
 

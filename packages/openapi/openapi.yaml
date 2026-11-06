@@ -174,6 +174,115 @@ paths:
             summary: Delete api token
             tags:
                 - api-tokens
+        patch:
+            operationId: patchApiV1ApiTokensTokenID
+            parameters:
+                - in: path
+                  name: tokenID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Update api token
+            tags:
+                - api-tokens
+    /api/v1/api-tokens/{tokenID}/roll:
+        post:
+            operationId: postApiV1ApiTokensTokenIDRoll
+            parameters:
+                - in: path
+                  name: tokenID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Create roll
+            tags:
+                - api-tokens
     /api/v1/applications/:
         get:
             operationId: getApiV1Applications
@@ -910,6 +1019,246 @@ paths:
             summary: Detect compose detect compose
             tags:
                 - applications
+    /api/v1/applications/{appID}/files:
+        get:
+            operationId: getApiV1ApplicationsAppIDFiles
+            parameters:
+                - in: path
+                  name: appID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: List files
+            tags:
+                - applications
+    /api/v1/applications/{appID}/files/content:
+        delete:
+            operationId: deleteApiV1ApplicationsAppIDFilesContent
+            parameters:
+                - in: path
+                  name: appID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Delete content
+            tags:
+                - applications
+        get:
+            operationId: getApiV1ApplicationsAppIDFilesContent
+            parameters:
+                - in: path
+                  name: appID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: List content
+            tags:
+                - applications
+        put:
+            operationId: putApiV1ApplicationsAppIDFilesContent
+            parameters:
+                - in: path
+                  name: appID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Update content
+            tags:
+                - applications
+    /api/v1/applications/{appID}/files/mkdir:
+        post:
+            operationId: postApiV1ApplicationsAppIDFilesMkdir
+            parameters:
+                - in: path
+                  name: appID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Create mkdir
+            tags:
+                - applications
     /api/v1/applications/{appID}/images:
         get:
             operationId: getApiV1ApplicationsAppIDImages
@@ -1047,6 +1396,102 @@ paths:
                 - cookieAuth: []
                 - bearerAuth: []
             summary: List stream
+            tags:
+                - applications
+    /api/v1/applications/{appID}/maintenance:
+        get:
+            operationId: getApiV1ApplicationsAppIDMaintenance
+            parameters:
+                - in: path
+                  name: appID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: List maintenance
+            tags:
+                - applications
+        put:
+            operationId: putApiV1ApplicationsAppIDMaintenance
+            parameters:
+                - in: path
+                  name: appID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Update maintenance
             tags:
                 - applications
     /api/v1/applications/{appID}/metrics:
@@ -3680,6 +4125,301 @@ paths:
                 - cookieAuth: []
                 - bearerAuth: []
             summary: Connect application connect application
+            tags:
+                - databases
+    /api/v1/databases/{dbID}/files:
+        get:
+            operationId: getApiV1DatabasesDbIDFiles
+            parameters:
+                - in: path
+                  name: dbID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: List files
+            tags:
+                - databases
+    /api/v1/databases/{dbID}/files/content:
+        delete:
+            operationId: deleteApiV1DatabasesDbIDFilesContent
+            parameters:
+                - in: path
+                  name: dbID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Delete content
+            tags:
+                - databases
+        get:
+            operationId: getApiV1DatabasesDbIDFilesContent
+            parameters:
+                - in: path
+                  name: dbID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: List content
+            tags:
+                - databases
+        put:
+            operationId: putApiV1DatabasesDbIDFilesContent
+            parameters:
+                - in: path
+                  name: dbID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Update content
+            tags:
+                - databases
+    /api/v1/databases/{dbID}/files/mkdir:
+        post:
+            operationId: postApiV1DatabasesDbIDFilesMkdir
+            parameters:
+                - in: path
+                  name: dbID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Create mkdir
+            tags:
+                - databases
+    /api/v1/databases/{dbID}/flush-cache:
+        post:
+            operationId: postApiV1DatabasesDbIDFlushCache
+            parameters:
+                - in: path
+                  name: dbID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Flush cache flush cache
             tags:
                 - databases
     /api/v1/databases/{dbID}/init-scripts:
@@ -8723,6 +9463,103 @@ paths:
             summary: Update github runners
             tags:
                 - servers
+    /api/v1/servers/{serverID}/health:
+        get:
+            operationId: getApiV1ServersServerIDHealth
+            parameters:
+                - in: path
+                  name: serverID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: List health
+            tags:
+                - servers
+    /api/v1/servers/{serverID}/health/check:
+        post:
+            operationId: postApiV1ServersServerIDHealthCheck
+            parameters:
+                - in: path
+                  name: serverID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Check health
+            tags:
+                - servers
     /api/v1/servers/{serverID}/images:
         get:
             operationId: getApiV1ServersServerIDImages
@@ -10412,6 +11249,246 @@ paths:
             summary: Update domain
             tags:
                 - services
+    /api/v1/services/{serviceID}/files:
+        get:
+            operationId: getApiV1ServicesServiceIDFiles
+            parameters:
+                - in: path
+                  name: serviceID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: List files
+            tags:
+                - services
+    /api/v1/services/{serviceID}/files/content:
+        delete:
+            operationId: deleteApiV1ServicesServiceIDFilesContent
+            parameters:
+                - in: path
+                  name: serviceID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Delete content
+            tags:
+                - services
+        get:
+            operationId: getApiV1ServicesServiceIDFilesContent
+            parameters:
+                - in: path
+                  name: serviceID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: List content
+            tags:
+                - services
+        put:
+            operationId: putApiV1ServicesServiceIDFilesContent
+            parameters:
+                - in: path
+                  name: serviceID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Update content
+            tags:
+                - services
+    /api/v1/services/{serviceID}/files/mkdir:
+        post:
+            operationId: postApiV1ServicesServiceIDFilesMkdir
+            parameters:
+                - in: path
+                  name: serviceID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Create mkdir
+            tags:
+                - services
     /api/v1/services/{serviceID}/logs/stream:
         get:
             operationId: getApiV1ServicesServiceIDLogsStream
@@ -10452,6 +11529,102 @@ paths:
                 - cookieAuth: []
                 - bearerAuth: []
             summary: List stream
+            tags:
+                - services
+    /api/v1/services/{serviceID}/maintenance:
+        get:
+            operationId: getApiV1ServicesServiceIDMaintenance
+            parameters:
+                - in: path
+                  name: serviceID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: List maintenance
+            tags:
+                - services
+        put:
+            operationId: putApiV1ServicesServiceIDMaintenance
+            parameters:
+                - in: path
+                  name: serviceID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Update maintenance
             tags:
                 - services
     /api/v1/services/{serviceID}/metrics:
@@ -11130,6 +12303,55 @@ paths:
                 - cookieAuth: []
                 - bearerAuth: []
             summary: Run backup
+            tags:
+                - settings
+    /api/v1/settings/detect-public-ip:
+        post:
+            operationId: postApiV1SettingsDetectPublicIp
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Detect public ip detect public ip
             tags:
                 - settings
     /api/v1/settings/oauth:
