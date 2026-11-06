@@ -88,6 +88,8 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer, ca
 		return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodGet, "/api/v1/overview", nil)
 	case "servers", "projects", "environments", "apps", "applications", "services", "databases", "env", "domains":
 		return resourceCmd(asJSON, stdout, stderr, call, base, token, team, cmd, rest)
+	case "tokens", "maintenance", "files", "flush-cache", "server-health", "fleet", "scan", "transfer":
+		return parityCmd(asJSON, stdout, stderr, call, base, token, team, cmd, rest)
 	case "deploy":
 		id, flags := splitFlags(rest)
 		if id == "" {
@@ -325,6 +327,14 @@ Usage:
   dfin [--json] freeze <project-uuid> <environment-uuid> [--reason text]
   dfin [--json] unfreeze <project-uuid> <environment-uuid>
   dfin [--json] logs <deployment-uuid> [--follow]
+  dfin [--json] tokens list|pause|resume|roll
+  dfin [--json] maintenance get|set <applications|services> <uuid>
+  dfin [--json] files list|read|write|mkdir|rm <applications|services|databases> <uuid>
+  dfin [--json] flush-cache <database-uuid>
+  dfin [--json] server-health <server-uuid> [--check]
+  dfin [--json] fleet
+  dfin [--json] scan <owner/repo> [--branch name]
+  dfin [--json] transfer <server-uuid> <team-uuid>
 
 Deletes that the API confirms by name take --confirm <name> and, when required, --password.
 Commands exit 0 on HTTP 2xx/3xx and 1 otherwise. --json prints the response body.

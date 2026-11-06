@@ -46,13 +46,18 @@ type CreateOpts struct {
 	ServerID  uuid.UUID
 	Client    *ssh.Client
 	Container string // optional docker exec target
+	Attach    bool   // docker attach instead of docker exec
 }
 
 func (m *Manager) Create(opts CreateOpts) (uuid.UUID, error) {
 	cmd := ""
 	if opts.Container != "" {
 		var err error
-		cmd, err = DockerExec(opts.Container)
+		if opts.Attach {
+			cmd, err = DockerAttach(opts.Container)
+		} else {
+			cmd, err = DockerExec(opts.Container)
+		}
 		if err != nil {
 			return uuid.Nil, err
 		}

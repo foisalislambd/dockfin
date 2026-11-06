@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"github.com/coder/websocket"
+	"github.com/dockfin/dockfin/internal/terminal"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/dockfin/dockfin/internal/terminal"
 )
 
 func (a *API) handleCreateTerminal(w http.ResponseWriter, r *http.Request) {
@@ -22,6 +22,7 @@ func (a *API) handleCreateTerminal(w http.ResponseWriter, r *http.Request) {
 	}
 	var body struct {
 		Container string `json:"container"`
+		Attach    bool   `json:"attach"`
 	}
 	if err := decodeJSONOptional(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -56,6 +57,7 @@ func (a *API) handleCreateTerminal(w http.ResponseWriter, r *http.Request) {
 		ServerID:  serverID,
 		Client:    client,
 		Container: body.Container,
+		Attach:    body.Attach && body.Container != "",
 	})
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())

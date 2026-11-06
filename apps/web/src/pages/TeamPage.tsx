@@ -16,6 +16,85 @@ function initials(name: string, email: string) {
   return (a + b).slice(0, 2)
 }
 
+function MemberScope({ userId, scope }: { userId: string; scope: string }) {
+  const qc = useQueryClient()
+  const toast = useToast()
+  const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
+  const grants = useQuery({
+    queryKey: ['member-projects', userId],
+    queryFn: () => api.memberProjects(userId),
+    enabled: scope === 'projects',
+  })
+  const [mode, setMode] = useState(scope === 'projects' ? 'projects' : 'all')
+  const [perm, setPerm] = useState<Record<string, string>>({})
+
+  const save = useMutation({
+    mutationFn: () =>
+      api.setMemberProjects(userId, {
+        access_scope: mode === 'projects' ? 'projects' : 'all',
+        projects:
+          mode === 'projects'
+            ? Object.entries({
+                ...Object.fromEntries((grants.data?.projects || []).map((g) => [g.project_id, g.permission])),
+                ...perm,
+              })
+                .filter(([, permission]) => permission && permission !== 'none')
+                .map(([project_id, permission]) => ({ project_id, permission }))
+            : [],
+      }),
+    onSuccess: () => {
+      toast.success('Project access saved')
+      void qc.invalidateQueries({ queryKey: ['team-members'] })
+      void qc.invalidateQueries({ queryKey: ['member-projects', userId] })
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not save access'),
+  })
+
+  return (
+    <div className="mt-2 w-full basis-full border-t border-gray-100 pt-2 dark:border-gray-800">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-gray-500">Project access</span>
+        <select
+          className="h-7 rounded-md border border-gray-200 bg-white px-2 dark:border-gray-700 dark:bg-gray-900"
+          value={mode}
+          onChange={(e) => setMode(e.target.value)}
+        >
+          <option value="all">Every project</option>
+          <option value="projects">Selected projects</option>
+        </select>
+        <button type="button" className="text-brand-600 hover:underline dark:text-brand-400" onClick={() => save.mutate()}>
+          {save.isPending ? 'Saving…' : 'Save access'}
+        </button>
+      </div>
+      {mode === 'projects' ? (
+        <div className="mt-2 space-y-1">
+          {(projects.data?.projects || []).map((p) => {
+            const current =
+              perm[p.id] ||
+              grants.data?.projects.find((g) => g.project_id === p.id)?.permission ||
+              'none'
+            return (
+              <label key={p.id} className="flex items-center justify-between gap-2 text-xs">
+                <span className="truncate text-gray-700 dark:text-gray-200">{p.name}</span>
+                <select
+                  className="h-7 rounded-md border border-gray-200 bg-white px-2 dark:border-gray-700 dark:bg-gray-900"
+                  value={current}
+                  onChange={(e) => setPerm((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                >
+                  <option value="none">No access</option>
+                  <option value="view">View</option>
+                  <option value="deploy">Deploy</option>
+                  <option value="manage">Manage</option>
+                </select>
+              </label>
+            )
+          })}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function roleClass(role: string) {
   if (role === 'owner')
     return 'bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300'
@@ -140,7 +219,7 @@ export function TeamPage() {
           </div>
           <ul className="divide-y divide-gray-200 dark:divide-gray-800">
             {memberList.map((m) => (
-              <li key={m.user_id} className="flex items-center gap-3 px-4 py-3">
+              <li key={m.user_id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500/15 text-xs font-semibold text-brand-700 dark:text-brand-300">
                   {initials(m.name, m.email)}
                 </span>
@@ -181,6 +260,9 @@ export function TeamPage() {
                     <option value="admin">admin</option>
                     <option value="member">member</option>
                   </select>
+                ) : null}
+                {team?.role === 'owner' && m.role !== 'owner' && m.user_id !== user?.id ? (
+                  <MemberScope userId={m.user_id} scope={m.access_scope || 'all'} />
                 ) : null}
                 {canManage && m.user_id !== user?.id ? (
                   <button

@@ -34,7 +34,21 @@ func (a *API) handleListServices(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"services": list})
+	keep, err := a.envAllowed(r)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	filtered := list[:0]
+	for _, svc := range list {
+		if keep(svc.EnvironmentID) {
+			filtered = append(filtered, svc)
+		}
+	}
+	if filtered == nil {
+		filtered = []store.Service{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"services": filtered})
 }
 
 func (a *API) handleCreateService(w http.ResponseWriter, r *http.Request) {

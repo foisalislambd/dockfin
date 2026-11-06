@@ -375,7 +375,7 @@ func (p *Pipeline) proxyLabelArgs(app *store.Application, proxyType string) []st
 			}
 		}
 		if redir := strings.ToLower(strings.TrimSpace(app.Redirect)); (redir == "www" || redir == "non-www") && !proxy.IsMagicDomainHost(host) {
-			labels = append(labels, proxy.CaddyWWWRedirectLabels(app.Name, host, redir)...)
+			labels = append(labels, proxy.CaddyWWWRedirectLabels(app.Name, host, redir, app.RedirectPermanent)...)
 		}
 	case "none":
 		return nil
@@ -402,7 +402,7 @@ func (p *Pipeline) proxyLabelArgs(app *store.Application, proxyType string) []st
 			}
 		}
 		if redir := strings.ToLower(strings.TrimSpace(app.Redirect)); (redir == "www" || redir == "non-www") && !proxy.IsMagicDomainHost(host) {
-			wwwLabels := proxy.TraefikWWWRedirectLabels(app.Name, redir)
+			wwwLabels := proxy.TraefikWWWRedirectLabels(app.Name, redir, app.RedirectPermanent)
 			for _, l := range wwwLabels {
 				if strings.Contains(l, ".middlewares=") {
 					if i := strings.IndexByte(l, '='); i > 0 {

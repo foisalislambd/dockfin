@@ -27,6 +27,8 @@ import { ConfigSideNav } from '../components/ConfigSideNav'
 import { DeployLogPanel } from '../components/DeployLogPanel'
 import { LiveLogViewer } from '../components/LiveLogViewer'
 import { ServiceDomainsPanel } from '../components/ServiceDomainsPanel'
+import { FileBrowser } from '../components/FileBrowser'
+import { MaintenancePanel } from '../components/MaintenancePanel'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { LinksMenu } from '../components/LinksMenu'
 import { MoveResourcePanel } from '../components/MoveResourcePanel'
@@ -592,7 +594,7 @@ export function ServiceDetailPage() {
       {section === 'import' && <ServiceImportBackupPanel units={units} />}
 
       {section === 'files' && (
-        <ServiceFilesPanel volumes={s.volumes} onOpenTerminal={() => setSvcNav({ tab: 'terminal' })} />
+        <ServiceFilesPanel serviceId={svcId} volumes={s.volumes} onOpenTerminal={() => setSvcNav({ tab: 'terminal' })} />
       )}
 
       {section === 'analytics' && (
@@ -675,13 +677,16 @@ export function ServiceDetailPage() {
               />
             )}
             {section === 'domains' && (
-              <ServiceDomainsPanel
-                serviceId={svcId}
-                serviceName={s.name}
-                units={units}
-                serverId={serverId || undefined}
-                destinationId={s.destination_id || undefined}
-              />
+              <div className="space-y-4">
+                <ServiceDomainsPanel
+                  serviceId={svcId}
+                  serviceName={s.name}
+                  units={units}
+                  serverId={serverId || undefined}
+                  destinationId={s.destination_id || undefined}
+                />
+                <MaintenancePanel kind="services" id={svcId} />
+              </div>
             )}
             {section === 'environment' && (
               <EnvVarsPanel
@@ -1069,9 +1074,11 @@ function DetailRow({ label, value, mono }: { label: string; value: string; mono?
 }
 
 function ServiceFilesPanel({
+  serviceId,
   volumes,
   onOpenTerminal,
 }: {
+  serviceId: string
   volumes?: Service['volumes']
   onOpenTerminal: () => void
 }) {
@@ -1081,6 +1088,7 @@ function ServiceFilesPanel({
       <PageHeading title="Files">
         <Btn onClick={onOpenTerminal}>Open terminal</Btn>
       </PageHeading>
+      <FileBrowser kind="services" id={serviceId} />
       <div className="panel-card overflow-hidden">
         <table className="panel-table">
           <thead>

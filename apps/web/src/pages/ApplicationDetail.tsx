@@ -7,6 +7,7 @@ import {
   CalendarClock,
   Gauge,
   ExternalLink,
+  Folder,
   GitBranch,
   GitPullRequest,
   Globe,
@@ -45,6 +46,8 @@ import { ServiceLogo, logoForApplication } from '../components/ServiceLogo'
 import { StatusBadge } from '../components/StatusBadge'
 import { ResourceTagsPanel } from '../components/ResourceTagsPanel'
 import { ScheduledTasksPanel } from '../components/ScheduledTasksPanel'
+import { FileBrowser } from '../components/FileBrowser'
+import { MaintenancePanel } from '../components/MaintenancePanel'
 import { S3DestinationPicker, S3ReplicaStatus, s3DestinationLabel } from '../components/S3Destinations'
 import { ServerTerminal } from '../components/Terminal'
 import { CodeEditor } from '../components/CodeEditor'
@@ -115,6 +118,7 @@ type AppCfg = {
   custom_docker_stop_timeout: number
   custom_docker_restart_policy: string
   redirect: string
+  redirect_permanent: boolean
   watch_paths: string
   pre_deployment_command: string
   post_deployment_command: string
@@ -193,6 +197,7 @@ function emptyAppCfg(): AppCfg {
     custom_docker_stop_timeout: 0,
     custom_docker_restart_policy: 'unless-stopped',
     redirect: 'both',
+    redirect_permanent: false,
     watch_paths: '',
     pre_deployment_command: '',
     post_deployment_command: '',
@@ -271,6 +276,7 @@ function appCfgFromData(updated: {
   custom_docker_stop_timeout?: number
   custom_docker_restart_policy?: string
   redirect?: string
+  redirect_permanent?: boolean
   watch_paths?: string
   pre_deployment_command?: string
   post_deployment_command?: string
@@ -350,6 +356,7 @@ function appCfgFromData(updated: {
     custom_docker_stop_timeout: updated.custom_docker_stop_timeout ?? 0,
     custom_docker_restart_policy: updated.custom_docker_restart_policy || 'unless-stopped',
     redirect: updated.redirect || 'both',
+    redirect_permanent: Boolean(updated.redirect_permanent),
     watch_paths: updated.watch_paths || '',
     pre_deployment_command: updated.pre_deployment_command || '',
     post_deployment_command: updated.post_deployment_command || '',
@@ -430,6 +437,7 @@ const NAV_ITEMS = [
   { id: 'logs', label: 'Runtime Logs', icon: ScrollText },
   { id: 'deployments', label: 'Deployment Logs', icon: History },
   { id: 'terminal', label: 'Terminal', icon: Terminal },
+  { id: 'files', label: 'Files', icon: Folder },
   { id: 'metrics', label: 'Metrics', icon: Activity },
   { id: 'git', label: 'Git Source', icon: GitBranch },
   { id: 'servers', label: 'Servers', icon: Server },
@@ -448,7 +456,7 @@ const APP_NAV_GROUPS = [
     label: 'Settings',
     ids: ['general', 'domains', 'environment', 'storages', 'advanced', 'health', 'tags'],
   },
-  { label: 'Observe & troubleshoot', ids: ['logs', 'deployments', 'terminal', 'metrics'] },
+  { label: 'Observe & troubleshoot', ids: ['logs', 'deployments', 'terminal', 'files', 'metrics'] },
   { label: 'Deploy', ids: ['git', 'servers', 'previews'] },
   { label: 'Automation', ids: ['tasks', 'webhooks', 'backups'] },
   { label: 'Operations', ids: ['operations', 'limits', 'rollback', 'danger'] },
@@ -462,6 +470,7 @@ const CONFIG_SIDE_IDS = [
   'advanced',
   'health',
   'tags',
+  'files',
   'metrics',
   'git',
   'servers',
@@ -582,6 +591,8 @@ export function ApplicationDetailPage() {
 
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [cfg, setCfg] = useState<AppCfg>(emptyAppCfg)
+  const [scanNote, setScanNote] = useState('')
+  const [scanBusy, setScanBusy] = useState(false)
   const [extraDestIds, setExtraDestIds] = useState<string[]>([])
   const [httpBasicAuthPassword, setHttpBasicAuthPassword] = useState('')
   const [clearHttpBasicAuth, setClearHttpBasicAuth] = useState(false)
@@ -1703,6 +1714,15 @@ export function ApplicationDetailPage() {
                         <option value="non-www">Redirect to non-www</option>
                       </select>
                     </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={cfg.redirect_permanent}
+                        disabled={cfg.redirect === 'both'}
+                        onChange={(e) => setCfg({ ...cfg, redirect_permanent: e.target.checked })}
+                      />
+                      <span>Permanent redirect (301)</span>
+                    </label>
                   </div>
                 ) : (
                   <div className="panel-card space-y-3 p-4">
@@ -1734,9 +1754,26 @@ export function ApplicationDetailPage() {
                         <option value="non-www">Redirect to non-www</option>
                       </select>
                     </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={cfg.redirect_permanent}
+                        disabled={cfg.redirect === 'both'}
+                        onChange={(e) => setCfg({ ...cfg, redirect_permanent: e.target.checked })}
+                      />
+                      <span>Permanent redirect (301)</span>
+                    </label>
+                    <MaintenancePanel kind="applications" id={appId} />
                   </div>
                 )}
               </form>
+            )}
+
+            {section === 'files' && (
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Files</h2>
+                <FileBrowser kind="applications" id={appId} />
+              </div>
             )}
 
             {section === 'advanced' && (
@@ -2417,6 +2454,33 @@ export function ApplicationDetailPage() {
                     onChange={(v) => setCfg({ ...cfg, git_branch: v })}
                     required={false}
                   />
+                  <div className="sm:col-span-2">
+                    <Btn
+                      type="button"
+                      disabled={scanBusy || !cfg.git_repository}
+                      onClick={() => {
+                        setScanBusy(true)
+                        setScanNote('')
+                        void api
+                          .gitScan(cfg.git_repository, cfg.git_branch)
+                          .then((res) => {
+                            setCfg((prev) => ({
+                              ...prev,
+                              build_pack: res.scan.build_pack || prev.build_pack,
+                              dockerfile: res.scan.dockerfile || prev.dockerfile,
+                              docker_compose_location: res.scan.compose_file || prev.docker_compose_location,
+                              publish_directory: res.scan.publish_directory || prev.publish_directory,
+                            }))
+                            setScanNote((res.scan.reasons || []).join(' '))
+                          })
+                          .catch((err) => setScanNote(err instanceof Error ? err.message : 'Scan failed'))
+                          .finally(() => setScanBusy(false))
+                      }}
+                    >
+                      {scanBusy ? 'Scanning…' : 'Smart scan'}
+                    </Btn>
+                    {scanNote ? <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{scanNote}</p> : null}
+                  </div>
                   {(gitSources.data?.git_sources || []).length > 0 && (
                     <label className="block text-sm sm:col-span-2">
                       <span className="mb-1 block text-gray-500 dark:text-gray-400">GitHub App</span>

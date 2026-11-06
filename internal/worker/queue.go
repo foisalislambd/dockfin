@@ -255,7 +255,7 @@ func (q *Queue) handle(ctx context.Context, job DeployJob) {
 			_ = q.Store.UpdateApplicationStatus(ctx, app.ID, "exited")
 		}
 		q.publish(job.DeploymentID, "status", "failed")
-		q.notifyDeploy(ctx, job.TeamID, app.Name, "failed", err.Error())
+		q.notifyDeploy(ctx, job.TeamID, app.Name, "failed", err.Error(), commitLine(dep))
 		return
 	}
 	if cancelled, _ := q.Store.IsDeploymentCancelled(ctx, job.DeploymentID); cancelled {
@@ -270,7 +270,7 @@ func (q *Queue) handle(ctx context.Context, job DeployJob) {
 		}
 	}
 	q.publish(job.DeploymentID, "status", "finished")
-	q.notifyDeploy(ctx, job.TeamID, app.Name, "finished", "")
+	q.notifyDeploy(ctx, job.TeamID, app.Name, "finished", "", commitLine(dep))
 }
 
 func (q *Queue) handleService(ctx context.Context, job DeployJob, dep *store.Deployment) {
@@ -358,7 +358,7 @@ func (q *Queue) handleService(ctx context.Context, job DeployJob, dep *store.Dep
 		_ = q.markStatus(ctx, job.DeploymentID, "failed", err.Error())
 		_ = q.Store.UpdateServiceStatus(ctx, svc.ID, "exited")
 		q.publish(job.DeploymentID, "status", "failed")
-		q.notifyDeploy(ctx, job.TeamID, svc.Name, "failed", err.Error())
+		q.notifyDeploy(ctx, job.TeamID, svc.Name, "failed", err.Error(), "")
 		return
 	}
 	if cancelled, _ := q.Store.IsDeploymentCancelled(ctx, job.DeploymentID); cancelled {
@@ -367,10 +367,31 @@ func (q *Queue) handleService(ctx context.Context, job DeployJob, dep *store.Dep
 	}
 	_ = q.markStatus(ctx, job.DeploymentID, "finished", "")
 	q.publish(job.DeploymentID, "status", "finished")
-	q.notifyDeploy(ctx, job.TeamID, svc.Name, "finished", "")
+	q.notifyDeploy(ctx, job.TeamID, svc.Name, "finished", "", "")
 }
 
-func (q *Queue) notifyDeploy(ctx context.Context, teamID uuid.UUID, appName, status, errMsg string) {
+func commitLine(dep *store.Deployment) string {
+	if dep == nil {
+		return ""
+	}
+	sha := strings.TrimSpace(dep.CommitSHA)
+	msg := strings.TrimSpace(dep.CommitMessage)
+	if sha == "" && msg == "" {
+		return ""
+	}
+	if len(sha) > 12 {
+		sha = sha[:12]
+	}
+	if msg == "" {
+		return "Commit " + sha
+	}
+	if sha == "" {
+		return msg
+	}
+	return "Commit " + sha + " — " + msg
+}
+
+func (q *Queue) notifyDeploy(ctx context.Context, teamID uuid.UUID, appName, status, errMsg, commit string) {
 	eventType := "deployment_success"
 	title := "Deployment succeeded"
 	msg := appName + " finished successfully"
@@ -383,6 +404,7 @@ func (q *Queue) notifyDeploy(ctx context.Context, teamID uuid.UUID, appName, sta
 		Type:    eventType,
 		Title:   title,
 		Message: msg,
+		Commit:  commit,
 	})
 }
 

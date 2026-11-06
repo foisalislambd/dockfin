@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Cloud, FileCode2, KeyRound, KeySquare, LockKeyhole } from 'lucide-react'
+import { Cloud, FileCode2, Fingerprint, KeyRound, KeySquare, LockKeyhole } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { PanelSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { ResourceTabs, TabPanel } from '../components/ui/tabs'
@@ -10,6 +10,7 @@ import {
   type CloudProviderToken,
   type Key,
 } from '../lib/api'
+import { createPasskey } from '../lib/webauthn'
 import { Btn } from '../components/ui/Button'
 import { Header } from '../components/ui/Header'
 import { Input } from '../components/ui/Input'
@@ -21,6 +22,7 @@ const TABS = [
   { id: 'cloud-tokens', label: 'Cloud Tokens', icon: Cloud },
   { id: 'cloud-init', label: 'Cloud-Init Scripts', icon: FileCode2 },
   { id: 'api-tokens', label: 'API Tokens', icon: KeySquare },
+  { id: 'passkeys', label: 'Passkeys', icon: Fingerprint },
   { id: 'secret-managers', label: 'Secret Managers', icon: LockKeyhole },
 ] as const
 
@@ -95,6 +97,11 @@ export function SecurityPage({ initialTab }: { initialTab?: TabId }) {
       {tab === 'secret-managers' && (
         <TabPanel>
           <SecretManagersPanel />
+        </TabPanel>
+      )}
+      {tab === 'passkeys' && (
+        <TabPanel>
+          <PasskeysPanel />
         </TabPanel>
       )}
     </div>
@@ -346,7 +353,7 @@ function CloudTokensPanel() {
   const tokens = useQuery({ queryKey: ['cloud-tokens'], queryFn: api.cloudTokens })
   const [addOpen, setAddOpen] = useState(false)
   const [addMenu, setAddMenu] = useState(false)
-  const [provider, setProvider] = useState<'hetzner' | 'digitalocean' | 'vultr' | 'cloudflare'>('hetzner')
+  const [provider, setProvider] = useState<'hetzner' | 'digitalocean' | 'vultr' | 'cloudflare' | 'hostinger'>('hetzner')
   const [selected, setSelected] = useState<CloudProviderToken | null>(null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -417,7 +424,7 @@ function CloudTokensPanel() {
   }
   const list = tokens.data?.cloud_tokens || []
 
-  const openAdd = (p: 'hetzner' | 'digitalocean' | 'vultr' | 'cloudflare') => {
+  const openAdd = (p: 'hetzner' | 'digitalocean' | 'vultr' | 'cloudflare' | 'hostinger') => {
     setProvider(p)
     setAddMenu(false)
     setAddOpen(true)
@@ -440,14 +447,14 @@ function CloudTokensPanel() {
           </Btn>
           {addMenu && (
             <div className="absolute right-0 z-20 mt-1 min-w-[180px] rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
-              {(['hetzner', 'digitalocean', 'vultr', 'cloudflare'] as const).map((p) => (
+              {(['hetzner', 'digitalocean', 'vultr', 'cloudflare', 'hostinger'] as const).map((p) => (
                 <button
                   key={p}
                   type="button"
                   className="block w-full rounded-md px-3 py-2 text-left text-sm capitalize hover:bg-gray-100 dark:hover:bg-white/5"
                   onClick={() => openAdd(p)}
                 >
-                  {p === 'digitalocean' ? 'DigitalOcean' : p === 'cloudflare' ? 'Cloudflare DNS' : p[0].toUpperCase() + p.slice(1)}
+                  {p === 'digitalocean' ? 'DigitalOcean' : p === 'cloudflare' ? 'Cloudflare DNS' : p === 'hostinger' ? 'Hostinger' : p[0].toUpperCase() + p.slice(1)}
                 </button>
               ))}
             </div>
@@ -941,19 +948,45 @@ function ApiTokensPanel() {
                     {t.expires_at ? new Date(t.expires_at).toLocaleString() : 'Never'}
                   </td>
                   <td className="px-3 py-2">
-                    <button
-                      type="button"
-                      className="text-error-500"
-                      onClick={() => {
-                        if (confirm(`Revoke token "${t.name}"?`)) {
-                          void api.deleteApiToken(t.id).then(() =>
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        className="text-brand-600"
+                        onClick={() => {
+                          void api.patchApiToken(t.id, { paused: !t.paused_at }).then(() =>
                             qc.invalidateQueries({ queryKey: ['api-tokens'] }),
                           )
-                        }
-                      }}
-                    >
-                      Revoke token
-                    </button>
+                        }}
+                      >
+                        {t.paused_at ? 'Resume' : 'Pause'}
+                      </button>
+                      <button
+                        type="button"
+                        className="text-brand-600"
+                        onClick={() => {
+                          if (!confirm(`Roll token "${t.name}"? The current secret stops working.`)) return
+                          void api.rollApiToken(t.id).then((res) => {
+                            setPlain(res.token)
+                            void qc.invalidateQueries({ queryKey: ['api-tokens'] })
+                          })
+                        }}
+                      >
+                        Roll
+                      </button>
+                      <button
+                        type="button"
+                        className="text-error-500"
+                        onClick={() => {
+                          if (confirm(`Revoke token "${t.name}"?`)) {
+                            void api.deleteApiToken(t.id).then(() =>
+                              qc.invalidateQueries({ queryKey: ['api-tokens'] }),
+                            )
+                          }
+                        }}
+                      >
+                        Revoke token
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -968,6 +1001,73 @@ function ApiTokensPanel() {
           </table>
         </div>
       </div>
+    </div>
+  )
+}
+
+function PasskeysPanel() {
+  const qc = useQueryClient()
+  const list = useQuery({ queryKey: ['passkeys'], queryFn: api.passkeys })
+  const enabled = useQuery({ queryKey: ['passkeys-enabled'], queryFn: api.passkeysEnabled })
+  const [name, setName] = useState('Laptop')
+  const [error, setError] = useState('')
+  const register = useMutation({
+    mutationFn: async () => {
+      const begin = await api.passkeyRegisterBegin()
+      const credential = await createPasskey(begin.options)
+      return api.passkeyRegisterFinish(begin.session_id, name, credential)
+    },
+    onSuccess: () => {
+      setError('')
+      void qc.invalidateQueries({ queryKey: ['passkeys'] })
+    },
+    onError: (err) => setError(err instanceof Error ? err.message : 'Could not register passkey'),
+  })
+  return (
+    <div className="panel-card space-y-4 p-5">
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Passkeys</h2>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          Sign in with a device passkey. If two-factor authentication is on, Dockfin still asks for the code.
+          The relying party is the host in the panel public URL.
+        </p>
+      </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={Boolean(enabled.data?.enabled)}
+          onChange={(e) => void api.setPasskeysEnabled(e.target.checked).then(() => enabled.refetch())}
+        />
+        Allow passkeys on this instance
+      </label>
+      <div className="flex flex-wrap items-end gap-2">
+        <Input label="Name" value={name} onChange={setName} required={false} />
+        <Btn primary onClick={() => register.mutate()} disabled={register.isPending || enabled.data?.enabled === false}>
+          {register.isPending ? 'Waiting for device…' : 'Register passkey'}
+        </Btn>
+      </div>
+      {error ? <p className="text-sm text-error-500">{error}</p> : null}
+      <ul className="divide-y divide-gray-200 dark:divide-gray-800">
+        {(list.data?.passkeys || []).map((p) => (
+          <li key={p.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+            <div>
+              <div className="font-medium text-gray-900 dark:text-white">{p.name}</div>
+              <div className="text-xs text-gray-500">
+                Added {new Date(p.created_at).toLocaleString()}
+                {p.last_used_at ? ` · last used ${new Date(p.last_used_at).toLocaleString()}` : ''}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="text-xs text-error-500 hover:underline"
+              onClick={() => void api.deletePasskey(p.id).then(() => qc.invalidateQueries({ queryKey: ['passkeys'] }))}
+            >
+              Delete
+            </button>
+          </li>
+        ))}
+        {!list.data?.passkeys?.length ? <li className="py-3 text-sm text-gray-500">No passkeys yet.</li> : null}
+      </ul>
     </div>
   )
 }

@@ -6,6 +6,7 @@ import {
   FolderKanban,
   GitBranch,
   KeyRound,
+  Activity,
   LayoutDashboard,
   Server,
   Settings,
@@ -89,6 +90,7 @@ export const navGroups: NavGroup[] = [
     label: 'Infrastructure',
     items: [
       { name: 'Servers', href: '/servers', icon: Server },
+      { name: 'Fleet', href: '/fleet', icon: Activity },
       { name: 'Sources', href: '/git-sources', icon: GitBranch },
       { name: 'Destinations', href: '/destinations', icon: Waypoints },
       { name: 'Storages', href: '/storages', icon: Box },
@@ -115,6 +117,7 @@ export function isNavActive(pathname: string, href: string) {
   if (href === '/dashboard') return pathname === '/dashboard' || pathname === '/'
   if (href === '/projects') return pathname === '/projects' || pathname.startsWith('/projects/')
   if (href === '/servers') return pathname === '/servers' || pathname.startsWith('/servers/')
+  if (href === '/fleet') return pathname === '/fleet'
   if (href === '/git-sources') {
     return pathname === '/git-sources' || pathname.startsWith('/git-sources/')
   }

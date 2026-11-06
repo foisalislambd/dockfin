@@ -634,6 +634,13 @@ export function SettingsPage() {
                     placeholder="2001:db8::1"
                   />
                 </div>
+                <DetectPublicIP
+                  disabled={!canEdit}
+                  onDetected={(ipv4, ipv6) => {
+                    if (ipv4) set('public_ipv4', ipv4)
+                    if (ipv6) set('public_ipv6', ipv6)
+                  }}
+                />
               </form>
             )}
 
@@ -1693,6 +1700,27 @@ function DockerRegistriesPanel({ canEdit }: { canEdit: boolean }) {
         )}
       </div>
       {remove.error && <p className="text-sm text-error-500">{remove.error.message}</p>}
+    </div>
+  )
+}
+
+function DetectPublicIP({
+  disabled,
+  onDetected,
+}: {
+  disabled?: boolean
+  onDetected: (ipv4: string, ipv6: string) => void
+}) {
+  const detect = useMutation({
+    mutationFn: () => api.detectPublicIP(),
+    onSuccess: (res) => onDetected(res.public_ipv4 || '', res.public_ipv6 || ''),
+  })
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <Btn disabled={disabled || detect.isPending} onClick={() => detect.mutate()}>
+        {detect.isPending ? 'Detecting…' : 'Detect public IP'}
+      </Btn>
+      {detect.error && <p className="text-sm text-error-500">{detect.error.message}</p>}
     </div>
   )
 }

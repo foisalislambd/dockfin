@@ -123,6 +123,9 @@ type Application struct {
 	IsPreserveRepositoryEnabled      bool            `json:"is_preserve_repository_enabled"`
 	WatchPaths                       string          `json:"watch_paths,omitempty"`
 	Redirect                         string          `json:"redirect"`
+	RedirectPermanent                bool            `json:"redirect_permanent"`
+	MaintenanceEnabled               bool            `json:"maintenance_enabled"`
+	MaintenanceMessage               string          `json:"maintenance_message,omitempty"`
 	DockerRegistryID                 *uuid.UUID      `json:"docker_registry_id,omitempty"`
 	IsDisableBuildCache              bool            `json:"is_disable_build_cache"`
 	IsGitShallowCloneEnabled         bool            `json:"is_git_shallow_clone_enabled"`
@@ -351,20 +354,22 @@ type Database struct {
 }
 
 type Service struct {
-	ID               uuid.UUID  `json:"id"`
-	TeamID           uuid.UUID  `json:"team_id"`
-	EnvironmentID    uuid.UUID  `json:"environment_id"`
-	ServerID         *uuid.UUID `json:"server_id"`
-	DestinationID    *uuid.UUID `json:"destination_id"`
-	Name             string     `json:"name"`
-	Description      string     `json:"description"`
-	ServiceType      string     `json:"service_type"`
-	DockerComposeRaw string     `json:"docker_compose_raw"`
-	DockerCompose    string     `json:"docker_compose,omitempty"`
-	FQDN             string     `json:"fqdn"`
-	Status           string     `json:"status"`
-	IsForceHTTPS     bool       `json:"is_force_https"`
-	CreatedAt        time.Time  `json:"created_at"`
+	ID                 uuid.UUID  `json:"id"`
+	TeamID             uuid.UUID  `json:"team_id"`
+	EnvironmentID      uuid.UUID  `json:"environment_id"`
+	ServerID           *uuid.UUID `json:"server_id"`
+	DestinationID      *uuid.UUID `json:"destination_id"`
+	Name               string     `json:"name"`
+	Description        string     `json:"description"`
+	ServiceType        string     `json:"service_type"`
+	DockerComposeRaw   string     `json:"docker_compose_raw"`
+	DockerCompose      string     `json:"docker_compose,omitempty"`
+	FQDN               string     `json:"fqdn"`
+	Status             string     `json:"status"`
+	IsForceHTTPS       bool       `json:"is_force_https"`
+	CreatedAt          time.Time  `json:"created_at"`
+	MaintenanceEnabled bool       `json:"maintenance_enabled"`
+	MaintenanceMessage string     `json:"maintenance_message,omitempty"`
 }
 
 func (s *Store) CreateProject(ctx context.Context, teamID uuid.UUID, name, desc string) (*Project, *Environment, error) {
@@ -740,7 +745,15 @@ func (s *Store) GetApplication(ctx context.Context, teamID, id uuid.UUID) (*Appl
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
-	return a, err
+	if err != nil {
+		return nil, err
+	}
+	if c, cerr := s.GetResourceControl(ctx, teamID, "application", id); cerr == nil && c != nil {
+		a.RedirectPermanent = c.RedirectPermanent
+		a.MaintenanceEnabled = c.MaintenanceEnabled
+		a.MaintenanceMessage = c.MaintenanceMessage
+	}
+	return a, nil
 }
 
 func (s *Store) DeleteApplication(ctx context.Context, teamID, id uuid.UUID) error {
@@ -1648,7 +1661,14 @@ func (s *Store) GetService(ctx context.Context, teamID, id uuid.UUID) (*Service,
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
-	return &svc, err
+	if err != nil {
+		return nil, err
+	}
+	if c, cerr := s.GetResourceControl(ctx, teamID, "service", id); cerr == nil && c != nil {
+		svc.MaintenanceEnabled = c.MaintenanceEnabled
+		svc.MaintenanceMessage = c.MaintenanceMessage
+	}
+	return &svc, nil
 }
 
 func (s *Store) UpdateServiceCompose(ctx context.Context, id uuid.UUID, prepared string) error {

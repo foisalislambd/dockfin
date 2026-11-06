@@ -26,7 +26,7 @@ func (a *API) handleListProjects(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"projects": projects})
+	writeJSON(w, http.StatusOK, map[string]any{"projects": a.scopedProjects(r, projects)})
 }
 
 func (a *API) handleCreateProject(w http.ResponseWriter, r *http.Request) {
@@ -250,7 +250,21 @@ func (a *API) handleListApplications(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"applications": apps})
+	keep, err := a.envAllowed(r)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	filtered := apps[:0]
+	for _, app := range apps {
+		if keep(app.EnvironmentID) {
+			filtered = append(filtered, app)
+		}
+	}
+	if filtered == nil {
+		filtered = []store.Application{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"applications": filtered})
 }
 
 func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
@@ -791,7 +805,21 @@ func (a *API) handleListDatabases(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"databases": dbs})
+	keepDB, err := a.envAllowed(r)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	filteredDB := dbs[:0]
+	for _, db := range dbs {
+		if keepDB(db.EnvironmentID) {
+			filteredDB = append(filteredDB, db)
+		}
+	}
+	if filteredDB == nil {
+		filteredDB = []store.Database{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"databases": filteredDB})
 }
 
 func (a *API) handleCreateDatabase(w http.ResponseWriter, r *http.Request) {

@@ -192,8 +192,9 @@ func TraefikBasicAuthLabels(appName, users string) []string {
 }
 
 // TraefikWWWRedirectLabels builds Coolify-style redirectregex middleware for www ↔ non-www.
-// mode must be "www" (bare → www) or "non-www" (www → bare). Callers should skip magic domains.
-func TraefikWWWRedirectLabels(appName, mode string) []string {
+// mode must be "www" (bare → www) or "non-www" (www → bare). permanent selects 301 vs 302.
+// Callers should skip magic domains.
+func TraefikWWWRedirectLabels(appName, mode string, permanent bool) []string {
 	router := sanitize(appName)
 	mode = strings.ToLower(strings.TrimSpace(mode))
 	if router == "" || (mode != "www" && mode != "non-www") {
@@ -209,10 +210,14 @@ func TraefikWWWRedirectLabels(appName, mode string) []string {
 		regex = `^(http|https)://www\.(.+)`
 		replacement = `${1}://${2}`
 	}
+	flag := "false"
+	if permanent {
+		flag = "true"
+	}
 	return []string{
 		fmt.Sprintf("traefik.http.middlewares.%s.redirectregex.regex=%s", mw, regex),
 		fmt.Sprintf("traefik.http.middlewares.%s.redirectregex.replacement=%s", mw, replacement),
-		fmt.Sprintf("traefik.http.middlewares.%s.redirectregex.permanent=false", mw),
+		fmt.Sprintf("traefik.http.middlewares.%s.redirectregex.permanent=%s", mw, flag),
 		fmt.Sprintf("traefik.http.routers.%s.middlewares=%s", router, mw),
 	}
 }

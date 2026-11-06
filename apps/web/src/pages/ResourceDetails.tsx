@@ -7,6 +7,8 @@ import {
   Box,
   Cloud,
   FileKey,
+  Folder,
+  HeartPulse,
   KeyRound,
   Layers,
   ChevronLeft,
@@ -26,10 +28,12 @@ import {
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
+import { useAuth } from '../lib/auth'
 import { useConfirm } from '../components/ConfirmDialog'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
 import { PersistentStoragesPanel } from '../components/PersistentStoragesPanel'
 import { DatabaseInitScripts } from '../components/DatabaseInitScripts'
+import { FileBrowser } from '../components/FileBrowser'
 import { SqliteDatabaseCard } from '../components/SqliteDatabase'
 import { TrafficSettings, TrafficSummary } from '../components/TrafficAnalytics'
 import { GithubRunners } from '../components/GithubRunners'
@@ -53,6 +57,7 @@ const DB_TABS = [
   { id: 'backups', label: 'Backups', icon: Archive },
   { id: 'logs', label: 'Logs', icon: ScrollText },
   { id: 'terminal', label: 'Terminal', icon: Terminal },
+  { id: 'files', label: 'Files', icon: Folder },
   { id: 'metrics', label: 'Metrics', icon: Activity },
   { id: 'tags', label: 'Tags', icon: Tags },
   { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
@@ -86,6 +91,7 @@ const SERVER_NAV = [
   { id: 'metrics', label: 'Metrics', icon: Activity },
   { id: 'github-runners', label: 'GitHub Runners', icon: Workflow },
   { id: 'patches', label: 'Patching', icon: ShieldAlert },
+  { id: 'health', label: 'Health', icon: HeartPulse },
   { id: 'terminal-access', label: 'Terminal Access', icon: Terminal },
   { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
 ] as const
@@ -97,7 +103,7 @@ const SERVER_NAV_GROUPS: readonly SideNavGroup<ServerSection>[] = [
   { label: 'Networking', ids: ['tunnel', 'destinations', 'swarm'] },
   { label: 'Platform', ids: ['proxy', 'proxy-dynamic', 'proxy-logs', 'sentinel', 'sentinel-logs', 'resources'] },
   { label: 'Operations', ids: ['terminal', 'images', 'cleanup', 'registries', 'drains', 'metrics', 'github-runners'] },
-  { label: 'Security', ids: ['patches', 'terminal-access'] },
+  { label: 'Security', ids: ['patches', 'health', 'terminal-access'] },
   { label: 'Danger Zone', ids: ['danger'] },
 ]
 
@@ -531,6 +537,9 @@ export function DatabaseDetailPage() {
   }
   const [deleteOpen, setDeleteOpen] = useState(false)
   const db = useQuery({ queryKey: ['database', dbId], queryFn: () => api.getDatabase(dbId) })
+  const flushCache = useMutation({
+    mutationFn: () => api.flushDatabaseCache(dbId),
+  })
   const destinations = useQuery({ queryKey: ['destinations'], queryFn: api.destinations })
   const serverId =
     (destinations.data?.destinations || []).find((dd) => dd.id === db.data?.destination_id)?.server_id || ''
@@ -781,6 +790,31 @@ export function DatabaseDetailPage() {
             <PersistentStoragesPanel databaseId={dbId} editable />
           </div>
           <DatabaseInitScripts databaseId={dbId} />
+
+          {['redis', 'keydb', 'dragonfly'].includes((d.engine || '').toLowerCase()) && (
+            <div className="mt-6 panel-card space-y-3 p-5">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Flush cache</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Runs FLUSHALL inside the database container. Every key is removed.
+              </p>
+              <Btn
+                onClick={() => {
+                  if (confirm('Type is not required here. Flush all keys?')) flushCache.mutate()
+                }}
+                disabled={flushCache.isPending}
+              >
+                {flushCache.isPending ? 'Flushing…' : 'Flush all keys'}
+              </Btn>
+              {flushCache.error && <p className="text-sm text-error-500">{flushCache.error.message}</p>}
+              {flushCache.data && <p className="text-sm text-success-600">Cache flushed.</p>}
+            </div>
+          )}
+        </TabPanel>
+      )}
+
+      {tab === 'files' && (
+        <TabPanel>
+          <FileBrowser kind="databases" id={dbId} />
         </TabPanel>
       )}
 
@@ -1123,6 +1157,7 @@ function ServerEdgePanel({
             <option value="newrelic">New Relic</option>
             <option value="axiom">Axiom</option>
             <option value="custom">Custom</option>
+            <option value="cloudwatch">CloudWatch</option>
           </select>
         </label>
         <label className="block text-sm">
@@ -1133,7 +1168,11 @@ function ServerEdgePanel({
             value={drainConfig}
             onChange={(e) => setDrainConfig(e.target.value)}
             rows={4}
-            placeholder='{"endpoint":"https://log-api.newrelic.com/log/v1","api_key":"…"}'
+            placeholder={
+              drainType === 'cloudwatch'
+                ? '{"region":"us-east-1","group":"dockfin","stream_prefix":"app","access_key_id":"…","secret_access_key":"…"}'
+                : '{"endpoint":"https://log-api.newrelic.com/log/v1","api_key":"…"}'
+            }
             className="w-full panel-field rounded-lg px-3 py-2 font-mono text-xs"
           />
         </label>
@@ -1254,6 +1293,77 @@ function ServerEdgePanel({
   )
 }
 
+function ServerHealthPanel({
+  serverId,
+  diskNotify,
+  setDiskNotify,
+}: {
+  serverId: string
+  diskNotify: string
+  setDiskNotify: (v: string) => void
+}) {
+  const qc = useQueryClient()
+  const health = useQuery({
+    queryKey: ['server-health', serverId],
+    queryFn: () => api.serverHealth(serverId),
+  })
+  const check = useMutation({
+    mutationFn: () => api.checkServerHealth(serverId),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['server-health', serverId] }),
+  })
+  const save = useMutation({
+    mutationFn: () =>
+      api.patchServerOps(serverId, {
+        disk_usage_notification_threshold:
+          diskNotify.trim() === '' || !Number.isFinite(Number(diskNotify)) ? 80 : Number(diskNotify),
+      }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['server-ops', serverId] }),
+  })
+  const h = check.data?.health || health.data
+  return (
+    <TabPanel>
+      <div className="panel-card space-y-4 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Server health</h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Dockfin checks reachability, disk use, the Traefik image, and pending OS patches. Alerts use the notification channels already configured for this team.
+            </p>
+          </div>
+          <Btn primary disabled={check.isPending} onClick={() => check.mutate()}>
+            {check.isPending ? 'Checking…' : 'Check now'}
+          </Btn>
+        </div>
+        {health.isLoading && <p className="text-sm text-gray-500">Loading…</p>}
+        {(health.error || check.error) && (
+          <p className="text-sm text-error-500">{((health.error || check.error) as Error).message}</p>
+        )}
+        {h && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Meta label="Reachable" value={h.reachable ? 'Yes' : 'No'} />
+            <Meta label="Failed checks" value={String(h.consecutive_failures || 0)} />
+            <Meta label="Disk used" value={h.disk_used_percent == null ? '—' : `${h.disk_used_percent}%`} />
+            <Meta label="Traefik" value={h.traefik_image || '—'} />
+            <Meta label="Traefik outdated" value={h.traefik_outdated ? 'Yes' : 'No'} />
+            <Meta label="Pending patches" value={String(h.patch_count || 0)} />
+          </div>
+        )}
+        {h?.last_error && <p className="text-sm text-error-500">{h.last_error}</p>}
+        {(check.data?.warnings || []).map((w) => (
+          <p key={w} className="text-sm text-amber-600 dark:text-amber-400">{w}</p>
+        ))}
+        <div className="max-w-xs">
+          <Input label="Disk alert threshold %" value={diskNotify} onChange={setDiskNotify} />
+        </div>
+        <Btn disabled={save.isPending} onClick={() => save.mutate()}>
+          {save.isPending ? 'Saving…' : 'Save threshold'}
+        </Btn>
+        {save.error && <p className="text-sm text-error-500">{save.error.message}</p>}
+      </div>
+    </TabPanel>
+  )
+}
+
 export function ServerDetailPage() {
   const { serverId } = useParams({ strict: false }) as { serverId: string }
   const search = useSearch({ strict: false }) as { tab?: string }
@@ -1273,6 +1383,12 @@ export function ServerDetailPage() {
   const [cleanupFreq, setCleanupFreq] = useState('0 0 * * *')
   const [cleanupThreshold, setCleanupThreshold] = useState('80')
   const [forceCleanup, setForceCleanup] = useState(false)
+  const [diskNotify, setDiskNotify] = useState('80')
+  const [catchallOn, setCatchallOn] = useState(false)
+  const [catchallURL, setCatchallURL] = useState('')
+  const [catchallPermanent, setCatchallPermanent] = useState(false)
+  const [transferTeam, setTransferTeam] = useState('')
+  const { teams } = useAuth()
   const [proxyCfgName, setProxyCfgName] = useState('custom.yml')
   const [proxyCfgValue, setProxyCfgValue] = useState('')
   const [freshToken, setFreshToken] = useState('')
@@ -1303,13 +1419,17 @@ export function ServerDetailPage() {
   const ops = useQuery({
     queryKey: ['server-ops', serverId],
     queryFn: () => api.getServerOps(serverId),
-    enabled: tab === 'sentinel' || tab === 'cleanup' || tab === 'advanced',
+    enabled: tab === 'sentinel' || tab === 'cleanup' || tab === 'advanced' || tab === 'proxy' || tab === 'health',
   })
   useEffect(() => {
     if (!ops.data) return
     setCleanupFreq(ops.data.docker_cleanup_frequency || '0 0 * * *')
     setCleanupThreshold(String(ops.data.docker_cleanup_threshold ?? 80))
     setForceCleanup(Boolean(ops.data.force_docker_cleanup))
+    setDiskNotify(String(ops.data.disk_usage_notification_threshold ?? 80))
+    setCatchallOn(Boolean(ops.data.proxy_catchall_enabled))
+    setCatchallURL(ops.data.proxy_catchall_url || '')
+    setCatchallPermanent(Boolean(ops.data.proxy_catchall_permanent))
   }, [ops.data])
   const cleanupExecs = useQuery({
     queryKey: ['docker-cleanup', serverId],
@@ -1669,9 +1789,92 @@ export function ServerDetailPage() {
                 {(startProxy.error || stopProxy.error)?.message}
               </p>
             )}
+            <div className="border-t border-gray-200 pt-4 dark:border-gray-800">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Unknown host</h3>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Traefik and Caddy can answer hostnames that do not match a resource. Leave the redirect empty to serve the maintenance page. Leave this off to keep the current proxy behavior.
+              </p>
+              <label className="mt-3 flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={catchallOn} onChange={(e) => setCatchallOn(e.target.checked)} />
+                Enable catch-all
+              </label>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <Input label="Redirect URL" value={catchallURL} onChange={setCatchallURL} />
+                <label className="flex items-center gap-2 self-end text-sm">
+                  <input
+                    type="checkbox"
+                    checked={catchallPermanent}
+                    onChange={(e) => setCatchallPermanent(e.target.checked)}
+                    disabled={!catchallURL.trim()}
+                  />
+                  Permanent redirect (301)
+                </label>
+              </div>
+              <div className="mt-3">
+              <Btn
+                primary
+                disabled={patchOps.isPending}
+                onClick={() =>
+                  patchOps.mutate({
+                    proxy_catchall_enabled: catchallOn,
+                    proxy_catchall_url: catchallURL.trim(),
+                    proxy_catchall_permanent: catchallPermanent && Boolean(catchallURL.trim()),
+                  })
+                }
+              >
+                {patchOps.isPending ? 'Saving…' : 'Save catch-all'}
+              </Btn>
+              {patchOps.error && <p className="text-sm text-error-500">{patchOps.error.message}</p>}
+              </div>
+            </div>
+            <div className="border-t border-gray-200 pt-4 dark:border-gray-800">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Transfer server</h3>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Moves this server and its destinations to another team you administer. Applications, services, and databases must be removed first. The SSH key is copied onto the target team. Export downloads metadata only; the private key stays here.
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <select
+                  className="panel-field rounded-lg px-3 py-2 text-sm"
+                  value={transferTeam}
+                  onChange={(e) => setTransferTeam(e.target.value)}
+                >
+                  <option value="">Target team</option>
+                  {(teams || []).map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                <Btn
+                  onClick={() => {
+                    if (!transferTeam) return
+                    void api.transferServer(serverId, transferTeam).then(() => nav({ to: '/servers' }))
+                  }}
+                >
+                  Transfer
+                </Btn>
+                <Btn
+                  onClick={() => {
+                    void api.exportServer(serverId).then((bundle) => {
+                      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' })
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = `server-${serverId}.json`
+                      a.click()
+                      URL.revokeObjectURL(url)
+                    })
+                  }}
+                >
+                  Export metadata
+                </Btn>
+              </div>
+            </div>
           </div>
         </TabPanel>
       )}
+
+      {tab === 'health' && <ServerHealthPanel serverId={serverId} diskNotify={diskNotify} setDiskNotify={setDiskNotify} />}
 
       {tab === 'proxy-dynamic' && (
         <TabPanel>

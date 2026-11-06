@@ -31,6 +31,10 @@ type ServerOpsSettings struct {
 	TrafficSampleThreshold            int      `json:"traffic_sample_threshold"`
 	TrafficRetentionDays              int      `json:"traffic_retention_days"`
 	TrafficIPMode                     string   `json:"traffic_ip_mode"`
+	DiskUsageNotificationThreshold    int      `json:"disk_usage_notification_threshold"`
+	ProxyCatchallEnabled              bool     `json:"proxy_catchall_enabled"`
+	ProxyCatchallURL                  string   `json:"proxy_catchall_url"`
+	ProxyCatchallPermanent            bool     `json:"proxy_catchall_permanent"`
 }
 
 type DockerCleanupExecution struct {
@@ -76,7 +80,11 @@ func (s *Store) GetServerOpsSettings(ctx context.Context, teamID, serverID uuid.
 		       COALESCE(traffic_analytics_enabled, false),
 		       COALESCE(traffic_sample_threshold, 0),
 		       COALESCE(traffic_retention_days, 7),
-		       COALESCE(NULLIF(traffic_ip_mode,''), 'anonymized')
+		       COALESCE(NULLIF(traffic_ip_mode,''), 'anonymized'),
+		       COALESCE(disk_usage_notification_threshold, 80),
+		       COALESCE(proxy_catchall_enabled, false),
+		       COALESCE(proxy_catchall_url, ''),
+		       COALESCE(proxy_catchall_permanent, false)
 		FROM server_settings WHERE server_id=$1
 	`, serverID).Scan(
 		&out.SentinelEnabled, &out.SentinelToken, &out.SentinelMetricsRefreshRateSeconds,
@@ -85,6 +93,7 @@ func (s *Store) GetServerOpsSettings(ctx context.Context, teamID, serverID uuid.
 		&out.LogDrainEnabled, &out.LogDrainType, &out.LogDrainConfig,
 		&out.CACertificate, &acl,
 		&out.TrafficAnalyticsEnabled, &out.TrafficSampleThreshold, &out.TrafficRetentionDays, &out.TrafficIPMode,
+		&out.DiskUsageNotificationThreshold, &out.ProxyCatchallEnabled, &out.ProxyCatchallURL, &out.ProxyCatchallPermanent,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return &ServerOpsSettings{
@@ -94,6 +103,7 @@ func (s *Store) GetServerOpsSettings(ctx context.Context, teamID, serverID uuid.
 			TerminalACLUserIDs:                []string{},
 			TrafficRetentionDays:              7,
 			TrafficIPMode:                     "anonymized",
+			DiskUsageNotificationThreshold:    80,
 		}, nil
 	}
 	if err != nil {
@@ -108,6 +118,9 @@ func (s *Store) GetServerOpsSettings(ctx context.Context, teamID, serverID uuid.
 	}
 	if out.TrafficIPMode == "" {
 		out.TrafficIPMode = "anonymized"
+	}
+	if out.DiskUsageNotificationThreshold <= 0 {
+		out.DiskUsageNotificationThreshold = 80
 	}
 	return &out, nil
 }
@@ -144,6 +157,10 @@ func (s *Store) SetServerOpsSettings(ctx context.Context, teamID, serverID uuid.
 	if threshold < 0 {
 		threshold = 0
 	}
+	diskNotify := in.DiskUsageNotificationThreshold
+	if diskNotify <= 0 {
+		diskNotify = 80
+	}
 	tag, err := s.Pool.Exec(ctx, `
 		UPDATE server_settings SET
 			sentinel_enabled=$2,
@@ -163,13 +180,18 @@ func (s *Store) SetServerOpsSettings(ctx context.Context, teamID, serverID uuid.
 			traffic_sample_threshold=$16,
 			traffic_retention_days=$17,
 			traffic_ip_mode=$18,
+			disk_usage_notification_threshold=$19,
+			proxy_catchall_enabled=$20,
+			proxy_catchall_url=$21,
+			proxy_catchall_permanent=$22,
 			updated_at=NOW()
 		WHERE server_id=$1
 	`, serverID, in.SentinelEnabled, in.SentinelToken, refresh, freq, thresh, in.ForceDockerCleanup,
 		in.CloudflareTunnelToken, in.CloudflareTunnelEnabled,
 		in.LogDrainEnabled, in.LogDrainType, in.LogDrainConfig,
 		in.CACertificate, acl,
-		in.TrafficAnalyticsEnabled, threshold, retention, mode)
+		in.TrafficAnalyticsEnabled, threshold, retention, mode,
+		diskNotify, in.ProxyCatchallEnabled, strings.TrimSpace(in.ProxyCatchallURL), in.ProxyCatchallPermanent)
 	if err != nil {
 		return err
 	}

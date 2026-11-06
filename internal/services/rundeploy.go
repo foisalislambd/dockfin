@@ -125,6 +125,7 @@ func RunDeploy(ctx context.Context, p DeployParams) error {
 				}
 				if (d.Redirect == "www" || d.Redirect == "non-www") && !proxy.IsMagicDomainHost(d.Host) {
 					opts.Redirect = d.Redirect
+					opts.RedirectPermanent = d.RedirectPermanent
 				}
 				for _, row := range published {
 					if row.NoIndex {

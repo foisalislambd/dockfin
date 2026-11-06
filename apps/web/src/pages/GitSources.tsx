@@ -157,6 +157,60 @@ export function GitSourcesPage() {
           </div>
         )}
       </div>
+      <GitLabSystemHooks />
+    </div>
+  )
+}
+
+function GitLabSystemHooks() {
+  const qc = useQueryClient()
+  const hooks = useQuery({ queryKey: ['gitlab-hooks'], queryFn: api.gitlabSystemHooks })
+  const [url, setUrl] = useState('https://gitlab.com')
+  const [token, setToken] = useState('')
+  const [error, setError] = useState('')
+  const create = useMutation({
+    mutationFn: () => api.createGitLabSystemHook(url, token),
+    onSuccess: () => {
+      setToken('')
+      setError('')
+      void qc.invalidateQueries({ queryKey: ['gitlab-hooks'] })
+    },
+    onError: (err) => setError(err instanceof Error ? err.message : 'Could not install the hook'),
+  })
+  return (
+    <div className="panel-card mt-6 space-y-3 p-5">
+      <div>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">GitLab system hook</h2>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          One instance hook covers push and merge request events for every project on that GitLab. Dockfin matches
+          path_with_namespace to applications on this team. The token needs permission to create system hooks and to read projects.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Input label="GitLab URL" value={url} onChange={setUrl} />
+        <Input label="Personal access token" value={token} onChange={setToken} required={false} />
+      </div>
+      <Btn onClick={() => create.mutate()} disabled={create.isPending || !token}>
+        {create.isPending ? 'Installing…' : 'Install system hook'}
+      </Btn>
+      {error ? <p className="text-sm text-error-500">{error}</p> : null}
+      <ul className="divide-y divide-gray-200 text-sm dark:divide-gray-800">
+        {(hooks.data?.hooks || []).map((h) => (
+          <li key={h.id} className="flex items-center justify-between py-2">
+            <span>
+              {h.gitlab_url}
+              {h.hook_id ? <span className="ml-2 text-xs text-gray-500">#{h.hook_id}</span> : null}
+            </span>
+            <button
+              type="button"
+              className="text-xs text-error-500 hover:underline"
+              onClick={() => void api.deleteGitLabSystemHook(h.id).then(() => qc.invalidateQueries({ queryKey: ['gitlab-hooks'] }))}
+            >
+              Remove
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

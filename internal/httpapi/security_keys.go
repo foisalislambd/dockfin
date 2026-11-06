@@ -336,6 +336,10 @@ func validateCloudProviderToken(provider, token string) error {
 		url = "https://api.cloudflare.com/client/v4/user/tokens/verify"
 		authHeader = "Authorization"
 		authValue = "Bearer " + token
+	case "hostinger":
+		url = "https://developers.hostinger.com/api/vps/v1/virtual-machines"
+		authHeader = "Authorization"
+		authValue = "Bearer " + token
 	default:
 		return fmt.Errorf("unsupported provider")
 	}

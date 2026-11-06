@@ -208,6 +208,12 @@ func vectorConfig(kind, raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	var cfg map[string]any
 	_ = json.Unmarshal([]byte(raw), &cfg)
+	if kind == "cloudwatch" {
+		if cfg == nil {
+			return "", fmt.Errorf("cloudwatch drain needs region, group, access_key_id, and secret_access_key")
+		}
+		return cloudWatchVector(cfg)
+	}
 	uri := raw
 	headers := ""
 	if cfg != nil {
@@ -269,4 +275,42 @@ sinks:
       codec: json
     headers:
 %s`, logDrainContainer, uri, headers), nil
+}
+
+func cloudWatchVector(cfg map[string]any) (string, error) {
+	region, _ := cfg["region"].(string)
+	group, _ := cfg["group"].(string)
+	prefix, _ := cfg["stream_prefix"].(string)
+	key, _ := cfg["access_key_id"].(string)
+	secret, _ := cfg["secret_access_key"].(string)
+	region = strings.TrimSpace(region)
+	group = strings.TrimSpace(group)
+	if region == "" || group == "" || strings.TrimSpace(key) == "" || strings.TrimSpace(secret) == "" {
+		return "", fmt.Errorf("cloudwatch drain needs region, group, access_key_id, and secret_access_key")
+	}
+	if strings.ContainsAny(region+group+prefix+key+secret, "\n\r") {
+		return "", fmt.Errorf("cloudwatch values cannot contain newlines")
+	}
+	stream := "{{ container_name }}"
+	if prefix != "" {
+		stream = strings.TrimSpace(prefix) + "-{{ container_name }}"
+	}
+	return fmt.Sprintf(`sources:
+  docker_logs:
+    type: docker_logs
+    exclude_containers:
+      - %s
+sinks:
+  out:
+    type: aws_cloudwatch_logs
+    inputs: ["docker_logs"]
+    region: %q
+    group_name: %q
+    stream_name: %q
+    encoding:
+      codec: json
+    auth:
+      access_key_id: %q
+      secret_access_key: %q
+`, logDrainContainer, region, group, stream, key, secret), nil
 }
