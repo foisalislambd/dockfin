@@ -1388,6 +1388,8 @@ export function ServerDetailPage() {
   const [catchallURL, setCatchallURL] = useState('')
   const [catchallPermanent, setCatchallPermanent] = useState(false)
   const [transferTeam, setTransferTeam] = useState('')
+  const [bundlePass, setBundlePass] = useState('')
+  const [bundleError, setBundleError] = useState('')
   const { teams } = useAuth()
   const [proxyCfgName, setProxyCfgName] = useState('custom.yml')
   const [proxyCfgValue, setProxyCfgValue] = useState('')
@@ -1830,7 +1832,7 @@ export function ServerDetailPage() {
             <div className="border-t border-gray-200 pt-4 dark:border-gray-800">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Transfer server</h3>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Moves this server and its destinations to another team you administer. Applications, services, and databases must be removed first. The SSH key is copied onto the target team. Export downloads metadata only; the private key stays here.
+                Moves this server and its destinations to another team you administer. Applications, services, and databases must be removed first. The SSH key is copied onto the target team. Metadata export leaves the private key here. A secret bundle encrypts the key, environment variables, and database credentials with a passphrase for another Dockfin instance.
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <select
@@ -1868,6 +1870,35 @@ export function ServerDetailPage() {
                 >
                   Export metadata
                 </Btn>
+              </div>
+              <div className="mt-4 flex flex-wrap items-end gap-2">
+                <label className="block text-sm">
+                  <span className="mb-1 block text-gray-500 dark:text-gray-400">Bundle passphrase</span>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    value={bundlePass}
+                    onChange={(e) => setBundlePass(e.target.value)}
+                    className="panel-field w-64 rounded-lg px-3 py-2"
+                  />
+                </label>
+                <Btn
+                  onClick={() => {
+                    setBundleError('')
+                    void api.exportBundle(serverId, bundlePass).then((res) => {
+                      const blob = new Blob([res.bundle], { type: 'application/json' })
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = `dockfin-bundle-${serverId}.json`
+                      a.click()
+                      URL.revokeObjectURL(url)
+                    }).catch((e: Error) => setBundleError(e.message))
+                  }}
+                >
+                  Export secret bundle
+                </Btn>
+                {bundleError ? <p className="text-sm text-error-500">{bundleError}</p> : null}
               </div>
             </div>
           </div>

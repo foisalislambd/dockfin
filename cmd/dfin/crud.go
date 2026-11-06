@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 )
 
@@ -452,6 +453,57 @@ func parityCmd(asJSON bool, stdout, stderr io.Writer, call caller, base, token, 
 			return 1
 		}
 		return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/servers/"+sub+"/transfer", map[string]any{"team_id": ids[0]})
+	case "vulns":
+		switch sub {
+		case "list":
+			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodGet, "/api/v1/image-scans", nil)
+		case "run":
+			if !need(1, "dfin vulns run <application-uuid>") {
+				return 1
+			}
+			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/applications/"+ids[0]+"/image-scans", map[string]any{})
+		case "policy":
+			if flags["enabled"] != "" || flags["gate"] != "" {
+				enabled := flags["enabled"] != "false"
+				gate := flags["gate"]
+				if gate == "" {
+					gate = "off"
+				}
+				return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPut, "/api/v1/settings/image-scanning", map[string]any{"enabled": enabled, "gate": gate})
+			}
+			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodGet, "/api/v1/settings/image-scanning", nil)
+		default:
+			fmt.Fprintln(stderr, "usage: dfin vulns | dfin vulns run <application-uuid> | dfin vulns policy")
+			return 1
+		}
+	case "bundle":
+		pass := flags["passphrase"]
+		if pass == "" {
+			pass = os.Getenv("DOCKFIN_BUNDLE_PASSPHRASE")
+		}
+		switch sub {
+		case "export":
+			if pass == "" || len(ids) < 1 {
+				fmt.Fprintln(stderr, "usage: dfin bundle export <server-uuid> --passphrase TEXT")
+				return 1
+			}
+			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/servers/"+ids[0]+"/bundle", map[string]any{"passphrase": pass})
+		case "import":
+			path := flags["file"]
+			if pass == "" || path == "" {
+				fmt.Fprintln(stderr, "usage: dfin bundle import --passphrase TEXT --file path")
+				return 1
+			}
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				fmt.Fprintln(stderr, err)
+				return 1
+			}
+			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/server-bundles", map[string]any{"passphrase": pass, "bundle": string(raw)})
+		default:
+			fmt.Fprintln(stderr, "usage: dfin bundle export|import")
+			return 1
+		}
 	default:
 		fmt.Fprintln(stderr, "unknown command")
 		return 1

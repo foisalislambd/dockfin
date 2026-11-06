@@ -24,6 +24,9 @@ export function ServersPage() {
   const qc = useQueryClient()
   const servers = useQuery({ queryKey: ['servers'], queryFn: api.servers })
   const [showKey, setShowKey] = useState(false)
+  const [bundlePass, setBundlePass] = useState('')
+  const [bundleText, setBundleText] = useState('')
+  const [bundleMsg, setBundleMsg] = useState('')
 
   const createKey = useMutation({
     mutationFn: ({ name, key }: { name: string; key: string }) => api.createKey(name, key),
@@ -61,6 +64,44 @@ export function ServersPage() {
           </>
         }
       />
+
+      <div className="panel-card space-y-3 p-4">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Import a secret bundle</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Paste a bundle exported from another Dockfin. The passphrase decrypts the private key, environment variables, and database credentials, then this instance stores them with its own master key.
+        </p>
+        <input
+          type="password"
+          autoComplete="new-password"
+          placeholder="Passphrase"
+          value={bundlePass}
+          onChange={(e) => setBundlePass(e.target.value)}
+          className="panel-field w-full max-w-md rounded-lg px-3 py-2 text-sm"
+        />
+        <textarea
+          value={bundleText}
+          onChange={(e) => setBundleText(e.target.value)}
+          placeholder="Paste the bundle JSON"
+          className="panel-field min-h-24 w-full rounded-lg px-3 py-2 font-mono text-xs"
+        />
+        <Btn
+          primary
+          onClick={() => {
+            setBundleMsg('')
+            void api
+              .importBundle(bundlePass, bundleText.trim())
+              .then((res) => {
+                setBundleMsg(`Imported server ${res.server_id}: ${res.applications} applications, ${res.databases} databases, ${res.services} services.`)
+                setBundleText('')
+                void qc.invalidateQueries({ queryKey: ['servers'] })
+              })
+              .catch((e: Error) => setBundleMsg(e.message))
+          }}
+        >
+          Import bundle
+        </Btn>
+        {bundleMsg ? <p className="text-sm text-gray-600 dark:text-gray-300">{bundleMsg}</p> : null}
+      </div>
 
       <ServerList servers={servers.data?.servers || []} qc={qc} />
 

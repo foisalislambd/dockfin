@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/dockfin/dockfin/internal/deploy"
+	"github.com/dockfin/dockfin/internal/imagescan"
 	"github.com/dockfin/dockfin/internal/notify"
 	"github.com/dockfin/dockfin/internal/redact"
 	"github.com/dockfin/dockfin/internal/services"
@@ -262,6 +263,24 @@ func (q *Queue) handle(ctx context.Context, job DeployJob) {
 		q.publish(job.DeploymentID, "status", "cancelled")
 		return
 	}
+	refs := []string{}
+	if ref := imagescan.ApplicationImage(app); ref != "" {
+		refs = append(refs, ref)
+	}
+	if app.BuildPack == "dockercompose" {
+		raw := app.DockerCompose
+		if raw == "" {
+			raw = app.DockerComposeRaw
+		}
+		refs = append(refs, imagescan.ComposeImages(raw)...)
+	}
+	if err := q.scanDeployedImages(ctx, job.TeamID, srv.ID, job.DeploymentID, app.ID, "application", refs, pipe.Log); err != nil {
+		_ = q.markStatus(ctx, job.DeploymentID, "failed", err.Error())
+		_ = q.Store.UpdateApplicationStatus(ctx, app.ID, "exited")
+		q.publish(job.DeploymentID, "status", "failed")
+		q.notifyDeploy(ctx, job.TeamID, app.Name, "failed", err.Error(), commitLine(dep))
+		return
+	}
 	_ = q.markStatus(ctx, job.DeploymentID, "finished", "")
 	if dep.PullRequestID == 0 {
 		sha := strings.TrimSpace(dep.CommitSHA)
@@ -363,6 +382,13 @@ func (q *Queue) handleService(ctx context.Context, job DeployJob, dep *store.Dep
 	}
 	if cancelled, _ := q.Store.IsDeploymentCancelled(ctx, job.DeploymentID); cancelled {
 		q.publish(job.DeploymentID, "status", "cancelled")
+		return
+	}
+	if err := q.scanDeployedImages(ctx, job.TeamID, serverID, job.DeploymentID, svc.ID, "service", imagescan.ServiceImages(svc), emit); err != nil {
+		_ = q.markStatus(ctx, job.DeploymentID, "failed", err.Error())
+		_ = q.Store.UpdateServiceStatus(ctx, svc.ID, "exited")
+		q.publish(job.DeploymentID, "status", "failed")
+		q.notifyDeploy(ctx, job.TeamID, svc.Name, "failed", err.Error(), "")
 		return
 	}
 	_ = q.markStatus(ctx, job.DeploymentID, "finished", "")

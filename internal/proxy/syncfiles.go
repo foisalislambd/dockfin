@@ -20,11 +20,18 @@ func SyncMaintenance(client *ssh.Client, network string, cfg MaintenanceConfig) 
 	}
 	if strings.TrimSpace(cfg.TraefikYAML) == "" {
 		_, _, _ = sshx.RunArgs(client, "rm", "-f", MaintenanceFile)
-		_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", MaintenanceContainer)
+		if SwarmManager(client) {
+			_, _, _ = sshx.RunArgs(client, "docker", "service", "rm", MaintenanceContainer)
+		} else {
+			_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", MaintenanceContainer)
+		}
 		return nil
 	}
 	if err := sshx.WriteFile(client, MaintenanceFile, []byte(cfg.TraefikYAML)); err != nil {
 		return err
+	}
+	if SwarmManager(client) {
+		return syncSwarmMaintenance(client, network, cfg)
 	}
 	conf := MaintenanceHTMLDir + "/default.conf"
 	if err := sshx.WriteFile(client, conf, []byte(cfg.NginxConf)); err != nil {
@@ -70,6 +77,10 @@ func SyncEdgeWithHosts(client *ssh.Client, proxyType, network string, hosts []Ma
 		if err := sshx.WriteFile(client, CaddyfilePath, []byte(file)); err != nil {
 			return err
 		}
+		if SwarmManager(client) {
+			reloadSwarmCaddy(client)
+			return nil
+		}
 		_, _, _ = sshx.RunArgs(client, "docker", "exec", ProxyContainer, "caddy", "reload", "--config", "/etc/caddy/Caddyfile")
 		return nil
 	}
@@ -87,6 +98,12 @@ func syncMaintenanceContainer(client *ssh.Client, network string, cfg Maintenanc
 	if _, _, err := sshx.RunArgs(client, "mkdir", "-p", MaintenanceHTMLDir); err != nil {
 		return fmt.Errorf("mkdir proxy dir: %w", err)
 	}
+	if network == "" {
+		network = "dockfin"
+	}
+	if SwarmManager(client) {
+		return syncSwarmMaintenance(client, network, cfg)
+	}
 	if strings.TrimSpace(cfg.NginxConf) == "" {
 		_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", MaintenanceContainer)
 		return nil
@@ -94,9 +111,6 @@ func syncMaintenanceContainer(client *ssh.Client, network string, cfg Maintenanc
 	conf := MaintenanceHTMLDir + "/default.conf"
 	if err := sshx.WriteFile(client, conf, []byte(cfg.NginxConf)); err != nil {
 		return err
-	}
-	if network == "" {
-		network = "dockfin"
 	}
 	_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", MaintenanceContainer)
 	_, errOut, err := sshx.RunArgs(client,

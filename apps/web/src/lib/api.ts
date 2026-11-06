@@ -1355,6 +1355,50 @@ export const api = {
       body: JSON.stringify({ team_id: teamId }),
     }),
   exportServer: (serverId: string) => request<Record<string, unknown>>(`/api/v1/servers/${serverId}/export`),
+  exportBundle: (serverId: string, passphrase: string) =>
+    request<{ bundle: string }>(`/api/v1/servers/${serverId}/bundle`, {
+      method: 'POST',
+      body: JSON.stringify({ passphrase }),
+    }),
+  importBundle: (passphrase: string, bundle: string) =>
+    request<{ server_id: string; projects: number; applications: number; services: number; databases: number }>(
+      '/api/v1/server-bundles',
+      { method: 'POST', body: JSON.stringify({ passphrase, bundle }) },
+    ),
+  imageScanPolicy: () => request<{ enabled: boolean; gate: string }>('/api/v1/settings/image-scanning'),
+  setImageScanPolicy: (enabled: boolean, gate: string) =>
+    request<{ enabled: boolean; gate: string }>('/api/v1/settings/image-scanning', {
+      method: 'PUT',
+      body: JSON.stringify({ enabled, gate }),
+    }),
+  imageScans: () =>
+    request<{
+      scans: Array<{
+        id: string
+        resource_type: string
+        resource_id: string
+        image_ref: string
+        status: string
+        critical: number
+        high: number
+        medium: number
+        low: number
+        unknown: number
+        findings: Array<{ id: string; severity: string; package: string; version: string; fixed_version?: string }>
+        error?: string
+        created_at: string
+      }>
+    }>('/api/v1/image-scans'),
+  scanApplication: (appId: string, image?: string) =>
+    request<{ id: string; status: string; critical: number; error?: string }>(`/api/v1/applications/${appId}/image-scans`, {
+      method: 'POST',
+      body: JSON.stringify({ image: image || '' }),
+    }),
+  ignoreVuln: (vulnId: string, reason: string) =>
+    request<{ status: string }>('/api/v1/image-scans/ignores', {
+      method: 'POST',
+      body: JSON.stringify({ vuln_id: vulnId, reason }),
+    }),
   importServer: (privateKeyId: string, server: Record<string, unknown>) =>
     request<{ server: { id: string } }>('/api/v1/server-imports', {
       method: 'POST',

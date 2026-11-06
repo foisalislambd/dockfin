@@ -26,6 +26,13 @@ func StartTraefik(client *ssh.Client, image, network, acmeEmail string) error {
 		return err
 	}
 	_, _, _ = sshx.Run(client, "mkdir -p /data/dockfin/proxy/traefik/letsencrypt /data/dockfin/proxy/traefik/dynamic && touch /data/dockfin/proxy/traefik/letsencrypt/acme.json && chmod 600 /data/dockfin/proxy/traefik/letsencrypt/acme.json")
+	if SwarmManager(client) {
+		compose, err := TraefikStackCompose(image, network, acmeEmail)
+		if err != nil {
+			return err
+		}
+		return deploySwarmStack(client, compose)
+	}
 	accessLog := trafficAnalyticsEnabled(client)
 	if accessLog {
 		if err := prepareAccessLog(client); err != nil {
