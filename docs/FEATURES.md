@@ -260,7 +260,12 @@ carries a `warnings` array.
 - [x] Settings can detect the instance public IPv4 and IPv6
 - [x] `dfin tokens`, `maintenance`, `files`, `flush-cache`, and `server-health`
 
-Still outside this product: image vulnerability scanning (syft/grype) and Coolify's full cross-instance secret bundle. Server transfer here moves an empty server to another team on the same Dockfin and can export metadata without the private key. Hostinger purchase charges that account, can return a payment-pending order, and is rate limited at HTTP 429. Swarm Caddy maintenance is not generated.
+- [x] Image scans run Syft and Grype on the server that has the image, after a deploy and on demand (`POST /applications/{id}/image-scans`). Findings are stored and shown on Vulnerabilities. The instance gate is off, warn, or block.
+- [x] A secret bundle exports the server private key, environment variables, shared variables, and database credentials, encrypted with a passphrase (`POST /servers/{id}/bundle`, `POST /server-bundles`). Import stores them under this instance's master key.
+- [x] A Swarm manager starts Caddy or Traefik as a stack and runs the maintenance page as a Swarm service on the overlay network. The same Caddyfile holds maintenance and catch-all.
+- [ ] Same-instance server transfer still moves only an empty server. Metadata export still omits the private key; use the secret bundle to move secrets.
+- [ ] Hostinger purchase charges that account, can return a payment-pending order, and is rate limited at HTTP 429.
+- [ ] Coolify canvas boards, the hosted subscription, and automatic "newer image that fixes the CVE" candidate upgrades are not part of Dockfin.
 
 ## Polish
 - [x] Command palette (⌘K)

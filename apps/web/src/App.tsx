@@ -46,6 +46,7 @@ function lazyPage(loader: () => Promise<Record<string, unknown>>, name: string) 
 const DashboardPage = lazyPage(() => import('./pages/Dashboard'), 'DashboardPage')
 const ServersPage = lazyPage(() => import('./pages/Servers'), 'ServersPage')
 const FleetPage = lazyPage(() => import('./pages/Fleet'), 'FleetPage')
+const VulnerabilitiesPage = lazyPage(() => import('./pages/Vulnerabilities'), 'VulnerabilitiesPage')
 const CreateServerPage = lazyPage(() => import('./pages/Servers'), 'CreateServerPage')
 const ProjectsPage = lazyPage(() => import('./pages/Resources'), 'ProjectsPage')
 const CreateApplicationPage = lazyPage(() => import('./pages/CreateApplication'), 'CreateApplicationPage')
@@ -182,6 +183,12 @@ const fleetRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/fleet',
   component: FleetPage,
+})
+
+const vulnerabilitiesRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/vulnerabilities',
+  component: VulnerabilitiesPage,
 })
 
 const createServerRoute = createRoute({
@@ -494,6 +501,7 @@ const routeTree = rootRoute.addChildren([
     dashboardRoute,
     serversRoute,
     fleetRoute,
+    vulnerabilitiesRoute,
     createServerRoute,
     serverDetailRoute,
     projectsRoute,

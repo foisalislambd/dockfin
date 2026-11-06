@@ -1259,6 +1259,61 @@ paths:
             summary: Create mkdir
             tags:
                 - applications
+    /api/v1/applications/{appID}/image-scans:
+        post:
+            operationId: postApiV1ApplicationsAppIDImageScans
+            parameters:
+                - in: path
+                  name: appID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Image scans image scan
+            tags:
+                - applications
     /api/v1/applications/{appID}/images:
         get:
             operationId: getApiV1ApplicationsAppIDImages
@@ -7071,6 +7126,181 @@ paths:
             summary: Delete system hook
             tags:
                 - gitlab
+    /api/v1/image-scans:
+        get:
+            operationId: getApiV1ImageScans
+            responses:
+                "200":
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: List image scans
+            tags:
+                - image-scans
+    /api/v1/image-scans/{scanID}:
+        get:
+            operationId: getApiV1ImageScansScanID
+            parameters:
+                - in: path
+                  name: scanID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Get image scan
+            tags:
+                - image-scans
+    /api/v1/image-scans/ignores:
+        post:
+            operationId: postApiV1ImageScansIgnores
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Create ignore
+            tags:
+                - image-scans
+    /api/v1/image-scans/ignores/{vulnID}:
+        delete:
+            operationId: deleteApiV1ImageScansIgnoresVulnID
+            parameters:
+                - in: path
+                  name: vulnID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Delete ignore
+            tags:
+                - image-scans
     /api/v1/integration-tokens/:
         get:
             operationId: getApiV1IntegrationTokens
@@ -9666,6 +9896,55 @@ paths:
             summary: Create traffic
             tags:
                 - sentinel
+    /api/v1/server-bundles:
+        post:
+            operationId: postApiV1ServerBundles
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Server bundles server bundle
+            tags:
+                - server-bundles
     /api/v1/server-imports:
         post:
             operationId: postApiV1ServerImports
@@ -9886,6 +10165,61 @@ paths:
                 - cookieAuth: []
                 - bearerAuth: []
             summary: Get server
+            tags:
+                - servers
+    /api/v1/servers/{serverID}/bundle:
+        post:
+            operationId: postApiV1ServersServerIDBundle
+            parameters:
+                - in: path
+                  name: serverID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Create bundle
             tags:
                 - servers
     /api/v1/servers/{serverID}/cloudflare-tunnel/{action}:
@@ -12374,6 +12708,61 @@ paths:
             summary: Create mkdir
             tags:
                 - services
+    /api/v1/services/{serviceID}/image-scans:
+        post:
+            operationId: postApiV1ServicesServiceIDImageScans
+            parameters:
+                - in: path
+                  name: serviceID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Image scans image scan
+            tags:
+                - services
     /api/v1/services/{serviceID}/logs/stream:
         get:
             operationId: getApiV1ServicesServiceIDLogsStream
@@ -13237,6 +13626,90 @@ paths:
                 - cookieAuth: []
                 - bearerAuth: []
             summary: Detect public ip detect public ip
+            tags:
+                - settings
+    /api/v1/settings/image-scanning:
+        get:
+            operationId: getApiV1SettingsImageScanning
+            responses:
+                "200":
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: List image scanning
+            tags:
+                - settings
+        put:
+            operationId: putApiV1SettingsImageScanning
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Update image scanning
             tags:
                 - settings
     /api/v1/settings/oauth:
@@ -14632,6 +15105,7 @@ tags:
     - name: git
     - name: git-sources
     - name: gitlab
+    - name: image-scans
     - name: integration-tokens
     - name: invitations
     - name: mcp
@@ -14648,6 +15122,7 @@ tags:
     - name: scheduled-tasks
     - name: secret-manager
     - name: sentinel
+    - name: server-bundles
     - name: server-imports
     - name: servers
     - name: services

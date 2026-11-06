@@ -12,6 +12,9 @@ The same version, or a lower one, does not create a release. Git tag, GitHub Rel
 
 ### Added
 
+- Image vulnerability scans with Syft and Grype on the server that holds the image, stored findings, an on-demand scan, and a deploy gate (off, warn, or block)
+- Passphrase-encrypted server bundles that move the private key, environment variables, shared variables, and database credentials to another Dockfin
+- Swarm stacks for Caddy and Traefik, with the maintenance page running as a Swarm service
 - Project access for members: every project, or view / deploy / manage on chosen projects. Owners and admins are not scoped. Hidden projects return 404
 - Passkeys (WebAuthn) for registration and sign-in. Two-factor authentication still runs when it is enabled. The relying party is `DOCKFIN_PUBLIC_URL`
 - Hostinger: validate a token, list KVM plans and virtual machines, link an existing VPS, or purchase one after typing `PURCHASE`. Purchase charges the Hostinger account

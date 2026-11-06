@@ -7,6 +7,7 @@ import {
   GitBranch,
   KeyRound,
   Activity,
+  ShieldAlert,
   LayoutDashboard,
   Server,
   Settings,
@@ -91,6 +92,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { name: 'Servers', href: '/servers', icon: Server },
       { name: 'Fleet', href: '/fleet', icon: Activity },
+      { name: 'Vulnerabilities', href: '/vulnerabilities', icon: ShieldAlert },
       { name: 'Sources', href: '/git-sources', icon: GitBranch },
       { name: 'Destinations', href: '/destinations', icon: Waypoints },
       { name: 'Storages', href: '/storages', icon: Box },

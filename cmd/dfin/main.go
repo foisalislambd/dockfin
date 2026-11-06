@@ -88,7 +88,7 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer, ca
 		return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodGet, "/api/v1/overview", nil)
 	case "servers", "projects", "environments", "apps", "applications", "services", "databases", "env", "domains":
 		return resourceCmd(asJSON, stdout, stderr, call, base, token, team, cmd, rest)
-	case "tokens", "maintenance", "files", "flush-cache", "server-health", "fleet", "scan", "transfer":
+	case "tokens", "maintenance", "files", "flush-cache", "server-health", "fleet", "scan", "transfer", "vulns", "bundle":
 		return parityCmd(asJSON, stdout, stderr, call, base, token, team, cmd, rest)
 	case "deploy":
 		id, flags := splitFlags(rest)
@@ -335,6 +335,11 @@ Usage:
   dfin [--json] fleet
   dfin [--json] scan <owner/repo> [--branch name]
   dfin [--json] transfer <server-uuid> <team-uuid>
+  dfin [--json] vulns
+  dfin [--json] vulns run <application-uuid>
+  dfin [--json] vulns policy [--enabled true] [--gate off|warn|block]
+  dfin [--json] bundle export <server-uuid> --passphrase TEXT
+  dfin [--json] bundle import --passphrase TEXT --file path
 
 Deletes that the API confirms by name take --confirm <name> and, when required, --password.
 Commands exit 0 on HTTP 2xx/3xx and 1 otherwise. --json prints the response body.
