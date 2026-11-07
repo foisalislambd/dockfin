@@ -207,7 +207,12 @@ export function ServiceDetailPage() {
     abortRef.current?.abort()
   }, [svcId])
 
-  const svc = useQuery({ queryKey: ['service', svcId], queryFn: () => api.getService(svcId) })
+  const svc = useQuery({
+    queryKey: ['service', svcId],
+    queryFn: () => api.getService(svcId),
+    refetchInterval: (q) =>
+      ['stopping', 'starting', 'restarting'].includes(q.state.data?.status || '') ? 2000 : false,
+  })
   const freezeEnvId = envId || svc.data?.environment_id || ''
   const freezeEnv = useQuery({
     queryKey: ['environment-by-id', freezeEnvId],
@@ -274,23 +279,29 @@ export function ServiceDetailPage() {
   const stop = useMutation({
     mutationFn: () => api.stopService(svcId),
     onSuccess: () => {
+      toast.success('Stop scheduled')
       void qc.invalidateQueries({ queryKey: ['service', svcId] })
       void qc.invalidateQueries({ queryKey: ['services'] })
     },
+    onError: (e: Error) => toast.error(e.message || 'Stop failed'),
   })
   const restart = useMutation({
     mutationFn: () => api.restartService(svcId),
     onSuccess: () => {
+      toast.success('Restart scheduled')
       void qc.invalidateQueries({ queryKey: ['service', svcId] })
       void qc.invalidateQueries({ queryKey: ['services'] })
     },
+    onError: (e: Error) => toast.error(e.message || 'Restart failed'),
   })
   const remove = useMutation({
     mutationFn: (body: Parameters<typeof api.deleteService>[1]) => api.deleteService(svcId, body),
     onSuccess: () => {
       setDeleteOpen(false)
+      toast.success('Deletion scheduled')
       void qc.invalidateQueries({ queryKey: ['services'] })
       void qc.invalidateQueries({ queryKey: ['project'] })
+      void qc.invalidateQueries({ queryKey: ['deletions'] })
       if (projectId && envId) {
         void nav({
           to: '/projects/$projectId/environments/$envId',
@@ -300,6 +311,7 @@ export function ServiceDetailPage() {
         void nav({ to: '/projects' })
       }
     },
+    onError: (e: Error) => toast.error(e.message || 'Could not schedule deletion'),
   })
 
   const runDeploy = async (overrideFreeze = false) => {

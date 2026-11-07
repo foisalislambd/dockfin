@@ -199,48 +199,30 @@ func (a *API) cleanupPreview(ctx context.Context, app *store.Application, prID i
 		res.Message = "invalid pr id"
 		return res
 	}
-	a.cleanupPreviewRemote(ctx, app, prID)
-	if preview, err := a.Store.GetPreviewByPR(ctx, app.TeamID, app.ID, prID); err == nil && preview != nil {
-		_ = a.syncManagedDNS(ctx, app.TeamID, "application_preview", preview.ID, nil, nil)
-	}
-	if err := a.Store.DeletePreview(ctx, app.TeamID, app.ID, prID); err != nil {
-		if !errors.Is(err, store.ErrNotFound) {
-			res.Status = "failed"
-			res.Message = err.Error()
+	preview, err := a.Store.GetPreviewByPR(ctx, app.TeamID, app.ID, prID)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			res.Status = "success"
+			res.Message = "preview already gone"
 			return res
 		}
+		res.Status = "failed"
+		res.Message = err.Error()
+		return res
+	}
+	if _, err := a.scheduleDelete(ctx, app.TeamID, "preview", preview.ID, DeleteOptions{}, app.ID, prID); err != nil {
+		if errors.Is(err, store.ErrConflict) {
+			res.Status = "success"
+			res.Message = "preview deletion already scheduled"
+			return res
+		}
+		res.Status = "failed"
+		res.Message = err.Error()
+		return res
 	}
 	res.Status = "success"
-	res.Message = "preview cleaned up"
+	res.Message = "preview deletion scheduled"
 	return res
-}
-
-func (a *API) cleanupPreviewRemote(ctx context.Context, app *store.Application, prID int) {
-	if app.DestinationID == nil {
-		return
-	}
-	dest, err := a.Store.GetDestination(ctx, app.TeamID, *app.DestinationID)
-	if err != nil {
-		return
-	}
-	client, err := a.dialServerForTeam(ctx, app.TeamID, dest.ServerID)
-	if err != nil {
-		return
-	}
-	appID := app.ID
-	cname := fmt.Sprintf("dockfin-%s-pr-%d", appID.String(), prID)
-	runArgsRetry(client, 2, "docker", "rm", "-f", cname)
-	project := fmt.Sprintf("dockfin-%s-pr-%d", appID.String()[:8], prID)
-	workdir := fmt.Sprintf("/data/dockfin/applications/%s-pr-%d", appID.String(), prID)
-	for _, f := range []string{
-		workdir + "/src/docker-compose.yaml",
-		workdir + "/src/docker-compose.yml",
-		workdir + "/src/compose.yaml",
-	} {
-		runArgsRetry(client, 2, "docker", "compose", "-p", project, "-f", f, "down", "--remove-orphans", "-v")
-	}
-	runArgsRetry(client, 2, "docker", "volume", "prune", "-f", "--filter", "label=com.docker.compose.project="+project)
-	runArgsRetry(client, 2, "rm", "-rf", workdir)
 }
 
 func (a *API) dialServerForTeam(ctx context.Context, teamID, serverID uuid.UUID) (*ssh.Client, error) {

@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { DangerConfirmModal, DangerZoneCard } from '../components/DangerConfirmModal'
+import { useToast } from '../components/Toast'
 import { useAuth } from '../lib/auth'
 import { useConfirm } from '../components/ConfirmDialog'
 import { EnvVarsPanel } from '../components/EnvVarsPanel'
@@ -524,6 +525,7 @@ export function DatabaseDetailPage() {
   const nav = useNavigate()
   const search = useSearch({ strict: false }) as { tab?: string }
   const qc = useQueryClient()
+  const toast = useToast()
   const tab: DbTabId = isDbTabId(search.tab) ? search.tab : 'configuration'
   const setTab = (id: string) => {
     void nav({
@@ -536,7 +538,12 @@ export function DatabaseDetailPage() {
     })
   }
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const db = useQuery({ queryKey: ['database', dbId], queryFn: () => api.getDatabase(dbId) })
+  const db = useQuery({
+    queryKey: ['database', dbId],
+    queryFn: () => api.getDatabase(dbId),
+    refetchInterval: (q) =>
+      ['stopping', 'starting', 'restarting'].includes(q.state.data?.status || '') ? 2000 : false,
+  })
   const flushCache = useMutation({
     mutationFn: () => api.flushDatabaseCache(dbId),
   })
@@ -571,11 +578,19 @@ export function DatabaseDetailPage() {
 
   const start = useMutation({
     mutationFn: () => api.startDatabase(dbId),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['database', dbId] }),
+    onSuccess: () => {
+      toast.success('Start scheduled')
+      void qc.invalidateQueries({ queryKey: ['database', dbId] })
+    },
+    onError: (e: Error) => toast.error(e.message || 'Start failed'),
   })
   const stop = useMutation({
     mutationFn: () => api.stopDatabase(dbId),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['database', dbId] }),
+    onSuccess: () => {
+      toast.success('Stop scheduled')
+      void qc.invalidateQueries({ queryKey: ['database', dbId] })
+    },
+    onError: (e: Error) => toast.error(e.message || 'Stop failed'),
   })
   const patch = useMutation({
     mutationFn: (body: Parameters<typeof api.updateDatabase>[1]) => api.updateDatabase(dbId, body),
@@ -592,13 +607,16 @@ export function DatabaseDetailPage() {
     mutationFn: (body: Parameters<typeof api.deleteDatabase>[1]) => api.deleteDatabase(dbId, body),
     onSuccess: () => {
       setDeleteOpen(false)
+      toast.success('Deletion scheduled')
       void qc.invalidateQueries({ queryKey: ['databases'] })
+      void qc.invalidateQueries({ queryKey: ['deletions'] })
       if (projectId && envId) {
         void nav({ to: '/projects/$projectId/environments/$envId', params: { projectId, envId } })
       } else {
         void nav({ to: '/projects' })
       }
     },
+    onError: (e: Error) => toast.error(e.message || 'Could not schedule deletion'),
   })
 
   const back =
