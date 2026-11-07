@@ -271,6 +271,9 @@ func (a *API) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
+	if refuseWhileBusy(w, svc.Status) {
+		return
+	}
 	if svc.DockerComposeRaw == "" && svc.DockerCompose == "" {
 		writeError(w, http.StatusBadRequest, "service has no docker compose content")
 		return
@@ -512,7 +515,7 @@ func (a *API) handlePatchService(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleStopService(w http.ResponseWriter, r *http.Request) {
-	a.runServiceComposeAction(w, r, "stop", "exited")
+	a.queueResourcePower(w, r, "service", "serviceID", "stop", "stopping", "exited")
 }
 
 func (a *API) handleDeleteService(w http.ResponseWriter, r *http.Request) {
@@ -531,92 +534,47 @@ func (a *API) handleDeleteService(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
-	// Best-effort: tear down compose stack (+ volumes), then remove remote dir.
-	if serverID, _, err := a.resolveServiceTarget(r.Context(), teamID, svc); err == nil {
-		if client, err := a.dialServer(r, serverID); err == nil {
-			remoteDir := "/data/dockfin/services/" + id.String()
-			composePath := remoteDir + "/docker-compose.yml"
-			project := "dockfin-svc-" + id.String()[:8]
-			downArgs := []string{"docker", "compose", "-p", project, "-f", composePath, "down", "--remove-orphans"}
-			if opts.volumes() {
-				downArgs = append(downArgs, "-v")
-			}
-			runArgsRetry(client, 2, downArgs...)
-			if opts.configurations() {
-				runArgsRetry(client, 2, "rm", "-rf", remoteDir)
-			}
-			if opts.networks() {
-				// Coolify removes a network named after the service UUID; compose down
-				// already drops the project default network.
-				removeResourceScopedNetwork(client, id.String())
-			}
-			if opts.dockerCleanup() {
-				runDockerCleanup(client)
-			}
-		}
+	if refuseWhileBusy(w, svc.Status) {
+		return
 	}
-
-	_ = a.syncManagedDNS(r.Context(), teamID, "service", id, nil, nil)
-	if err := a.Store.DeleteService(r.Context(), teamID, id); err != nil {
+	job, err := a.scheduleDelete(r.Context(), teamID, "service", id, opts, uuid.Nil, 0)
+	if err != nil {
 		mapStoreErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	writeJSON(w, http.StatusAccepted, map[string]any{"job": job, "status": "deleting"})
 }
 
 func (a *API) handleRestartService(w http.ResponseWriter, r *http.Request) {
-	a.runServiceComposeAction(w, r, "restart", "running")
+	a.queueResourcePower(w, r, "service", "serviceID", "restart", "restarting", "running")
 }
 
-func (a *API) runServiceComposeAction(w http.ResponseWriter, r *http.Request, action, statusOnOK string) {
-	id, err := uuid.Parse(chi.URLParam(r, "serviceID"))
+func (a *API) applyServicePower(ctx context.Context, teamID uuid.UUID, svc *store.Service, action, statusOnOK string) error {
+	serverID, _, err := a.resolveServiceTarget(ctx, teamID, svc)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid id")
-		return
+		return err
 	}
-	teamID := currentTeamID(r)
-	svc, err := a.Store.GetService(r.Context(), teamID, id)
+	client, err := a.dialServerTeam(ctx, teamID, serverID)
 	if err != nil {
-		mapStoreErr(w, err)
-		return
+		return err
 	}
-	serverID, dest, err := a.resolveServiceTarget(r.Context(), teamID, svc)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	_ = dest
-	client, err := a.dialServer(r, serverID)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	remoteDir := "/data/dockfin/services/" + id.String()
+	remoteDir := "/data/dockfin/services/" + svc.ID.String()
 	composePath := remoteDir + "/docker-compose.yml"
-	project := "dockfin-svc-" + id.String()[:8]
-
-	// Cloned / never-deployed services have no compose file on disk.
-	if _, _, existsErr := sshx.RunArgs(client, "test", "-f", composePath); existsErr != nil {
+	project := "dockfin-svc-" + svc.ID.String()[:8]
+	if _, _, existsErr := sshx.RunArgsContext(ctx, client, "test", "-f", composePath); existsErr != nil {
 		if action == "stop" {
-			// Idempotent: nothing running to stop.
-			_ = a.Store.UpdateServiceStatus(r.Context(), id, "exited")
-			svc.Status = "exited"
-			writeJSON(w, http.StatusOK, serviceWithLinks(svc))
-			return
+			return a.Store.UpdateServiceStatus(ctx, svc.ID, "exited")
 		}
-		writeError(w, http.StatusBadRequest, "service has not been deployed yet — deploy first")
-		return
+		return fmt.Errorf("service has not been deployed yet — deploy first")
 	}
-
-	_, errOut, err := sshx.RunArgs(client, "docker", "compose", "-p", project, "-f", composePath, action)
+	_, errOut, err := sshx.RunArgsContext(ctx, client, "docker", "compose", "-p", project, "-f", composePath, action)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("%s failed: %v %s", action, err, errOut))
-		return
+		if action == "stop" || dockerMissingOK(errOut) {
+			return a.Store.UpdateServiceStatus(ctx, svc.ID, "exited")
+		}
+		return fmt.Errorf("%s failed: %v %s", action, err, errOut)
 	}
-	_ = a.Store.UpdateServiceStatus(r.Context(), id, statusOnOK)
-	svc.Status = statusOnOK
-	writeJSON(w, http.StatusOK, serviceWithLinks(svc))
+	return a.Store.UpdateServiceStatus(ctx, svc.ID, statusOnOK)
 }
 
 func (a *API) resolveServiceTarget(ctx context.Context, teamID uuid.UUID, svc *store.Service) (uuid.UUID, *store.Destination, error) {

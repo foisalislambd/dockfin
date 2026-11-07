@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,92 +10,66 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 )
 
 func (a *API) handleStartApplication(w http.ResponseWriter, r *http.Request) {
-	a.runApplicationAction(w, r, "start", "running")
+	a.queueResourcePower(w, r, "application", "appID", "start", "starting", "running")
 }
 
 func (a *API) handleStopApplication(w http.ResponseWriter, r *http.Request) {
-	a.runApplicationAction(w, r, "stop", "exited")
+	a.queueResourcePower(w, r, "application", "appID", "stop", "stopping", "exited")
 }
 
 func (a *API) handleRestartApplication(w http.ResponseWriter, r *http.Request) {
-	a.runApplicationAction(w, r, "restart", "running")
+	a.queueResourcePower(w, r, "application", "appID", "restart", "restarting", "running")
 }
 
-func (a *API) runApplicationAction(w http.ResponseWriter, r *http.Request, action, statusOnOK string) {
-	appID, err := uuid.Parse(chi.URLParam(r, "appID"))
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid id")
-		return
-	}
-	teamID := currentTeamID(r)
-	app, err := a.Store.GetApplication(r.Context(), teamID, appID)
-	if err != nil {
-		mapStoreErr(w, err)
-		return
-	}
+func (a *API) applyApplicationPower(ctx context.Context, teamID uuid.UUID, app *store.Application, action, statusOnOK string) error {
 	if app.DestinationID == nil {
-		writeError(w, http.StatusBadRequest, "application has no destination")
-		return
+		return fmt.Errorf("application has no destination")
 	}
-	dest, err := a.Store.GetDestination(r.Context(), teamID, *app.DestinationID)
+	dest, err := a.Store.GetDestination(ctx, teamID, *app.DestinationID)
 	if err != nil {
-		mapStoreErr(w, err)
-		return
+		return err
 	}
-	client, err := a.dialServer(r, dest.ServerID)
+	client, err := a.dialServerTeam(ctx, teamID, dest.ServerID)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
+		return err
 	}
-
 	var errOut string
 	if app.BuildPack == "dockercompose" {
 		errOut, err = a.runAppComposeAction(client, app, action)
 	} else {
 		cname := "dockfin-" + app.ID.String()
 		if action == "stop" && app.CustomDockerStopTimeout > 0 {
-			_, errOut, err = sshx.RunArgs(client, "docker", "stop", "-t", strconv.Itoa(app.CustomDockerStopTimeout), cname)
+			_, errOut, err = sshx.RunArgsContext(ctx, client, "docker", "stop", "-t", strconv.Itoa(app.CustomDockerStopTimeout), cname)
 		} else {
-			_, errOut, err = sshx.RunArgs(client, "docker", action, cname)
+			_, errOut, err = sshx.RunArgsContext(ctx, client, "docker", action, cname)
 		}
 		if err != nil && action == "start" {
-			// Container may not exist yet.
-			writeError(w, http.StatusBadRequest, "container not found — deploy first")
-			return
+			return fmt.Errorf("container not found — deploy first")
 		}
 	}
 	if err != nil {
-		if action == "stop" {
-			// Idempotent stop when nothing is running.
-			_ = a.Store.UpdateApplicationStatus(r.Context(), app.ID, "exited")
-			app.Status = "exited"
-			writeJSON(w, http.StatusOK, appWithLinks(app))
-			return
+		if action == "stop" || dockerMissingOK(errOut) {
+			_ = a.Store.UpdateApplicationStatus(ctx, app.ID, "exited")
+			return nil
 		}
-		writeError(w, http.StatusBadRequest, fmt.Sprintf("%v %s", err, strings.TrimSpace(errOut)))
-		return
+		return fmt.Errorf("%v %s", err, strings.TrimSpace(errOut))
 	}
-
-	// Mirror lifecycle to additional destinations (best-effort; primary already succeeded).
-	if extras, e := a.Store.ListAdditionalDestinations(r.Context(), teamID, app.ID); e == nil {
+	if extras, e := a.Store.ListAdditionalDestinations(ctx, teamID, app.ID); e == nil {
 		for _, destID := range extras {
-			extraDest, e := a.Store.GetDestination(r.Context(), teamID, destID)
-			if e != nil {
+			extraDest, e := a.Store.GetDestination(ctx, teamID, destID)
+			if e != nil || extraDest.ServerID == dest.ServerID {
 				continue
 			}
-			if extraDest.ServerID == dest.ServerID {
-				continue
-			}
-			extraClient, e := a.dialServer(r, extraDest.ServerID)
+			extraClient, e := a.dialServerTeam(ctx, teamID, extraDest.ServerID)
 			if e != nil {
 				continue
 			}
@@ -102,18 +77,11 @@ func (a *API) runApplicationAction(w http.ResponseWriter, r *http.Request, actio
 				_, _ = a.runAppComposeAction(extraClient, app, action)
 			} else {
 				cname := "dockfin-" + app.ID.String()
-				if action == "stop" && app.CustomDockerStopTimeout > 0 {
-					_, _, _ = sshx.RunArgs(extraClient, "docker", "stop", "-t", strconv.Itoa(app.CustomDockerStopTimeout), cname)
-				} else {
-					_, _, _ = sshx.RunArgs(extraClient, "docker", action, cname)
-				}
+				_, _, _ = sshx.RunArgsContext(ctx, extraClient, "docker", action, cname)
 			}
 		}
 	}
-
-	_ = a.Store.UpdateApplicationStatus(r.Context(), app.ID, statusOnOK)
-	app.Status = statusOnOK
-	writeJSON(w, http.StatusOK, appWithLinks(app))
+	return a.Store.UpdateApplicationStatus(ctx, app.ID, statusOnOK)
 }
 
 func (a *API) runAppComposeAction(client *ssh.Client, app *store.Application, action string) (string, error) {

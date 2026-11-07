@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/dockfin/dockfin/internal/database"
@@ -77,8 +78,8 @@ func (a *API) handlePutDatabaseInitScripts(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-func (a *API) loadDatabaseInitScripts(r *http.Request, teamID uuid.UUID, db *store.Database) ([]database.InitScript, error) {
-	rows, err := a.Store.DatabaseInitScripts(r.Context(), teamID, db.ID)
+func (a *API) loadDatabaseInitScripts(ctx context.Context, teamID uuid.UUID, db *store.Database) ([]database.InitScript, error) {
+	rows, err := a.Store.DatabaseInitScripts(ctx, teamID, db.ID)
 	if err != nil {
 		return nil, err
 	}

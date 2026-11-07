@@ -548,7 +548,12 @@ export function ApplicationDetailPage() {
     if (isSideId(id)) setAppNav({ tab: 'configuration', side: id })
   }
 
-  const app = useQuery({ queryKey: ['application', appId], queryFn: () => api.application(appId) })
+  const app = useQuery({
+    queryKey: ['application', appId],
+    queryFn: () => api.application(appId),
+    refetchInterval: (q) =>
+      ['stopping', 'starting', 'restarting'].includes(q.state.data?.status || '') ? 2000 : false,
+  })
   const freezeEnvId = envId || app.data?.environment_id || ''
   const freezeEnv = useQuery({
     queryKey: ['environment-by-id', freezeEnvId],
@@ -873,7 +878,7 @@ export function ApplicationDetailPage() {
   const startApp = useMutation({
     mutationFn: () => api.startApplication(appId),
     onSuccess: () => {
-      toast.success('Started')
+      toast.success('Start scheduled')
       void qc.invalidateQueries({ queryKey: ['application', appId] })
     },
     onError: (e: Error) => toast.error(e.message || 'Start failed'),
@@ -881,7 +886,7 @@ export function ApplicationDetailPage() {
   const stopApp = useMutation({
     mutationFn: () => api.stopApplication(appId),
     onSuccess: () => {
-      toast.success('Stopped')
+      toast.success('Stop scheduled')
       void qc.invalidateQueries({ queryKey: ['application', appId] })
     },
     onError: (e: Error) => toast.error(e.message || 'Stop failed'),
@@ -889,7 +894,7 @@ export function ApplicationDetailPage() {
   const restartApp = useMutation({
     mutationFn: () => api.restartApplication(appId),
     onSuccess: () => {
-      toast.success('Restarted')
+      toast.success('Restart scheduled')
       void qc.invalidateQueries({ queryKey: ['application', appId] })
     },
     onError: (e: Error) => toast.error(e.message || 'Restart failed'),
@@ -899,18 +904,25 @@ export function ApplicationDetailPage() {
     mutationFn: (body: Parameters<typeof api.deleteApplication>[1]) => api.deleteApplication(appId, body),
     onSuccess: () => {
       setDeleteOpen(false)
+      toast.success('Deletion scheduled')
       void qc.invalidateQueries({ queryKey: ['applications'] })
+      void qc.invalidateQueries({ queryKey: ['deletions'] })
       if (nested && projectId && envId) {
         void nav({ to: '/projects/$projectId/environments/$envId', params: { projectId, envId } })
       } else {
         void nav({ to: '/projects' })
       }
     },
+    onError: (e: Error) => toast.error(e.message || 'Could not schedule deletion'),
   })
 
   const cancel = useMutation({
     mutationFn: (id: string) => api.cancelDeployment(id),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['deployments', appId] }),
+    onSuccess: () => {
+      toast.success('Deployment cancelled')
+      void qc.invalidateQueries({ queryKey: ['deployments', appId] })
+    },
+    onError: (e: Error) => toast.error(e.message || 'Could not cancel the deployment'),
   })
 
   const rollback = useMutation({
@@ -939,7 +951,12 @@ export function ApplicationDetailPage() {
 
   const deletePreview = useMutation({
     mutationFn: (prId: number) => api.deletePreview(appId, prId),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['previews', appId] }),
+    onSuccess: () => {
+      toast.success('Deletion scheduled')
+      void qc.invalidateQueries({ queryKey: ['previews', appId] })
+      void qc.invalidateQueries({ queryKey: ['deletions'] })
+    },
+    onError: (e: Error) => toast.error(e.message || 'Could not schedule deletion'),
   })
 
   const deployPreview = useMutation({

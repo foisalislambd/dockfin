@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Database, FolderKanban, Rocket, Server, Snowflake } from 'lucide-react'
+import { PendingDeletions } from '../components/PendingDeletions'
 import { DashboardSkeleton } from '../components/ui/Skeleton'
 import { api, type AttentionItem, type OverviewDeployment, type Project } from '../lib/api'
 import { useAuth } from '../lib/auth'
@@ -165,6 +166,7 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <PendingDeletions />
       <div>
         <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
           Welcome{user?.name ? `, ${user.name}` : ''}

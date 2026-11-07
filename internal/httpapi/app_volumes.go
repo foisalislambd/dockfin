@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"path"
@@ -214,8 +215,8 @@ func (a *API) handleDeleteVolume(w http.ResponseWriter, r *http.Request, resourc
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
-func (a *API) databaseVolumeMounts(r *http.Request, client *ssh.Client, teamID uuid.UUID, db *store.Database) ([]database.BindMount, error) {
-	vols, err := a.Store.ListVolumes(r.Context(), teamID, "database", db.ID)
+func (a *API) databaseVolumeMounts(ctx context.Context, client *ssh.Client, teamID uuid.UUID, db *store.Database) ([]database.BindMount, error) {
+	vols, err := a.Store.ListVolumes(ctx, teamID, "database", db.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +234,7 @@ func (a *API) databaseVolumeMounts(r *http.Request, client *ssh.Client, teamID u
 		}
 		content := ""
 		if v.IsFile {
-			content, err = a.Store.VolumeContent(r.Context(), teamID, v.ID)
+			content, err = a.Store.VolumeContent(ctx, teamID, v.ID)
 			if err != nil {
 				return nil, err
 			}

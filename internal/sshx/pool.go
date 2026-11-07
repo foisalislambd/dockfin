@@ -3,6 +3,7 @@ package sshx
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
@@ -234,14 +235,47 @@ func RunStreaming(client *ssh.Client, command string, onLine LineFn) error {
 }
 
 func RunArgs(client *ssh.Client, argv ...string) (stdout, stderr string, err error) {
+	return RunArgsContext(context.Background(), client, argv...)
+}
+
+// RunArgsContext runs a remote command and closes the session when ctx is cancelled,
+// so a hung docker command cannot outlive the caller.
+func RunArgsContext(ctx context.Context, client *ssh.Client, argv ...string) (stdout, stderr string, err error) {
 	if len(argv) == 0 {
 		return "", "", fmt.Errorf("empty argv")
 	}
+	if err := ctx.Err(); err != nil {
+		return "", "", err
+	}
+	if client == nil {
+		return "", "", fmt.Errorf("ssh client is nil")
+	}
+	session, err := client.NewSession()
+	if err != nil {
+		return "", "", err
+	}
+	defer session.Close()
+	var outBuf, errBuf bytes.Buffer
+	session.Stdout = &outBuf
+	session.Stderr = &errBuf
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = session.Close()
+		case <-done:
+		}
+	}()
 	parts := make([]string, len(argv))
 	for i, a := range argv {
 		parts[i] = shellQuote(a)
 	}
-	return Run(client, strings.Join(parts, " "))
+	err = session.Run(strings.Join(parts, " "))
+	close(done)
+	if ctx.Err() != nil {
+		return outBuf.String(), errBuf.String(), ctx.Err()
+	}
+	return outBuf.String(), errBuf.String(), err
 }
 
 // RunArgsStreaming is RunArgs with live line streaming.

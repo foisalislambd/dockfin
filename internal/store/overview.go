@@ -110,9 +110,9 @@ func (s *Store) TeamOverview(ctx context.Context, teamID uuid.UUID) (*TeamOvervi
 		SELECT
 			(SELECT COUNT(*) FROM servers WHERE team_id=$1),
 			(SELECT COUNT(*) FROM projects WHERE team_id=$1),
-			(SELECT COUNT(*) FROM applications WHERE team_id=$1),
-			(SELECT COUNT(*) FROM databases WHERE team_id=$1),
-			(SELECT COUNT(*) FROM services WHERE team_id=$1)
+			(SELECT COUNT(*) FROM applications WHERE team_id=$1 AND deleted_at IS NULL),
+			(SELECT COUNT(*) FROM databases WHERE team_id=$1 AND deleted_at IS NULL),
+			(SELECT COUNT(*) FROM services WHERE team_id=$1 AND deleted_at IS NULL)
 	`, teamID).Scan(
 		&out.Counts.Servers, &out.Counts.Projects, &out.Counts.Applications,
 		&out.Counts.Databases, &out.Counts.Services,
