@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Fragment, useState } from 'react'
-import { api } from '../lib/api'
+import { api, waitForJob } from '../lib/api'
 import { Header } from '../components/ui/Header'
 import { Btn } from '../components/ui/Button'
 import { PageSkeleton } from '../components/ui/Skeleton'
@@ -26,13 +26,17 @@ export function VulnerabilitiesPage() {
     onError: (e: Error) => setError(e.message),
   })
   const run = useMutation({
-    mutationFn: (appId: string) => api.scanApplication(appId),
+    mutationFn: async (appId: string) => {
+      const job = await api.scanApplication(appId)
+      return waitForJob(job.id)
+    },
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['image-scans'] }),
     onError: (e: Error) => setError(e.message),
   })
   const ignore = useMutation({
     mutationFn: (id: string) => api.ignoreVuln(id, 'dismissed from the vulnerabilities page'),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['image-scans'] }),
+    onError: (e: Error) => setError(e.message),
   })
   const candidates = useMutation({
     mutationFn: (scanId: string) => api.imageCandidates(scanId),

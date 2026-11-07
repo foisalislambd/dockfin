@@ -77,6 +77,10 @@ func (a *API) handleCreateService(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
+	if err := a.requireResourceAccess(r, "environment", envID, true, false); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
 	compose := body.DockerComposeRaw
 	svcType := body.ServiceType
 	if body.Template != "" {
@@ -702,6 +706,27 @@ func (a *API) handleListScheduledTasks(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
+	if rid != nil {
+		kind := r.URL.Query().Get("resource_type")
+		if kind == "" {
+			kind = "application"
+		}
+		if err := a.requireResourceAccess(r, kind, *rid, false, false); err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+	} else {
+		filtered := list[:0]
+		for _, task := range list {
+			if a.requireResourceAccess(r, task.ResourceType, task.ResourceID, false, false) == nil {
+				filtered = append(filtered, task)
+			}
+		}
+		if filtered == nil {
+			filtered = []store.ScheduledTask{}
+		}
+		list = filtered
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"scheduled_tasks": list})
 }
 
@@ -751,6 +776,10 @@ func (a *API) handleCreateScheduledTask(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "unsupported resource_type")
 		return
 	}
+	if err := a.requireResourceAccess(r, body.ResourceType, rid, true, false); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
 	task, err := a.Store.CreateScheduledTask(r.Context(), teamID, body.ResourceType, rid, body.Name, body.Command, body.Frequency, body.ContainerName)
 	if err != nil {
 		mapStoreErr(w, err)
@@ -780,6 +809,15 @@ func (a *API) handlePatchScheduledTask(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid container_name")
 		return
 	}
+	existing, err := a.Store.GetScheduledTask(r.Context(), currentTeamID(r), id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if err := a.requireResourceAccess(r, existing.ResourceType, existing.ResourceID, true, false); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
 	task, err := a.Store.UpdateScheduledTask(r.Context(), currentTeamID(r), id, store.UpdateScheduledTaskInput{
 		Name:      body.Name,
 		Command:   body.Command,
@@ -800,6 +838,15 @@ func (a *API) handleDeleteScheduledTask(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
+	existing, err := a.Store.GetScheduledTask(r.Context(), currentTeamID(r), id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if err := a.requireResourceAccess(r, existing.ResourceType, existing.ResourceID, true, true); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
 	if err := a.Store.DeleteScheduledTask(r.Context(), currentTeamID(r), id); err != nil {
 		mapStoreErr(w, err)
 		return
@@ -814,7 +861,12 @@ func (a *API) handleListScheduledTaskExecutions(w http.ResponseWriter, r *http.R
 		return
 	}
 	teamID := currentTeamID(r)
-	if _, err := a.Store.GetScheduledTask(r.Context(), teamID, id); err != nil {
+	task, err := a.Store.GetScheduledTask(r.Context(), teamID, id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if err := a.requireResourceAccess(r, task.ResourceType, task.ResourceID, false, false); err != nil {
 		mapStoreErr(w, err)
 		return
 	}
@@ -854,6 +906,10 @@ func (a *API) handleRunScheduledTask(w http.ResponseWriter, r *http.Request) {
 	teamID := currentTeamID(r)
 	task, err := a.Store.GetScheduledTask(r.Context(), teamID, id)
 	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if err := a.requireResourceAccess(r, task.ResourceType, task.ResourceID, true, false); err != nil {
 		mapStoreErr(w, err)
 		return
 	}

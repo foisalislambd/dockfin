@@ -86,6 +86,18 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer, ca
 		return 0
 	case "overview":
 		return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodGet, "/api/v1/overview", nil)
+	case "jobs":
+		if len(rest) == 0 {
+			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodGet, "/api/v1/jobs", nil)
+		}
+		if rest[0] == "cancel" {
+			if len(rest) < 2 {
+				fmt.Fprintln(stderr, "usage: dfin jobs cancel <job-uuid>")
+				return 1
+			}
+			return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodPost, "/api/v1/jobs/"+rest[1]+"/cancel", map[string]any{})
+		}
+		return printCall(asJSON, stdout, stderr, call, base, token, team, http.MethodGet, "/api/v1/jobs/"+rest[0], nil)
 	case "servers", "projects", "environments", "apps", "applications", "services", "databases", "env", "domains":
 		return resourceCmd(asJSON, stdout, stderr, call, base, token, team, cmd, rest)
 	case "tokens", "maintenance", "files", "flush-cache", "server-health", "fleet", "scan", "transfer", "vulns", "bundle":
@@ -336,6 +348,9 @@ Usage:
   dfin [--json] scan <owner/repo> [--branch name]
   dfin [--json] transfer <server-uuid> <team-uuid> --confirm MOVE
   dfin [--json] vulns
+  dfin [--json] jobs
+  dfin [--json] jobs <job-uuid>
+  dfin [--json] jobs cancel <job-uuid>
   dfin [--json] vulns run <application-uuid>
   dfin [--json] vulns candidates <scan-uuid>
   dfin [--json] vulns upgrade <application-uuid> --tag TAG --confirm UPGRADE

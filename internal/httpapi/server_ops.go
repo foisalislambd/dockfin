@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -500,8 +501,7 @@ func (a *API) handleRunDockerCleanup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	teamID := currentTeamID(r)
-	ops, err := a.Store.GetServerOpsSettings(r.Context(), teamID, id)
-	if err != nil {
+	if _, err := a.Store.GetServerOpsSettings(r.Context(), teamID, id); err != nil {
 		mapStoreErr(w, err)
 		return
 	}
@@ -510,24 +510,14 @@ func (a *API) handleRunDockerCleanup(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	client, err := a.dialServer(r, id)
+	payload, _ := json.Marshal(map[string]string{"server_id": id.String(), "execution_id": exec.ID.String()})
+	job, err := a.Store.EnqueueJob(r.Context(), teamID, "docker_cleanup", payload)
 	if err != nil {
 		_ = a.Store.FinishDockerCleanupExecution(r.Context(), exec.ID, "failed", err.Error())
-		writeError(w, http.StatusBadRequest, err.Error())
+		mapStoreErr(w, err)
 		return
 	}
-	msg, runErr := runDockerCleanupDetailed(client, ops.ForceDockerCleanup, ops.DockerCleanupThreshold)
-	status := "finished"
-	if runErr != nil {
-		status = "failed"
-		if msg == "" {
-			msg = runErr.Error()
-		} else {
-			msg = msg + "; " + runErr.Error()
-		}
-	}
-	_ = a.Store.FinishDockerCleanupExecution(r.Context(), exec.ID, status, msg)
-	writeJSON(w, http.StatusOK, map[string]any{"status": status, "message": msg, "execution_id": exec.ID})
+	writeJSON(w, http.StatusAccepted, map[string]any{"job": job, "execution_id": exec.ID, "status": "queued"})
 }
 
 func (a *API) handleListDockerCleanupExecutions(w http.ResponseWriter, r *http.Request) {

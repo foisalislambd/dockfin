@@ -263,7 +263,14 @@ func (s *Store) transferServer(ctx context.Context, sourceTeam, targetTeam, serv
 	if err != nil {
 		return nil, err
 	}
-	if cleared.RowsAffected() > 0 {
+	replicas, err := tx.Exec(ctx, `
+		DELETE FROM scheduled_backup_s3_storages
+		WHERE scheduled_backup_id IN (SELECT id FROM scheduled_backups WHERE resource_id = ANY($1::uuid[]))
+	`, all)
+	if err != nil {
+		return nil, err
+	}
+	if cleared.RowsAffected() > 0 || replicas.RowsAffected() > 0 {
 		res.Warnings = append(res.Warnings, "Scheduled backups moved, but their S3 storage stays on the original team and was disconnected.")
 	}
 	if _, err := tx.Exec(ctx, `UPDATE shared_environment_variables SET team_id=$2 WHERE scope_type='server' AND scope_id=$1`, serverID, targetTeam); err != nil {
@@ -289,8 +296,12 @@ func (s *Store) transferServer(ctx context.Context, sourceTeam, targetTeam, serv
 	if _, err := tx.Exec(ctx, `UPDATE destinations SET team_id=$2, updated_at=NOW() WHERE server_id=$1`, serverID, targetTeam); err != nil {
 		return nil, err
 	}
-	_, _ = tx.Exec(ctx, `UPDATE server_health SET team_id=$2 WHERE server_id=$1`, serverID, targetTeam)
-	_, _ = tx.Exec(ctx, `UPDATE server_metrics SET team_id=$2 WHERE server_id=$1`, serverID, targetTeam)
+	if _, err := tx.Exec(ctx, `UPDATE server_health SET team_id=$2 WHERE server_id=$1`, serverID, targetTeam); err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE server_metrics SET team_id=$2 WHERE server_id=$1`, serverID, targetTeam); err != nil {
+		return nil, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}

@@ -46,7 +46,7 @@ import { ServerTerminal } from '../components/Terminal'
 import { DetailPageSkeleton, PanelSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { ConfigSideNav, type SideNavGroup, type SideNavItem } from '../components/ConfigSideNav'
 import { Meta, ResourceTabs, TabPanel } from '../components/ui/tabs'
-import { api } from '../lib/api'
+import { api, waitForJob } from '../lib/api'
 import { useLogStream } from '../lib/useLogStream'
 import { Btn } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -766,8 +766,9 @@ export function DatabaseDetailPage() {
                 onClick={() => {
                   void api.regenerateDatabaseTLS(dbId).then(() => {
                     setCaPem('')
+                    setCaError('')
                     void qc.invalidateQueries({ queryKey: ['database-tls', dbId] })
-                  })
+                  }).catch((e: Error) => setCaError(e.message || 'Could not regenerate the certificate'))
                 }}
               >
                 Regenerate on next start
@@ -1554,7 +1555,10 @@ export function ServerDetailPage() {
     },
   })
   const runCleanup = useMutation({
-    mutationFn: () => api.runDockerCleanup(serverId),
+    mutationFn: async () => {
+      const queued = await api.runDockerCleanup(serverId)
+      return waitForJob(queued.job.id)
+    },
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['docker-cleanup', serverId] }),
   })
   const saveProxyCfg = useMutation({
@@ -1567,6 +1571,7 @@ export function ServerDetailPage() {
   const deleteProxyCfg = useMutation({
     mutationFn: (configId: string) => api.deleteProxyDynamic(serverId, configId),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['proxy-dynamic', serverId] }),
+    onError: (e: Error) => setTransferError(e.message),
   })
 
   if (server.isLoading) return <DetailPageSkeleton withSideNav />
@@ -1880,6 +1885,7 @@ export function ServerDetailPage() {
                 </Btn>
                 <Btn
                   onClick={() => {
+                    setTransferError('')
                     void api.exportServer(serverId).then((bundle) => {
                       const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' })
                       const url = URL.createObjectURL(blob)
@@ -1888,7 +1894,7 @@ export function ServerDetailPage() {
                       a.download = `server-${serverId}.json`
                       a.click()
                       URL.revokeObjectURL(url)
-                    })
+                    }).catch((e: Error) => setTransferError(e.message))
                   }}
                 >
                   Export metadata

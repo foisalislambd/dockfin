@@ -92,6 +92,40 @@ func projectResource(path string) (string, uuid.UUID, bool) {
 	return kind, id, true
 }
 
+// requireResourceAccess hides a project the member cannot view, deploy, or manage.
+// Owners, admins, and members with access to every project pass through.
+func (a *API) requireResourceAccess(r *http.Request, kind string, id uuid.UUID, write, del bool) error {
+	if isTeamAdmin(r) || id == uuid.Nil {
+		return nil
+	}
+	user := currentUser(r)
+	if user == nil {
+		return store.ErrNotFound
+	}
+	return a.allowResource(r.Context(), currentTeamID(r), user.ID, kind, id, write, del)
+}
+
+func (a *API) allowResource(ctx context.Context, teamID, userID uuid.UUID, kind string, id uuid.UUID, write, del bool) error {
+	if userID == uuid.Nil {
+		return nil
+	}
+	scope, err := a.Store.MemberAccess(ctx, teamID, userID, "")
+	if err != nil {
+		return err
+	}
+	if scope.Unrestricted {
+		return nil
+	}
+	projectID, found, err := a.Store.ProjectIDForResource(ctx, teamID, kind, id)
+	if err != nil {
+		return err
+	}
+	if !found || !scope.Allows(projectID, write, del) {
+		return store.ErrNotFound
+	}
+	return nil
+}
+
 func (a *API) scopedProjects(r *http.Request, projects []store.Project) []store.Project {
 	if isTeamAdmin(r) {
 		return projects

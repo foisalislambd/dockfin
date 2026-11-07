@@ -356,6 +356,10 @@ func (a *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
+	if err := a.requireResourceAccess(r, "environment", envID, true, false); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
 	app := &store.Application{
 		TeamID:                  teamID,
 		EnvironmentID:           envID,
@@ -846,6 +850,10 @@ func (a *API) handleCreateDatabase(w http.ResponseWriter, r *http.Request) {
 	}
 	teamID := currentTeamID(r)
 	if _, err := a.Store.GetEnvironment(r.Context(), teamID, envID); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if err := a.requireResourceAccess(r, "environment", envID, true, false); err != nil {
 		mapStoreErr(w, err)
 		return
 	}

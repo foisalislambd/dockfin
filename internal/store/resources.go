@@ -1350,6 +1350,20 @@ func (s *Store) AppendDeploymentLog(ctx context.Context, id uuid.UUID, stage, li
 	return err
 }
 
+// ClaimDeployment moves a queued deployment to in_progress once.
+// A second worker that received the same job gets false.
+func (s *Store) ClaimDeployment(ctx context.Context, teamID, id uuid.UUID) (bool, error) {
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE deployments
+		SET status='in_progress', started_at=COALESCE(started_at, NOW()), updated_at=NOW()
+		WHERE id=$1 AND team_id=$2 AND status='queued'
+	`, id, teamID)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
 func (s *Store) SetDeploymentStatus(ctx context.Context, id uuid.UUID, status, errMsg string) error {
 	errMsg = redact.Secrets(errMsg)
 	// Never overwrite a cancelled deployment with finished/failed/in_progress.

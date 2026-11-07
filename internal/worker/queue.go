@@ -121,11 +121,13 @@ func (q *Queue) handle(ctx context.Context, job DeployJob) {
 		_ = q.markStatus(ctx, job.DeploymentID, "failed", "deployment not found")
 		return
 	}
-	if dep.Status == "cancelled" || dep.Status == "finished" || dep.Status == "failed" {
+	if dep.Status == "cancelled" || dep.Status == "finished" || dep.Status == "failed" || dep.Status == "in_progress" {
 		return
 	}
-
-	_ = q.markStatus(ctx, job.DeploymentID, "in_progress", "")
+	claimed, err := q.Store.ClaimDeployment(ctx, job.TeamID, job.DeploymentID)
+	if err != nil || !claimed {
+		return
+	}
 	q.publish(job.DeploymentID, "status", "in_progress")
 
 	if dep.ServiceID != nil {

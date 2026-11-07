@@ -7728,6 +7728,139 @@ paths:
             summary: List preview
             tags:
                 - invitations
+    /api/v1/jobs:
+        get:
+            operationId: getApiV1Jobs
+            responses:
+                "200":
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: List jobs
+            tags:
+                - jobs
+    /api/v1/jobs/{jobID}:
+        get:
+            operationId: getApiV1JobsJobID
+            parameters:
+                - in: path
+                  name: jobID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Get job
+            tags:
+                - jobs
+    /api/v1/jobs/{jobID}/cancel:
+        post:
+            operationId: postApiV1JobsJobIDCancel
+            parameters:
+                - in: path
+                  name: jobID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: true
+                            type: object
+                required: false
+            responses:
+                "200":
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: Cancel job
+            tags:
+                - jobs
     /api/v1/mcp:
         get:
             operationId: getApiV1Mcp
@@ -15193,9 +15326,46 @@ paths:
             summary: OpenAPI document
             tags:
                 - system
+    /ready:
+        get:
+            operationId: getReady
+            responses:
+                "200":
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Forbidden
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Rate limit exceeded
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Internal error
+            security:
+                - cookieAuth: []
+                - bearerAuth: []
+            summary: List ready
+            tags:
+                - api
 servers:
     - url: /
 tags:
+    - name: api
     - name: api-tokens
     - name: applications
     - name: audit-logs
@@ -15218,6 +15388,7 @@ tags:
     - name: image-scans
     - name: integration-tokens
     - name: invitations
+    - name: jobs
     - name: mcp
     - name: notifications
     - name: openapi.json

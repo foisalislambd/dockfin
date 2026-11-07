@@ -204,7 +204,9 @@ function GitLabSystemHooks() {
             <button
               type="button"
               className="text-xs text-error-500 hover:underline"
-              onClick={() => void api.deleteGitLabSystemHook(h.id).then(() => qc.invalidateQueries({ queryKey: ['gitlab-hooks'] }))}
+              onClick={() =>
+                void api.deleteGitLabSystemHook(h.id).then(() => qc.invalidateQueries({ queryKey: ['gitlab-hooks'] })).catch((e: Error) => setError(e.message))
+              }
             >
               Remove
             </button>

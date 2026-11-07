@@ -10,7 +10,31 @@ The same version, or a lower one, does not create a release. Git tag, GitHub Rel
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-07
+
 ### Added
+
+- Durable background jobs for on-demand image scans, Docker cleanup, and instance backups. `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}`, and `POST /api/v1/jobs/{id}/cancel`. The worker claims with `FOR UPDATE SKIP LOCKED`, retries with backoff, and drops a job after three attempts. `dfin jobs` shows the same queue
+- `GET /ready` for process readiness (database ping)
+- Project grants now cover environment variables (including reveal), resource create, scheduled tasks, deployment cancel, resource moves, deploy-by-id for a signed-in member, and the MCP tools
+
+### Changed
+
+- On-demand scans, Docker cleanup, and “Run backup now” return `202` and finish in the job worker. The dashboard waits for the job and shows the error
+- Production (`DOCKFIN_ENV` other than development) refuses `GET /metrics` unless `DOCKFIN_METRICS_TOKEN` is set. Development still serves metrics without a token
+- `DOCKFIN_PUBLIC_URL` must be an absolute `http` or `https` URL or the process refuses to start
+- A deployment is claimed only while it is still `queued`, so two workers cannot both start it
+- Git tree scans and registry tag lookups from the control plane use the same private-network block as notification webhooks
+- The website workflow uses one Pages concurrency group so two pushes to `main` cannot sit on the same GitHub Pages deployment slot
+- Dashboard actions that previously swallowed failures (server validate, proxy start, API token pause/roll/revoke, GitLab hook delete, vulnerability dismiss, certificate regenerate, server export, proxy config delete) now show the error
+
+### Security
+
+- See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for the 2.1.0 review: project-scope bypasses, control-plane SSRF, metrics exposure, and the checks that were already sound
+
+### Included from main after v2.0.0
+
+These shipped on `main` after the v2.0.0 tag and are part of 2.1.0.
 
 - Newer image tags for a scanned image: patch and line candidates, registry digests when the registry returns them, and a confirmed UPGRADE or REBUILD that deploys the application
 - Same-instance server transfer moves applications, services, and databases with the server. A shared project is split. Type MOVE to confirm

@@ -7,6 +7,7 @@ import { CatalogLoadMore } from '../components/CatalogLoadMore'
 import { CreatePageShell, FormActions, FormInput, FormSelect } from '../components/ui/forms'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import { useCatalogWindow } from '../hooks/use-catalog-window'
+import { useToast } from '../components/Toast'
 import { api, type Key, type Server } from '../lib/api'
 import { catalogMatchesQuery } from '../lib/new-resource-catalog'
 
@@ -121,6 +122,7 @@ function ServerList({
   servers: Server[]
   qc: ReturnType<typeof useQueryClient>
 }) {
+  const toast = useToast()
   const [search, setSearch] = useState('')
   const q = search.trim().toLowerCase()
   const filtered = servers.filter((s) =>
@@ -196,7 +198,16 @@ function ServerList({
                     className="text-brand-600 hover:underline dark:text-brand-400"
                     type="button"
                     onClick={() =>
-                      void api.validateServer(s.id).then(() => qc.invalidateQueries({ queryKey: ['servers'] }))
+                      void api.validateServer(s.id).then((res) => {
+                        if (res.error || res.reachable === false) {
+                          toast.error(res.error || 'Server is not reachable')
+                        } else if (res.usable === false) {
+                          toast.warning('Server is reachable, but Docker is not usable')
+                        } else {
+                          toast.success('Server checked')
+                        }
+                        void qc.invalidateQueries({ queryKey: ['servers'] })
+                      }).catch((e: Error) => toast.error(e.message))
                     }
                   >
                     Validate
@@ -206,7 +217,10 @@ function ServerList({
                     type="button"
                     disabled={s.proxy_type === 'none'}
                     onClick={() =>
-                      void api.startProxy(s.id).then(() => qc.invalidateQueries({ queryKey: ['servers'] }))
+                      void api.startProxy(s.id).then(() => {
+                        toast.success('Proxy start requested')
+                        void qc.invalidateQueries({ queryKey: ['servers'] })
+                      }).catch((e: Error) => toast.error(e.message))
                     }
                   >
                     Start proxy

@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/dockfin/dockfin/internal/store"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/dockfin/dockfin/internal/store"
 )
 
 func (a *API) handleCloneEnvironment(w http.ResponseWriter, r *http.Request) {
@@ -233,6 +233,10 @@ func (a *API) handleMoveResource(w http.ResponseWriter, r *http.Request) {
 	}
 	teamID := currentTeamID(r)
 	if err := a.assertEnvVarResource(r, teamID, rt, rid); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if err := a.requireResourceAccess(r, "environment", eid, true, false); err != nil {
 		mapStoreErr(w, err)
 		return
 	}

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -100,6 +101,9 @@ func Load() (*Config, error) {
 		cfg.CookieSecure = strings.HasPrefix(strings.ToLower(cfg.PublicURL), "https://")
 	}
 
+	if u, err := url.Parse(cfg.PublicURL); err != nil || u.Scheme == "" || u.Host == "" {
+		return nil, fmt.Errorf("DOCKFIN_PUBLIC_URL must be an absolute http or https URL")
+	}
 	if len(cfg.MasterKey) < 32 {
 		return nil, fmt.Errorf("DOCKFIN_MASTER_KEY must be at least 32 characters")
 	}

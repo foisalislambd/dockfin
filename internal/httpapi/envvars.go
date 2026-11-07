@@ -123,7 +123,17 @@ func (a *API) handleLockEnvVar(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "locked required")
 		return
 	}
-	v, err := a.Store.SetEnvVarLocked(r.Context(), currentTeamID(r), id, *body.Locked)
+	teamID := currentTeamID(r)
+	typ, rid, err := a.Store.EnvVarTarget(r.Context(), teamID, id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if err := a.requireResourceAccess(r, typ, rid, true, false); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	v, err := a.Store.SetEnvVarLocked(r.Context(), teamID, id, *body.Locked)
 	if err != nil {
 		mapStoreErr(w, err)
 		return
@@ -137,7 +147,17 @@ func (a *API) handleDeleteEnvVar(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if err := a.Store.DeleteEnvVar(r.Context(), currentTeamID(r), id); err != nil {
+	teamID := currentTeamID(r)
+	typ, rid, err := a.Store.EnvVarTarget(r.Context(), teamID, id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if err := a.requireResourceAccess(r, typ, rid, true, true); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if err := a.Store.DeleteEnvVar(r.Context(), teamID, id); err != nil {
 		mapStoreErr(w, err)
 		return
 	}
@@ -148,6 +168,10 @@ func (a *API) handleCancelDeployment(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "deploymentID"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if err := a.requireResourceAccess(r, "deployment", id, true, false); err != nil {
+		mapStoreErr(w, err)
 		return
 	}
 	if err := a.Store.CancelDeployment(r.Context(), currentTeamID(r), id); err != nil {
@@ -271,16 +295,22 @@ func (a *API) assertSharedEnvScope(r *http.Request, teamID uuid.UUID, scopeType 
 }
 
 func (a *API) assertEnvVarResource(r *http.Request, teamID uuid.UUID, resourceType string, resourceID uuid.UUID) error {
+	write := r.Method != http.MethodGet && r.Method != http.MethodHead
 	switch resourceType {
-	case "application":
-		_, err := a.Store.GetApplication(r.Context(), teamID, resourceID)
-		return err
-	case "database":
-		_, err := a.Store.GetDatabase(r.Context(), teamID, resourceID)
-		return err
-	case "service":
-		_, err := a.Store.GetService(r.Context(), teamID, resourceID)
-		return err
+	case "application", "database", "service":
+		var err error
+		switch resourceType {
+		case "application":
+			_, err = a.Store.GetApplication(r.Context(), teamID, resourceID)
+		case "database":
+			_, err = a.Store.GetDatabase(r.Context(), teamID, resourceID)
+		default:
+			_, err = a.Store.GetService(r.Context(), teamID, resourceID)
+		}
+		if err != nil {
+			return err
+		}
+		return a.requireResourceAccess(r, resourceType, resourceID, write, r.Method == http.MethodDelete)
 	default:
 		return store.ErrNotFound
 	}

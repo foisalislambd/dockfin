@@ -11,8 +11,10 @@ permissions:
   id-token: write
 
 concurrency:
-  group: website-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  # One Pages deployment at a time. Overlapping main deploys were left
+  # deployment_queued until GitHub returned "Deployment failed, try again later."
+  group: website-pages
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -65,3 +67,6 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          timeout: 600000
+          error_count: 36

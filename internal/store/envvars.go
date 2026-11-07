@@ -144,6 +144,16 @@ func (s *Store) UpsertEnvVar(ctx context.Context, teamID uuid.UUID, resourceType
 	return &v, nil
 }
 
+func (s *Store) EnvVarTarget(ctx context.Context, teamID, id uuid.UUID) (string, uuid.UUID, error) {
+	var typ string
+	var rid uuid.UUID
+	err := s.Pool.QueryRow(ctx, `SELECT resource_type, resource_id FROM environment_variables WHERE team_id=$1 AND id=$2`, teamID, id).Scan(&typ, &rid)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", uuid.Nil, ErrNotFound
+	}
+	return typ, rid, err
+}
+
 func (s *Store) SetEnvVarLocked(ctx context.Context, teamID, id uuid.UUID, locked bool) (*EnvVar, error) {
 	var v EnvVar
 	var enc string

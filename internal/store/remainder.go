@@ -172,8 +172,9 @@ func (s *Store) ProjectIDForResource(ctx context.Context, teamID uuid.UUID, kind
 		q = `SELECT project_id FROM environments WHERE team_id=$1 AND id=$2`
 	case "deployment":
 		q = `SELECT e.project_id FROM deployments dep
-			JOIN applications a ON a.id=dep.application_id
-			JOIN environments e ON e.id=a.environment_id
+			LEFT JOIN applications a ON a.id=dep.application_id
+			LEFT JOIN services sv ON sv.id=dep.service_id
+			JOIN environments e ON e.id=COALESCE(a.environment_id, sv.environment_id)
 			WHERE dep.team_id=$1 AND dep.id=$2`
 	default:
 		return uuid.Nil, false, nil

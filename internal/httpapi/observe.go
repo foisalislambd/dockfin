@@ -105,7 +105,8 @@ func metricsAuthorized(a *API, r *http.Request) bool {
 		token = a.Cfg.MetricsToken
 	}
 	if token == "" {
-		return true
+		// Development and tests keep /metrics open. Production requires DOCKFIN_METRICS_TOKEN.
+		return a == nil || a.Cfg == nil || a.Cfg.IsDev()
 	}
 	got := ""
 	h := r.Header.Get("Authorization")

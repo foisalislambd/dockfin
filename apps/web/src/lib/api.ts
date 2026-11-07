@@ -15,12 +15,32 @@ export type DeleteResourceBody = {
 export const LAST_ENV_KEY = 'dockfin:last_environment_id'
 export const LAST_TERM_SERVER_KEY = 'dockfin:last_terminal_server_id'
 
+export type BackgroundJob = {
+  id: string
+  kind: string
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | string
+  error?: string
+  result?: { scan_id?: string; status?: string; message?: string; execution_id?: string }
+}
+
 export class ApiError extends Error {
   status: number
   constructor(status: number, message: string) {
     super(message)
     this.status = status
   }
+}
+
+export async function waitForJob(id: string): Promise<BackgroundJob> {
+  for (let i = 0; i < 120; i++) {
+    const job = await api.job(id)
+    if (job.status === 'succeeded' || job.status === 'failed' || job.status === 'cancelled') {
+      if (job.status !== 'succeeded') throw new Error(job.error || `Job ${job.status}`)
+      return job
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+  }
+  throw new Error('The job is still running. Refresh in a moment to see the result.')
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -242,7 +262,10 @@ export const api = {
   deleteServer: (id: string) =>
     request<{ status: string }>(`/api/v1/servers/${id}`, { method: 'DELETE' }),
   validateServer: (id: string) =>
-    request(`/api/v1/servers/${id}/validate`, { method: 'POST' }),
+    request<{ reachable?: boolean; usable?: boolean; error?: string }>(
+      `/api/v1/servers/${id}/validate`,
+      { method: 'POST' },
+    ),
   startProxy: (id: string) =>
     request(`/api/v1/servers/${id}/proxy/start`, { method: 'POST' }),
   stopProxy: (id: string) =>
@@ -305,10 +328,12 @@ export const api = {
   sentinelLogs: (id: string, tail = 200) =>
     request<{ logs: string; error?: string }>(`/api/v1/servers/${id}/sentinel/logs?tail=${tail}`),
   runDockerCleanup: (id: string) =>
-    request<{ status: string; message: string; execution_id: string }>(
+    request<{ job: BackgroundJob; execution_id: string; status: string }>(
       `/api/v1/servers/${id}/docker-cleanup`,
       { method: 'POST' },
     ),
+  job: (id: string) => request<BackgroundJob>(`/api/v1/jobs/${id}`),
+  jobs: () => request<{ jobs: BackgroundJob[] }>('/api/v1/jobs'),
   dockerCleanupExecutions: (id: string, limit = 50) =>
     request<{ executions: DockerCleanupExecution[] }>(
       `/api/v1/servers/${id}/docker-cleanup/executions?limit=${limit}`,
@@ -1059,7 +1084,7 @@ export const api = {
       body: JSON.stringify(body),
     }),
   runInstanceBackup: () =>
-    request<{ execution: BackupExecution }>('/api/v1/settings/backup/run', { method: 'POST' }),
+    request<{ job: BackgroundJob; status: string }>('/api/v1/settings/backup/run', { method: 'POST' }),
   instanceBackupExecutions: () =>
     request<{ executions: BackupExecution[] }>('/api/v1/settings/backup/executions'),
 
@@ -1424,7 +1449,7 @@ export const api = {
       body: JSON.stringify({ confirm, tag: tag || '' }),
     }),
   scanApplication: (appId: string, image?: string) =>
-    request<{ id: string; status: string; critical: number; error?: string }>(`/api/v1/applications/${appId}/image-scans`, {
+    request<BackgroundJob>(`/api/v1/applications/${appId}/image-scans`, {
       method: 'POST',
       body: JSON.stringify({ image: image || '' }),
     }),

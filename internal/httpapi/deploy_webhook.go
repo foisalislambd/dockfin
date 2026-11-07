@@ -42,14 +42,33 @@ func (a *API) handleDeployByUUID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if svc, err := a.Store.GetService(r.Context(), teamID, id); err == nil {
+		if err := a.deployACL(r, teamID, "service", svc.ID); err != nil {
+			writeError(w, http.StatusNotFound, "resource not found")
+			return
+		}
 		a.triggerServiceDeploy(w, r, svc)
 		return
 	}
 	if app, err := a.Store.GetApplication(r.Context(), teamID, id); err == nil {
+		if err := a.deployACL(r, teamID, "application", app.ID); err != nil {
+			writeError(w, http.StatusNotFound, "resource not found")
+			return
+		}
 		a.triggerApplicationDeploy(w, r, app, force)
 		return
 	}
 	writeError(w, http.StatusNotFound, "resource not found")
+}
+
+// deployACL applies project grants when the caller is a logged-in member.
+// A resource webhook secret or an API token is team-scoped and is not filtered here.
+func (a *API) deployACL(r *http.Request, teamID uuid.UUID, kind string, id uuid.UUID) error {
+	token := sessionToken(r)
+	sess, err := a.Store.GetSession(r.Context(), token)
+	if err != nil {
+		return nil
+	}
+	return a.allowResource(r.Context(), teamID, sess.UserID, kind, id, true, false)
 }
 
 func cookieSessionWithoutBearer(r *http.Request) bool {
