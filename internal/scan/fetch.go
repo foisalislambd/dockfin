@@ -8,7 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
+
+	"github.com/dockfin/dockfin/internal/notify"
 )
 
 // Repo is a GitHub or GitLab repository Dockfin can list without cloning.
@@ -49,7 +50,10 @@ func ParseRepo(raw string) (Repo, error) {
 
 // ListPaths returns file paths at ref. GitHub uses the trees API. GitLab uses the repository tree API.
 func ListPaths(ctx context.Context, repo Repo, ref, token string) ([]string, error) {
-	client := &http.Client{Timeout: 20 * time.Second}
+	if err := (notify.URLPolicy{}).ValidateHTTPURL("https://" + repo.Host); err != nil {
+		return nil, err
+	}
+	client := notify.Client(notify.URLPolicy{})
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		ref = "HEAD"

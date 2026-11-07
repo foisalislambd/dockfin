@@ -50,6 +50,7 @@ type API struct {
 	openAPIYAML []byte
 	openAPIOps  []documentedOp
 	maintOnce   sync.Once
+	jobCancel   context.CancelFunc
 }
 
 // TaskRunner runs scheduled tasks on demand (wired to the scheduler runner).
@@ -79,6 +80,7 @@ func (a *API) Router() http.Handler {
 	}))
 
 	r.Get("/health", a.handleHealth)
+	r.Get("/ready", a.handleReady)
 	r.Get("/api/v1/version", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"version": version.Version,
@@ -211,6 +213,9 @@ func (a *API) Router() http.Handler {
 			})
 
 			r.Get("/fleet/metrics", a.handleFleetMetrics)
+			r.Get("/jobs", a.handleListJobs)
+			r.Get("/jobs/{jobID}", a.handleGetJob)
+			r.Post("/jobs/{jobID}/cancel", a.handleCancelJob)
 			r.Get("/image-scans", a.handleListImageScans)
 			r.Get("/image-scans/{scanID}", a.handleGetImageScan)
 			r.Post("/image-scans/{scanID}/candidates", a.handleImageCandidates)
@@ -542,6 +547,14 @@ func handleHealthStatus(a *API, ctx context.Context) (int, map[string]any) {
 
 func (a *API) handleHealth(w http.ResponseWriter, r *http.Request) {
 	code, body := handleHealthStatus(a, r.Context())
+	writeJSON(w, code, body)
+}
+
+func (a *API) handleReady(w http.ResponseWriter, r *http.Request) {
+	code, body := handleHealthStatus(a, r.Context())
+	if code == http.StatusOK {
+		body["status"] = "ready"
+	}
 	writeJSON(w, code, body)
 }
 

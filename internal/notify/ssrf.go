@@ -113,6 +113,11 @@ func isBlockedMetadataHost(host string) bool {
 	return h == "metadata.google.internal" || h == "metadata" || h == "169.254.169.254"
 }
 
+// Client is an HTTP client that refuses private, loopback, and metadata addresses at dial time.
+func Client(policy URLPolicy) *http.Client {
+	return safeHTTPClient(policy)
+}
+
 func safeHTTPClient(policy URLPolicy) *http.Client {
 	dialer := &net.Dialer{Timeout: 10 * time.Second}
 	transport := &http.Transport{

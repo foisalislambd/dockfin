@@ -9,6 +9,7 @@ import (
 	"github.com/dockfin/dockfin/internal/mcp"
 	"github.com/dockfin/dockfin/internal/sshdial"
 	"github.com/dockfin/dockfin/internal/sshx"
+	"github.com/dockfin/dockfin/internal/store"
 	"github.com/dockfin/dockfin/internal/version"
 	"github.com/dockfin/dockfin/internal/worker"
 	"github.com/google/uuid"
@@ -21,6 +22,7 @@ const mcpMaxItems = 100
 type mcpBackend struct {
 	api    *API
 	teamID uuid.UUID
+	userID uuid.UUID
 }
 
 func (b *mcpBackend) ListServers(ctx context.Context) (any, error) {
@@ -42,14 +44,30 @@ func (b *mcpBackend) ListServers(ctx context.Context) (any, error) {
 	return map[string]any{"servers": out, "count": len(out)}, nil
 }
 
+func (b *mcpBackend) scope(ctx context.Context) (store.AccessScope, error) {
+	if b.userID == uuid.Nil {
+		return store.AccessScope{Unrestricted: true}, nil
+	}
+	return b.api.Store.MemberAccess(ctx, b.teamID, b.userID, "")
+}
+
 func (b *mcpBackend) ListProjects(ctx context.Context) (any, error) {
 	list, err := b.api.Store.ListProjects(ctx, b.teamID)
 	if err != nil {
 		return nil, err
 	}
+	scope, err := b.scope(ctx)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]map[string]any, 0, len(list))
-	for i, p := range list {
-		if i >= mcpMaxItems {
+	for _, p := range list {
+		if !scope.Unrestricted {
+			if _, ok := scope.Grants[p.ID]; !ok {
+				continue
+			}
+		}
+		if len(out) >= mcpMaxItems {
 			break
 		}
 		out = append(out, map[string]any{"id": p.ID, "name": p.Name, "description": p.Description})
@@ -62,9 +80,22 @@ func (b *mcpBackend) ListApplications(ctx context.Context) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	scope, err := b.scope(ctx)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]map[string]any, 0, len(list))
-	for i, a := range list {
-		if i >= mcpMaxItems {
+	for _, a := range list {
+		if !scope.Unrestricted {
+			projectID, ok := scope.EnvProject[a.EnvironmentID]
+			if !ok {
+				continue
+			}
+			if _, granted := scope.Grants[projectID]; !granted {
+				continue
+			}
+		}
+		if len(out) >= mcpMaxItems {
 			break
 		}
 		out = append(out, map[string]any{"id": a.ID, "name": a.Name, "status": a.Status, "build_pack": a.BuildPack, "fqdn": a.FQDN})
@@ -79,6 +110,9 @@ func (b *mcpBackend) GetApplication(ctx context.Context, id string) (any, error)
 	}
 	app, err := b.api.Store.GetApplication(ctx, b.teamID, appID)
 	if err != nil {
+		return nil, err
+	}
+	if err := b.api.allowResource(ctx, b.teamID, b.userID, "application", app.ID, false, false); err != nil {
 		return nil, err
 	}
 	return map[string]any{
@@ -99,6 +133,9 @@ func (b *mcpBackend) DeployApplication(ctx context.Context, id string, forceRebu
 	}
 	app, err := b.api.Store.GetApplication(ctx, b.teamID, appID)
 	if err != nil {
+		return nil, err
+	}
+	if err := b.api.allowResource(ctx, b.teamID, b.userID, "application", app.ID, true, false); err != nil {
 		return nil, err
 	}
 	if app.DestinationID == nil {
@@ -141,6 +178,9 @@ func (b *mcpBackend) StopApplication(ctx context.Context, id string) (any, error
 	if err != nil {
 		return nil, err
 	}
+	if err := b.api.allowResource(ctx, b.teamID, b.userID, "application", app.ID, true, false); err != nil {
+		return nil, err
+	}
 	if app.DestinationID == nil {
 		return nil, fmt.Errorf("application has no destination")
 	}
@@ -166,9 +206,22 @@ func (b *mcpBackend) ListServices(ctx context.Context) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	scope, err := b.scope(ctx)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]map[string]any, 0, len(list))
-	for i, s := range list {
-		if i >= mcpMaxItems {
+	for _, s := range list {
+		if !scope.Unrestricted {
+			projectID, ok := scope.EnvProject[s.EnvironmentID]
+			if !ok {
+				continue
+			}
+			if _, granted := scope.Grants[projectID]; !granted {
+				continue
+			}
+		}
+		if len(out) >= mcpMaxItems {
 			break
 		}
 		out = append(out, map[string]any{"id": s.ID, "name": s.Name, "status": s.Status, "service_type": s.ServiceType, "fqdn": s.FQDN})
@@ -186,6 +239,9 @@ func (b *mcpBackend) DeployService(ctx context.Context, id string) (any, error) 
 	}
 	svc, err := b.api.Store.GetService(ctx, b.teamID, svcID)
 	if err != nil {
+		return nil, err
+	}
+	if err := b.api.allowResource(ctx, b.teamID, b.userID, "service", svc.ID, true, false); err != nil {
 		return nil, err
 	}
 	serverID, _, err := b.api.resolveServiceTarget(ctx, b.teamID, svc)
@@ -224,9 +280,22 @@ func (b *mcpBackend) ListDatabases(ctx context.Context, environmentID string) (a
 	if err != nil {
 		return nil, err
 	}
+	scope, err := b.scope(ctx)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]map[string]any, 0, len(list))
-	for i, d := range list {
-		if i >= mcpMaxItems {
+	for _, d := range list {
+		if !scope.Unrestricted {
+			projectID, ok := scope.EnvProject[d.EnvironmentID]
+			if !ok {
+				continue
+			}
+			if _, granted := scope.Grants[projectID]; !granted {
+				continue
+			}
+		}
+		if len(out) >= mcpMaxItems {
 			break
 		}
 		out = append(out, map[string]any{
@@ -274,7 +343,11 @@ func (a *API) handleMCP(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	backend := &mcpBackend{api: a, teamID: currentTeamID(r)}
+	userID := uuid.Nil
+	if user := currentUser(r); user != nil {
+		userID = user.ID
+	}
+	backend := &mcpBackend{api: a, teamID: currentTeamID(r), userID: userID}
 
 	// Batch request.
 	if len(raw) > 0 && raw[0] == '[' {

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Cloud, FileCode2, Fingerprint, KeyRound, KeySquare, LockKeyhole } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { useToast } from '../components/Toast'
 import { PanelSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { ResourceTabs, TabPanel } from '../components/ui/tabs'
 import {
@@ -740,6 +741,7 @@ function CloudInitPanel() {
 
 function ApiTokensPanel() {
   const qc = useQueryClient()
+  const toast = useToast()
   const settings = useQuery({ queryKey: ['instance-settings'], queryFn: api.instanceSettings })
   const tokens = useQuery({ queryKey: ['api-tokens'], queryFn: api.apiTokens })
   const [name, setName] = useState('')
@@ -955,7 +957,7 @@ function ApiTokensPanel() {
                         onClick={() => {
                           void api.patchApiToken(t.id, { paused: !t.paused_at }).then(() =>
                             qc.invalidateQueries({ queryKey: ['api-tokens'] }),
-                          )
+                          ).catch((e: Error) => toast.error(e.message))
                         }}
                       >
                         {t.paused_at ? 'Resume' : 'Pause'}
@@ -967,8 +969,9 @@ function ApiTokensPanel() {
                           if (!confirm(`Roll token "${t.name}"? The current secret stops working.`)) return
                           void api.rollApiToken(t.id).then((res) => {
                             setPlain(res.token)
+                            toast.success('Token rolled. Copy the new secret now.')
                             void qc.invalidateQueries({ queryKey: ['api-tokens'] })
-                          })
+                          }).catch((e: Error) => toast.error(e.message))
                         }}
                       >
                         Roll
@@ -980,7 +983,7 @@ function ApiTokensPanel() {
                           if (confirm(`Revoke token "${t.name}"?`)) {
                             void api.deleteApiToken(t.id).then(() =>
                               qc.invalidateQueries({ queryKey: ['api-tokens'] }),
-                            )
+                            ).catch((e: Error) => toast.error(e.message))
                           }
                         }}
                       >

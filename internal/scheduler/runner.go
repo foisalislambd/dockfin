@@ -104,7 +104,7 @@ func (r *Runner) runTasks(ctx context.Context, minute time.Time) {
 			r.Logger.Error("create task execution", "task", t.ID, "err", err)
 			continue
 		}
-		go r.executeTask(context.Background(), t, execID)
+		go r.executeTask(ctx, t, execID)
 	}
 }
 
@@ -237,7 +237,7 @@ func (r *Runner) runBackups(ctx context.Context, minute time.Time) {
 				r.Logger.Error("create service backup execution", "err", err)
 				continue
 			}
-			go r.executeServiceBackup(context.Background(), b, exec.ID, filename)
+			go r.executeServiceBackup(ctx, b, exec.ID, filename)
 			continue
 		}
 		if b.ResourceType == "application" {
@@ -247,7 +247,7 @@ func (r *Runner) runBackups(ctx context.Context, minute time.Time) {
 				r.Logger.Error("create app backup execution", "err", err)
 				continue
 			}
-			go r.executeApplicationBackup(context.Background(), b, exec.ID, filename)
+			go r.executeApplicationBackup(ctx, b, exec.ID, filename)
 			continue
 		}
 		if b.ResourceType != "database" {
@@ -278,7 +278,7 @@ func (r *Runner) runBackups(ctx context.Context, minute time.Time) {
 			r.Logger.Error("create backup execution", "err", err)
 			continue
 		}
-		go r.executeBackup(context.Background(), db, exec.ID, filename, store.DestinationIDs(b.S3StorageID, b.S3StorageIDs), b.Retention)
+		go r.executeBackup(ctx, db, exec.ID, filename, store.DestinationIDs(b.S3StorageID, b.S3StorageIDs), b.Retention)
 	}
 }
 
@@ -677,7 +677,7 @@ func (r *Runner) runDockerCleanups(ctx context.Context, minute time.Time) {
 			continue
 		}
 		go func(teamID, serverID, execID uuid.UUID, force bool, threshold int) {
-			client, err := r.dialServer(context.Background(), teamID, serverID)
+			client, err := r.dialServer(ctx, teamID, serverID)
 			if err != nil {
 				_ = r.Store.FinishDockerCleanupExecution(context.Background(), execID, "failed", err.Error())
 				return

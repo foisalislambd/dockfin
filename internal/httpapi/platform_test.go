@@ -101,7 +101,7 @@ func TestRouterRateLimitAuth(t *testing.T) {
 }
 
 func TestOpenAPIServedAndComplete(t *testing.T) {
-	a := &API{Cfg: &config.Config{}}
+	a := &API{Cfg: &config.Config{Env: "development"}}
 	h := a.Router()
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/openapi.json", nil))

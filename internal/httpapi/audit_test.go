@@ -26,12 +26,20 @@ func TestAuditFromPath(t *testing.T) {
 }
 
 func TestMetricsToken(t *testing.T) {
-	open := &API{Cfg: &config.Config{}}
+	open := &API{Cfg: &config.Config{Env: "development"}}
 	h := open.Router()
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "dockfin_http_requests_total") {
 		t.Fatalf("open metrics %d %s", rec.Code, rec.Body.String())
+	}
+
+	prod := &API{Cfg: &config.Config{Env: "production"}}
+	h = prod.Router()
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("production without a token %d", rec.Code)
 	}
 
 	locked := &API{Cfg: &config.Config{MetricsToken: "metrics-secret"}}

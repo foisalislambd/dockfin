@@ -144,6 +144,11 @@ func runServe() error {
 		Logger:     logger,
 		TaskRunner: sched,
 	}
+	api.StartJobs(ctx)
+	defer api.StopJobs()
+	if !cfg.IsDev() && cfg.MetricsToken == "" {
+		logger.Warn("DOCKFIN_METRICS_TOKEN is empty; /metrics is denied until a token is set")
+	}
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,

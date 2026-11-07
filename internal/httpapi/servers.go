@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
@@ -10,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/proxy"
 	"github.com/dockfin/dockfin/internal/sshdial"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -241,10 +242,14 @@ func parseDockerImageLines(out string, limit int) ([]hostImageRow, bool) {
 }
 
 func (a *API) dialServer(r *http.Request, serverID uuid.UUID) (*ssh.Client, error) {
+	return a.dialServerTeam(r.Context(), currentTeamID(r), serverID)
+}
+
+func (a *API) dialServerTeam(ctx context.Context, teamID, serverID uuid.UUID) (*ssh.Client, error) {
 	if a.Queue == nil || a.Queue.SSH == nil {
 		return nil, fmt.Errorf("ssh pool unavailable")
 	}
-	return sshdial.DialClient(r.Context(), a.Store, a.Queue.SSH, currentTeamID(r), serverID)
+	return sshdial.DialClient(ctx, a.Store, a.Queue.SSH, teamID, serverID)
 }
 
 func (a *API) handleValidateServer(w http.ResponseWriter, r *http.Request) {
@@ -407,12 +412,12 @@ func (a *API) handlePatchServerSettings(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var body struct {
-		IsBuildServer   *bool   `json:"is_build_server"`
-		IsSwarmManager  *bool   `json:"is_swarm_manager"`
-		WildcardDomain  *string `json:"wildcard_domain"`
-		MagicDomain     *string `json:"magic_domain"`
-		PublicIP        *string `json:"public_ip"`
-		JumpHostID      *string `json:"jump_host_id"`
+		IsBuildServer  *bool   `json:"is_build_server"`
+		IsSwarmManager *bool   `json:"is_swarm_manager"`
+		WildcardDomain *string `json:"wildcard_domain"`
+		MagicDomain    *string `json:"magic_domain"`
+		PublicIP       *string `json:"public_ip"`
+		JumpHostID     *string `json:"jump_host_id"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -519,4 +524,3 @@ func (a *API) handleCreateDestination(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusCreated, dest)
 }
-

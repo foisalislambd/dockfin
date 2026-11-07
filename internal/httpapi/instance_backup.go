@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/backup"
 	"github.com/dockfin/dockfin/internal/store"
+	"github.com/google/uuid"
 )
 
 func (a *API) requireSettingsAdmin(w http.ResponseWriter, r *http.Request) bool {
@@ -116,12 +116,12 @@ func (a *API) handleRunInstanceBackup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "configure instance backup first")
 		return
 	}
-	exec, err := a.executeInstanceBackup(r.Context(), currentTeamID(r), cfg)
+	job, err := a.Store.EnqueueJob(r.Context(), currentTeamID(r), "instance_backup", []byte("{}"))
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		mapStoreErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"execution": exec})
+	writeJSON(w, http.StatusAccepted, map[string]any{"job": job, "status": "queued"})
 }
 
 func (a *API) handleListInstanceBackupExecutions(w http.ResponseWriter, r *http.Request) {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dockfin/dockfin/internal/imagescan"
+	"github.com/dockfin/dockfin/internal/notify"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/dockfin/dockfin/internal/worker"
 	"github.com/go-chi/chi/v5"
@@ -134,12 +135,12 @@ func (a *API) handleScanApplication(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	sc, err := a.scanOnServer(r, dest.ServerID, "application", app.ID, ref)
+	job, err := a.enqueueImageScan(r.Context(), currentTeamID(r), dest.ServerID, "application", app.ID, ref)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, sc)
+	writeJSON(w, http.StatusAccepted, job)
 }
 
 func (a *API) handleScanService(w http.ResponseWriter, r *http.Request) {
@@ -173,33 +174,47 @@ func (a *API) handleScanService(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "service has no server")
 		return
 	}
-	var last *store.ImageScan
+	var last *store.BackgroundJob
 	for _, ref := range refs {
-		sc, err := a.scanOnServer(r, serverID, "service", svc.ID, ref)
+		job, err := a.enqueueImageScan(r.Context(), currentTeamID(r), serverID, "service", svc.ID, ref)
 		if err != nil {
 			writeError(w, http.StatusBadGateway, err.Error())
 			return
 		}
-		last = sc
+		last = job
 	}
-	writeJSON(w, http.StatusOK, last)
+	writeJSON(w, http.StatusAccepted, last)
 }
 
-func (a *API) scanOnServer(r *http.Request, serverID uuid.UUID, kind string, resourceID uuid.UUID, imageRef string) (*store.ImageScan, error) {
+func (a *API) enqueueImageScan(ctx context.Context, teamID, serverID uuid.UUID, kind string, resourceID uuid.UUID, imageRef string) (*store.BackgroundJob, error) {
 	if !imagescan.ValidImageRef(imageRef) {
 		return nil, errors.New("invalid image reference")
 	}
-	client, err := a.dialServer(r, serverID)
+	payload, _ := json.Marshal(map[string]string{
+		"server_id": serverID.String(), "resource_type": kind, "resource_id": resourceID.String(), "image": imageRef,
+	})
+	return a.Store.EnqueueJob(ctx, teamID, "image_scan", payload)
+}
+
+func (a *API) scanOnServer(r *http.Request, serverID uuid.UUID, kind string, resourceID uuid.UUID, imageRef string) (*store.ImageScan, error) {
+	return a.scanImage(r.Context(), currentTeamID(r), serverID, kind, resourceID, imageRef)
+}
+
+func (a *API) scanImage(ctx context.Context, teamID, serverID uuid.UUID, kind string, resourceID uuid.UUID, imageRef string) (*store.ImageScan, error) {
+	if !imagescan.ValidImageRef(imageRef) {
+		return nil, errors.New("invalid image reference")
+	}
+	client, err := a.dialServerTeam(ctx, teamID, serverID)
 	if err != nil {
 		return nil, err
 	}
-	ignored, err := a.Store.ImageScanIgnores(r.Context(), currentTeamID(r))
+	ignored, err := a.Store.ImageScanIgnores(ctx, teamID)
 	if err != nil {
 		return nil, err
 	}
 	raw, runErr := imagescan.Run(client, imageRef)
 	scan := store.ImageScan{
-		TeamID: currentTeamID(r), ResourceType: kind, ResourceID: resourceID,
+		TeamID: teamID, ResourceType: kind, ResourceID: resourceID,
 		ServerID: &serverID, ImageRef: imageRef, Status: "completed", Findings: []byte("[]"),
 	}
 	if runErr != nil {
@@ -216,7 +231,7 @@ func (a *API) scanOnServer(r *http.Request, serverID uuid.UUID, kind string, res
 			scan.Findings = b
 		}
 	}
-	saved, err := a.Store.InsertImageScan(r.Context(), scan)
+	saved, err := a.Store.InsertImageScan(ctx, scan)
 	if err != nil {
 		return nil, err
 	}
@@ -316,7 +331,7 @@ func lookupCandidates(ctx context.Context, imageRef string) (candidateReport, er
 	}
 	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
-	client := &http.Client{Timeout: 12 * time.Second}
+	client := notify.Client(notify.URLPolicy{})
 	tags, err := imagescan.ListTags(ctx, client, imageRef)
 	if err != nil {
 		return candidateReport{}, err

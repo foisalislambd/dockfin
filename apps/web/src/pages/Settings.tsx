@@ -20,6 +20,7 @@ import { PanelSkeleton, TableSkeleton } from '../components/ui/Skeleton'
 import { MIT_LICENSE_TEXT } from '../config/app.config'
 import {
   api,
+  waitForJob,
   type InstanceSettings,
   type InstanceSettingsPatch,
   type OauthSetting,
@@ -341,10 +342,13 @@ export function SettingsPage() {
   })
 
   const runBackup = useMutation({
-    mutationFn: () => api.runInstanceBackup(),
+    mutationFn: async () => {
+      const queued = await api.runInstanceBackup()
+      return waitForJob(queued.job.id)
+    },
     onSuccess: () => {
       setError('')
-      setMessage('Backup started')
+      setMessage('Backup finished')
       void qc.invalidateQueries({ queryKey: ['instance-backup'] })
     },
     onError: (e: Error) => {
