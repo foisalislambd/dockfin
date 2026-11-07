@@ -1,13 +1,16 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/dockfin/dockfin/internal/imagescan"
 	"github.com/dockfin/dockfin/internal/store"
+	"github.com/dockfin/dockfin/internal/worker"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -267,4 +270,156 @@ func (a *API) handleImportBundle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, res)
+}
+
+const candidateNote = "These tags have not been scanned. Deploying one does not prove a CVE is gone until the next scan. A higher major is listed for information and is not applied."
+
+type candidateReport struct {
+	Image      string            `json:"image"`
+	CurrentTag string            `json:"current_tag"`
+	Patch      string            `json:"patch,omitempty"`
+	Line       string            `json:"line,omitempty"`
+	Major      string            `json:"major,omitempty"`
+	Floating   bool              `json:"floating"`
+	Digests    map[string]string `json:"digests,omitempty"`
+	Note       string            `json:"note"`
+}
+
+func (a *API) handleImageCandidates(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "scanID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid scan")
+		return
+	}
+	sc, err := a.Store.GetImageScan(r.Context(), currentTeamID(r), id)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	report, err := lookupCandidates(r.Context(), sc.ImageRef)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	raw, _ := json.Marshal(report)
+	if err := a.Store.SetImageScanCandidates(r.Context(), currentTeamID(r), sc.ID, raw); err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, report)
+}
+
+func lookupCandidates(ctx context.Context, imageRef string) (candidateReport, error) {
+	_, tag, ok := imagescan.ImageName(imageRef)
+	if !ok {
+		return candidateReport{}, errors.New("this image is not a registry reference")
+	}
+	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
+	defer cancel()
+	client := &http.Client{Timeout: 12 * time.Second}
+	tags, err := imagescan.ListTags(ctx, client, imageRef)
+	if err != nil {
+		return candidateReport{}, err
+	}
+	choice := imagescan.SelectTags(tag, tags)
+	want := []string{tag}
+	if choice.Patch != "" {
+		want = append(want, choice.Patch)
+	}
+	if choice.Line != "" && choice.Line != choice.Patch {
+		want = append(want, choice.Line)
+	}
+	return candidateReport{
+		Image: imageRef, CurrentTag: tag,
+		Patch: choice.Patch, Line: choice.Line, Major: choice.Major, Floating: choice.Floating,
+		Digests: imagescan.TagDigests(ctx, client, imageRef, want),
+		Note:    candidateNote,
+	}, nil
+}
+
+func (a *API) handleImageUpgrade(w http.ResponseWriter, r *http.Request) {
+	if !isTeamAdmin(r) {
+		writeError(w, http.StatusForbidden, "admin or owner role required")
+		return
+	}
+	appID, err := uuid.Parse(chi.URLParam(r, "appID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid application")
+		return
+	}
+	var body struct {
+		Tag     string `json:"tag"`
+		Confirm string `json:"confirm"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	teamID := currentTeamID(r)
+	app, err := a.Store.GetApplication(r.Context(), teamID, appID)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if a.stopIfFrozen(w, r, app.EnvironmentID, false) {
+		return
+	}
+	force := false
+	switch body.Confirm {
+	case "REBUILD":
+		force = true
+	case "UPGRADE":
+		tag := strings.TrimSpace(body.Tag)
+		ref := imagescan.ApplicationImage(app)
+		if ref == "" {
+			writeError(w, http.StatusBadRequest, "this application has no registry image to upgrade")
+			return
+		}
+		report, err := lookupCandidates(r.Context(), ref)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, err.Error())
+			return
+		}
+		if tag == "" || (tag != report.Patch && tag != report.Line) {
+			writeError(w, http.StatusBadRequest, "tag must be the patch or line candidate")
+			return
+		}
+		if err := a.Store.SetApplicationImageTag(r.Context(), teamID, appID, tag); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	default:
+		writeError(w, http.StatusBadRequest, "type UPGRADE to change the image tag, or REBUILD to redeploy the current image")
+		return
+	}
+	if app.DestinationID == nil {
+		writeError(w, http.StatusBadRequest, "application has no destination")
+		return
+	}
+	dest, err := a.Store.GetDestination(r.Context(), teamID, *app.DestinationID)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	limit, _ := a.Store.GetDeploymentQueueLimit(r.Context(), dest.ServerID)
+	active, _ := a.Store.CountActiveDeployments(r.Context(), dest.ServerID)
+	if active >= limit {
+		writeError(w, http.StatusTooManyRequests, "server deployment queue limit reached")
+		return
+	}
+	serverID := dest.ServerID
+	dep, err := a.Store.CreateDeployment(r.Context(), teamID, appID, &serverID, "", "", force, false, true, 0)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	if a.Queue == nil {
+		writeError(w, http.StatusServiceUnavailable, "deploy queue is not running")
+		return
+	}
+	if err := a.Queue.Enqueue(worker.DeployJob{DeploymentID: dep.ID, TeamID: teamID, ForceRebuild: force}); err != nil {
+		writeError(w, http.StatusServiceUnavailable, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusAccepted, dep)
 }

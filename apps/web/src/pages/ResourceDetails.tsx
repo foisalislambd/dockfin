@@ -1388,6 +1388,9 @@ export function ServerDetailPage() {
   const [catchallURL, setCatchallURL] = useState('')
   const [catchallPermanent, setCatchallPermanent] = useState(false)
   const [transferTeam, setTransferTeam] = useState('')
+  const [transferConfirm, setTransferConfirm] = useState('')
+  const [transferError, setTransferError] = useState('')
+  const [transferMsg, setTransferMsg] = useState('')
   const [bundlePass, setBundlePass] = useState('')
   const [bundleError, setBundleError] = useState('')
   const { teams } = useAuth()
@@ -1832,7 +1835,7 @@ export function ServerDetailPage() {
             <div className="border-t border-gray-200 pt-4 dark:border-gray-800">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Transfer server</h3>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Moves this server and its destinations to another team you administer. Applications, services, and databases must be removed first. The SSH key is copied onto the target team. Metadata export leaves the private key here. A secret bundle encrypts the key, environment variables, and database credentials with a passphrase for another Dockfin instance.
+                Moves this server, its destinations, and the applications, services, and databases that run only on it. A project that also has resources on another server stays here; those resources are copied into a new project on the target team. Git sources, Docker registries, S3 backup targets, and GitHub runner configurations stay on this team. The SSH key is copied. Type MOVE to confirm. Metadata export still leaves the private key here. A secret bundle encrypts the key, environment variables, and database credentials with a passphrase for another Dockfin instance.
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <select
@@ -1847,10 +1850,30 @@ export function ServerDetailPage() {
                     </option>
                   ))}
                 </select>
+                <label className="block text-sm">
+                  <span className="sr-only">Type MOVE to confirm</span>
+                  <input
+                    className="panel-field w-28 rounded-lg px-3 py-2"
+                    value={transferConfirm}
+                    placeholder="MOVE"
+                    onChange={(e) => setTransferConfirm(e.target.value)}
+                  />
+                </label>
                 <Btn
+                  disabled={transferConfirm !== 'MOVE' || !transferTeam}
                   onClick={() => {
-                    if (!transferTeam) return
-                    void api.transferServer(serverId, transferTeam).then(() => nav({ to: '/servers' }))
+                    setTransferError('')
+                    setTransferMsg('')
+                    void api.transferServer(serverId, transferTeam, 'MOVE').then((res) => {
+                      const warnings = res.warnings || []
+                      if (warnings.length) {
+                        setTransferMsg(
+                          `Moved ${res.applications} applications, ${res.services} services, and ${res.databases} databases. ${warnings.join(' ')}`,
+                        )
+                        return
+                      }
+                      void nav({ to: '/servers' })
+                    }).catch((e: Error) => setTransferError(e.message))
                   }}
                 >
                   Transfer
@@ -1871,6 +1894,8 @@ export function ServerDetailPage() {
                   Export metadata
                 </Btn>
               </div>
+              {transferError ? <p className="mt-2 text-sm text-error-500">{transferError}</p> : null}
+              {transferMsg ? <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{transferMsg}</p> : null}
               <div className="mt-4 flex flex-wrap items-end gap-2">
                 <label className="block text-sm">
                   <span className="mb-1 block text-gray-500 dark:text-gray-400">Bundle passphrase</span>

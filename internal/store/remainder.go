@@ -249,55 +249,12 @@ func (s *Store) ServerResourceCount(ctx context.Context, serverID uuid.UUID) (in
 	return n, err
 }
 
-// TransferServer moves a server and its destinations to another team.
-// Resources still pointing at it must be moved or deleted first.
-// The private key is copied onto the target team so the source key stays put.
-func (s *Store) TransferServer(ctx context.Context, sourceTeam, targetTeam, serverID uuid.UUID) error {
-	if sourceTeam == targetTeam {
-		return fmt.Errorf("server is already on that team")
-	}
-	tx, err := s.Pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-	var keyID *uuid.UUID
-	err = tx.QueryRow(ctx, `SELECT private_key_id FROM servers WHERE id=$1 AND team_id=$2 FOR UPDATE`, serverID, sourceTeam).Scan(&keyID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ErrNotFound
-	}
-	if err != nil {
-		return err
-	}
-	n, err := s.ServerResourceCount(ctx, serverID)
-	if err != nil {
-		return err
-	}
-	if n > 0 {
-		return fmt.Errorf("%d application, service, or database still uses this server", n)
-	}
-	if keyID != nil {
-		var newKey uuid.UUID
-		err = tx.QueryRow(ctx, `
-			INSERT INTO private_keys (team_id, name, description, public_key, private_key_enc, fingerprint)
-			SELECT $2, name || ' (transferred)', description, public_key, private_key_enc, fingerprint
-			FROM private_keys WHERE id=$1
-			RETURNING id
-		`, *keyID, targetTeam).Scan(&newKey)
-		if err != nil {
-			return err
-		}
-		keyID = &newKey
-	}
-	if _, err := tx.Exec(ctx, `UPDATE servers SET team_id=$2, private_key_id=$3, updated_at=NOW() WHERE id=$1`, serverID, targetTeam, keyID); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(ctx, `UPDATE destinations SET team_id=$2, updated_at=NOW() WHERE server_id=$1`, serverID, targetTeam); err != nil {
-		return err
-	}
-	_, _ = tx.Exec(ctx, `UPDATE server_health SET team_id=$2 WHERE server_id=$1`, serverID, targetTeam)
-	_, _ = tx.Exec(ctx, `UPDATE server_metrics SET team_id=$2 WHERE server_id=$1`, serverID, targetTeam)
-	return tx.Commit(ctx)
+// TransferServer moves a server, its destinations, and the resources that run
+// on it to another team. A project that also has resources on another server
+// stays put; those resources are copied into a new project on the target team.
+// The private key is copied so the source team keeps its own copy.
+func (s *Store) TransferServer(ctx context.Context, sourceTeam, targetTeam, serverID uuid.UUID) (*TransferResult, error) {
+	return s.transferServer(ctx, sourceTeam, targetTeam, serverID)
 }
 
 type ServerExport struct {

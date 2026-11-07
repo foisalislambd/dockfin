@@ -12,6 +12,8 @@ The same version, or a lower one, does not create a release. Git tag, GitHub Rel
 
 ### Added
 
+- Newer image tags for a scanned image: patch and line candidates, registry digests when the registry returns them, and a confirmed UPGRADE or REBUILD that deploys the application
+- Same-instance server transfer moves applications, services, and databases with the server. A shared project is split. Type MOVE to confirm
 - Image vulnerability scans with Syft and Grype on the server that holds the image, stored findings, an on-demand scan, and a deploy gate (off, warn, or block)
 - Passphrase-encrypted server bundles that move the private key, environment variables, shared variables, and database credentials to another Dockfin
 - Swarm stacks for Caddy and Traefik, with the maintenance page running as a Swarm service
@@ -23,7 +25,7 @@ The same version, or a lower one, does not create a release. Git tag, GitHub Rel
 - CloudWatch log drains through the existing Vector container
 - Docker attach on the terminal (`docker logs` then `docker attach`, detach with Ctrl-p Ctrl-q)
 - Fleet page with the latest CPU, memory, and disk sample per server
-- Server transfer to another team when nothing is deployed on it, plus a metadata export/import that does not include the private key
+- Metadata export and import that does not include the private key
 - Caddy maintenance page and unknown-host catch-all, using the same nginx page as Traefik
 - `dfin fleet`, `dfin scan`, and `dfin transfer`
 - Traefik maintenance page for applications and services. Containers keep running. Caddy serves the same page from its Caddyfile
