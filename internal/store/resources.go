@@ -713,7 +713,7 @@ func (s *Store) ListApplications(ctx context.Context, teamID uuid.UUID, environm
 	q := `SELECT ` + applicationSelectCols + `
 		FROM applications a
 		LEFT JOIN application_settings s ON s.application_id = a.id
-		WHERE a.team_id=$1`
+		WHERE a.team_id=$1 AND a.deleted_at IS NULL`
 	args := []any{teamID}
 	if environmentID != nil {
 		q += ` AND a.environment_id=$2`
@@ -737,10 +737,23 @@ func (s *Store) ListApplications(ctx context.Context, teamID uuid.UUID, environm
 }
 
 func (s *Store) GetApplication(ctx context.Context, teamID, id uuid.UUID) (*Application, error) {
-	row := s.Pool.QueryRow(ctx, `SELECT `+applicationSelectCols+`
+	return s.getApplication(ctx, teamID, id, false)
+}
+
+// GetApplicationAny returns a tombstoned application so cleanup can still see it.
+func (s *Store) GetApplicationAny(ctx context.Context, teamID, id uuid.UUID) (*Application, error) {
+	return s.getApplication(ctx, teamID, id, true)
+}
+
+func (s *Store) getApplication(ctx context.Context, teamID, id uuid.UUID, includeDeleted bool) (*Application, error) {
+	q := `SELECT ` + applicationSelectCols + `
 		FROM applications a
 		LEFT JOIN application_settings s ON s.application_id = a.id
-		WHERE a.id=$1 AND a.team_id=$2`, id, teamID)
+		WHERE a.id=$1 AND a.team_id=$2`
+	if !includeDeleted {
+		q += ` AND a.deleted_at IS NULL`
+	}
+	row := s.Pool.QueryRow(ctx, q, id, teamID)
 	a, err := scanApplication(row.Scan)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
@@ -1462,7 +1475,7 @@ func (s *Store) CreateDatabase(ctx context.Context, db *Database, credentialsEnc
 func (s *Store) ListDatabases(ctx context.Context, teamID uuid.UUID, environmentID *uuid.UUID) ([]Database, error) {
 	q := `
 		SELECT id, team_id, environment_id, destination_id, name, description, engine, image, status, is_public, public_port, COALESCE(enable_ssl,false), engine_config, created_at
-		FROM databases WHERE team_id=$1`
+		FROM databases WHERE team_id=$1 AND deleted_at IS NULL`
 	args := []any{teamID}
 	if environmentID != nil {
 		q += ` AND environment_id=$2`
@@ -1492,7 +1505,7 @@ func (s *Store) GetDatabase(ctx context.Context, teamID, id uuid.UUID) (*Databas
 	var d Database
 	err := s.Pool.QueryRow(ctx, `
 		SELECT id, team_id, environment_id, destination_id, name, description, engine, image, status, is_public, public_port, COALESCE(enable_ssl,false), engine_config, created_at
-		FROM databases WHERE id=$1 AND team_id=$2
+		FROM databases WHERE id=$1 AND team_id=$2 AND deleted_at IS NULL
 	`, id, teamID).Scan(
 		&d.ID, &d.TeamID, &d.EnvironmentID, &d.DestinationID, &d.Name, &d.Description, &d.Engine, &d.Image,
 		&d.Status, &d.IsPublic, &d.PublicPort, &d.EnableSSL, &d.EngineConfig, &d.CreatedAt,
@@ -1828,7 +1841,7 @@ func (s *Store) ListApplicationsForGitWebhook(ctx context.Context, gitSourceID u
 	rows, err := s.Pool.Query(ctx, `SELECT `+applicationSelectCols+`
 		FROM applications a
 		LEFT JOIN application_settings s ON s.application_id = a.id
-		WHERE a.git_source_id=$1 AND a.git_branch=$2
+		WHERE a.git_source_id=$1 AND a.git_branch=$2 AND a.deleted_at IS NULL
 		ORDER BY a.name`, gitSourceID, branch)
 	if err != nil {
 		return nil, err
@@ -1873,6 +1886,7 @@ func (s *Store) CreatePreview(ctx context.Context, teamID, appID uuid.UUID, prID
 		ON CONFLICT (application_id, pull_request_id) DO UPDATE
 		SET pull_request_title=EXCLUDED.pull_request_title, git_branch=EXCLUDED.git_branch,
 		    fqdn=EXCLUDED.fqdn, status='queued', updated_at=NOW()
+		WHERE application_previews.deleted_at IS NULL
 		RETURNING id, team_id, application_id, pull_request_id, pull_request_title, git_branch, fqdn, status, created_at
 	`, teamID, appID, prID, title, branch, fqdn).Scan(
 		&p.ID, &p.TeamID, &p.ApplicationID, &p.PullRequestID, &p.PullRequestTitle, &p.GitBranch, &p.FQDN, &p.Status, &p.CreatedAt,
@@ -1883,7 +1897,7 @@ func (s *Store) CreatePreview(ctx context.Context, teamID, appID uuid.UUID, prID
 func (s *Store) ListPreviews(ctx context.Context, teamID, appID uuid.UUID) ([]ApplicationPreview, error) {
 	rows, err := s.Pool.Query(ctx, `
 		SELECT id, team_id, application_id, pull_request_id, pull_request_title, git_branch, fqdn, status, created_at
-		FROM application_previews WHERE team_id=$1 AND application_id=$2 ORDER BY pull_request_id DESC
+		FROM application_previews WHERE team_id=$1 AND application_id=$2 AND deleted_at IS NULL ORDER BY pull_request_id DESC
 	`, teamID, appID)
 	if err != nil {
 		return nil, err

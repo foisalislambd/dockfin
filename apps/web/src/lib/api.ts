@@ -334,6 +334,26 @@ export const api = {
     ),
   job: (id: string) => request<BackgroundJob>(`/api/v1/jobs/${id}`),
   jobs: () => request<{ jobs: BackgroundJob[] }>('/api/v1/jobs'),
+  deletions: () =>
+    request<{
+      deletions: Array<{
+        resource_type: string
+        resource_id: string
+        name: string
+        status: string
+        error: string
+      }>
+    }>('/api/v1/deletions'),
+  retryDeletion: (resource_type: string, resource_id: string) =>
+    request<{ status: string }>('/api/v1/deletions/retry', {
+      method: 'POST',
+      body: JSON.stringify({ resource_type, resource_id }),
+    }),
+  forgetDeletion: (resource_type: string, resource_id: string) =>
+    request<{ status: string }>('/api/v1/deletions/forget', {
+      method: 'POST',
+      body: JSON.stringify({ resource_type, resource_id }),
+    }),
   dockerCleanupExecutions: (id: string, limit = 50) =>
     request<{ executions: DockerCleanupExecution[] }>(
       `/api/v1/servers/${id}/docker-cleanup/executions?limit=${limit}`,
@@ -559,7 +579,7 @@ export const api = {
   createApplication: (body: Record<string, unknown>) =>
     request<Application>('/api/v1/applications', { method: 'POST', body: JSON.stringify(body) }),
   deleteApplication: (id: string, body?: DeleteResourceBody) =>
-    request<{ status: string }>(`/api/v1/applications/${id}`, {
+    request<{ job: BackgroundJob; status: string }>(`/api/v1/applications/${id}`, {
       method: 'DELETE',
       body: body ? JSON.stringify(body) : undefined,
     }),
@@ -742,7 +762,7 @@ export const api = {
   listPreviews: (appId: string) =>
     request<{ previews: ApplicationPreview[] }>(`/api/v1/applications/${appId}/previews`),
   deletePreview: (appId: string, prId: number) =>
-    request<{ status: string }>(`/api/v1/applications/${appId}/previews/${prId}`, {
+    request<{ job: BackgroundJob; status: string }>(`/api/v1/applications/${appId}/previews/${prId}`, {
       method: 'DELETE',
     }),
   setWebhookSecret: (id: string, secret = '') =>
@@ -862,7 +882,7 @@ export const api = {
   stopDatabase: (id: string) =>
     request(`/api/v1/databases/${id}/stop`, { method: 'POST' }),
   deleteDatabase: (id: string, body?: DeleteResourceBody) =>
-    request<{ status: string }>(`/api/v1/databases/${id}`, {
+    request<{ job: BackgroundJob; status: string }>(`/api/v1/databases/${id}`, {
       method: 'DELETE',
       body: body ? JSON.stringify(body) : undefined,
     }),
@@ -911,7 +931,7 @@ export const api = {
   restartService: (id: string) =>
     request<Service>(`/api/v1/services/${id}/restart`, { method: 'POST' }),
   deleteService: (id: string, body?: DeleteResourceBody) =>
-    request<{ status: string }>(`/api/v1/services/${id}`, {
+    request<{ job: BackgroundJob; status: string }>(`/api/v1/services/${id}`, {
       method: 'DELETE',
       body: body ? JSON.stringify(body) : undefined,
     }),

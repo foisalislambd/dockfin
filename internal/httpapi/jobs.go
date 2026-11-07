@@ -57,11 +57,23 @@ func (a *API) executeJob(ctx context.Context, job *store.BackgroundJob) {
 		result, err = a.jobDockerCleanup(runCtx, job)
 	case "instance_backup":
 		result, err = a.jobInstanceBackup(runCtx, job)
+	case "resource_delete":
+		result, err = a.jobResourceDelete(runCtx, job)
+	case "resource_power":
+		result, err = a.jobResourcePower(runCtx, job)
 	default:
 		err = errString("unknown job kind")
 	}
 	if err != nil {
 		_ = a.Store.FailJob(context.Background(), job.ID, job.Attempts, job.MaxAttempts, err.Error())
+		if job.Attempts >= job.MaxAttempts {
+			if job.Kind == "resource_delete" {
+				a.noteDeleteFailure(job, err)
+			}
+			if job.Kind == "resource_power" {
+				a.notePowerFailure(job)
+			}
+		}
 		return
 	}
 	_ = a.Store.FinishJob(context.Background(), job.ID, result)

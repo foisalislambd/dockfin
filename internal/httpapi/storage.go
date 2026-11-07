@@ -740,10 +740,15 @@ func (a *API) handleDeletePreview(w http.ResponseWriter, r *http.Request) {
 		mapStoreErr(w, err)
 		return
 	}
-	res := a.cleanupPreview(r.Context(), app, prID)
-	if res.Status == "failed" {
-		writeError(w, http.StatusBadRequest, res.Message)
+	preview, err := a.Store.GetPreviewByPR(r.Context(), teamID, appID, prID)
+	if err != nil {
+		mapStoreErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	job, err := a.scheduleDelete(r.Context(), teamID, "preview", preview.ID, DeleteOptions{}, app.ID, prID)
+	if err != nil {
+		mapStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"job": job, "status": "deleting"})
 }

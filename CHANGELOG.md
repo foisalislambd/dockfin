@@ -10,6 +10,11 @@ The same version, or a lower one, does not create a release. Git tag, GitHub Rel
 
 ## [Unreleased]
 
+### Changed
+
+- Deleting an application, service, database, or preview hides it immediately and returns `202`. A background job removes containers, files, and networks, then deletes the row. A failed cleanup stays on the dashboard with Retry and Forget anyway. Start, stop, and restart return as soon as the action is queued and the status shows stopping, starting, or restarting until the job finishes
+- Deploy, start, stop, and restart are refused while one of those actions is still in progress
+
 ## [2.1.0] - 2026-11-07
 
 ### Added

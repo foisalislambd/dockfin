@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"sort"
@@ -13,7 +14,6 @@ import (
 	"github.com/dockfin/dockfin/internal/git"
 	"github.com/dockfin/dockfin/internal/proxy"
 	"github.com/dockfin/dockfin/internal/services"
-	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/dockfin/dockfin/internal/worker"
 	"github.com/go-chi/chi/v5"
@@ -544,39 +544,15 @@ func (a *API) handleDeleteApplication(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// Best-effort remote container (+ optional volume/config/network) removal before DB delete.
-	if app.DestinationID != nil {
-		if dest, err := a.Store.GetDestination(r.Context(), teamID, *app.DestinationID); err == nil {
-			if client, err := a.dialServer(r, dest.ServerID); err == nil {
-				cname := "dockfin-" + id.String()
-				if opts.volumes() {
-					runArgsRetry(client, 2, "docker", "rm", "-f", "-v", cname)
-				} else {
-					runArgsRetry(client, 2, "docker", "rm", "-f", cname)
-				}
-				if opts.configurations() {
-					runArgsRetry(client, 2, "rm", "-rf", "/data/dockfin/applications/"+id.String())
-				}
-				if opts.networks() {
-					removeResourceScopedNetwork(client, id.String())
-				}
-				if opts.dockerCleanup() {
-					runDockerCleanup(client)
-				}
-			}
-		}
+	if refuseWhileBusy(w, app.Status) {
+		return
 	}
-	if previews, err := a.Store.ListPreviews(r.Context(), teamID, id); err == nil {
-		for _, preview := range previews {
-			_ = a.syncManagedDNS(r.Context(), teamID, "application_preview", preview.ID, nil, nil)
-		}
-	}
-	_ = a.syncManagedDNS(r.Context(), teamID, "application", id, nil, nil)
-	if err := a.Store.DeleteApplication(r.Context(), teamID, id); err != nil {
+	job, err := a.scheduleDelete(r.Context(), teamID, "application", id, opts, uuid.Nil, 0)
+	if err != nil {
 		mapStoreErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	writeJSON(w, http.StatusAccepted, map[string]any{"job": job, "status": "deleting"})
 }
 
 func (a *API) handleDeployApplication(w http.ResponseWriter, r *http.Request) {
@@ -598,6 +574,9 @@ func (a *API) handleDeployApplication(w http.ResponseWriter, r *http.Request) {
 	app, err := a.Store.GetApplication(r.Context(), teamID, appID)
 	if err != nil {
 		mapStoreErr(w, err)
+		return
+	}
+	if refuseWhileBusy(w, app.Status) {
 		return
 	}
 	if a.stopIfFrozen(w, r, app.EnvironmentID, body.OverrideFreeze) {
@@ -1073,89 +1052,16 @@ func (a *API) handleUpdateDatabase(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleStartDatabase(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(chi.URLParam(r, "dbID"))
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid id")
-		return
-	}
-	teamID := currentTeamID(r)
-	db, err := a.Store.GetDatabase(r.Context(), teamID, id)
-	if err != nil {
-		mapStoreErr(w, err)
-		return
-	}
-	if db.DestinationID == nil {
-		writeError(w, http.StatusBadRequest, "database has no destination")
-		return
-	}
-	dest, err := a.Store.GetDestination(r.Context(), teamID, *db.DestinationID)
-	if err != nil {
-		mapStoreErr(w, err)
-		return
-	}
-	client, err := a.dialServer(r, dest.ServerID)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	enc, err := a.Store.GetDatabaseCredentials(r.Context(), teamID, id)
-	if err != nil {
-		mapStoreErr(w, err)
-		return
-	}
-	password := ""
-	if enc != "" {
-		plain, err := a.Store.Box.Decrypt(enc)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "decrypt credentials")
-			return
-		}
-		var creds map[string]string
-		if json.Unmarshal(plain, &creds) == nil {
-			password = creds["password"]
-		}
-	}
-	envMap, err := a.databaseEnv(r, teamID, db, dest.ServerID)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	var tlsMat *database.TLSMaterial
-	if db.EnableSSL {
-		tlsMat, err = a.prepareDatabaseTLS(r.Context(), teamID, dest.ServerID, db)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-	}
-	mounts, err := a.databaseVolumeMounts(r, client, teamID, db)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	scripts, err := a.loadDatabaseInitScripts(r, teamID, db)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if err := database.Start(client, db, dest.Network, password, envMap, tlsMat, mounts, scripts); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if err := a.Store.UpdateDatabaseStatus(r.Context(), id, "running"); err != nil {
-		mapStoreErr(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "running"})
+	a.queueResourcePower(w, r, "database", "dbID", "start", "starting", "running")
 }
 
-func (a *API) databaseEnv(r *http.Request, teamID uuid.UUID, db *store.Database, serverID uuid.UUID) ([]string, error) {
+func (a *API) databaseEnv(ctx context.Context, teamID uuid.UUID, db *store.Database, serverID uuid.UUID) ([]string, error) {
 	var projectID *uuid.UUID
 	envID := db.EnvironmentID
-	if env, err := a.Store.GetEnvironment(r.Context(), teamID, db.EnvironmentID); err == nil {
+	if env, err := a.Store.GetEnvironment(ctx, teamID, db.EnvironmentID); err == nil {
 		projectID = &env.ProjectID
 	}
-	m, err := a.Store.ResolvedEnvMap(r.Context(), teamID, "database", db.ID, projectID, &envID, &serverID)
+	m, err := a.Store.ResolvedEnvMap(ctx, teamID, "database", db.ID, projectID, &envID, &serverID)
 	if err != nil {
 		return nil, err
 	}
@@ -1172,40 +1078,7 @@ func (a *API) databaseEnv(r *http.Request, teamID uuid.UUID, db *store.Database,
 }
 
 func (a *API) handleStopDatabase(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(chi.URLParam(r, "dbID"))
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid id")
-		return
-	}
-	teamID := currentTeamID(r)
-	db, err := a.Store.GetDatabase(r.Context(), teamID, id)
-	if err != nil {
-		mapStoreErr(w, err)
-		return
-	}
-	if db.DestinationID == nil {
-		writeError(w, http.StatusBadRequest, "database has no destination")
-		return
-	}
-	dest, err := a.Store.GetDestination(r.Context(), teamID, *db.DestinationID)
-	if err != nil {
-		mapStoreErr(w, err)
-		return
-	}
-	client, err := a.dialServer(r, dest.ServerID)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if err := database.Stop(client, id.String()); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if err := a.Store.UpdateDatabaseStatus(r.Context(), id, "exited"); err != nil {
-		mapStoreErr(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "exited"})
+	a.queueResourcePower(w, r, "database", "dbID", "stop", "stopping", "exited")
 }
 
 func (a *API) handleDeleteDatabase(w http.ResponseWriter, r *http.Request) {
@@ -1224,30 +1097,13 @@ func (a *API) handleDeleteDatabase(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if db.DestinationID != nil {
-		if dest, err := a.Store.GetDestination(r.Context(), teamID, *db.DestinationID); err == nil {
-			if client, err := a.dialServer(r, dest.ServerID); err == nil {
-				cname := database.ContainerName(id.String())
-				_, _, _ = sshx.RunArgs(client, "docker", "rm", "-f", cname)
-				if opts.volumes() {
-					_ = database.RemoveData(client, id.String())
-				}
-				if opts.configurations() {
-					_ = database.RemoveTLS(client, id.String())
-					_ = database.RemoveInit(client, id.String())
-				}
-				if opts.networks() {
-					removeResourceScopedNetwork(client, id.String())
-				}
-				if opts.dockerCleanup() {
-					runDockerCleanup(client)
-				}
-			}
-		}
+	if refuseWhileBusy(w, db.Status) {
+		return
 	}
-	if err := a.Store.DeleteDatabase(r.Context(), teamID, id); err != nil {
+	job, err := a.scheduleDelete(r.Context(), teamID, "database", id, opts, uuid.Nil, 0)
+	if err != nil {
 		mapStoreErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	writeJSON(w, http.StatusAccepted, map[string]any{"job": job, "status": "deleting"})
 }

@@ -41,6 +41,12 @@ The dashboard package version matches `VERSION.md`. OpenAPI `info.version` stays
 
 **Before an upgrade**, take an instance backup or a Postgres dump of the Dockfin database, and keep `DOCKFIN_MASTER_KEY`. Secrets cannot be decrypted with a different key.
 
+## Deleting a resource
+
+Delete confirms the name (and password, unless two-step confirmation is off), marks the application, service, database, or preview as deleting, and returns `202` with a job. The record leaves project lists immediately. The job removes containers and files, then deletes the row. Start, stop, restart, and deploy are refused while that status is `deleting`, `stopping`, `starting`, or `restarting`.
+
+If cleanup fails, the resource stays hidden and appears on the dashboard with the error. Retry queues the same options again. Forget anyway deletes the Dockfin row and leaves whatever is still on the server. An environment that still has a hidden cleanup row is not empty, so it cannot be deleted until the cleanup finishes or you forget the resource.
+
 ## Jobs
 
 On-demand image scans, Docker cleanup, and instance backups are rows in `background_jobs`. Deployments keep the deployment queue. Cancel a job only while it is `queued`:
