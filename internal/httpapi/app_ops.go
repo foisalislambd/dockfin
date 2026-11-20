@@ -258,25 +258,23 @@ func (a *API) handleApplicationLogsStream(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	var live []string
+	if app.BuildPack == "dockercompose" {
+		project := "dockfin-" + app.ID.String()[:8]
+		out, _, _ := sshx.RunArgs(client, "docker", "ps", "-a", "--filter", "label=com.docker.compose.project="+project, "--format", "{{.Names}}")
+		live = composeContainerNames(out)
+	}
 	container := strings.TrimSpace(r.URL.Query().Get("container"))
 	if container == "" {
-		if app.BuildPack == "dockercompose" {
-			project := "dockfin-" + app.ID.String()[:8]
-			out, _, _ := sshx.RunArgs(client, "docker", "ps", "-a", "--filter", "label=com.docker.compose.project="+project, "--format", "{{.Names}}")
-			for _, line := range strings.Split(out, "\n") {
-				line = strings.TrimSpace(line)
-				if line != "" {
-					container = line
-					break
-				}
-			}
-			if container == "" {
-				writeError(w, http.StatusBadRequest, "no containers — deploy first")
-				return
-			}
-		} else {
+		if len(live) > 0 {
+			container = live[0]
+		} else if app.BuildPack != "dockercompose" {
 			container = "dockfin-" + app.ID.String()
 		}
+	}
+	if container == "" || !applicationLogContainerAllowed(app, container, live) {
+		writeError(w, http.StatusBadRequest, "container is not part of this application")
+		return
 	}
 	tail := 200
 	if t := r.URL.Query().Get("tail"); t != "" {

@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dockfin/dockfin/internal/store"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/dockfin/dockfin/internal/store"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -377,6 +377,9 @@ func (a *API) handleListCloudInitScripts(w http.ResponseWriter, r *http.Request)
 }
 
 func (a *API) handleCreateCloudInitScript(w http.ResponseWriter, r *http.Request) {
+	if !requireTeamAdmin(w, r) {
+		return
+	}
 	var body struct {
 		Name   string `json:"name"`
 		Script string `json:"script"`
@@ -403,6 +406,9 @@ func (a *API) handleCreateCloudInitScript(w http.ResponseWriter, r *http.Request
 }
 
 func (a *API) handleGetCloudInitScript(w http.ResponseWriter, r *http.Request) {
+	if !requireTeamAdmin(w, r) {
+		return
+	}
 	id, err := uuid.Parse(chi.URLParam(r, "scriptID"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid id")
@@ -423,6 +429,9 @@ func (a *API) handleGetCloudInitScript(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleUpdateCloudInitScript(w http.ResponseWriter, r *http.Request) {
+	if !requireTeamAdmin(w, r) {
+		return
+	}
 	id, err := uuid.Parse(chi.URLParam(r, "scriptID"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid id")
@@ -454,6 +463,9 @@ func (a *API) handleUpdateCloudInitScript(w http.ResponseWriter, r *http.Request
 }
 
 func (a *API) handleDeleteCloudInitScript(w http.ResponseWriter, r *http.Request) {
+	if !requireTeamAdmin(w, r) {
+		return
+	}
 	id, err := uuid.Parse(chi.URLParam(r, "scriptID"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid id")

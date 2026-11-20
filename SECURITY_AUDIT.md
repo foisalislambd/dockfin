@@ -36,19 +36,19 @@ Scheduled backups and cleanups still run from the scheduler and keep their own e
 - Container file paths go through `CleanPath`.
 - Session cookies are `HttpOnly` and `SameSite=Lax`. CORS does not combine `*` with credentials. The dashboard sends a Content-Security-Policy. OAuth uses PKCE. WebAuthn’s relying party comes from `DOCKFIN_PUBLIC_URL`, which must now be absolute.
 - Login is rate limited. Webhook HMAC is required unless `DOCKFIN_ALLOW_UNSIGNED_WEBHOOKS=1` (default off). The master key must be at least 32 characters, and the example key is refused outside development.
-- Query-string webhook secrets (`?secret=`, GitLab `?token=`) stay accepted so existing GitLab hooks keep working. Request logs record `URL.Path`, not the raw query.
+- Query-string webhook secrets (`?secret=`) stay accepted so existing hooks keep working. GitLab system hooks now accept only the `X-Gitlab-Token` header; a `?token=` query value is ignored so it cannot land in access logs. Request logs record `URL.Path`, not the raw query.
 - OpenAPI `info.version` stays `dev`. The product version is `VERSION.md`. A test asserts the spec version.
 
 ## Dependency scan
 
-`GOTOOLCHAIN=go1.26.10 govulncheck ./...` reports no vulnerabilities in code this module calls. One advisory remains in a required module that this code does not call.
+`govulncheck ./...` with Go 1.26.11 reports no vulnerabilities in code this module calls. One advisory remains in a required module that this code does not call.
 
 Updated:
 
 - `golang.org/x/crypto` v0.58.0, `golang.org/x/text` v0.43.0, `github.com/go-chi/chi/v5` v5.3.0, `github.com/jackc/pgx/v5` v5.9.2
-- `go.mod` toolchain `go1.26.10`. The API image builds `FROM golang:1.26.10-alpine`. GitHub Actions already uses `go-version: 1.26.x`, which tracks the current 1.26 patch.
+- `go.mod` toolchain `go1.26.11`. The API image builds `FROM golang:1.26.11-alpine`. GitHub Actions already uses `go-version: 1.26.x`, which tracks the current 1.26 patch.
 - Dashboard: Vite 8.3.6, Monaco 0.57.0, and a `dompurify` override at 3.4.17. `npm audit` in `apps/web` and `website` reports 0 vulnerabilities.
 
-The standard library findings (`net/http`, `crypto/tls`, `crypto/x509`, and others) are fixed by Go 1.26.10. A binary built with an older 1.26.0 toolchain is still exposed; release builds must use 1.26.10 or newer.
+The standard library findings (`net/http`, `crypto/tls`, `crypto/x509`, and others) are fixed by Go 1.26.11, including `GO-2026-6859` (HTTP/1 `MaxBytesReader` header race, CVE-2026-97054). Dockfin reads JSON bodies through `MaxBytesReader`. A binary built with 1.26.10 or older is still exposed; release builds must use 1.26.11 or newer.
 
 `GO-2026-5932` is still recorded against `golang.org/x/crypto`. The fix is only in a commit after v0.58.0, and this code does not call the affected symbol. Dockfin stays on the latest release, v0.58.0.

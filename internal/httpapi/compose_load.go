@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -124,10 +123,7 @@ func (a *API) loadApplicationCompose(r *http.Request, teamID uuid.UUID, app *sto
 	if branch == "" {
 		branch = "main"
 	}
-	cmd := exec.CommandContext(ctx, "git", "clone", "--depth", "1", "--branch", branch, repoURL, tmp)
-	cmd.Env = append(os.Environ(), env...)
-	cmd.Env = append(cmd.Env, "GIT_TERMINAL_PROMPT=0")
-	if out, err := cmd.CombinedOutput(); err != nil {
+	if out, err := runLocalGitClone(ctx, branch, repoURL, tmp, env); err != nil {
 		_ = os.RemoveAll(tmp)
 		tmp2, err2 := os.MkdirTemp("", "dockfin-compose-load-*")
 		if err2 != nil {
@@ -135,10 +131,7 @@ func (a *API) loadApplicationCompose(r *http.Request, teamID uuid.UUID, app *sto
 		}
 		cleanupDir = tmp2
 		tmp = tmp2
-		cmd = exec.CommandContext(ctx, "git", "clone", "--depth", "1", repoURL, tmp)
-		cmd.Env = append(os.Environ(), env...)
-		cmd.Env = append(cmd.Env, "GIT_TERMINAL_PROMPT=0")
-		if out2, err2 := cmd.CombinedOutput(); err2 != nil {
+		if out2, err2 := runLocalGitClone(ctx, "", repoURL, tmp, env); err2 != nil {
 			return nil, fmt.Errorf("git clone: %s", truncateOut(out2))
 		}
 	}

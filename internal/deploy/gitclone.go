@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dockfin/dockfin/internal/git"
 	"github.com/dockfin/dockfin/internal/git/githubapp"
 	"github.com/dockfin/dockfin/internal/redact"
 	"github.com/dockfin/dockfin/internal/sshx"
@@ -89,21 +90,27 @@ func (p *Pipeline) gitClone(ctx context.Context, client *ssh.Client, req Request
 	}
 
 	runCheckoutExisting := func(extraEnv []string) error {
+		if err := git.ValidateRef(branch); err != nil {
+			return err
+		}
 		args := append([]string{}, extraEnv...)
-		args = append(args, "git", "-C", destDir, "fetch", "origin", branch)
+		args = append(args, "git", "-c", "protocol.file.allow=never", "-c", "protocol.ext.allow=never", "-C", destDir, "fetch", "origin", "--", branch)
 		_, errOut, err := sshx.RunArgs(client, args...)
 		if err != nil {
 			return fmt.Errorf("git fetch: %s", redact.Join(err.Error(), errOut))
 		}
 		target := branch
 		if commit != "" {
+			if err := git.ValidateRef(commit); err != nil {
+				return err
+			}
 			target = commit
-			_, errOut, err = sshx.RunArgs(client, append(extraEnv, "git", "-C", destDir, "fetch", "origin", commit)...)
+			_, errOut, err = sshx.RunArgs(client, append(extraEnv, "git", "-C", destDir, "fetch", "origin", "--", commit)...)
 			if err != nil {
 				return fmt.Errorf("git fetch commit: %s", redact.Join(err.Error(), errOut))
 			}
 		}
-		_, errOut, err = sshx.RunArgs(client, append(extraEnv, "git", "-C", destDir, "checkout", "-f", target)...)
+		_, errOut, err = sshx.RunArgs(client, append(extraEnv, "git", "-C", destDir, "checkout", "-f", "--", target)...)
 		if err != nil {
 			return fmt.Errorf("git checkout: %s", redact.Join(err.Error(), errOut))
 		}
@@ -117,16 +124,22 @@ func (p *Pipeline) gitClone(ctx context.Context, client *ssh.Client, req Request
 	}
 
 	runClone := func(extraEnv []string, repo string) error {
+		if err := git.ValidateRemote(repo); err != nil {
+			return err
+		}
+		if err := git.ValidateRef(branch); err != nil {
+			return err
+		}
 		if hasGit {
 			return runCheckoutExisting(extraEnv)
 		}
 		args := append([]string{}, extraEnv...)
-		args = append(args, "git", "clone", "--branch", branch)
+		args = append(args, "git", "-c", "protocol.file.allow=never", "-c", "protocol.ext.allow=never", "clone", "--branch", branch)
 		shallow := req.App == nil || req.App.IsGitShallowCloneEnabled
 		if shallow {
 			args = append(args, "--depth", "1")
 		}
-		args = append(args, repo, destDir)
+		args = append(args, "--", repo, destDir)
 		_, errOut, err := sshx.RunArgs(client, args...)
 		if err != nil {
 			return fmt.Errorf("git clone: %s", redact.Join(err.Error(), errOut))
@@ -137,16 +150,19 @@ func (p *Pipeline) gitClone(ctx context.Context, client *ssh.Client, req Request
 			if shallow {
 				fetchArgs = append(fetchArgs, "--depth", "1")
 			}
-			fetchArgs = append(fetchArgs, "origin", commit)
+			if err := git.ValidateRef(commit); err != nil {
+				return err
+			}
+			fetchArgs = append(fetchArgs, "origin", "--", commit)
 			_, errOut, err = sshx.RunArgs(client, fetchArgs...)
 			if err != nil {
 				// Fall back to unshallow fetch of the SHA (some remotes reject shallow fetch by SHA).
-				_, errOut2, err2 := sshx.RunArgs(client, "git", "-C", destDir, "fetch", "origin", commit)
+				_, errOut2, err2 := sshx.RunArgs(client, "git", "-C", destDir, "fetch", "origin", "--", commit)
 				if err2 != nil {
 					return fmt.Errorf("git fetch commit: %s", redact.Join(err.Error(), errOut, err2.Error(), errOut2))
 				}
 			}
-			_, errOut, err = sshx.RunArgs(client, "git", "-C", destDir, "checkout", commit)
+			_, errOut, err = sshx.RunArgs(client, "git", "-C", destDir, "checkout", "--", commit)
 			if err != nil {
 				return fmt.Errorf("git checkout: %s", redact.Join(err.Error(), errOut))
 			}
@@ -185,9 +201,12 @@ func (p *Pipeline) gitClone(ctx context.Context, client *ssh.Client, req Request
 				user = sec.CustomUser
 			}
 		}
+		if !git.ValidSSHUser(user) {
+			return fmt.Errorf("invalid git ssh user")
+		}
 		repo := githubapp.ToSSHURL(req.App.GitRepository, user)
 		_, _, _ = sshx.RunArgs(client, "mkdir", "-p", "/data/dockfin/.ssh")
-		sshCmd := fmt.Sprintf("ssh -i %s -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/data/dockfin/.ssh/known_hosts", keyPath)
+		sshCmd := "ssh -i " + sshx.Quote(keyPath) + " -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=" + sshx.Quote("/data/dockfin/.ssh/known_hosts")
 		if err := runClone([]string{"env", "GIT_SSH_COMMAND=" + sshCmd}, repo); err != nil {
 			return fmt.Errorf("git clone (deploy key): %w", err)
 		}

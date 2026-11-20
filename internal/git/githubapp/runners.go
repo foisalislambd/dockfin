@@ -179,7 +179,11 @@ func (a *App) orgJSON(method, installationID, path string, payload []byte) ([]by
 	if payload != nil {
 		body = bytes.NewReader(payload)
 	}
-	req, err := http.NewRequest(method, a.apiBase()+path, body)
+	base, err := a.checkedAPIBase()
+	if err != nil {
+		return nil, 0, err
+	}
+	req, err := http.NewRequest(method, base+path, body)
 	if err != nil {
 		return nil, 0, err
 	}

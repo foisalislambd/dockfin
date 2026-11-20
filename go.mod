@@ -38,4 +38,4 @@ require (
 	golang.org/x/text v0.43.0 // indirect
 )
 
-toolchain go1.26.10
+toolchain go1.26.11

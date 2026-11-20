@@ -45,7 +45,12 @@ func NewPool() *Pool {
 }
 
 func (p *Pool) key(t Target) string {
-	base := fmt.Sprintf("%s@%s:%d", t.User, t.Host, t.Port)
+	// Include the credential and pinned host key. The pool is process-wide, so a
+	// key of only user@host would hand one team's authenticated session to
+	// another team that dials the same address.
+	sum := sha256.Sum256(t.PrivateKey)
+	cred := base64.RawStdEncoding.EncodeToString(sum[:])
+	base := fmt.Sprintf("%s@%s:%d|%s|%s", t.User, t.Host, t.Port, cred, t.ExpectedFingerprint)
 	if t.Jump == nil {
 		return base
 	}
@@ -289,6 +294,10 @@ func RunArgsStreaming(client *ssh.Client, onLine LineFn, argv ...string) error {
 	}
 	return RunStreaming(client, strings.Join(parts, " "), onLine)
 }
+
+// Quote returns a POSIX-safe single argument. GIT_SSH_COMMAND is interpreted
+// by a shell, so paths must be quoted even when RunArgs quotes the variable.
+func Quote(s string) string { return shellQuote(s) }
 
 func shellQuote(s string) string {
 	if s == "" {

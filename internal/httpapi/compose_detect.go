@@ -6,15 +6,16 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
+	"github.com/dockfin/dockfin/internal/git"
 	"github.com/dockfin/dockfin/internal/git/githubapp"
 	"github.com/dockfin/dockfin/internal/redact"
 	"github.com/dockfin/dockfin/internal/services"
+	"github.com/dockfin/dockfin/internal/sshx"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 type detectComposeBody struct {
@@ -124,11 +125,7 @@ func (a *API) detectComposeInRepo(r *http.Request, teamID uuid.UUID, body detect
 	defer func() { _ = os.RemoveAll(cleanupDir) }()
 
 	ctx := r.Context()
-	args := []string{"clone", "--depth", "1", "--branch", branch, repoURL, tmp}
-	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Env = append(os.Environ(), env...)
-	cmd.Env = append(cmd.Env, "GIT_TERMINAL_PROMPT=0")
-	if out, err := cmd.CombinedOutput(); err != nil {
+	if out, err := runLocalGitClone(ctx, branch, repoURL, tmp, env); err != nil {
 		// Retry without --branch (default branch) when named branch missing.
 		_ = os.RemoveAll(tmp)
 		tmp2, err2 := os.MkdirTemp("", "dockfin-compose-detect-*")
@@ -137,10 +134,7 @@ func (a *API) detectComposeInRepo(r *http.Request, teamID uuid.UUID, body detect
 		}
 		cleanupDir = tmp2
 		tmp = tmp2
-		cmd = exec.CommandContext(ctx, "git", "clone", "--depth", "1", repoURL, tmp)
-		cmd.Env = append(os.Environ(), env...)
-		cmd.Env = append(cmd.Env, "GIT_TERMINAL_PROMPT=0")
-		if out2, err2 := cmd.CombinedOutput(); err2 != nil {
+		if out2, err2 := runLocalGitClone(ctx, "", repoURL, tmp, env); err2 != nil {
 			return nil, fmt.Errorf("git clone: %s", redact.Join(err2.Error(), truncateOut(out2)))
 		}
 	}
@@ -190,6 +184,9 @@ func (a *API) composeDetectCloneAuth(r *http.Request, teamID uuid.UUID, body det
 				}
 			}
 		}
+		if !git.ValidSSHUser(user) {
+			return "", nil, nil, fmt.Errorf("invalid git ssh user")
+		}
 		repo = normalizeDetectRepo(repo, "https://github.com")
 		sshURL := githubapp.ToSSHURL(repo, user)
 		if !strings.HasPrefix(sshURL, "git@") && !strings.HasPrefix(sshURL, "ssh://") {
@@ -197,7 +194,7 @@ func (a *API) composeDetectCloneAuth(r *http.Request, teamID uuid.UUID, body det
 		}
 		knownHosts := filepath.Join(a.Cfg.DataDir, "ssh", "known_hosts")
 		_ = os.MkdirAll(filepath.Dir(knownHosts), 0o700)
-		sshCmd := fmt.Sprintf("ssh -i %s -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=%s", keyPath, knownHosts)
+		sshCmd := "ssh -i " + sshx.Quote(keyPath) + " -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=" + sshx.Quote(knownHosts)
 		return sshURL, []string{"GIT_SSH_COMMAND=" + sshCmd}, func() { _ = os.Remove(keyPath) }, nil
 	}
 

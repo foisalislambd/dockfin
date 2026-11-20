@@ -77,6 +77,9 @@ func (a *API) handleListServers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleCreateServer(w http.ResponseWriter, r *http.Request) {
+	if !requireTeamAdmin(w, r) {
+		return
+	}
 	var body struct {
 		Name         string `json:"name"`
 		Description  string `json:"description"`
@@ -334,6 +337,9 @@ func detectServerPublicIP(client *ssh.Client) string {
 }
 
 func (a *API) handleStartProxy(w http.ResponseWriter, r *http.Request) {
+	if !requireTeamAdmin(w, r) {
+		return
+	}
 	id, err := uuid.Parse(chi.URLParam(r, "serverID"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid id")
@@ -369,6 +375,9 @@ func (a *API) handleStartProxy(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleStopProxy(w http.ResponseWriter, r *http.Request) {
+	if !requireTeamAdmin(w, r) {
+		return
+	}
 	id, err := uuid.Parse(chi.URLParam(r, "serverID"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid id")
@@ -406,6 +415,9 @@ func (a *API) handleListDestinations(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handlePatchServerSettings(w http.ResponseWriter, r *http.Request) {
+	if !requireTeamAdmin(w, r) {
+		return
+	}
 	id, err := uuid.Parse(chi.URLParam(r, "serverID"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid id")
@@ -494,6 +506,9 @@ func (a *API) handlePatchServerSettings(w http.ResponseWriter, r *http.Request) 
 }
 
 func (a *API) handleCreateDestination(w http.ResponseWriter, r *http.Request) {
+	if !requireTeamAdmin(w, r) {
+		return
+	}
 	serverID, err := uuid.Parse(chi.URLParam(r, "serverID"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid id")
