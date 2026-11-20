@@ -40,6 +40,16 @@ func (a *API) handleCreateTerminal(w http.ResponseWriter, r *http.Request) {
 	} else if !terminal.ValidContainerName(body.Container) {
 		writeError(w, http.StatusBadRequest, "invalid container name")
 		return
+	} else if !isAdmin {
+		resources, err := a.workloadContainers(r, serverID)
+		if err != nil {
+			mapStoreErr(w, err)
+			return
+		}
+		if !containerBelongsToServer(body.Container, serverID, resources) {
+			writeError(w, http.StatusForbidden, "container is not part of a resource you can access on this server")
+			return
+		}
 	}
 	if !isAdmin && !a.terminalACLAllows(r, serverID) {
 		writeError(w, http.StatusForbidden, "terminal access is restricted on this server")

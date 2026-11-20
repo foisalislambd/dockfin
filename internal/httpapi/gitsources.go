@@ -3,6 +3,7 @@ package httpapi
 import (
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +16,23 @@ import (
 	"github.com/google/uuid"
 )
 
+func rejectBlockedGitAPI(w http.ResponseWriter, raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return false
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Hostname() == "" || git.BlockedFetchHost(u.Hostname()) {
+		writeError(w, http.StatusBadRequest, "git host is not allowed")
+		return true
+	}
+	if u.Scheme != "" && u.Scheme != "https" && u.Scheme != "http" {
+		writeError(w, http.StatusBadRequest, "git host is not allowed")
+		return true
+	}
+	return false
+}
+
 func (a *API) handleListGitSources(w http.ResponseWriter, r *http.Request) {
 	list, err := a.Store.ListGitSources(r.Context(), currentTeamID(r))
 	if err != nil {
@@ -25,6 +43,9 @@ func (a *API) handleListGitSources(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleCreateGitSource(w http.ResponseWriter, r *http.Request) {
+	if !requireTeamAdmin(w, r) {
+		return
+	}
 	var body struct {
 		Name          string `json:"name"`
 		Provider      string `json:"provider"`
@@ -46,6 +67,13 @@ func (a *API) handleCreateGitSource(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.TrimSpace(body.Name) == "" {
 		writeError(w, http.StatusBadRequest, "name required")
+		return
+	}
+	if body.CustomUser != "" && !git.ValidSSHUser(body.CustomUser) {
+		writeError(w, http.StatusBadRequest, "invalid git ssh user")
+		return
+	}
+	if rejectBlockedGitAPI(w, body.APIURL) || rejectBlockedGitAPI(w, body.HTMLURL) {
 		return
 	}
 	if body.Provider == "" {
@@ -110,6 +138,9 @@ func (a *API) handleGetGitSource(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleUpdateGitSource(w http.ResponseWriter, r *http.Request) {
+	if !requireTeamAdmin(w, r) {
+		return
+	}
 	id, err := uuid.Parse(chi.URLParam(r, "sourceID"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid id")
@@ -139,6 +170,16 @@ func (a *API) handleUpdateGitSource(w http.ResponseWriter, r *http.Request) {
 		InstallationID: body.InstallationID, ClientID: body.ClientID,
 		HTMLURL: body.HTMLURL, APIURL: body.APIURL, CustomUser: body.CustomUser,
 		CustomPort: body.CustomPort, IsSystemWide: body.IsSystemWide,
+	}
+	if body.CustomUser != nil && *body.CustomUser != "" && !git.ValidSSHUser(*body.CustomUser) {
+		writeError(w, http.StatusBadRequest, "invalid git ssh user")
+		return
+	}
+	if body.APIURL != nil && rejectBlockedGitAPI(w, *body.APIURL) {
+		return
+	}
+	if body.HTMLURL != nil && rejectBlockedGitAPI(w, *body.HTMLURL) {
+		return
 	}
 	if body.HTMLURL != nil && (body.APIURL == nil || *body.APIURL == "") {
 		derived := githubapp.APIURLFromHTML(*body.HTMLURL)
@@ -182,6 +223,9 @@ func (a *API) handleUpdateGitSource(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleDeleteGitSource(w http.ResponseWriter, r *http.Request) {
+	if !requireTeamAdmin(w, r) {
+		return
+	}
 	id, err := uuid.Parse(chi.URLParam(r, "sourceID"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid id")

@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -18,6 +18,9 @@ const cloudflaredContainer = "dockfin-cloudflared"
 // handleCloudflareTunnelAction installs, stops, or reports the cloudflared
 // connector container on the server (Coolify-style `tunnel run --token`).
 func (a *API) handleCloudflareTunnelAction(w http.ResponseWriter, r *http.Request) {
+	if !requireTeamAdmin(w, r) {
+		return
+	}
 	id, err := uuid.Parse(chi.URLParam(r, "serverID"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid id")

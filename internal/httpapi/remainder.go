@@ -682,9 +682,6 @@ func (a *API) handleDeleteGitLabSystemHook(w http.ResponseWriter, r *http.Reques
 func (a *API) handleGitLabSystemHook(w http.ResponseWriter, r *http.Request) {
 	secret := r.Header.Get("X-Gitlab-Token")
 	if secret == "" {
-		secret = r.URL.Query().Get("token")
-	}
-	if secret == "" {
 		writeError(w, http.StatusUnauthorized, "missing hook token")
 		return
 	}

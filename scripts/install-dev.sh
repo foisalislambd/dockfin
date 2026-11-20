@@ -123,7 +123,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: dockfin
-      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD:-dockfin}
+      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_DB: dockfin
     volumes:
       - dockfin-pg:/var/lib/postgresql/data

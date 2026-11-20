@@ -46,6 +46,9 @@ func maskToken(t string) string {
 }
 
 func (a *API) handlePatchServerOps(w http.ResponseWriter, r *http.Request) {
+	if !requireTeamAdmin(w, r) {
+		return
+	}
 	id, err := uuid.Parse(chi.URLParam(r, "serverID"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid id")
@@ -237,6 +240,9 @@ func (a *API) handlePatchServerOps(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleRotateSentinelToken(w http.ResponseWriter, r *http.Request) {
+	if !requireTeamAdmin(w, r) {
+		return
+	}
 	id, err := uuid.Parse(chi.URLParam(r, "serverID"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid id")
@@ -274,6 +280,9 @@ func (a *API) handleRotateSentinelToken(w http.ResponseWriter, r *http.Request) 
 }
 
 func (a *API) handleSentinelAction(w http.ResponseWriter, r *http.Request) {
+	if !requireTeamAdmin(w, r) {
+		return
+	}
 	id, err := uuid.Parse(chi.URLParam(r, "serverID"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid id")
@@ -482,10 +491,7 @@ func (a *API) handleSentinelLogs(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	tail := r.URL.Query().Get("tail")
-	if tail == "" {
-		tail = "200"
-	}
+	tail := strconv.Itoa(clampLogTail(r.URL.Query().Get("tail"), 200))
 	out, errOut, err := sshx.RunArgs(client, "docker", "logs", "--tail", tail, "dockfin-sentinel")
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]string{"logs": strings.TrimSpace(errOut + "\n" + out), "error": err.Error()})
@@ -495,6 +501,9 @@ func (a *API) handleSentinelLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleRunDockerCleanup(w http.ResponseWriter, r *http.Request) {
+	if !requireTeamAdmin(w, r) {
+		return
+	}
 	id, err := uuid.Parse(chi.URLParam(r, "serverID"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid id")
@@ -596,6 +605,9 @@ func (a *API) handleListProxyDynamic(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleUpsertProxyDynamic(w http.ResponseWriter, r *http.Request) {
+	if !requireTeamAdmin(w, r) {
+		return
+	}
 	id, err := uuid.Parse(chi.URLParam(r, "serverID"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid id")
@@ -629,6 +641,9 @@ func (a *API) handleUpsertProxyDynamic(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleDeleteProxyDynamic(w http.ResponseWriter, r *http.Request) {
+	if !requireTeamAdmin(w, r) {
+		return
+	}
 	serverID, err := uuid.Parse(chi.URLParam(r, "serverID"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid id")
@@ -672,10 +687,7 @@ func (a *API) handleProxyLogs(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	tail := r.URL.Query().Get("tail")
-	if tail == "" {
-		tail = "200"
-	}
+	tail := strconv.Itoa(clampLogTail(r.URL.Query().Get("tail"), 200))
 	out, errOut, err := sshx.RunArgs(client, "docker", "logs", "--tail", tail, "dockfin-proxy")
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]string{"logs": strings.TrimSpace(errOut + "\n" + out), "error": err.Error()})

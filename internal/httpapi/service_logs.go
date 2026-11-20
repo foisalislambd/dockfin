@@ -11,6 +11,7 @@ import (
 
 	"github.com/dockfin/dockfin/internal/services"
 	"github.com/dockfin/dockfin/internal/sshx"
+	"github.com/dockfin/dockfin/internal/terminal"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
@@ -125,18 +126,18 @@ func (a *API) handleServiceLogsStream(w http.ResponseWriter, r *http.Request) {
 	if compose == "" {
 		compose = svc.DockerComposeRaw
 	}
+	names := listServiceContainerNames(client, id, compose)
 	container := strings.TrimSpace(r.URL.Query().Get("container"))
-	if container != "" && !strings.HasPrefix(container, "dockfin-") {
+	if container != "" && !containsName(names, container) && !strings.HasPrefix(container, "dockfin-") {
 		// Accept a bare compose unit name too.
 		container = serviceContainerName(id, container)
 	}
-	if container == "" {
-		names := listServiceContainerNames(client, id, compose)
-		if len(names) == 0 {
-			writeError(w, http.StatusBadRequest, "no containers — deploy first")
-			return
-		}
+	if container == "" && len(names) > 0 {
 		container = names[0]
+	}
+	if container == "" || !containsName(names, container) || reservedContainer(container) || !terminal.ValidContainerName(container) {
+		writeError(w, http.StatusBadRequest, "container is not part of this service")
+		return
 	}
 	tail := 200
 	if t := r.URL.Query().Get("tail"); t != "" {

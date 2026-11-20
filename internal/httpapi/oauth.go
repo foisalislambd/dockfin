@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/dockfin/dockfin/internal/config"
 	"github.com/dockfin/dockfin/internal/crypto"
+	"github.com/dockfin/dockfin/internal/git"
 	"github.com/dockfin/dockfin/internal/oidc"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/go-chi/chi/v5"
@@ -293,6 +295,10 @@ func buildOauthProviderSpec(ctx context.Context, provider string, m *store.Oauth
 		base := strings.TrimRight(strings.TrimSpace(m.BaseURL), "/")
 		if base == "" {
 			base = "https://gitlab.com"
+		}
+		u, err := url.Parse(base)
+		if err != nil || u.Hostname() == "" || (u.Scheme != "https" && u.Scheme != "http") || git.BlockedFetchHost(u.Hostname()) {
+			return nil, fmt.Errorf("gitlab base url is not allowed")
 		}
 		return &oauthProviderSpec{
 			AuthURL:     base + "/oauth/authorize",

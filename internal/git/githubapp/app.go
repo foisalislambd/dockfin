@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dockfin/dockfin/internal/git"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -38,6 +39,20 @@ func (a *App) apiBase() string {
 		return strings.TrimRight(a.APIURL, "/")
 	}
 	return "https://api.github.com"
+}
+
+// checkedAPIBase refuses metadata and non-HTTP API origins before a GitHub App
+// JWT or installation token is sent.
+func (a *App) checkedAPIBase() (string, error) {
+	base := a.apiBase()
+	u, err := url.Parse(base)
+	if err != nil || u.Hostname() == "" || (u.Scheme != "https" && u.Scheme != "http") {
+		return "", fmt.Errorf("invalid git api url")
+	}
+	if git.BlockedFetchHost(u.Hostname()) {
+		return "", fmt.Errorf("git api url is not allowed")
+	}
+	return base, nil
 }
 
 func (a *App) htmlBase() string {
@@ -96,7 +111,11 @@ func (a *App) InstallationToken(installationID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	req, err := http.NewRequest(http.MethodPost, a.apiBase()+"/app/installations/"+url.PathEscape(installationID)+"/access_tokens", nil)
+	base, err := a.checkedAPIBase()
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequest(http.MethodPost, base+"/app/installations/"+url.PathEscape(installationID)+"/access_tokens", nil)
 	if err != nil {
 		return "", err
 	}
@@ -138,7 +157,11 @@ func (a *App) AppSlug() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	req, err := http.NewRequest(http.MethodGet, a.apiBase()+"/app", nil)
+	base, err := a.checkedAPIBase()
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequest(http.MethodGet, base+"/app", nil)
 	if err != nil {
 		return "", err
 	}
@@ -289,7 +312,11 @@ func (a *App) listRepositoriesPage(installationID string, page int) ([]map[strin
 	if page < 1 {
 		page = 1
 	}
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/installation/repositories?per_page=50&page=%d", a.apiBase(), page), nil)
+	base, err := a.checkedAPIBase()
+	if err != nil {
+		return nil, 0, err
+	}
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/installation/repositories?per_page=50&page=%d", base, page), nil)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -319,8 +346,12 @@ func (a *App) ListBranches(installationID, owner, repo string) ([]string, error)
 	if err != nil {
 		return nil, err
 	}
+	base, err := a.checkedAPIBase()
+	if err != nil {
+		return nil, err
+	}
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/repos/%s/%s/branches?per_page=100",
-		a.apiBase(), url.PathEscape(owner), url.PathEscape(repo)), nil)
+		base, url.PathEscape(owner), url.PathEscape(repo)), nil)
 	if err != nil {
 		return nil, err
 	}

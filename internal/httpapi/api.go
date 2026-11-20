@@ -666,6 +666,14 @@ func isTeamAdmin(r *http.Request) bool {
 	return role == "owner" || role == "admin"
 }
 
+func requireTeamAdmin(w http.ResponseWriter, r *http.Request) bool {
+	if isTeamAdmin(r) {
+		return true
+	}
+	writeError(w, http.StatusForbidden, "admin or owner role required")
+	return false
+}
+
 // requireAdmin restricts the route to team owners and admins.
 func (a *API) requireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

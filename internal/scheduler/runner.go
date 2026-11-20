@@ -15,6 +15,7 @@ import (
 	"github.com/dockfin/dockfin/internal/sshdial"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
+	"github.com/dockfin/dockfin/internal/terminal"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 )
@@ -128,11 +129,26 @@ func (r *Runner) executeTask(ctx context.Context, t store.ScheduledTaskRow, exec
 		return
 	}
 	if t.Container != "" {
-		container = resolveServiceContainer(t.ResourceType, t.ResourceID, t.Container, container)
+		resolved, owned := resolveOwnedContainer(t.ResourceType, t.ResourceID, t.Container, container)
+		if resolved == "" {
+			_ = r.Store.FinishTaskExecution(ctx, execID, "failed", "container is not part of this resource")
+			done = true
+			return
+		}
+		if !owned {
+			project := taskComposeProject(t.ResourceType, t.ResourceID)
+			label, err := composeProjectLabel(client, resolved)
+			if err != nil || project == "" || label != project {
+				_ = r.Store.FinishTaskExecution(ctx, execID, "failed", "container is not part of this resource")
+				done = true
+				return
+			}
+		}
+		container = resolved
 	}
 	// Always run inside a container — never fall through to a raw host shell
 	// (that would execute arbitrary cron commands on the VPS).
-	if container == "" {
+	if container == "" || reservedTaskContainer(container) {
 		_ = r.Store.FinishTaskExecution(ctx, execID, "failed", "no container resolved for scheduled task")
 		done = true
 		return
@@ -533,7 +549,7 @@ func (r *Runner) dialForResource(ctx context.Context, teamID uuid.UUID, resource
 			return nil, "", fmt.Errorf("application has no destination")
 		}
 		client, err := r.dialDestination(ctx, teamID, *app.DestinationID)
-		return client, "dockfin-" + app.ID.String(), err
+		return client, applicationTaskContainer(app), err
 	case "database":
 		db, err := r.Store.GetDatabase(ctx, teamID, resourceID)
 		if err != nil {
@@ -580,19 +596,113 @@ func defaultServiceContainer(serviceID uuid.UUID, composeYAML string) string {
 	return fmt.Sprintf("dockfin-svc-%s-%s-1", serviceID.String()[:8], units[0].Name)
 }
 
-// resolveServiceContainer maps a compose service name (or full container name) to a docker name.
-func resolveServiceContainer(resourceType string, resourceID uuid.UUID, named, fallback string) string {
-	named = strings.TrimSpace(named)
+// applicationTaskContainer is the non-preview container name a scheduled task
+// runs in. It follows the same custom-name rule as a normal deploy.
+func applicationTaskContainer(app *store.Application) string {
+	if app == nil {
+		return ""
+	}
+	if app.IsConsistentContainerNameEnabled {
+		custom := sanitizeTaskContainer(app.CustomInternalName)
+		if custom != "" && !reservedTaskContainer(custom) && !reservedTaskContainer("dockfin-"+custom) {
+			if strings.HasPrefix(custom, "dockfin-") {
+				return custom
+			}
+			return "dockfin-" + custom
+		}
+	}
+	return "dockfin-" + app.ID.String()
+}
+
+func sanitizeTaskContainer(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	var b strings.Builder
+	for _, r := range s {
+		ok := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_'
+		if ok {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('-')
+		}
+	}
+	out := strings.Trim(b.String(), "-")
+	if len(out) > 63 {
+		out = out[:63]
+	}
+	return out
+}
+
+func reservedTaskContainer(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "dockfin", "dockfin-proxy", "dockfin-sentinel", "dockfin-maintenance", "dockfin-cloudflared", "dockfin-db", "dockfin-buildkit":
+		return true
+	default:
+		return false
+	}
+}
+
+// resolveOwnedContainer maps a scheduled-task container to a Docker name.
+// The bool is true when the name is statically this resource's container.
+// A false bool with a non-empty name still needs a compose-project label check,
+// so a custom container_name cannot be another workload or the edge proxy.
+func resolveOwnedContainer(resourceType string, resourceID uuid.UUID, named, fallback string) (string, bool) {
+	named = strings.TrimPrefix(strings.TrimSpace(named), "/")
 	if named == "" {
-		return fallback
+		named = strings.TrimSpace(fallback)
 	}
-	if strings.HasPrefix(named, "dockfin-svc-") || strings.HasPrefix(named, "dockfin-db-") || strings.HasPrefix(named, "dockfin-") {
-		return named
+	if !terminal.ValidContainerName(named) || reservedTaskContainer(named) {
+		return "", false
 	}
-	if resourceType == "service" {
-		return fmt.Sprintf("dockfin-svc-%s-%s-1", resourceID.String()[:8], named)
+	id := resourceID.String()
+	switch resourceType {
+	case "database":
+		if named == "dockfin-db-"+id {
+			return named, true
+		}
+		return "", false
+	case "service":
+		prefix := "dockfin-svc-" + id[:8] + "-"
+		if strings.HasPrefix(named, prefix) {
+			return named, true
+		}
+		if isComposeUnit(named) {
+			return prefix + named + "-1", true
+		}
+		return named, false
+	case "application":
+		if named == "dockfin-"+id || strings.HasPrefix(named, "dockfin-"+id+"-") || strings.HasPrefix(named, "dockfin-"+id[:8]+"-") || named == fallback {
+			return named, true
+		}
+		return named, false
+	default:
+		return "", false
 	}
-	return named
+}
+
+func isComposeUnit(name string) bool {
+	if name == "" || len(name) > 63 || strings.HasPrefix(name, "dockfin-") {
+		return false
+	}
+	return terminal.ValidContainerName(name)
+}
+
+func taskComposeProject(resourceType string, resourceID uuid.UUID) string {
+	switch resourceType {
+	case "service":
+		return "dockfin-svc-" + resourceID.String()[:8]
+	case "application":
+		return "dockfin-" + resourceID.String()[:8]
+	default:
+		return ""
+	}
+}
+
+func composeProjectLabel(client *ssh.Client, name string) (string, error) {
+	out, _, err := sshx.RunArgs(client, "docker", "inspect", "-f", `{{index .Config.Labels "com.docker.compose.project"}}`, name)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
 }
 
 func (r *Runner) dialDatabase(ctx context.Context, db *store.Database) (*ssh.Client, string, error) {
