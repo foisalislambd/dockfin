@@ -10,6 +10,8 @@ The same version, or a lower one, does not create a release. Git tag, GitHub Rel
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-11-26
+
 ### Fixed
 
 - A background job whose worker died on the last attempt now marks the resource failed. Deletions get `delete_error` so the dashboard can offer Retry, and start/stop/restart leave `error` instead of staying on `stopping`, `starting`, or `restarting`
