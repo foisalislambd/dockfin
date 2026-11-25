@@ -79,6 +79,12 @@ The standard library findings (`net/http`, `crypto/tls`, `crypto/x509`, and othe
 | Application clone | `copyResourceExtras` dropped `IsPreview`, so a preview application cloned as a normal one. | The copy sets `IsPreview`. |
 | `dfin apps create --build-pack` | The flag was converted to `build_pack` and then deleted from the JSON body, so the server never received the pack. | The delete was removed. |
 | Project dialog | Description used the default required input, so Create did nothing when the description was empty. | Description is optional. |
+| Repository parser | `ParseRepo` replaced the first colon, so `https://github.com/acme/web` was parsed as host `https`. `git@` URLs only worked by accident. | `git@host:path` is rewritten to an ssh URL. HTTPS URLs are parsed as written. Metadata hosts and `..` path segments are rejected. |
+| Environment keys | `POST /env-vars` stored a key containing a newline, which can become a second assignment when the file is rendered. | Keys must match `ValidEnvKey` (`[A-Za-z_][A-Za-z0-9_.]*`). |
+| Application domain | `isValidHostnameList` accepted `http://169.254.169.254/latest`, and the API stored it and returned it as a link. | The host is rejected when `BlockedFetchHost` matches. |
+| Traefik host rule | A domain with a space still produced a Host rule for `not a host`. | Rules skip hosts that are not a hostname. A leading `*.` wildcard is allowed. |
+| Volume dump path | `dumpContainerDirCmd` accepted an output path containing `..`. | The command builder returns an error for `..` in the path or container name. |
+| App backup filename | `DefaultAppBackupFilename` sliced the first 8 characters of a short id and panicked. | Shorter ids are used whole. |
 
 ### Scanner exclusions
 

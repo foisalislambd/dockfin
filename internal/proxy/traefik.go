@@ -149,7 +149,7 @@ func TraefikLabelsHTTPS(appName, fqdn, port string, forceHTTPS bool) []string {
 	router := sanitize(appName)
 	rule := TraefikHostRule(HostsFromDomainList(fqdn))
 	if rule == "" {
-		if h := HostFromDomainEntry(fqdn); h != "" {
+		if h := HostFromDomainEntry(fqdn); safeTraefikHost(h) {
 			rule = fmt.Sprintf("Host(`%s`)", h)
 		} else {
 			return nil

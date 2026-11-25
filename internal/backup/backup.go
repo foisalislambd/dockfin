@@ -132,6 +132,9 @@ func DumpContainerDir(client *ssh.Client, container, innerDir, outPath string) e
 }
 
 func dumpContainerDirCmd(container, innerDir, outPath string) (string, error) {
+	if strings.Contains(outPath, "..") || strings.Contains(container, "..") {
+		return "", fmt.Errorf("invalid dump path")
+	}
 	if !allowedVolumeDir(innerDir) {
 		return "", fmt.Errorf("invalid container data dir")
 	}
@@ -313,6 +316,9 @@ func RestoreContainerDir(client *ssh.Client, container, dumpPath, innerDir strin
 func restoreContainerDirCmd(container, dumpPath, innerDir string) (string, error) {
 	if !allowedVolumeDir(innerDir) {
 		return "", fmt.Errorf("invalid container data dir")
+	}
+	if strings.Contains(dumpPath, "..") {
+		return "", fmt.Errorf("invalid dump path")
 	}
 	base := filepathBase(dumpPath)
 	if !safeDumpLeaf(base) {

@@ -910,7 +910,7 @@ func isValidHostnameList(fqdn string) bool {
 			return false
 		}
 		h := proxy.HostFromDomainEntry(part)
-		if h == "" || strings.ContainsAny(h, "`'\" \t\n\\") {
+		if h == "" || strings.ContainsAny(h, "`'\" \t\n\\") || git.BlockedFetchHost(h) {
 			return false
 		}
 		if len(h) > 253 {

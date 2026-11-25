@@ -242,7 +242,7 @@ func TraefikHostRule(hosts []string) string {
 	var parts []string
 	for _, h := range hosts {
 		h = HostFromDomainEntry(h)
-		if h == "" {
+		if !safeTraefikHost(h) {
 			continue
 		}
 		parts = append(parts, fmt.Sprintf("Host(`%s`)", h))
@@ -282,6 +282,16 @@ func NormalizeDomainEntry(entry string) string {
 		return ""
 	}
 	return scheme + "://" + host + rest[len(host):]
+}
+
+func safeTraefikHost(host string) bool {
+	if host == "" || strings.ContainsAny(host, " \t\r\n\"'`$;|&<>\\") {
+		return false
+	}
+	if strings.HasPrefix(host, "*.") {
+		host = host[2:]
+	}
+	return validHostname(host)
 }
 
 func validHostname(host string) bool {

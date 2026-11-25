@@ -17,7 +17,11 @@ func AppVolumeArchivePath(appID, filename string) string {
 
 // DefaultAppBackupFilename builds a timestamped archive name.
 func DefaultAppBackupFilename(appID string) string {
-	return fmt.Sprintf("app-%s-%s.tar.gz", appID[:8], time.Now().UTC().Format("20060102-150405"))
+	short := appID
+	if len(short) > 8 {
+		short = short[:8]
+	}
+	return fmt.Sprintf("app-%s-%s.tar.gz", short, time.Now().UTC().Format("20060102-150405"))
 }
 
 // TarHostPaths creates a gzipped tar of one or more host directories/files on the remote server.

@@ -26,6 +26,12 @@ The same version, or a lower one, does not create a release. Git tag, GitHub Rel
 - Cloning an application keeps its preview flag
 - The new-project description is optional, so Create submits when only the name is filled
 - Register, reset, and two-factor fields are labelled for assistive tech. List and settings pages announce load failures. Fleet and audit tables can be focused when they scroll
+- `ParseRepo` no longer rewrites `https://` URLs when it converts `git@host:path`
+- Environment variable names with spaces, newlines, or a leading digit are rejected
+- An application domain that is a metadata address is rejected
+- Traefik labels skip a domain that is not a hostname
+- A container backup path containing `..` is rejected
+- A short application id no longer panics the backup filename
 
 ### Added
 

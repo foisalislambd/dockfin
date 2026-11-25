@@ -59,10 +59,10 @@ Vitest covers the login email error, form blur, the info hint, modal focus and E
 
 ## What this round ran
 
-Statement coverage, using the same dedupe as CI (`go test -race -count=1 -coverpkg=./...`): 21.4% at the start of the round, then 30.4%, 37%, 42.4%, 48.6%, and **50.1% (14411/28754)** on the race run that matches CI. The CI floor is 50%.
+Statement coverage, using the same dedupe as CI (`go test -race -count=1 -coverpkg=./...`): 21.4% at the start of the round, then 30.4%, 37%, 42.4%, 48.6%, 50.1% (14411/28754), and **52.9% (15233/28770)** on the race run that matches CI. The CI floor stays 50%. Go `Test` functions went from 339 to 417. `npm test` is 23 node:test cases and 33 Vitest cases (was 10). Playwright stays at 2.
 
 Fuzz, each for at least two minutes except the GitHub signature run at 90 seconds: `FuzzParseEnvFile` passed (about 8.8 million executions). `FuzzStartArgs`, `FuzzParseWebhook`, and `FuzzValidateHTTPURL` passed at 120 seconds. `FuzzVerifyGitHubSignature` passed at 90 seconds. `FuzzValidateRemote` failed on `file:/0`, `169.254.169.254/0`, `http://0169.254.169.254`, and `http://169.254.169.2540`. Those seeds stay in the corpus. After the fix, a 120 second run passed (about 14 million executions).
 
-`npm test`: 23 node:test cases and 10 Vitest cases. `npm audit --audit-level=high` reports 0 vulnerabilities. Playwright: 2 passed (desktop 1440×900 and Pixel 5) covering login, the signed-in pages with axe, a project, deploy, domains, env vars, logs, backups, delete with forget, the server form, team invite, settings, and webhook URL validation.
+`npm test`: 23 node:test cases and 33 Vitest cases. `npm audit --audit-level=high` reports 0 vulnerabilities. Playwright: 2 passed (desktop 1440×900 and Pixel 5) covering login, the signed-in pages with axe, a project, deploy, domains, env vars, logs, backups, delete with forget, the server form, team invite, settings, and webhook URL validation.
 
 `staticcheck`, `gosec -conf .gosec.json`, and `govulncheck` exit 0. The gosec config must put the rule list in `global.exclude` as a comma-separated string; a top-level array is ignored and the scan reports the excluded rules.
