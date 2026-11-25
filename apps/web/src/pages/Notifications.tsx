@@ -362,7 +362,7 @@ export function NotificationsPage() {
             <div className={tab === 'telegram' ? 'space-y-6' : 'grid gap-6 xl:grid-cols-2'}>
               {EVENT_GROUPS.map((g) => (
                 <div key={g.title}>
-                  <h3 className="mb-1 text-xs font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500">
+                  <h3 className="mb-1 text-xs font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
                     {g.title}
                   </h3>
                   <div className="divide-y divide-gray-100 dark:divide-gray-800">

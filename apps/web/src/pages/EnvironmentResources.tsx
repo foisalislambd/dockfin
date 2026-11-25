@@ -451,7 +451,7 @@ export function EnvironmentResourcesPage() {
 
       {filteredApps.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
+          <h2 className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
             Applications
           </h2>
           <PagedResourceGrid
@@ -469,7 +469,7 @@ export function EnvironmentResourcesPage() {
 
       {filteredDbs.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
+          <h2 className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
             Databases
           </h2>
           <PagedResourceGrid
@@ -487,7 +487,7 @@ export function EnvironmentResourcesPage() {
 
       {filteredSvcs.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
+          <h2 className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
             Services
           </h2>
           <PagedResourceGrid

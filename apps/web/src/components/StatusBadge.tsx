@@ -19,9 +19,9 @@ export function statusTone(status: string) {
 }
 
 const TONE_PILL: Record<ReturnType<typeof statusTone>, string> = {
-  ok: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-  warn: 'bg-amber-500/15 text-amber-800 dark:text-amber-300',
-  bad: 'bg-error-500/15 text-error-600 dark:text-error-400',
+  ok: 'bg-success-50 text-success-600 dark:bg-success-500/15',
+  warn: 'bg-warning-50 text-amber-800 dark:bg-warning-500/15 dark:text-amber-300',
+  bad: 'bg-error-50 text-error-500 dark:bg-error-500/15',
   muted: 'bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-400',
 }
 

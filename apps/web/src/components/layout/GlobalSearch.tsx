@@ -240,7 +240,7 @@ export function GlobalSearch() {
 
   return (
     <div ref={rootRef} className="relative min-w-0 flex-1 lg:max-w-md">
-      <Search className="pointer-events-none absolute top-1/2 left-2.5 z-10 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+      <Search className="pointer-events-none absolute top-1/2 left-3 z-10 h-4 w-4 -translate-y-1/2 text-gray-400" />
       <input
         ref={inputRef}
         type="text"
@@ -260,7 +260,7 @@ export function GlobalSearch() {
         placeholder="Search…"
         autoComplete="off"
         spellCheck={false}
-        className="h-8 w-full rounded-md border border-gray-200 bg-gray-50 py-1.5 pr-16 pl-9 text-xs text-gray-900 outline-none transition placeholder:text-gray-500 focus:border-brand-400 focus:bg-white focus:ring-2 focus:ring-brand-500/20 dark:border-gray-800 dark:bg-white/5 dark:text-white dark:placeholder:text-gray-400 dark:focus:bg-gray-900"
+        className="h-9 w-full rounded-lg border border-gray-200 bg-gray-50 py-1.5 pr-16 pl-9 text-sm text-gray-900 outline-none transition placeholder:text-gray-500 focus:border-brand-400 focus:bg-white focus:ring-2 focus:ring-brand-500/20 dark:border-gray-800 dark:bg-white/5 dark:text-white dark:placeholder:text-gray-400 dark:focus:bg-gray-900"
       />
       {q ? (
         <button
@@ -304,7 +304,7 @@ export function GlobalSearch() {
               return (
                 <div key={hit.id}>
                   {showGroup && (
-                    <p className="sticky top-0 z-10 bg-white/95 px-3 pt-2 pb-1 text-[10px] font-semibold tracking-wider text-gray-400 uppercase backdrop-blur dark:bg-gray-900/95">
+                    <p className="sticky top-0 z-10 bg-white/95 px-3 pt-2 pb-1 text-[11px] font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400 backdrop-blur dark:bg-gray-900/95">
                       {hit.group}
                     </p>
                   )}
@@ -321,7 +321,7 @@ export function GlobalSearch() {
                         : 'text-gray-700 dark:text-gray-200'
                     }`}
                   >
-                    <Icon className="h-4 w-4 shrink-0 text-gray-400" strokeWidth={1.75} />
+                    <Icon className="h-4 w-4 shrink-0 text-gray-400" />
                     <span className="min-w-0 flex-1 truncate">{hit.name}</span>
                     {hit.hint && (
                       <span className="max-w-[40%] truncate text-[11px] text-gray-400">{hit.hint}</span>

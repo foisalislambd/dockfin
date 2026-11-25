@@ -213,18 +213,18 @@
 }
 
 .panel-card-body {
-  padding: 0.875rem;
+  padding: 1rem;
 }
 
 @media (min-width: 640px) {
   .panel-card-body {
-    padding: 1rem;
+    padding: 1.25rem;
   }
 }
 
 @media (min-width: 768px) {
   .panel-card-body {
-    padding: 1.125rem;
+    padding: 1.5rem;
   }
 }
 
@@ -240,9 +240,9 @@
 }
 
 .dark .panel-field {
-  border-color: var(--panel-border);
-  background-color: rgba(255, 255, 255, 0.05);
-  color: #f9fafb;
+  border-color: #344054;
+  background-color: #101828;
+  color: #ffffff;
 }
 
 .dark .panel-field option {
@@ -272,8 +272,8 @@
 }
 
 .panel-scrollbar::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 .panel-scrollbar::-webkit-scrollbar-track {
@@ -385,13 +385,7 @@
   scrollbar-width: none;
 }
 
-/* Utility borders (sidebar, tabs, secondary buttons) follow the same token.
-   Brand, error, and transparent borders keep their own colors. */
-.panel-shell :where(.border-gray-100, .border-gray-200, .border-gray-300),
-.dark .panel-shell :where(.dark\:border-gray-700, .dark\:border-gray-800, .border-gray-800) {
-  border-color: var(--panel-border);
-}
-
+/* ZenPanel keeps Tailwind's gray border colors. Width stays 2px via --default-border-width. */
 .panel-shell .border { border-width: var(--panel-border-width); }
 .panel-shell .border-x { border-left-width: var(--panel-border-width); border-right-width: var(--panel-border-width); }
 .panel-shell .border-y { border-top-width: var(--panel-border-width); border-bottom-width: var(--panel-border-width); }
@@ -400,37 +394,63 @@
 .panel-shell .border-b { border-bottom-width: var(--panel-border-width); }
 .panel-shell .border-l { border-left-width: var(--panel-border-width); }
 
-:root {
-  --df-icon-nav: 1.25rem;
-  --df-icon-inline: 1.125rem;
-  --df-icon-empty: 1.75rem;
-  --df-icon-stroke: 2;
+.panel-shell .text-gray-900 {
+  color: #000000;
 }
 
-.panel-shell .relative > svg.lucide.pointer-events-none {
-  width: var(--df-icon-nav);
-  height: var(--df-icon-nav);
-  stroke-width: var(--df-icon-stroke);
+.dark .panel-shell .text-gray-900,
+.dark .panel-shell .text-white\/90 {
+  color: #ffffff;
 }
 
-.panel-shell button svg.lucide,
-.panel-shell a svg.lucide {
-  width: var(--df-icon-inline);
-  height: var(--df-icon-inline);
-  stroke-width: var(--df-icon-stroke);
+:where(.panel-shell) :is(a, button, [role="button"], [role="tab"], summary, select, [tabindex]):focus-visible {
+  outline: 2px solid #465fff;
+  outline-offset: 2px;
 }
 
-/* Nav and topbar come after the link rule so icons inside those links stay at the nav size. */
-.panel-shell nav svg.lucide,
-.panel-shell aside svg.lucide,
-.panel-shell .panel-topbar svg.lucide {
-  width: var(--df-icon-nav);
-  height: var(--df-icon-nav);
-  stroke-width: var(--df-icon-stroke);
+:where(.panel-shell) :is(input, textarea):focus-visible {
+  outline: none;
 }
 
-.panel-shell .panel-card .mx-auto svg.lucide {
-  width: var(--df-icon-empty);
-  height: var(--df-icon-empty);
-  stroke-width: 1.75;
+.panel-shell .text-error-500 {
+  color: #d92d20;
+}
+
+.dark .panel-shell .text-error-500 {
+  color: #f97066;
+}
+
+.panel-shell .text-success-600 {
+  color: #027a48;
+}
+
+.dark .panel-shell .text-success-600 {
+  color: #32d583;
+}
+
+/* Dark secondary text from ZenPanel admin.css. The raw gray-400/500 tokens fail AA on #101828. */
+:where(.dark .panel-shell) .text-gray-600,
+:where(.dark .panel-shell) .dark\:text-gray-600 {
+  color: #738196;
+}
+
+:where(.dark .panel-shell) .text-gray-500,
+:where(.dark .panel-shell) .dark\:text-gray-500 {
+  color: #8f9aab;
+}
+
+:where(.dark .panel-shell) .text-gray-400,
+:where(.dark .panel-shell) .dark\:text-gray-400 {
+  color: #b4bcc8;
+}
+
+:where(.dark .panel-shell) .text-gray-300,
+:where(.dark .panel-shell) .dark\:text-gray-300 {
+  color: #dce1e8;
+}
+
+:where(.dark .panel-shell) .placeholder\:text-gray-400::placeholder,
+:where(.dark .panel-shell) .dark\:placeholder\:text-gray-500::placeholder,
+:where(.dark .panel-shell) .dark\:placeholder\:text-gray-400::placeholder {
+  color: #a3adbe;
 }

@@ -13,7 +13,7 @@ export function Input({
 }) {
   return (
     <label className="block text-sm">
-      <span className="mb-1 block text-gray-500 dark:text-gray-400">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">{label}</span>
       <input
         required={required}
         value={value}

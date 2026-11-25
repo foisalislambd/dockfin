@@ -3,7 +3,7 @@ import { ArrowLeft, Info } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 export const fieldClass =
-  'panel-field h-9 w-full rounded-md px-2.5 text-sm shadow-sm transition placeholder:text-gray-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20 focus:outline-none'
+  'panel-field h-11 w-full rounded-lg px-3 text-sm shadow-sm transition placeholder:text-gray-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20 focus:outline-none'
 
 export function CreatePageShell({
   title,
@@ -302,14 +302,14 @@ export function FormActions({
       <button
         type="submit"
         disabled={busy}
-        className="inline-flex h-9 items-center justify-center rounded-md bg-brand-500 px-3.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-10 items-center justify-center rounded-lg bg-brand-500 px-4 text-sm font-semibold text-white shadow-[0_1px_2px_rgba(70,95,255,0.2)] transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60 sm:h-9"
       >
         {busy ? 'Saving…' : submitLabel}
       </button>
       <button
         type="button"
         onClick={() => void nav({ to: cancelTo as '/' })}
-        className="inline-flex h-9 items-center justify-center rounded-md border border-gray-200 px-3.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-white/5"
+        className="inline-flex h-10 items-center justify-center rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-transparent dark:text-[#dce1e8] dark:hover:bg-white/5 sm:h-9"
       >
         Cancel
       </button>

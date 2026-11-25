@@ -42,7 +42,7 @@ The same version, or a lower one, does not create a release. Git tag, GitHub Rel
 
 ### Changed
 
-- Panel borders are 2px and use a line color that stays at least 3:1 against the light and dark surfaces. Navigation, button, and empty-state icons are larger and use a consistent stroke
+- The dashboard follows ZenPanel's admin tokens: 2px borders in gray-200 (`#e4e7ec`, dark gray-800 `#1d2939`), brand `#465fff`, Outfit, 18px navigation icons at stroke 2.5, and the same card, button, and field sizes. Error and success text keep the darker shades ZenPanel uses for contrast
 - Dialogs trap keyboard focus, restore it on close, and name the close button. Forgetting a failed cleanup uses the in-app confirm dialog
 - Deleting an application, service, database, or preview hides it immediately and returns `202`. A background job removes containers, files, and networks, then deletes the row. A failed cleanup stays on the dashboard with Retry and Forget anyway. Start, stop, and restart return as soon as the action is queued and the status shows stopping, starting, or restarting until the job finishes
 - Deploy, start, stop, and restart are refused while one of those actions is still in progress
