@@ -10,8 +10,15 @@ The same version, or a lower one, does not create a release. Git tag, GitHub Rel
 
 ## [Unreleased]
 
+### Fixed
+
+- A background job whose worker died on the last attempt now marks the resource failed. Deletions get `delete_error` so the dashboard can offer Retry, and start/stop/restart leave `error` instead of staying on `stopping`, `starting`, or `restarting`
+- Domain normalization drops hosts with spaces, newlines, `..` path segments, or a non-numeric port such as `javascript:alert(1)`, and the API rejects those values
+
 ### Changed
 
+- Panel borders are 2px and use a line color that stays at least 3:1 against the light and dark surfaces. Navigation, button, and empty-state icons are larger and use a consistent stroke
+- Dialogs trap keyboard focus, restore it on close, and name the close button. Forgetting a failed cleanup uses the in-app confirm dialog
 - Deleting an application, service, database, or preview hides it immediately and returns `202`. A background job removes containers, files, and networks, then deletes the row. A failed cleanup stays on the dashboard with Retry and Forget anyway. Start, stop, and restart return as soon as the action is queued and the status shows stopping, starting, or restarting until the job finishes
 - Deploy, start, stop, and restart are refused while one of those actions is still in progress
 

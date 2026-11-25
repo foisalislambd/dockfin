@@ -209,15 +209,22 @@ export function LoginPage() {
         {!challengeId ? (
           <>
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Email</label>
+              <label htmlFor="login-email" className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Email</label>
               <div className="relative">
-                <Mail className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                <Mail className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" aria-hidden />
                 <input
+                  id="login-email"
                   type="email"
                   required
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onBlur={() => {
+                    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+                      setError('Enter a valid email address.')
+                    }
+                  }}
+                  aria-invalid={error.toLowerCase().includes('email') || undefined}
                   placeholder="you@example.com"
                   className={inputClass}
                 />

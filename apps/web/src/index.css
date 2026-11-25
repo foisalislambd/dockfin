@@ -26,6 +26,10 @@
   --color-gray-50: #f9fafb;
   --color-gray-100: #f2f4f7;
   --color-gray-200: #e4e7ec;
+  --default-border-width: 2px;
+  --panel-border-width: 2px;
+  /* 3:1 against white and the page background (#f9fafb). */
+  --panel-border: #7b8494;
   --color-gray-300: #d0d5dd;
   --color-gray-400: #98a2b3;
   --color-gray-500: #667085;
@@ -54,6 +58,8 @@
   .dark {
     --background: 222 47% 6%;
     --foreground: 210 40% 98%;
+    /* 3:1 against the dark canvas (#101828 / #0c111d). */
+    --panel-border: #5a6d86;
     color-scheme: dark;
   }
 

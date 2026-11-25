@@ -39,6 +39,15 @@ Scheduled backups and cleanups still run from the scheduler and keep their own e
 - Query-string webhook secrets (`?secret=`) stay accepted so existing hooks keep working. GitLab system hooks now accept only the `X-Gitlab-Token` header; a `?token=` query value is ignored so it cannot land in access logs. Request logs record `URL.Path`, not the raw query.
 - OpenAPI `info.version` stays `dev`. The product version is `VERSION.md`. A test asserts the spec version.
 
+## 2026-11-25 — tests that found defects
+
+| Area | What was wrong | Fix |
+| --- | --- | --- |
+| Crashed job | `RequeueExpiredJobs` marked a last-attempt job failed and stopped. A deletion kept an empty `delete_error`, so the dashboard showed it as still deleting and hid Retry. A start/stop/restart stayed on `stopping`, `starting`, or `restarting`. | The same update writes `delete_error` on the tombstone, or sets the resource status to `error` for a power job. |
+| Domain field | `NormalizeDomains` turned `javascript:alert(1)`, `not a host`, and `0/..` into values that could be stored and emitted into proxy config or links. `isValidHostnameList` accepted the host label `javascript` because the port was discarded before the check. | Normalization rebuilds `scheme://host[:port][/path]` and drops whitespace, quotes, non-numeric ports, and `..` segments. The API rejects an entry the normalizer drops. Fuzz seed `0/..` is kept under `internal/proxy/testdata`. |
+
+Reviewed in the new matrix and left as they are: unauthenticated API calls return 401, a member limited to one project gets 404 for another project’s application and env vars, a second registration is refused, the session cookie is `HttpOnly` and `SameSite=Lax` without `Secure` on plain HTTP, CORS does not echo an unknown origin, and a project name containing SQL text is stored as data.
+
 ## Dependency scan
 
 `govulncheck ./...` with Go 1.26.11 reports no vulnerabilities in code this module calls. One advisory remains in a required module that this code does not call.

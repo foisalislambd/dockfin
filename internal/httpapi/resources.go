@@ -906,6 +906,9 @@ func (a *API) handleCreateDatabase(w http.ResponseWriter, r *http.Request) {
 
 func isValidHostnameList(fqdn string) bool {
 	for _, part := range proxy.SplitDomainEntries(fqdn) {
+		if proxy.NormalizeDomainEntry(part) == "" {
+			return false
+		}
 		h := proxy.HostFromDomainEntry(part)
 		if h == "" || strings.ContainsAny(h, "`'\" \t\n\\") {
 			return false

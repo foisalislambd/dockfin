@@ -26,7 +26,7 @@ export function ResourceTabs({
             key={t.id}
             type="button"
             onClick={() => onChange(t.id)}
-            className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition ${
+            className={`-mb-0.5 inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition ${
               isActive
                 ? 'border-brand-500 text-brand-600 dark:text-brand-400'
                 : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'

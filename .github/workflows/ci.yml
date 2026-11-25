@@ -31,7 +31,10 @@ jobs:
       - name: Test
         env:
           DOCKFIN_DATABASE_URL: postgres://dockfin:dockfin@localhost:5432/dockfin?sslmode=disable
-        run: go test ./...
+        run: |
+          go test -race -count=1 -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out | tee coverage.txt
+          awk '/^total:/ { gsub("%","",$3); if ($3+0 < 20) { print "coverage " $3 "% is below 20%"; exit 1 } }' coverage.txt
       - name: Build
         run: |
           go build -o /tmp/dockfin ./cmd/dockfin
@@ -51,4 +54,5 @@ jobs:
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
+      - run: npm test
       - run: npm run build

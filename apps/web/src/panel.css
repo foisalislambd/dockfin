@@ -24,16 +24,16 @@
 .panel-topbar {
   height: 3.25rem;
   flex-shrink: 0;
-  border-bottom: 1px solid #e4e7ec;
+  border-bottom: var(--panel-border-width) solid var(--panel-border);
 }
 
 .dark .panel-topbar {
-  border-bottom-color: #1d2939;
+  border-bottom-color: var(--panel-border);
 }
 
 .panel-card {
   border-radius: 0.75rem;
-  border: 1px solid #e4e7ec;
+  border: var(--panel-border-width) solid var(--panel-border);
   background-color: #ffffff;
   box-shadow: 0 1px 2px 0 rgba(16, 24, 40, 0.05);
 }
@@ -73,7 +73,7 @@
 }
 
 .dark .panel-card {
-  border-color: #1d2939;
+  border-color: var(--panel-border);
   background-color: rgba(255, 255, 255, 0.03);
   box-shadow: none;
 }
@@ -105,11 +105,11 @@
 .panel-table th {
   padding: 0.75rem 1rem;
   font-weight: 500;
-  border-bottom: 1px solid #e4e7ec;
+  border-bottom: var(--panel-border-width) solid var(--panel-border);
 }
 
 .dark .panel-table th {
-  border-bottom-color: #1d2939;
+  border-bottom-color: var(--panel-border);
 }
 
 .panel-table td {
@@ -118,11 +118,11 @@
 }
 
 .panel-table tbody tr + tr td {
-  border-top: 1px solid #f2f4f7;
+  border-top: var(--panel-border-width) solid var(--panel-border);
 }
 
 .dark .panel-table tbody tr + tr td {
-  border-top-color: #1d2939;
+  border-top-color: var(--panel-border);
 }
 
 .panel-table tbody tr:hover td {
@@ -161,7 +161,7 @@
 /* Opaque surface for dialogs / command palette — matches panel-card / sidebar */
 .panel-modal {
   border-radius: 0.75rem;
-  border: 1px solid #e4e7ec;
+  border: var(--panel-border-width) solid var(--panel-border);
   background-color: #ffffff;
   box-shadow:
     0 20px 25px -5px rgba(16, 24, 40, 0.1),
@@ -169,7 +169,7 @@
 }
 
 .dark .panel-modal {
-  border-color: #1d2939;
+  border-color: var(--panel-border);
   background-color: #101828;
   box-shadow:
     0 20px 25px -5px rgba(0, 0, 0, 0.45),
@@ -230,7 +230,7 @@
 
 /* Shared form field surface — elevated vs page bg in dark mode */
 .panel-field {
-  border: 1px solid #e4e7ec;
+  border: var(--panel-border-width) solid var(--panel-border);
   background-color: #ffffff;
   color: #101828;
 }
@@ -240,7 +240,7 @@
 }
 
 .dark .panel-field {
-  border-color: #1d2939;
+  border-color: var(--panel-border);
   background-color: rgba(255, 255, 255, 0.05);
   color: #f9fafb;
 }
@@ -383,4 +383,48 @@
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Utility borders (sidebar, tabs, secondary buttons) follow the same token.
+   Brand, error, and transparent borders keep their own colors. */
+.panel-shell :where(.border-gray-100, .border-gray-200, .border-gray-300),
+.dark .panel-shell :where(.dark\:border-gray-700, .dark\:border-gray-800, .border-gray-800) {
+  border-color: var(--panel-border);
+}
+
+.panel-shell .border { border-width: var(--panel-border-width); }
+.panel-shell .border-x { border-left-width: var(--panel-border-width); border-right-width: var(--panel-border-width); }
+.panel-shell .border-y { border-top-width: var(--panel-border-width); border-bottom-width: var(--panel-border-width); }
+.panel-shell .border-t { border-top-width: var(--panel-border-width); }
+.panel-shell .border-r { border-right-width: var(--panel-border-width); }
+.panel-shell .border-b { border-bottom-width: var(--panel-border-width); }
+.panel-shell .border-l { border-left-width: var(--panel-border-width); }
+
+:root {
+  --df-icon-nav: 1.25rem;
+  --df-icon-inline: 1.125rem;
+  --df-icon-empty: 1.75rem;
+  --df-icon-stroke: 2;
+}
+
+.panel-shell button svg.lucide,
+.panel-shell a svg.lucide {
+  width: var(--df-icon-inline);
+  height: var(--df-icon-inline);
+  stroke-width: var(--df-icon-stroke);
+}
+
+/* Nav and topbar come after the link rule so icons inside those links stay at the nav size. */
+.panel-shell nav svg.lucide,
+.panel-shell aside svg.lucide,
+.panel-shell .panel-topbar svg.lucide {
+  width: var(--df-icon-nav);
+  height: var(--df-icon-nav);
+  stroke-width: var(--df-icon-stroke);
+}
+
+.panel-shell .panel-card .mx-auto svg.lucide {
+  width: var(--df-icon-empty);
+  height: var(--df-icon-empty);
+  stroke-width: 1.75;
 }
