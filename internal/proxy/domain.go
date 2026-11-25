@@ -288,9 +288,7 @@ func safeTraefikHost(host string) bool {
 	if host == "" || strings.ContainsAny(host, " \t\r\n\"'`$;|&<>\\") {
 		return false
 	}
-	if strings.HasPrefix(host, "*.") {
-		host = host[2:]
-	}
+	host = strings.TrimPrefix(host, "*.")
 	return validHostname(host)
 }
 
