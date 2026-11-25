@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/dockfin/dockfin/internal/git"
 	"github.com/dockfin/dockfin/internal/notify"
 )
 
@@ -23,26 +24,29 @@ type Repo struct {
 func ParseRepo(raw string) (Repo, error) {
 	raw = strings.TrimSpace(raw)
 	raw = strings.TrimSuffix(raw, ".git")
-	if strings.Contains(raw, "://") || strings.HasPrefix(raw, "git@") {
-		raw = strings.TrimPrefix(raw, "git@")
-		raw = strings.Replace(raw, ":", "/", 1)
+	if strings.HasPrefix(raw, "git@") {
+		// git@host:owner/name becomes an ssh URL without touching the colon in https://.
+		raw = "ssh://" + strings.Replace(raw, ":", "/", 1)
+	}
+	if strings.Contains(raw, "://") {
 		u, err := url.Parse(raw)
-		if err != nil || u.Host == "" {
-			if err == nil && !strings.Contains(raw, "://") {
-				u, err = url.Parse("https://" + raw)
-			}
-			if err != nil || u == nil || u.Host == "" {
-				return Repo{}, fmt.Errorf("could not parse repository")
-			}
+		if err != nil || u.Hostname() == "" {
+			return Repo{}, fmt.Errorf("could not parse repository")
+		}
+		if git.BlockedFetchHost(u.Hostname()) {
+			return Repo{}, fmt.Errorf("repository host is not allowed")
 		}
 		parts := strings.Split(strings.Trim(u.Path, "/"), "/")
-		if len(parts) < 2 {
+		if len(parts) < 2 || parts[0] == "" || parts[1] == "" || parts[0] == ".." || parts[1] == ".." {
 			return Repo{}, fmt.Errorf("repository needs an owner and a name")
 		}
-		return Repo{Host: u.Host, Owner: parts[0], Name: parts[1]}, nil
+		return Repo{Host: u.Hostname(), Owner: parts[0], Name: parts[1]}, nil
+	}
+	if strings.HasPrefix(raw, "/") || strings.Contains(raw, `\`) {
+		return Repo{}, fmt.Errorf("repository must look like owner/name")
 	}
 	parts := strings.Split(strings.Trim(raw, "/"), "/")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" || strings.Contains(parts[0], "..") || strings.Contains(parts[1], "..") {
 		return Repo{}, fmt.Errorf("repository must look like owner/name")
 	}
 	return Repo{Host: "github.com", Owner: parts[0], Name: parts[1]}, nil

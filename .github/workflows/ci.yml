@@ -31,7 +31,32 @@ jobs:
       - name: Test
         env:
           DOCKFIN_DATABASE_URL: postgres://dockfin:dockfin@localhost:5432/dockfin?sslmode=disable
-        run: go test ./...
+        run: |
+          go test -race -count=1 -coverpkg=./... -coverprofile=coverage.raw ./...
+          python3 - << 'PY'
+          blocks = {}
+          for line in open("coverage.raw"):
+              if not line.strip() or line.startswith("mode:"):
+                  continue
+              loc, rest = line.split(" ", 1)
+              nstmt, count = map(int, rest.split())
+              prev = blocks.get(loc)
+              if prev is None or count > prev[1]:
+                  blocks[loc] = (nstmt, count)
+          total = sum(n for n, _ in blocks.values())
+          covered = sum(n for n, c in blocks.values() if c)
+          pct = 100 * covered / total
+          print(f"statement coverage {pct:.1f}% ({covered}/{total})")
+          floor = 50
+          if pct + 1e-9 < floor:
+              raise SystemExit(f"coverage {pct:.1f}% is below {floor}%")
+          PY
+      - name: Staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
+      - name: Gosec
+        run: go run github.com/securego/gosec/v2/cmd/gosec@v2.30.0 -quiet -conf .gosec.json ./...
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.10.0 ./...
       - name: Build
         run: |
           go build -o /tmp/dockfin ./cmd/dockfin
@@ -51,4 +76,59 @@ jobs:
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
+      - run: npm test
+      - run: npm audit --audit-level=high
       - run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: dockfin
+          POSTGRES_PASSWORD: dockfin
+          POSTGRES_DB: dockfin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dockfin"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install dashboard and Playwright
+        working-directory: apps/web
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run build
+      - name: Migrate and serve
+        env:
+          DOCKFIN_DATABASE_URL: postgres://dockfin:dockfin@localhost:5432/dockfin?sslmode=disable
+          DOCKFIN_MASTER_KEY: ci-master-key-at-least-32-characters
+          DOCKFIN_WEB_DIR: apps/web/dist
+          DOCKFIN_ENV: development
+        run: |
+          go run ./cmd/dockfin migrate
+          go run ./cmd/dockfin serve > /tmp/dockfin.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8000/health && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8000/health
+      - name: Playwright
+        working-directory: apps/web
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:8000
+          CI: "1"
+        run: npx playwright test

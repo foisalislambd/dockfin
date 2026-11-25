@@ -117,7 +117,9 @@ export function DeploymentShowPage() {
   if (dep.error || !dep.data) {
     return (
       <div className="space-y-4">
-        <p className="text-error-500">{dep.error?.message || 'Deployment not found'}</p>
+        <p className="text-error-500" role="alert">
+          {dep.error?.message || 'Deployment not found'}
+        </p>
         {back}
       </div>
     )

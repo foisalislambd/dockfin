@@ -157,7 +157,7 @@ export function ProjectsPage() {
                   <Link
                     to="/projects/$projectId/edit"
                     params={{ projectId: p.id }}
-                    className="hidden text-sm text-gray-400 hover:text-gray-700 sm:inline dark:hover:text-gray-200"
+                    className="hidden text-sm text-gray-600 hover:text-gray-800 sm:inline dark:text-gray-300 dark:hover:text-gray-100"
                   >
                     Settings
                   </Link>
@@ -206,9 +206,11 @@ export function ProjectsPage() {
             }}
           >
             <Input label="Name" value={name} onChange={setName} required />
-            <Input label="Description" value={description} onChange={setDescription} />
+            <Input label="Description" value={description} onChange={setDescription} required={false} />
             {create.isError ? (
-              <p className="text-sm text-error-500">{(create.error as Error).message}</p>
+              <p className="text-sm text-error-500" role="alert">
+                {(create.error as Error).message}
+              </p>
             ) : null}
             <div className="flex justify-end gap-2 pt-2">
               <Btn type="button" onClick={() => setShow(false)}>

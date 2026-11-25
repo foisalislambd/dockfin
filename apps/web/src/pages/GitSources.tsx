@@ -56,6 +56,11 @@ export function GitSourcesPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">Sources</h1>
+          {sources.isError ? (
+            <p className="mt-2 text-sm text-error-500" role="alert">
+              Could not load sources.
+            </p>
+          ) : null}
         </div>
         <Btn primary onClick={() => setShowForm(true)}>
           + Add

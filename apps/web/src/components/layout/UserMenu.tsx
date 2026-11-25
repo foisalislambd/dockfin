@@ -50,10 +50,10 @@ export function UserMenu() {
         aria-haspopup="menu"
         aria-controls={menuId}
       >
-        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-500 text-xs font-semibold text-white">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 text-sm font-semibold text-white">
           {initial}
         </span>
-        <span className="hidden max-w-[120px] truncate text-xs font-medium text-gray-800 dark:text-white/90 md:block">
+        <span className="hidden max-w-[140px] truncate text-sm font-medium text-gray-800 dark:text-white/90 md:block">
           {user?.name || 'User'}
         </span>
         <ChevronDown

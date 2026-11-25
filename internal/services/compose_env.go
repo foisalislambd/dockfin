@@ -288,6 +288,75 @@ func splitComposeVarOperator(content string) (name, op, def string, ok bool) {
 	return content, "", "", false
 }
 
+func envFileKey(k string) bool {
+	if k == "" || strings.ContainsAny(k, "\r\n=# \t") {
+		return false
+	}
+	if !isEnvIdentStart(k[0]) {
+		return false
+	}
+	for i := 1; i < len(k); i++ {
+		c := k[i]
+		if !isEnvIdentByte(c) && c != '.' {
+			return false
+		}
+	}
+	return true
+}
+
+// ParseEnvFile reads a dotenv file written for Compose. It rejects keys that
+// could start another directive and values that still contain a raw newline.
+func ParseEnvFile(raw string) (map[string]string, error) {
+	out := map[string]string{}
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimRight(line, "\r")
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok || !envFileKey(key) {
+			return nil, fmt.Errorf("invalid env line")
+		}
+		if strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`) && len(value) >= 2 {
+			value = unescapeQuotedEnv(value[1 : len(value)-1])
+		}
+		value = strings.ReplaceAll(value, "$$", "$")
+		if strings.ContainsAny(value, "\r\n") && !strings.Contains(line, `\n`) && !strings.Contains(line, `\r`) {
+			return nil, fmt.Errorf("invalid env line")
+		}
+		out[key] = value
+	}
+	return out, nil
+}
+
+// unescapeQuotedEnv walks left to right so "\\n" stays a backslash plus n
+// and "\n" becomes a newline. A global replace of "\n" before "\\" does the opposite.
+func unescapeQuotedEnv(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] != '\\' || i+1 >= len(s) {
+			b.WriteByte(s[i])
+			continue
+		}
+		switch s[i+1] {
+		case 'n':
+			b.WriteByte('\n')
+		case 'r':
+			b.WriteByte('\r')
+		case '"':
+			b.WriteByte('"')
+		case '\\':
+			b.WriteByte('\\')
+		default:
+			b.WriteByte(s[i])
+			b.WriteByte(s[i+1])
+		}
+		i++
+	}
+	return b.String()
+}
+
 func isEnvIdent(s string) bool {
 	if s == "" || !isEnvIdentStart(s[0]) {
 		return false

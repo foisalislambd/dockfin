@@ -471,6 +471,11 @@ export function SettingsPage() {
   return (
     <div className="space-y-6">
       <Header title="Settings" />
+      {settings.isError ? (
+        <p className="panel-card border-error-200 p-4 text-sm text-error-500" role="alert">
+          Could not load settings.
+        </p>
+      ) : null}
 
       <nav className="flex flex-wrap gap-5 border-b border-gray-200 dark:border-gray-800">
         {topTabs.map((t) => {
@@ -497,7 +502,11 @@ export function SettingsPage() {
         })}
       </nav>
 
-      {error && <p className="text-sm text-error-500">{error}</p>}
+      {error && (
+        <p className="text-sm text-error-500" role="alert">
+          {error}
+        </p>
+      )}
       {message && <p className="text-sm text-brand-600 dark:text-brand-400">{message}</p>}
       {!canEdit && (
         <p className="text-sm text-amber-600 dark:text-amber-400">
@@ -1405,7 +1414,11 @@ function TotpSecurityCard() {
       <p className="text-sm text-gray-500 dark:text-gray-400">
         Status: {status.data?.enabled ? 'Enabled' : 'Disabled'}
       </p>
-      {error && <p className="text-sm text-error-500">{error}</p>}
+      {error && (
+        <p className="text-sm text-error-500" role="alert">
+          {error}
+        </p>
+      )}
       {!status.data?.enabled && !setup && (
         <Btn primary onClick={() => startSetup.mutate()}>
           {startSetup.isPending ? 'Preparing…' : 'Set up authenticator'}

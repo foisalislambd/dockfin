@@ -10,8 +10,42 @@ The same version, or a lower one, does not create a release. Git tag, GitHub Rel
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-11-26
+
+### Fixed
+
+- A background job whose worker died on the last attempt now marks the resource failed. Deletions get `delete_error` so the dashboard can offer Retry, and start/stop/restart leave `error` instead of staying on `stopping`, `starting`, or `restarting`
+- Domain normalization drops hosts with spaces, newlines, `..` path segments, or a non-numeric port such as `javascript:alert(1)`, and the API rejects those values
+- Project-limited members no longer see other projects, deployments, or resource counts on the overview
+- Freezing or unfreezing an environment no longer fails with a uuid/text SQL error
+- An incomplete server bundle returns 400 instead of 500
+- S3 endpoints, Hostinger bases, and git remotes reject metadata hosts, link-local addresses, and shell metacharacters
+- GitHub runner docker arguments reject flag-like images and paths that contain `..`, a colon, or a NUL
+- Env files skip illegal keys and round-trip quoted backslashes
+- A GitLab system hook body of `null` is rejected instead of panicking
+- Git remotes reject shorthand that is a path, an IP, or a metadata address written with a leading zero (`0169.254.169.254`)
+- `dfin apps create --build-pack` sends the build pack
+- Cloning an application keeps its preview flag
+- The new-project description is optional, so Create submits when only the name is filled
+- Register, reset, and two-factor fields are labelled for assistive tech. List and settings pages announce load failures. Fleet and audit tables can be focused when they scroll
+- `ParseRepo` no longer rewrites `https://` URLs when it converts `git@host:path`
+- Environment variable names with spaces, newlines, or a leading digit are rejected
+- An application domain that is a metadata address is rejected
+- Traefik labels skip a domain that is not a hostname
+- A container backup path containing `..` is rejected
+- A short application id no longer panics the backup filename
+
+### Added
+
+- Every API route is classified in `internal/httpapi/testdata/authz_routes.txt`. A new route fails CI until that file is updated
+- Fuzz targets for env files, runner docker args, webhook signatures and payloads, HTTP URL checks, and git remotes
+- Vitest and React Testing Library for forms, API errors, and deletion retry/forget. Playwright with axe covers the signed-in pages
+- CI runs staticcheck, gosec, govulncheck, and `npm audit`
+
 ### Changed
 
+- The dashboard follows ZenPanel's admin tokens: 2px borders in gray-200 (`#e4e7ec`, dark gray-800 `#1d2939`), brand `#465fff`, Outfit, 18px navigation icons at stroke 2.5, and the same card, button, and field sizes. Error and success text keep the darker shades ZenPanel uses for contrast
+- Dialogs trap keyboard focus, restore it on close, and name the close button. Forgetting a failed cleanup uses the in-app confirm dialog
 - Deleting an application, service, database, or preview hides it immediately and returns `202`. A background job removes containers, files, and networks, then deletes the row. A failed cleanup stays on the dashboard with Retry and Forget anyway. Start, stop, and restart return as soon as the action is queued and the status shows stopping, starting, or restarting until the job finishes
 - Deploy, start, stop, and restart are refused while one of those actions is still in progress
 

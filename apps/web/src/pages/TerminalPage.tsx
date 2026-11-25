@@ -35,6 +35,13 @@ export function TerminalPickerPage() {
   }
 
   if (servers.isLoading) return <PageSkeleton cards={1} />
+  if (servers.error) {
+    return (
+      <div className="panel-card border-error-200 p-4 text-sm text-error-500" role="alert">
+        Could not load servers. {servers.error.message}
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">

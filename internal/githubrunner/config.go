@@ -180,15 +180,25 @@ func HookScript() string {
 }
 
 // PrepareArgs builds the docker commands that create the network and, in dind mode, the sidecar.
-func PrepareArgs(id uuid.UUID, image, mode, cpu, memory string) [][]string {
+func PrepareArgs(id uuid.UUID, image, mode, cpu, memory string) ([][]string, error) {
+	img, err := checkedImage(image)
+	if err != nil {
+		return nil, err
+	}
+	if err := ValidateCPU(cpu); err != nil {
+		return nil, err
+	}
+	if err := ValidateMemory(memory); err != nil {
+		return nil, err
+	}
 	name := RunnerName(id)
 	labels := labelArgs(id)
 	cmds := [][]string{
 		append([]string{"docker", "network", "create"}, append(labels, name)...),
-		{"docker", "pull", ImageOrDefault(image)},
+		{"docker", "pull", img},
 	}
 	if mode != "dind" {
-		return cmds
+		return cmds, nil
 	}
 	for _, suffix := range []string{"sock", "work", "externals"} {
 		cmds = append(cmds, append([]string{"docker", "volume", "create"}, append(labels, name+"-"+suffix)...))
@@ -200,11 +210,47 @@ func PrepareArgs(id uuid.UUID, image, mode, cpu, memory string) [][]string {
 	run = append(run, volumeArgs(name)...)
 	run = append(run, DindImage, "dockerd", "--host=unix:///var/run/docker.sock", "--group="+dockerGID)
 	cmds = append(cmds, run)
-	return cmds
+	return cmds, nil
+}
+
+func checkedImage(image string) (string, error) {
+	if err := ValidateImage(image); err != nil {
+		return "", err
+	}
+	return ImageOrDefault(image), nil
+}
+
+func safeDockerPath(p string) error {
+	if p == "" {
+		return nil
+	}
+	if !strings.HasPrefix(p, "/") || strings.Contains(p, "..") || strings.ContainsAny(p, "\r\n\t :\x00") || strings.HasPrefix(p, "-") {
+		return fmt.Errorf("path is not an absolute docker argument")
+	}
+	return nil
 }
 
 // StartArgs builds the docker run command for the runner. The JIT config is read from envFile.
-func StartArgs(id uuid.UUID, image, mode, envFile, hookFile, cpu, memory string) []string {
+func StartArgs(id uuid.UUID, image, mode, envFile, hookFile, cpu, memory string) ([]string, error) {
+	img, err := checkedImage(image)
+	if err != nil {
+		return nil, err
+	}
+	if err := ValidateCPU(cpu); err != nil || ValidateMemory(memory) != nil {
+		if err == nil {
+			err = ValidateMemory(memory)
+		}
+		return nil, err
+	}
+	if envFile == "" {
+		return nil, fmt.Errorf("env file is required")
+	}
+	if err := safeDockerPath(envFile); err != nil {
+		return nil, fmt.Errorf("env file: %w", err)
+	}
+	if err := safeDockerPath(hookFile); err != nil {
+		return nil, fmt.Errorf("hook file: %w", err)
+	}
 	name := RunnerName(id)
 	args := []string{"docker", "run", "-d", "--name", name, "--network", name}
 	args = append(args, labelArgs(id)...)
@@ -217,8 +263,8 @@ func StartArgs(id uuid.UUID, image, mode, envFile, hookFile, cpu, memory string)
 		args = append(args, "-e", "DOCKER_HOST=unix:///var/run/docker.sock", "-e", "RUNNER_WAIT_FOR_DOCKER_IN_SECONDS=120")
 		args = append(args, volumeArgs(name)...)
 	}
-	args = append(args, ImageOrDefault(image), "/home/runner/run.sh")
-	return args
+	args = append(args, img, "/home/runner/run.sh")
+	return args, nil
 }
 
 // CleanupArgs removes the containers, volumes, network, and secret files of one runner.

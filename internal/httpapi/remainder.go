@@ -300,6 +300,10 @@ func (a *API) handleImportServer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid json")
 		return
 	}
+	if body.Server.Version != 1 || strings.TrimSpace(body.Server.Name) == "" || strings.TrimSpace(body.Server.IP) == "" {
+		writeError(w, http.StatusBadRequest, "server bundle is incomplete")
+		return
+	}
 	var keyID *uuid.UUID
 	if strings.TrimSpace(body.PrivateKeyID) != "" {
 		id, err := uuid.Parse(body.PrivateKeyID)

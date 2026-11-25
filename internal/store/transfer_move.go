@@ -333,9 +333,6 @@ func idsOf(in []movedResource) []uuid.UUID {
 	for i := range in {
 		out[i] = in[i].id
 	}
-	if out == nil {
-		out = []uuid.UUID{}
-	}
 	return out
 }
 

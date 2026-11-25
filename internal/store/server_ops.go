@@ -285,7 +285,7 @@ func (s *Store) ListDockerCleanupExecutionsForTeam(ctx context.Context, teamID u
 	return out, rows.Err()
 }
 
-// ListServersDueForDockerCleanup returns servers whose cleanup cron matches minute.
+// ListServersForDockerCleanup returns servers whose cleanup cron matches the current minute.
 func (s *Store) ListServersForDockerCleanup(ctx context.Context) ([]struct {
 	TeamID    uuid.UUID
 	ServerID  uuid.UUID

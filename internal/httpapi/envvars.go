@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/dockfin/dockfin/internal/crypto"
+	"github.com/dockfin/dockfin/internal/envvars"
 	"github.com/dockfin/dockfin/internal/git"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/go-chi/chi/v5"
@@ -69,6 +70,10 @@ func (a *API) handleUpsertEnvVar(w http.ResponseWriter, r *http.Request) {
 	rid, err := uuid.Parse(body.ResourceID)
 	if err != nil || body.ResourceType == "" || body.Key == "" {
 		writeError(w, http.StatusBadRequest, "resource_type, resource_id, key required")
+		return
+	}
+	if !envvars.ValidEnvKey(body.Key) {
+		writeError(w, http.StatusBadRequest, "invalid environment variable key")
 		return
 	}
 	teamID := currentTeamID(r)

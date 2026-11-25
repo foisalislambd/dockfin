@@ -242,7 +242,7 @@ func TraefikHostRule(hosts []string) string {
 	var parts []string
 	for _, h := range hosts {
 		h = HostFromDomainEntry(h)
-		if h == "" {
+		if !safeTraefikHost(h) {
 			continue
 		}
 		parts = append(parts, fmt.Sprintf("Host(`%s`)", h))
@@ -259,22 +259,89 @@ func TraefikHostRule(hosts []string) string {
 // Bare host:port and host/path are preserved (e.g. example.com:8080 → https://example.com:8080).
 func NormalizeDomainEntry(entry string) string {
 	entry = strings.TrimSpace(entry)
-	if entry == "" {
+	if entry == "" || strings.ContainsAny(entry, " \t\r\n\"'`<>") {
+		return ""
+	}
+	host := HostFromDomainEntry(entry)
+	if !validHostname(host) {
 		return ""
 	}
 	lower := strings.ToLower(entry)
-	if strings.HasPrefix(lower, "https://") || strings.HasPrefix(lower, "http://") {
-		return strings.TrimRight(entry, "/")
-	}
-	host := HostFromDomainEntry(entry)
-	if host == "" {
-		return entry
-	}
+	scheme := "https"
 	rest := strings.TrimRight(entry, "/")
-	if host == "localhost" || host == "127.0.0.1" || IsMagicDomainHost(host) {
-		return "http://" + rest
+	switch {
+	case strings.HasPrefix(lower, "https://"):
+		rest = strings.TrimRight(entry[len("https://"):], "/")
+	case strings.HasPrefix(lower, "http://"):
+		scheme = "http"
+		rest = strings.TrimRight(entry[len("http://"):], "/")
+	case host == "localhost" || host == "127.0.0.1" || IsMagicDomainHost(host):
+		scheme = "http"
 	}
-	return "https://" + rest
+	if !strings.HasPrefix(strings.ToLower(rest), host) || !validHostSuffix(rest[len(host):]) {
+		return ""
+	}
+	return scheme + "://" + host + rest[len(host):]
+}
+
+func safeTraefikHost(host string) bool {
+	if host == "" || strings.ContainsAny(host, " \t\r\n\"'`$;|&<>\\") {
+		return false
+	}
+	host = strings.TrimPrefix(host, "*.")
+	return validHostname(host)
+}
+
+func validHostname(host string) bool {
+	if host == "" || len(host) > 253 || strings.Contains(host, "..") {
+		return false
+	}
+	for _, label := range strings.Split(host, ".") {
+		if label == "" || len(label) > 63 {
+			return false
+		}
+		for i := 0; i < len(label); i++ {
+			c := label[i]
+			switch {
+			case c >= 'a' && c <= 'z', c >= '0' && c <= '9':
+			case c == '-' && i > 0 && i < len(label)-1:
+			default:
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func validHostSuffix(s string) bool {
+	if s == "" {
+		return true
+	}
+	if strings.Contains(s, "..") {
+		return false
+	}
+	if s[0] == ':' {
+		i := 1
+		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+			i++
+		}
+		if i == 1 {
+			return false
+		}
+		s = s[i:]
+		if s == "" {
+			return true
+		}
+	}
+	if s[0] != '/' {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] < 0x20 || s[i] == 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 // NormalizeDomains applies NormalizeDomainEntry to a comma-separated domains field.

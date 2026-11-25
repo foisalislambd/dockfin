@@ -39,6 +39,15 @@ Scheduled backups and cleanups still run from the scheduler and keep their own e
 - Query-string webhook secrets (`?secret=`) stay accepted so existing hooks keep working. GitLab system hooks now accept only the `X-Gitlab-Token` header; a `?token=` query value is ignored so it cannot land in access logs. Request logs record `URL.Path`, not the raw query.
 - OpenAPI `info.version` stays `dev`. The product version is `VERSION.md`. A test asserts the spec version.
 
+## 2026-11-25 — tests that found defects
+
+| Area | What was wrong | Fix |
+| --- | --- | --- |
+| Crashed job | `RequeueExpiredJobs` marked a last-attempt job failed and stopped. A deletion kept an empty `delete_error`, so the dashboard showed it as still deleting and hid Retry. A start/stop/restart stayed on `stopping`, `starting`, or `restarting`. | The same update writes `delete_error` on the tombstone, or sets the resource status to `error` for a power job. |
+| Domain field | `NormalizeDomains` turned `javascript:alert(1)`, `not a host`, and `0/..` into values that could be stored and emitted into proxy config or links. `isValidHostnameList` accepted the host label `javascript` because the port was discarded before the check. | Normalization rebuilds `scheme://host[:port][/path]` and drops whitespace, quotes, non-numeric ports, and `..` segments. The API rejects an entry the normalizer drops. Fuzz seed `0/..` is kept under `internal/proxy/testdata`. |
+
+Reviewed in the new matrix and left as they are: unauthenticated API calls return 401, a member limited to one project gets 404 for another project’s application and env vars, a second registration is refused, the session cookie is `HttpOnly` and `SameSite=Lax` without `Secure` on plain HTTP, CORS does not echo an unknown origin, and a project name containing SQL text is stored as data.
+
 ## Dependency scan
 
 `govulncheck ./...` with Go 1.26.11 reports no vulnerabilities in code this module calls. One advisory remains in a required module that this code does not call.
@@ -52,3 +61,55 @@ Updated:
 The standard library findings (`net/http`, `crypto/tls`, `crypto/x509`, and others) are fixed by Go 1.26.11, including `GO-2026-6859` (HTTP/1 `MaxBytesReader` header race, CVE-2026-97054). Dockfin reads JSON bodies through `MaxBytesReader`. A binary built with 1.26.10 or older is still exposed; release builds must use 1.26.11 or newer.
 
 `GO-2026-5932` is still recorded against `golang.org/x/crypto`. The fix is only in a commit after v0.58.0, and this code does not call the affected symbol. Dockfin stays on the latest release, v0.58.0.
+
+## 2026-11-25 — second pass
+
+| Area | What was wrong | Fix |
+| --- | --- | --- |
+| Overview | A member limited to one project still received every project, deployment, and the hidden application id from `GET /overview`. | `redactOverview` filters those lists and resource counts. Deploy-window and queue totals are zeroed for a restricted member. |
+| Deploy freeze | Unfreeze sent an untyped actor, and Postgres rejected `deploy_frozen_by` (`42804`, uuid versus text). The handler returned 500. | The SQL casts `$6::uuid` and the store always passes a `uuid.UUID` (`uuid.Nil` when unfreezing). |
+| Server import | An incomplete bundle reached `ImportServer`, which returned a plain error and became a 500. | The handler returns 400 `server bundle is incomplete` before the store call. |
+| S3 and Hostinger | A storage endpoint or a custom Hostinger base URL was requested as given, including metadata addresses. | `netsafe.ValidateHTTPURL` blocks metadata, link-local, and (unless private is allowed) loopback and RFC1918. Hostinger additionally allows only `developers.hostinger.com`, `127.0.0.1`, and `localhost`. |
+| Runner docker args | `StartArgs` appended an unvalidated image, so `--privileged` became a docker flag. A hook path could contain `..`, a colon, or a NUL and be spliced into `-v`. | Image, CPU, memory, and absolute paths are validated. `:` and NUL are rejected so they cannot add another mount. |
+| Env files | `FormatEnvFile` wrote a raw key, so a newline in the key injected another assignment. A quoted value with a backslash was unescaped in the wrong order, turning `\\n` into a newline. | Invalid keys are skipped. Quoted values escape `\` before `"`. Parsing walks escapes left to right. |
+| Database and backup paths | An id or filename containing `..` or a separator could leave `/data/dockfin`. | `HostDataDir`, `DumpPath`, and backup retention globs fall back to `invalid` and reject `..`. |
+| Git remotes | An scp-style remote could contain `;` or `&`. `ValidateRemote` also treated a trimmed shorthand as safe while the raw string still had leading space; that was a test bug. IPv4-mapped metadata addresses were not classified as link-local. Shorthand `file:/0` and `169.254.169.254/0` were accepted, and `http://0169.254.169.254` was accepted because `net.ParseIP` rejects a leading zero. | Shell metacharacters are rejected. Shorthand must be a single `owner/name` with a letter in each part, no colon, and no metadata address. `ParseIPLoose` reads dotted IPv4 with leading zeros so `0169.254.169.254` is the link-local metadata address. |
+| GitLab system hook | A body of `null` unmarshals to a nil map and panicked in `NormalizeGitLabSystemHook`. | A nil object is an invalid hook. |
+| GitHub webhook | Signature comparison is HMAC-SHA256. A 90 second fuzz run found no accepted bad signature. GitLab application hooks compare `X-Gitlab-Token` in constant time; they are not HMAC. | No code change. |
+| Application clone | `copyResourceExtras` dropped `IsPreview`, so a preview application cloned as a normal one. | The copy sets `IsPreview`. |
+| `dfin apps create --build-pack` | The flag was converted to `build_pack` and then deleted from the JSON body, so the server never received the pack. | The delete was removed. |
+| Project dialog | Description used the default required input, so Create did nothing when the description was empty. | Description is optional. |
+| Repository parser | `ParseRepo` replaced the first colon, so `https://github.com/acme/web` was parsed as host `https`. `git@` URLs only worked by accident. | `git@host:path` is rewritten to an ssh URL. HTTPS URLs are parsed as written. Metadata hosts and `..` path segments are rejected. |
+| Environment keys | `POST /env-vars` stored a key containing a newline, which can become a second assignment when the file is rendered. | Keys must match `ValidEnvKey` (`[A-Za-z_][A-Za-z0-9_.]*`). |
+| Application domain | `isValidHostnameList` accepted `http://169.254.169.254/latest`, and the API stored it and returned it as a link. | The host is rejected when `BlockedFetchHost` matches. |
+| Traefik host rule | A domain with a space still produced a Host rule for `not a host`. | Rules skip hosts that are not a hostname. A leading `*.` wildcard is allowed. |
+| Volume dump path | `dumpContainerDirCmd` accepted an output path containing `..`. | The command builder returns an error for `..` in the path or container name. |
+| App backup filename | `DefaultAppBackupFilename` sliced the first 8 characters of a short id and panicked. | Shorter ids are used whole. |
+
+### Scanner exclusions
+
+CI runs `staticcheck` (SA* and the checks not listed below), `gosec` with `.gosec.json`, `govulncheck`, and `npm audit --audit-level=high`.
+
+staticcheck ignores, each one existing style or unfinished call sites rather than a defect in a called path:
+
+- `U1000` unused funcs kept for deploy and DNS parity: `pruneAppImages`, `waitStartPeriod`, `swarmStackOverrides`, `zoneFromHost`, `removeResourceScopedNetwork`, `scanOnServer`, `dialServerForTeam`, `openAPIRoute`
+- `ST1000`, `ST1005` comment style
+- `ST1003` initialisms. Exported names use `Api` (`ApiToken`) to match `api_tokens`. Renaming them to `API` would be a Go-only break
+- `S1009`, `S1011`, `S1021` nil-len and declaration style
+- `SA1019` `chimw.RealIP` is only installed when `DOCKFIN_TRUST_PROXY` is set, so a client cannot supply the forwarded address
+
+gosec rules excluded, with the reason:
+
+| Rule | Why it stays |
+| --- | --- |
+| G101 | Field names and the default runner image, not embedded secrets |
+| G104 | `Response.Body.Close` errors after the body is already consumed |
+| G115 | Integer conversions on counters and file sizes that are range-checked by the caller |
+| G118 | Goroutines that intentionally outlive the request (scheduler, runner provision) |
+| G124 | OAuth cookies are `SameSite=Lax`. `Secure` follows the panel URL; tests and plain HTTP installs do not set it |
+| G204 | `pg_dump`, `pg_restore`, and `docker` use argument vectors, not a shell string |
+| G304 / G703 | Template and compose paths are under the configured template directory or the service data dir |
+| G306 | The bootstrap public key is `0644`. The private key is `0600` |
+| G702 | `git clone` builds an argument vector. gosec flags the `...` expansion |
+| G704 | Outbound URLs go through `netsafe.ValidateHTTPURL` or the Hostinger host allowlist |
+| G710 | Request bodies are already limited by `maxJSONBody` |

@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
+import { useConfirm } from './ConfirmDialog'
 import { useToast } from './Toast'
 
 export function PendingDeletions() {
   const qc = useQueryClient()
   const toast = useToast()
+  const confirm = useConfirm()
   const list = useQuery({
     queryKey: ['deletions'],
     queryFn: api.deletions,
@@ -55,9 +57,14 @@ export function PendingDeletions() {
                 type="button"
                 className="text-error-500 hover:underline"
                 onClick={() => {
-                  if (confirm(`Forget ${row.name}? Dockfin drops the record and leaves containers on the server.`)) {
-                    forget.mutate(row)
-                  }
+                  void confirm({
+                    title: `Forget ${row.name}?`,
+                    message: 'Dockfin drops the record and leaves containers on the server.',
+                    confirmLabel: 'Forget anyway',
+                    danger: true,
+                  }).then((ok) => {
+                    if (ok) forget.mutate(row)
+                  })
                 }}
               >
                 Forget anyway

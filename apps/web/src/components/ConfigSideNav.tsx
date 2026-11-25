@@ -101,7 +101,7 @@ export function ConfigSideNav<T extends string>({
       {pinnedItems.length ? <nav className="space-y-0.5">{pinnedItems.map(renderItem)}</nav> : null}
       {grouped.map((g) => (
         <div key={g.label} className="border-t border-gray-200 pt-2 first:border-t-0 first:pt-0 dark:border-gray-700">
-          <p className="mb-1 px-2 text-[11px] font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500">
+          <p className="mb-1 px-2 text-[11px] font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
             {g.label}
           </p>
           <nav className="space-y-0.5">{g.list.map(renderItem)}</nav>

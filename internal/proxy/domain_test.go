@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -129,6 +130,15 @@ func TestNormalizeDomains(t *testing.T) {
 	}
 	if got := NormalizeDomainEntry("https://domain.com/"); got != "https://domain.com" {
 		t.Fatalf("trim slash: %q", got)
+	}
+	if got := NormalizeDomainEntry("javascript:alert(1)"); got != "" {
+		t.Fatalf("javascript url kept: %q", got)
+	}
+	if got := NormalizeDomainEntry("not a host"); got != "" {
+		t.Fatalf("spaced host kept: %q", got)
+	}
+	if got := NormalizeDomains("a.com\nb.com"); got != "" && strings.Contains(got, "\n") {
+		t.Fatalf("newline kept: %q", got)
 	}
 	if got := NormalizeDomains("domain.com, www.domain.com"); got != "https://domain.com,https://www.domain.com" {
 		t.Fatalf("multi: %q", got)

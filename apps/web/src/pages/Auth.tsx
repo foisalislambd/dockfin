@@ -10,7 +10,7 @@ import { ThemeToggle } from '../components/theme/ThemeToggle'
 import { AuthFormSkeleton } from '../components/ui/Skeleton'
 
 const inputClass =
-  'panel-field h-9 w-full rounded-md pl-9 pr-3 text-sm shadow-sm transition placeholder:text-gray-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20 focus:outline-none'
+  'panel-field h-11 w-full rounded-lg pl-10 pr-4 text-sm shadow-sm transition placeholder:text-gray-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20 focus:outline-none'
 
 function BrandPanel({ className = '' }: { className?: string }) {
   const { brand } = appConfig
@@ -209,25 +209,33 @@ export function LoginPage() {
         {!challengeId ? (
           <>
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Email</label>
+              <label htmlFor="login-email" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
               <div className="relative">
-                <Mail className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                <Mail className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden />
                 <input
+                  id="login-email"
                   type="email"
                   required
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onBlur={() => {
+                    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+                      setError('Enter a valid email address.')
+                    }
+                  }}
+                  aria-invalid={error.toLowerCase().includes('email') || undefined}
                   placeholder="you@example.com"
                   className={inputClass}
                 />
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Password</label>
+              <label htmlFor="login-password" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
               <div className="relative">
-                <Lock className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                <Lock className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden />
                 <input
+                  id="login-password"
                   type={showPassword ? 'text' : 'password'}
                   required
                   autoComplete="current-password"
@@ -250,10 +258,11 @@ export function LoginPage() {
         ) : (
           <>
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
+              <label htmlFor="login-otp" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Authenticator code
               </label>
               <input
+                id="login-otp"
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 value={otp}
@@ -263,10 +272,11 @@ export function LoginPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
+              <label htmlFor="login-recovery" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Or recovery code
               </label>
               <input
+                id="login-recovery"
                 value={recovery}
                 onChange={(e) => setRecovery(e.target.value)}
                 className={inputClass.replace('pl-9', 'pl-3')}
@@ -282,7 +292,7 @@ export function LoginPage() {
         <button
           type="submit"
           disabled={busy}
-          className="flex h-9 w-full items-center justify-center rounded-md bg-brand-500 text-sm font-medium text-white shadow-sm transition hover:bg-brand-600 focus:ring-2 focus:ring-brand-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex h-11 w-full items-center justify-center rounded-lg bg-brand-500 text-sm font-semibold text-white shadow-[0_1px_2px_rgba(70,95,255,0.2)] transition hover:bg-brand-600 focus:ring-2 focus:ring-brand-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         >
           {busy ? 'Signing in…' : challengeId ? 'Verify' : 'Sign in'}
         </button>
@@ -291,7 +301,7 @@ export function LoginPage() {
         <button
           type="button"
           disabled={busy}
-          className="mt-3 flex h-9 w-full items-center justify-center rounded-md border border-gray-200 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
+          className="mt-3 flex h-11 w-full items-center justify-center rounded-lg border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-transparent dark:text-[#dce1e8] dark:hover:bg-white/5"
           onClick={() => {
             setBusy(true)
             setError('')
@@ -406,10 +416,11 @@ export function RegisterPage() {
       </h1>
       <form onSubmit={onSubmit} className="mt-6 space-y-4">
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Name</label>
+          <label htmlFor="register-name" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
           <div className="relative">
-            <User className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+            <User className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden />
             <input
+              id="register-name"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -419,10 +430,11 @@ export function RegisterPage() {
           </div>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Email</label>
+          <label htmlFor="register-email" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
           <div className="relative">
-            <Mail className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+            <Mail className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden />
             <input
+              id="register-email"
               type="email"
               required
               value={email}
@@ -433,10 +445,11 @@ export function RegisterPage() {
           </div>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Password</label>
+          <label htmlFor="register-password" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
           <div className="relative">
-            <Lock className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+            <Lock className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden />
             <input
+              id="register-password"
               type="password"
               required
               minLength={8}
@@ -455,7 +468,7 @@ export function RegisterPage() {
         <button
           type="submit"
           disabled={busy}
-          className="flex h-9 w-full items-center justify-center rounded-md bg-brand-500 text-sm font-medium text-white shadow-sm transition hover:bg-brand-600 disabled:opacity-60"
+          className="flex h-11 w-full items-center justify-center rounded-lg bg-brand-500 text-sm font-semibold text-white shadow-[0_1px_2px_rgba(70,95,255,0.2)] shadow-sm transition hover:bg-brand-600 disabled:opacity-60"
         >
           {busy ? 'Creating…' : 'Create account'}
         </button>
@@ -508,10 +521,11 @@ export function ForgotPasswordPage() {
       ) : (
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Email</label>
+            <label htmlFor="forgot-email" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
             <div className="relative">
-              <Mail className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+              <Mail className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden />
               <input
+                id="forgot-email"
                 type="email"
                 required
                 value={email}
@@ -520,11 +534,15 @@ export function ForgotPasswordPage() {
               />
             </div>
           </div>
-          {error && <p className="text-sm text-error-500">{error}</p>}
+          {error && (
+            <p className="text-sm text-error-500" role="alert">
+              {error}
+            </p>
+          )}
           <button
             type="submit"
             disabled={busy}
-            className="flex h-9 w-full items-center justify-center rounded-md bg-brand-500 text-sm font-medium text-white disabled:opacity-60"
+            className="flex h-11 w-full items-center justify-center rounded-lg bg-brand-500 text-sm font-semibold text-white shadow-[0_1px_2px_rgba(70,95,255,0.2)] disabled:opacity-60"
           >
             {busy ? 'Sending…' : 'Send reset link'}
           </button>
@@ -572,10 +590,11 @@ export function ResetPasswordPage() {
       </h1>
       <form onSubmit={onSubmit} className="mt-6 space-y-4">
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">New password</label>
+          <label htmlFor="reset-password" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">New password</label>
           <div className="relative">
-            <Lock className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+            <Lock className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden />
             <input
+              id="reset-password"
               type="password"
               required
               minLength={8}
@@ -589,7 +608,7 @@ export function ResetPasswordPage() {
         <button
           type="submit"
           disabled={busy || !token}
-          className="flex h-9 w-full items-center justify-center rounded-md bg-brand-500 text-sm font-medium text-white disabled:opacity-60"
+          className="flex h-11 w-full items-center justify-center rounded-lg bg-brand-500 text-sm font-semibold text-white shadow-[0_1px_2px_rgba(70,95,255,0.2)] disabled:opacity-60"
         >
           {busy ? 'Saving…' : 'Update password'}
         </button>

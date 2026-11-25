@@ -14,6 +14,7 @@ import (
 
 	"github.com/dockfin/dockfin/internal/backup"
 	"github.com/dockfin/dockfin/internal/database"
+	"github.com/dockfin/dockfin/internal/netsafe"
 	"github.com/dockfin/dockfin/internal/sshx"
 	"github.com/dockfin/dockfin/internal/store"
 	"github.com/go-chi/chi/v5"
@@ -48,6 +49,12 @@ func (a *API) handleCreateS3Storage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "name, endpoint, bucket, access_key, secret_key required")
 		return
 	}
+	endpoint, err := netsafe.ValidateHTTPURL(body.Endpoint, true)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "endpoint is not an allowed http(s) URL")
+		return
+	}
+	body.Endpoint = endpoint
 	pathStyle := true
 	if body.PathStyle != nil {
 		pathStyle = *body.PathStyle
@@ -636,17 +643,7 @@ func (a *API) openDatabaseSSH(r *http.Request, db *store.Database) (*ssh.Client,
 }
 
 func safeBackupFilename(s string) bool {
-	if s == "" || len(s) > 200 || strings.Contains(s, "..") {
-		return false
-	}
-	for _, c := range s {
-		ok := (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
-			c == '-' || c == '_' || c == '.'
-		if !ok {
-			return false
-		}
-	}
-	return true
+	return backup.SafeFilename(s)
 }
 
 func (a *API) resolveDatabasePassword(r *http.Request, teamID, id uuid.UUID) (string, error) {

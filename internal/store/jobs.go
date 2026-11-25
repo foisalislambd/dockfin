@@ -125,23 +125,102 @@ func (s *Store) ClaimJob(ctx context.Context) (*BackgroundJob, error) {
 	return &job, nil
 }
 
+const expiredWorkerError = "worker stopped before the job finished"
+
 func (s *Store) RequeueExpiredJobs(ctx context.Context) error {
 	_, err := s.Pool.Exec(ctx, `
 		UPDATE background_jobs
 		SET status='queued', locked_until=NULL, updated_at=NOW(),
 		    run_after=NOW() + INTERVAL '15 seconds',
-		    error='worker stopped before the job finished'
+		    error=$1
 		WHERE status='running' AND locked_until IS NOT NULL AND locked_until < NOW() AND attempts < max_attempts
-	`)
+	`, expiredWorkerError)
 	if err != nil {
 		return err
 	}
-	_, err = s.Pool.Exec(ctx, `
+	rows, err := s.Pool.Query(ctx, `
 		UPDATE background_jobs
-		SET status='failed', updated_at=NOW(), error='worker stopped before the job finished'
+		SET status='failed', updated_at=NOW(), error=$1
 		WHERE status='running' AND locked_until IS NOT NULL AND locked_until < NOW() AND attempts >= max_attempts
-	`)
-	return err
+		RETURNING team_id, kind, payload
+	`, expiredWorkerError)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	type expired struct {
+		teamID  uuid.UUID
+		kind    string
+		payload []byte
+	}
+	var failed []expired
+	for rows.Next() {
+		var row expired
+		if err := rows.Scan(&row.teamID, &row.kind, &row.payload); err != nil {
+			return err
+		}
+		failed = append(failed, row)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, row := range failed {
+		if err := s.noteExpiredJob(ctx, row.teamID, row.kind, row.payload); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// noteExpiredJob records a crashed worker on the resource the job was changing.
+// A deletion with an empty error looks "still running" in the dashboard, and a
+// power action left on stopping/starting never returns to a settled status.
+func (s *Store) noteExpiredJob(ctx context.Context, teamID uuid.UUID, kind string, payload []byte) error {
+	var body struct {
+		ResourceType string `json:"resource_type"`
+		ResourceID   string `json:"resource_id"`
+	}
+	if err := json.Unmarshal(payload, &body); err != nil || body.ResourceID == "" {
+		return nil
+	}
+	id, err := uuid.Parse(body.ResourceID)
+	if err != nil {
+		return nil
+	}
+	switch kind {
+	case "resource_delete":
+		q := ""
+		switch body.ResourceType {
+		case "application":
+			q = `UPDATE applications SET delete_error=$3, updated_at=NOW() WHERE id=$1 AND team_id=$2 AND deleted_at IS NOT NULL AND delete_error=''`
+		case "service":
+			q = `UPDATE services SET delete_error=$3, updated_at=NOW() WHERE id=$1 AND team_id=$2 AND deleted_at IS NOT NULL AND delete_error=''`
+		case "database":
+			q = `UPDATE databases SET delete_error=$3, updated_at=NOW() WHERE id=$1 AND team_id=$2 AND deleted_at IS NOT NULL AND delete_error=''`
+		case "preview":
+			q = `UPDATE application_previews SET delete_error=$3, updated_at=NOW() WHERE id=$1 AND team_id=$2 AND deleted_at IS NOT NULL AND delete_error=''`
+		default:
+			return nil
+		}
+		_, err = s.Pool.Exec(ctx, q, id, teamID, expiredWorkerError)
+		return err
+	case "resource_power":
+		q := ""
+		switch body.ResourceType {
+		case "application":
+			q = `UPDATE applications SET status='error', updated_at=NOW() WHERE id=$1 AND team_id=$2 AND status IN ('starting','stopping','restarting')`
+		case "service":
+			q = `UPDATE services SET status='error', updated_at=NOW() WHERE id=$1 AND team_id=$2 AND status IN ('starting','stopping','restarting')`
+		case "database":
+			q = `UPDATE databases SET status='error', updated_at=NOW() WHERE id=$1 AND team_id=$2 AND status IN ('starting','stopping','restarting')`
+		default:
+			return nil
+		}
+		_, err = s.Pool.Exec(ctx, q, id, teamID)
+		return err
+	default:
+		return nil
+	}
 }
 
 func (s *Store) FinishJob(ctx context.Context, id uuid.UUID, result []byte) error {

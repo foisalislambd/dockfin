@@ -1,0 +1,2 @@
+go test fuzz v1
+string("http://169.254.169.2540")

@@ -24,16 +24,16 @@
 .panel-topbar {
   height: 3.25rem;
   flex-shrink: 0;
-  border-bottom: 1px solid #e4e7ec;
+  border-bottom: var(--panel-border-width) solid var(--panel-border);
 }
 
 .dark .panel-topbar {
-  border-bottom-color: #1d2939;
+  border-bottom-color: var(--panel-border);
 }
 
 .panel-card {
   border-radius: 0.75rem;
-  border: 1px solid #e4e7ec;
+  border: var(--panel-border-width) solid var(--panel-border);
   background-color: #ffffff;
   box-shadow: 0 1px 2px 0 rgba(16, 24, 40, 0.05);
 }
@@ -73,7 +73,7 @@
 }
 
 .dark .panel-card {
-  border-color: #1d2939;
+  border-color: var(--panel-border);
   background-color: rgba(255, 255, 255, 0.03);
   box-shadow: none;
 }
@@ -105,11 +105,11 @@
 .panel-table th {
   padding: 0.75rem 1rem;
   font-weight: 500;
-  border-bottom: 1px solid #e4e7ec;
+  border-bottom: var(--panel-border-width) solid var(--panel-border);
 }
 
 .dark .panel-table th {
-  border-bottom-color: #1d2939;
+  border-bottom-color: var(--panel-border);
 }
 
 .panel-table td {
@@ -118,11 +118,11 @@
 }
 
 .panel-table tbody tr + tr td {
-  border-top: 1px solid #f2f4f7;
+  border-top: var(--panel-border-width) solid var(--panel-border);
 }
 
 .dark .panel-table tbody tr + tr td {
-  border-top-color: #1d2939;
+  border-top-color: var(--panel-border);
 }
 
 .panel-table tbody tr:hover td {
@@ -161,7 +161,7 @@
 /* Opaque surface for dialogs / command palette — matches panel-card / sidebar */
 .panel-modal {
   border-radius: 0.75rem;
-  border: 1px solid #e4e7ec;
+  border: var(--panel-border-width) solid var(--panel-border);
   background-color: #ffffff;
   box-shadow:
     0 20px 25px -5px rgba(16, 24, 40, 0.1),
@@ -169,7 +169,7 @@
 }
 
 .dark .panel-modal {
-  border-color: #1d2939;
+  border-color: var(--panel-border);
   background-color: #101828;
   box-shadow:
     0 20px 25px -5px rgba(0, 0, 0, 0.45),
@@ -213,24 +213,24 @@
 }
 
 .panel-card-body {
-  padding: 0.875rem;
+  padding: 1rem;
 }
 
 @media (min-width: 640px) {
   .panel-card-body {
-    padding: 1rem;
+    padding: 1.25rem;
   }
 }
 
 @media (min-width: 768px) {
   .panel-card-body {
-    padding: 1.125rem;
+    padding: 1.5rem;
   }
 }
 
 /* Shared form field surface — elevated vs page bg in dark mode */
 .panel-field {
-  border: 1px solid #e4e7ec;
+  border: var(--panel-border-width) solid var(--panel-border);
   background-color: #ffffff;
   color: #101828;
 }
@@ -240,9 +240,9 @@
 }
 
 .dark .panel-field {
-  border-color: #1d2939;
-  background-color: rgba(255, 255, 255, 0.05);
-  color: #f9fafb;
+  border-color: #344054;
+  background-color: #101828;
+  color: #ffffff;
 }
 
 .dark .panel-field option {
@@ -272,8 +272,8 @@
 }
 
 .panel-scrollbar::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 .panel-scrollbar::-webkit-scrollbar-track {
@@ -383,4 +383,74 @@
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* ZenPanel keeps Tailwind's gray border colors. Width stays 2px via --default-border-width. */
+.panel-shell .border { border-width: var(--panel-border-width); }
+.panel-shell .border-x { border-left-width: var(--panel-border-width); border-right-width: var(--panel-border-width); }
+.panel-shell .border-y { border-top-width: var(--panel-border-width); border-bottom-width: var(--panel-border-width); }
+.panel-shell .border-t { border-top-width: var(--panel-border-width); }
+.panel-shell .border-r { border-right-width: var(--panel-border-width); }
+.panel-shell .border-b { border-bottom-width: var(--panel-border-width); }
+.panel-shell .border-l { border-left-width: var(--panel-border-width); }
+
+.panel-shell .text-gray-900 {
+  color: #000000;
+}
+
+.dark .panel-shell .text-gray-900,
+.dark .panel-shell .text-white\/90 {
+  color: #ffffff;
+}
+
+:where(.panel-shell) :is(a, button, [role="button"], [role="tab"], summary, select, [tabindex]):focus-visible {
+  outline: 2px solid #465fff;
+  outline-offset: 2px;
+}
+
+:where(.panel-shell) :is(input, textarea):focus-visible {
+  outline: none;
+}
+
+.panel-shell .text-error-500 {
+  color: #d92d20;
+}
+
+.dark .panel-shell .text-error-500 {
+  color: #f97066;
+}
+
+.panel-shell .text-success-600 {
+  color: #027a48;
+}
+
+.dark .panel-shell .text-success-600 {
+  color: #32d583;
+}
+
+/* Dark secondary text from ZenPanel admin.css. The raw gray-400/500 tokens fail AA on #101828. */
+:where(.dark .panel-shell) .text-gray-600,
+:where(.dark .panel-shell) .dark\:text-gray-600 {
+  color: #738196;
+}
+
+:where(.dark .panel-shell) .text-gray-500,
+:where(.dark .panel-shell) .dark\:text-gray-500 {
+  color: #8f9aab;
+}
+
+:where(.dark .panel-shell) .text-gray-400,
+:where(.dark .panel-shell) .dark\:text-gray-400 {
+  color: #b4bcc8;
+}
+
+:where(.dark .panel-shell) .text-gray-300,
+:where(.dark .panel-shell) .dark\:text-gray-300 {
+  color: #dce1e8;
+}
+
+:where(.dark .panel-shell) .placeholder\:text-gray-400::placeholder,
+:where(.dark .panel-shell) .dark\:placeholder\:text-gray-500::placeholder,
+:where(.dark .panel-shell) .dark\:placeholder\:text-gray-400::placeholder {
+  color: #a3adbe;
 }

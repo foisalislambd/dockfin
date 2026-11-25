@@ -177,6 +177,7 @@ func (s *Store) copyResourceExtras(ctx context.Context, teamID uuid.UUID, resour
 			Literal:       v.IsLiteral,
 			Multiline:     v.IsMultiline,
 			Locked:        v.IsLocked,
+			IsPreview:     v.IsPreview,
 			IsBuildSecret: v.IsBuildSecret,
 			Comment:       v.Comment,
 			BypassLock:    true,

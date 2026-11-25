@@ -15,8 +15,17 @@ import (
 const hostDatabasesRoot = "/data/dockfin/databases"
 
 // HostDataDir returns the durable bind-mount directory for a managed database.
+// The id is one path segment. ".." and separators cannot escape the databases root.
 func HostDataDir(dbID string) string {
-	return path.Join(hostDatabasesRoot, dbID)
+	id := dbID
+	if id == "" || id == "." || id == ".." || strings.Contains(id, "..") || strings.ContainsAny(id, `/\`) {
+		id = "invalid"
+	}
+	dir := path.Join(hostDatabasesRoot, id)
+	if dir != hostDatabasesRoot+"/"+id {
+		return hostDatabasesRoot + "/invalid"
+	}
+	return dir
 }
 
 // ContainerName returns the Docker container name for a managed database.
@@ -64,13 +73,13 @@ func VolumeArgs(dbID, engine string) []string {
 	return []string{"-v", HostDataDir(dbID) + ":" + engineDataPath(engine)}
 }
 
-// Start launches a managed database container on the remote host with a durable bind mount.
 // BindMount is an extra host file or directory mounted into the database container.
 type BindMount struct {
 	Host      string
 	Container string
 }
 
+// Start launches a managed database container on the remote host with a durable bind mount.
 func Start(client *ssh.Client, db *store.Database, network, password string, extraEnv []string, tls *TLSMaterial, mounts []BindMount, scripts []InitScript) error {
 	var sqliteFiles string
 	if db.Engine == "sqlite" {
