@@ -181,6 +181,11 @@ function PrivateKeysPanel() {
 
   return (
     <div className="space-y-4">
+      {keys.isError ? (
+        <p className="panel-card border-error-200 p-4 text-sm text-error-500" role="alert">
+          Could not load private keys.
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Private Keys</h2>
         <div className="relative">
@@ -436,6 +441,11 @@ function CloudTokensPanel() {
 
   return (
     <div className="space-y-4">
+      {tokens.isError ? (
+        <p className="panel-card border-error-200 p-4 text-sm text-error-500" role="alert">
+          Could not load cloud tokens.
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <div className="min-w-0 flex-1">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -632,6 +642,11 @@ function CloudInitPanel() {
 
   return (
     <div className="space-y-4">
+      {scripts.isError ? (
+        <p className="panel-card border-error-200 p-4 text-sm text-error-500" role="alert">
+          Could not load cloud-init scripts.
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex-1">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Cloud-Init Scripts</h2>
@@ -800,6 +815,11 @@ function ApiTokensPanel() {
 
   return (
     <div className="space-y-6">
+      {tokens.isError || settings.isError ? (
+        <p className="panel-card border-error-200 p-4 text-sm text-error-500" role="alert">
+          Could not load API tokens.
+        </p>
+      ) : null}
       <div>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">API Tokens</h2>
         {!apiEnabled ? (
@@ -1030,6 +1050,11 @@ function PasskeysPanel() {
     <div className="panel-card space-y-4 p-5">
       <div>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Passkeys</h2>
+        {list.isError ? (
+          <p className="mt-2 text-sm text-error-500" role="alert">
+            Could not load passkeys.
+          </p>
+        ) : null}
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           Sign in with a device passkey. If two-factor authentication is on, Dockfin still asks for the code.
           The relying party is the host in the panel public URL.

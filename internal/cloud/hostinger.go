@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/dockfin/dockfin/internal/netsafe"
 )
 
 var kvmPlan = regexp.MustCompile(`-vps-kvm\d+$`)
@@ -31,11 +33,20 @@ func (h Hostinger) client() *http.Client {
 	return &http.Client{Timeout: 30 * time.Second}
 }
 
-func (h Hostinger) base() string {
-	if strings.TrimSpace(h.BaseURL) != "" {
-		return strings.TrimRight(h.BaseURL, "/")
+func (h Hostinger) base() (string, error) {
+	raw := strings.TrimSpace(h.BaseURL)
+	if raw == "" {
+		return hostingerBase, nil
 	}
-	return hostingerBase
+	u, err := netsafe.ValidateHTTPURL(raw, true)
+	if err != nil {
+		return "", err
+	}
+	host := strings.ToLower(u)
+	if !strings.HasPrefix(host, "https://developers.hostinger.com") && !strings.Contains(host, "://127.0.0.1") && !strings.Contains(host, "://localhost") {
+		return "", fmt.Errorf("hostinger base URL is not allowed")
+	}
+	return u, nil
 }
 
 func (h Hostinger) do(ctx context.Context, method, path string, body any, out any) error {
@@ -47,7 +58,11 @@ func (h Hostinger) do(ctx context.Context, method, path string, body any, out an
 		}
 		rdr = bytes.NewReader(buf)
 	}
-	req, err := http.NewRequestWithContext(ctx, method, h.base()+path, rdr)
+	base, err := h.base()
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, method, base+path, rdr)
 	if err != nil {
 		return err
 	}

@@ -40,7 +40,11 @@ func startReserved(ctx context.Context, st *store.Store, pool *sshx.Pool, reserv
 	if _, _, err := sshx.RunArgs(client, "chmod", "700", SecretsDir); err != nil {
 		return err
 	}
-	for _, argv := range PrepareArgs(reserved.ExecutionID, cfg.RunnerImage, cfg.DockerMode, cfg.CPULimit, cfg.MemoryLimit) {
+	prepare, err := PrepareArgs(reserved.ExecutionID, cfg.RunnerImage, cfg.DockerMode, cfg.CPULimit, cfg.MemoryLimit)
+	if err != nil {
+		return err
+	}
+	for _, argv := range prepare {
 		if len(argv) >= 2 && argv[1] == "pull" {
 			if err := ensureImage(client, argv[len(argv)-1]); err != nil {
 				return err
@@ -110,7 +114,12 @@ func startReserved(ctx context.Context, st *store.Store, pool *sshx.Pool, reserv
 			return err
 		}
 	}
-	if err := runDocker(client, StartArgs(reserved.ExecutionID, cfg.RunnerImage, cfg.DockerMode, envPath, hook, cfg.CPULimit, cfg.MemoryLimit)); err != nil {
+	start, err := StartArgs(reserved.ExecutionID, cfg.RunnerImage, cfg.DockerMode, envPath, hook, cfg.CPULimit, cfg.MemoryLimit)
+	if err != nil {
+		_ = app.DeleteRunner(sec.InstallationID, jit.ID)
+		return err
+	}
+	if err := runDocker(client, start); err != nil {
 		_ = app.DeleteRunner(sec.InstallationID, jit.ID)
 		return err
 	}

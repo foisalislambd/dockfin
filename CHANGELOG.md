@@ -14,6 +14,25 @@ The same version, or a lower one, does not create a release. Git tag, GitHub Rel
 
 - A background job whose worker died on the last attempt now marks the resource failed. Deletions get `delete_error` so the dashboard can offer Retry, and start/stop/restart leave `error` instead of staying on `stopping`, `starting`, or `restarting`
 - Domain normalization drops hosts with spaces, newlines, `..` path segments, or a non-numeric port such as `javascript:alert(1)`, and the API rejects those values
+- Project-limited members no longer see other projects, deployments, or resource counts on the overview
+- Freezing or unfreezing an environment no longer fails with a uuid/text SQL error
+- An incomplete server bundle returns 400 instead of 500
+- S3 endpoints, Hostinger bases, and git remotes reject metadata hosts, link-local addresses, and shell metacharacters
+- GitHub runner docker arguments reject flag-like images and paths that contain `..`, a colon, or a NUL
+- Env files skip illegal keys and round-trip quoted backslashes
+- A GitLab system hook body of `null` is rejected instead of panicking
+- Git remotes reject shorthand that is a path, an IP, or a metadata address written with a leading zero (`0169.254.169.254`)
+- `dfin apps create --build-pack` sends the build pack
+- Cloning an application keeps its preview flag
+- The new-project description is optional, so Create submits when only the name is filled
+- Register, reset, and two-factor fields are labelled for assistive tech. List and settings pages announce load failures. Fleet and audit tables can be focused when they scroll
+
+### Added
+
+- Every API route is classified in `internal/httpapi/testdata/authz_routes.txt`. A new route fails CI until that file is updated
+- Fuzz targets for env files, runner docker args, webhook signatures and payloads, HTTP URL checks, and git remotes
+- Vitest and React Testing Library for forms, API errors, and deletion retry/forget. Playwright with axe covers the signed-in pages
+- CI runs staticcheck, gosec, govulncheck, and `npm audit`
 
 ### Changed
 

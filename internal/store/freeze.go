@@ -52,19 +52,21 @@ func FrozenDeployError(reason string) error {
 // SetEnvironmentDeployFreeze pauses or resumes deploys for one environment.
 // Unfreezing clears the reason, timestamp, and actor.
 func (s *Store) SetEnvironmentDeployFreeze(ctx context.Context, teamID, projectID, envID uuid.UUID, userID *uuid.UUID, frozen bool, reason string) (*Environment, error) {
+	actor := uuid.Nil
 	if !frozen {
 		reason = ""
-		userID = nil
+	} else if userID != nil {
+		actor = *userID
 	}
 	row := s.Pool.QueryRow(ctx, `
 		UPDATE environments SET
 			deploy_frozen=$4,
 			deploy_freeze_reason=$5,
 			deploy_frozen_at=CASE WHEN $4 THEN NOW() ELSE NULL END,
-			deploy_frozen_by=CASE WHEN $4 THEN $6 ELSE NULL END,
+			deploy_frozen_by=CASE WHEN $4 THEN $6::uuid ELSE NULL END,
 			updated_at=NOW()
 		WHERE id=$1 AND project_id=$2 AND team_id=$3
-		RETURNING `+environmentSelect, envID, projectID, teamID, frozen, reason, userID)
+		RETURNING `+environmentSelect, envID, projectID, teamID, frozen, reason, actor)
 	e, err := scanEnvironment(row.Scan)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound

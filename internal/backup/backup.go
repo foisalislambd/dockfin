@@ -356,7 +356,26 @@ func DefaultFilename(engine, id string) string {
 }
 
 func DumpPath(filename string) string {
+	if !SafeFilename(filename) {
+		return "/data/dockfin/backups/invalid"
+	}
 	return "/data/dockfin/backups/" + filename
+}
+
+// SafeFilename reports whether name is a single backup file name.
+// It rejects separators, globs, and ".." so the name can be joined under the backup directory.
+func SafeFilename(name string) bool {
+	if name == "" || len(name) > 200 || strings.Contains(name, "..") {
+		return false
+	}
+	for _, c := range name {
+		ok := (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+			c == '-' || c == '_' || c == '.'
+		if !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // EnforceRemoteRetention keeps the newest keepCount dumps matching prefix on the remote host.
@@ -372,7 +391,7 @@ func EnforceRemoteRetention(client *ssh.Client, engine, resourceID string, keepC
 			safe = append(safe, r)
 		}
 	}
-	if len(safe) == 0 {
+	if len(safe) == 0 || strings.Contains(string(safe), "..") {
 		return nil
 	}
 	cmd := fmt.Sprintf(

@@ -2,6 +2,7 @@ package git
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
 // NormalizeGitLabSystemHook gives a GitLab system-hook body the project-webhook
@@ -11,6 +12,9 @@ func NormalizeGitLabSystemHook(body []byte) ([]byte, error) {
 	var payload map[string]any
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return nil, err
+	}
+	if payload == nil {
+		return nil, fmt.Errorf("invalid hook")
 	}
 	if _, ok := payload["object_kind"]; !ok {
 		if name, ok := payload["event_name"].(string); ok && name != "" {

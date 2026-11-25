@@ -18,6 +18,11 @@ export function StoragesPage() {
 
   return (
     <div className="space-y-6">
+      {storages.isError ? (
+        <p className="panel-card border-error-200 p-4 text-sm text-error-500" role="alert">
+          Could not load S3 storages.
+        </p>
+      ) : null}
       <Header
         title="S3 Storages"
         actions={
@@ -179,6 +184,11 @@ export function SharedVariablesPage({
   return (
     <div className="space-y-6">
       <Header title={title} />
+      {vars.isError ? (
+        <p className="panel-card border-error-200 p-4 text-sm text-error-500" role="alert">
+          Could not load shared variables.
+        </p>
+      ) : null}
 
       {!usingProps && (
         <div className="flex flex-wrap items-end gap-3">

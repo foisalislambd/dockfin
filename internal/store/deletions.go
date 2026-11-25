@@ -236,7 +236,7 @@ func (s *Store) CancelQueuedDeleteJobs(ctx context.Context, teamID, resourceID u
 	return err
 }
 
-// deletionPayload is documented here so job writers and the store stay aligned.
+// DeletionPayload is the queued job body for a resource delete, shared by job writers and the store.
 type DeletionPayload struct {
 	ResourceType         string `json:"resource_type"`
 	ResourceID           string `json:"resource_id"`

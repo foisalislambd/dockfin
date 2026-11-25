@@ -1400,13 +1400,15 @@ func FormatEnvFile(env map[string]string) string {
 	sort.Strings(keys)
 	var b strings.Builder
 	for _, k := range keys {
+		if !envFileKey(k) {
+			continue
+		}
 		v := env[k]
 		// Compose expands $VAR inside .env values. $$ is a literal dollar.
 		v = strings.ReplaceAll(v, "$", "$$")
 		if strings.ContainsAny(v, "\n\r") {
 			v = strings.ReplaceAll(v, `\`, `\\`)
 			v = strings.ReplaceAll(v, `"`, `\"`)
-			v = strings.ReplaceAll(v, "\r\n", `\n`)
 			v = strings.ReplaceAll(v, "\n", `\n`)
 			v = strings.ReplaceAll(v, "\r", `\r`)
 			b.WriteString(k)
@@ -1415,11 +1417,13 @@ func FormatEnvFile(env map[string]string) string {
 			b.WriteString("\"\n")
 			continue
 		}
-		if strings.ContainsAny(v, " \t#\"'") {
+		if strings.ContainsAny(v, " \t#\"'\\") {
 			b.WriteString(k)
 			b.WriteByte('=')
 			b.WriteByte('"')
-			b.WriteString(strings.ReplaceAll(v, `"`, `\"`))
+			quoted := strings.ReplaceAll(v, `\`, `\\`)
+			quoted = strings.ReplaceAll(quoted, `"`, `\"`)
+			b.WriteString(quoted)
 			b.WriteByte('"')
 			b.WriteByte('\n')
 		} else {

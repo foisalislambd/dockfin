@@ -70,7 +70,7 @@ export function InvitePage() {
           <PanelSkeleton rows={3} showHeader={false} />
         ) : null}
         {preview.error && (
-          <p className="text-sm text-error-500">
+          <p className="text-sm text-error-500" role="alert">
             {preview.error.message || 'This invite is invalid or expired.'}
           </p>
         )}

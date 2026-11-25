@@ -169,7 +169,6 @@ func resourceCmd(asJSON bool, stdout, stderr io.Writer, call caller, base, token
 			}
 			if flags["build-pack"] != "" {
 				body["build_pack"] = flags["build-pack"]
-				delete(body, "build_pack")
 			}
 			if body["name"] == nil || body["environment_id"] == nil {
 				fmt.Fprintln(stderr, "usage: dfin apps create --environment ENV --name NAME [--git URL] [--branch main] [--build-pack dockerfile]")

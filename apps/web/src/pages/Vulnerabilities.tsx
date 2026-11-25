@@ -59,14 +59,29 @@ export function VulnerabilitiesPage() {
   const on = enabled ?? policy.data?.enabled ?? true
   const mode = gate || policy.data?.gate || 'off'
 
+  if (policy.isLoading || scans.isLoading) {
+    return (
+      <div className="space-y-4">
+        <Header
+          title="Vulnerabilities"
+          subtitle="Syft builds a bill of materials and Grype matches it on the server that has the image. A finished deploy scans automatically."
+        />
+        <PageSkeleton cards={2} />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       <Header
         title="Vulnerabilities"
         subtitle="Syft builds a bill of materials and Grype matches it on the server that has the image. A finished deploy scans automatically."
       />
-      {policy.isLoading || scans.isLoading ? <PageSkeleton cards={2} /> : null}
-      {error ? <p className="text-sm text-error-500">{error}</p> : null}
+      {error ? (
+        <p className="text-sm text-error-500" role="alert">
+          {error}
+        </p>
+      ) : null}
       <div className="panel-card space-y-3 p-4">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Instance policy</h2>
         <label className="flex items-center gap-2 text-sm">

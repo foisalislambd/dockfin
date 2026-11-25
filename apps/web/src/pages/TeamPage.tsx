@@ -182,6 +182,11 @@ export function TeamPage() {
 
   return (
     <div className="space-y-5">
+      {members.isError || invitations.isError ? (
+        <p className="panel-card border-error-200 p-4 text-sm text-error-500" role="alert">
+          Could not load the team.
+        </p>
+      ) : null}
       <div className="flex min-w-0 items-center gap-2.5">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400">
           <Users className="h-5 w-5" />
@@ -197,9 +202,17 @@ export function TeamPage() {
         </div>
       </div>
 
-      {error ? <p className="text-sm text-error-500">{error}</p> : null}
+      {error ? (
+        <p className="text-sm text-error-500" role="alert">
+          {error}
+        </p>
+      ) : null}
 
-      <div className="flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden">
+      <div
+        className="flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden"
+        tabIndex={0}
+        aria-label="Teams"
+      >
         {teams.map((t) => (
           <TeamChip
             key={t.id}
@@ -364,6 +377,7 @@ export function TeamPage() {
                 <input
                   type="email"
                   required
+                  aria-label="Invitation email"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder="email@example.com"
@@ -371,6 +385,7 @@ export function TeamPage() {
                 />
               </label>
               <select
+                aria-label="Invitation role"
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value)}
                 className="panel-field h-9 rounded-md px-2 text-sm sm:w-28"
@@ -382,7 +397,11 @@ export function TeamPage() {
                 {invite.isPending ? 'Sending…' : 'Invite'}
               </Btn>
             </form>
-            {invite.error ? <p className="mt-2 text-sm text-error-500">{invite.error.message}</p> : null}
+            {invite.error ? (
+              <p className="mt-2 text-sm text-error-500" role="alert">
+                {invite.error.message}
+              </p>
+            ) : null}
             {createdInvite ? (
               <div className="mt-3 flex items-start gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 dark:border-brand-500/30 dark:bg-brand-500/10">
                 <code className="min-w-0 flex-1 break-all font-mono text-xs text-gray-800 dark:text-gray-200">

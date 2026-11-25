@@ -206,9 +206,11 @@ export function ProjectsPage() {
             }}
           >
             <Input label="Name" value={name} onChange={setName} required />
-            <Input label="Description" value={description} onChange={setDescription} />
+            <Input label="Description" value={description} onChange={setDescription} required={false} />
             {create.isError ? (
-              <p className="text-sm text-error-500">{(create.error as Error).message}</p>
+              <p className="text-sm text-error-500" role="alert">
+                {(create.error as Error).message}
+              </p>
             ) : null}
             <div className="flex justify-end gap-2 pt-2">
               <Btn type="button" onClick={() => setShow(false)}>

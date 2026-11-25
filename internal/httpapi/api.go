@@ -66,6 +66,7 @@ func (a *API) Router() http.Handler {
 	// RealIP only when explicitly trusted — otherwise clients can spoof
 	// X-Forwarded-For and bypass login rate limits / API IP allowlists.
 	if a.Cfg != nil && a.Cfg.TrustProxy {
+		//lint:ignore SA1019 RealIP is gated on DOCKFIN_TRUST_PROXY so a client cannot spoof it.
 		r.Use(chimw.RealIP)
 	}
 	r.Use(recoverJSON(a.Logger))

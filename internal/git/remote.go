@@ -2,9 +2,10 @@ package git
 
 import (
 	"fmt"
-	"net"
 	"net/url"
 	"strings"
+
+	"github.com/dockfin/dockfin/internal/netsafe"
 )
 
 // ValidateRemote accepts http(s), ssh, git, and scp-style git@host:path URLs.
@@ -16,7 +17,7 @@ func ValidateRemote(raw string) error {
 	if raw == "" || strings.ContainsAny(raw, " \t\r\n'\\") {
 		return fmt.Errorf("invalid git repository")
 	}
-	if strings.HasPrefix(raw, "-") || strings.Contains(raw, "..") {
+	if strings.HasPrefix(raw, "-") || strings.Contains(raw, "..") || strings.ContainsAny(raw, ";|&$`(){}<>") {
 		return fmt.Errorf("invalid git repository")
 	}
 	lower := strings.ToLower(raw)
@@ -53,7 +54,16 @@ func ValidateRemote(raw string) error {
 			return fmt.Errorf("invalid git repository")
 		}
 		owner, name, _ := strings.Cut(raw, "/")
-		if owner == "" || name == "" || strings.Contains(name, "/") {
+		if owner == "" || name == "" || strings.Contains(name, "/") || strings.Contains(raw, ":") {
+			return fmt.Errorf("invalid git repository")
+		}
+		if ip := netsafe.ParseIPLoose(owner); ip != nil {
+			return fmt.Errorf("invalid git repository")
+		}
+		if strings.Contains(strings.ToLower(owner), "169.254.169.254") || strings.Contains(strings.ToLower(name), "169.254.169.254") {
+			return fmt.Errorf("invalid git repository")
+		}
+		if !gitShorthandPart(owner) || !gitShorthandPart(name) {
 			return fmt.Errorf("invalid git repository")
 		}
 		return nil
@@ -70,6 +80,25 @@ func ValidateRef(ref string) error {
 		return fmt.Errorf("invalid git ref")
 	}
 	return nil
+}
+
+// gitShorthandPart is a GitHub-style owner or repository name.
+// A letter is required so numeric hosts and metadata addresses cannot hide in owner/name form.
+func gitShorthandPart(s string) bool {
+	if s == "" || len(s) > 128 {
+		return false
+	}
+	letter := false
+	for _, r := range s {
+		switch {
+		case r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z':
+			letter = true
+		case r >= '0' && r <= '9' || r == '.' || r == '_' || r == '-':
+		default:
+			return false
+		}
+	}
+	return letter
 }
 
 // ValidSSHUser is the remote user placed in a git SSH URL.
@@ -93,11 +122,17 @@ func ValidSSHUser(user string) bool {
 func BlockedFetchHost(host string) bool {
 	h := strings.ToLower(strings.TrimSpace(host))
 	h = strings.Trim(h, "[]")
+	if strings.Contains(h, "169.254.169.254") {
+		return true
+	}
 	switch h {
 	case "169.254.169.254", "metadata", "metadata.google.internal", "metadata.goog", "metadata.internal":
 		return true
 	}
-	if ip := net.ParseIP(h); ip != nil {
+	if ip := netsafe.ParseIPLoose(h); ip != nil {
+		if v4 := ip.To4(); v4 != nil {
+			ip = v4
+		}
 		return ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified()
 	}
 	return false

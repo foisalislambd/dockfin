@@ -19,6 +19,8 @@ data/
 apps/web/node_modules/
 apps/web/dist/
 apps/web/.vite/
+apps/web/test-results/
+apps/web/playwright-report/
 website/node_modules/
 website/dist/
 website/.astro/

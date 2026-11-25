@@ -33,7 +33,10 @@ func TestNormalizeLabelsRejectsGenericOnly(t *testing.T) {
 func TestStartCommandDoesNotMountTheHostSocket(t *testing.T) {
 	id := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	for _, mode := range []string{"none", "dind"} {
-		args := StartArgs(id, "", mode, EnvPath(id), HookFile(id), "1", "1g")
+		args, err := StartArgs(id, "", mode, EnvPath(id), HookFile(id), "1", "1g")
+		if err != nil {
+			t.Fatal(err)
+		}
 		joined := strings.Join(args, " ")
 		if strings.Contains(joined, "/var/run/docker.sock:/") || strings.Contains(joined, "encoded_jit") {
 			t.Fatalf("%s command exposes the host or the secret: %s", mode, joined)
@@ -42,7 +45,11 @@ func TestStartCommandDoesNotMountTheHostSocket(t *testing.T) {
 			t.Fatalf("%s missing env file", mode)
 		}
 	}
-	prepare := strings.Join(flatten(PrepareArgs(id, "", "dind", "1", "1g")), " ")
+	cmds, err := PrepareArgs(id, "", "dind", "1", "1g")
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepare := strings.Join(flatten(cmds), " ")
 	if !strings.Contains(prepare, "--privileged") || strings.Contains(prepare, "/var/run/docker.sock:/var/run/docker.sock") {
 		t.Fatalf("sidecar: %s", prepare)
 	}
@@ -55,6 +62,22 @@ func TestHookRefusesPullRequests(t *testing.T) {
 	}
 	if IsPullRequestEvent("push") {
 		t.Fatal("push was treated as a pull request")
+	}
+}
+
+func TestStartArgsRejectsFlagInjection(t *testing.T) {
+	id := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	if _, err := StartArgs(id, "--privileged", "none", EnvPath(id), "", "1", "1g"); err == nil {
+		t.Fatal("image flag was accepted")
+	}
+	if _, err := StartArgs(id, "", "none", "-e EVIL=1", "", "1", "1g"); err == nil {
+		t.Fatal("env file flag was accepted")
+	}
+	if _, err := StartArgs(id, "", "none", EnvPath(id), "/tmp/../hook.sh", "1", "1g"); err == nil {
+		t.Fatal("hook path traversal was accepted")
+	}
+	if _, err := PrepareArgs(id, "alpine\n-v /:/host", "none", "1", "1g"); err == nil {
+		t.Fatal("image newline was accepted")
 	}
 }
 

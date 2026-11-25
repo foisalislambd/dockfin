@@ -231,10 +231,11 @@ export function LoginPage() {
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Password</label>
+              <label htmlFor="login-password" className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Password</label>
               <div className="relative">
-                <Lock className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                <Lock className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" aria-hidden />
                 <input
+                  id="login-password"
                   type={showPassword ? 'text' : 'password'}
                   required
                   autoComplete="current-password"
@@ -257,10 +258,11 @@ export function LoginPage() {
         ) : (
           <>
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
+              <label htmlFor="login-otp" className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
                 Authenticator code
               </label>
               <input
+                id="login-otp"
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 value={otp}
@@ -270,10 +272,11 @@ export function LoginPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
+              <label htmlFor="login-recovery" className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
                 Or recovery code
               </label>
               <input
+                id="login-recovery"
                 value={recovery}
                 onChange={(e) => setRecovery(e.target.value)}
                 className={inputClass.replace('pl-9', 'pl-3')}
@@ -413,10 +416,11 @@ export function RegisterPage() {
       </h1>
       <form onSubmit={onSubmit} className="mt-6 space-y-4">
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Name</label>
+          <label htmlFor="register-name" className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Name</label>
           <div className="relative">
-            <User className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+            <User className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" aria-hidden />
             <input
+              id="register-name"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -426,10 +430,11 @@ export function RegisterPage() {
           </div>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Email</label>
+          <label htmlFor="register-email" className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Email</label>
           <div className="relative">
-            <Mail className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+            <Mail className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" aria-hidden />
             <input
+              id="register-email"
               type="email"
               required
               value={email}
@@ -440,10 +445,11 @@ export function RegisterPage() {
           </div>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Password</label>
+          <label htmlFor="register-password" className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Password</label>
           <div className="relative">
-            <Lock className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+            <Lock className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" aria-hidden />
             <input
+              id="register-password"
               type="password"
               required
               minLength={8}
@@ -515,10 +521,11 @@ export function ForgotPasswordPage() {
       ) : (
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Email</label>
+            <label htmlFor="forgot-email" className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Email</label>
             <div className="relative">
-              <Mail className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+              <Mail className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" aria-hidden />
               <input
+                id="forgot-email"
                 type="email"
                 required
                 value={email}
@@ -527,7 +534,11 @@ export function ForgotPasswordPage() {
               />
             </div>
           </div>
-          {error && <p className="text-sm text-error-500">{error}</p>}
+          {error && (
+            <p className="text-sm text-error-500" role="alert">
+              {error}
+            </p>
+          )}
           <button
             type="submit"
             disabled={busy}
@@ -579,10 +590,11 @@ export function ResetPasswordPage() {
       </h1>
       <form onSubmit={onSubmit} className="mt-6 space-y-4">
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">New password</label>
+          <label htmlFor="reset-password" className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">New password</label>
           <div className="relative">
-            <Lock className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+            <Lock className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" aria-hidden />
             <input
+              id="reset-password"
               type="password"
               required
               minLength={8}

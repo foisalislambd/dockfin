@@ -184,7 +184,7 @@ export function DashboardPage() {
       </div>
 
       {overview.error ? (
-        <div className="panel-card border-error-200 p-4 text-sm text-error-500">
+        <div className="panel-card border-error-200 p-4 text-sm text-error-500" role="alert">
           Could not load the fleet pulse. {overview.error.message}
         </div>
       ) : null}

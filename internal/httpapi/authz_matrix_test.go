@@ -208,7 +208,7 @@ func TestAuthzAndEdgeMatrix(t *testing.T) {
 		t.Fatal("viewer listed env vars for a hidden application")
 	}
 	if status(http.MethodGet, "/api/v1/projects", viewToken, memberTeam.ID.String(), nil) != http.StatusOK {
-		// Switching to their own team is allowed; it must not show the owner's project.
+		t.Fatal("member could not list projects on their own team")
 	}
 	res, parsed = do(http.MethodGet, "/api/v1/projects", viewToken, memberTeam.ID.String(), nil)
 	if res.StatusCode != http.StatusOK {

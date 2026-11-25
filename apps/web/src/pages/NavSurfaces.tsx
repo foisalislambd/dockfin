@@ -37,6 +37,11 @@ export function DestinationsPage() {
   return (
     <div className="space-y-6">
       <Header title="Destinations" />
+      {destinations.isError || servers.isError ? (
+        <p className="panel-card border-error-200 p-4 text-sm text-error-500" role="alert">
+          Could not load destinations.
+        </p>
+      ) : null}
       <div className="relative max-w-md">
         <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
         <input
@@ -180,6 +185,11 @@ export function TagsPage() {
   return (
     <div className="space-y-6">
       <Header title="Tags" />
+      {tags.isError ? (
+        <p className="panel-card border-error-200 p-4 text-sm text-error-500" role="alert">
+          Could not load tags.
+        </p>
+      ) : null}
       {!allTags.length && (
         <div className="panel-card p-8 text-center text-sm text-gray-500 dark:text-gray-400">
           No tags yet. Attach tags to applications, databases, or services from their detail
@@ -323,7 +333,7 @@ export function AuditLogPage() {
         </div>
       ) : null}
       {!logs.isLoading && !logs.error && (
-        <div className="panel-card overflow-x-auto">
+        <div className="panel-card overflow-x-auto" tabIndex={0} aria-label="Audit log">
           <table className="panel-table min-w-[40rem]">
             <thead>
               <tr>

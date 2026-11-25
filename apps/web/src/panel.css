@@ -407,6 +407,12 @@
   --df-icon-stroke: 2;
 }
 
+.panel-shell .relative > svg.lucide.pointer-events-none {
+  width: var(--df-icon-nav);
+  height: var(--df-icon-nav);
+  stroke-width: var(--df-icon-stroke);
+}
+
 .panel-shell button svg.lucide,
 .panel-shell a svg.lucide {
   width: var(--df-icon-inline);

@@ -429,7 +429,7 @@ func (r *Runner) executeServiceBackup(ctx context.Context, b store.ScheduledBack
 		done = true
 		return
 	}
-	serverID := uuid.Nil
+	var serverID uuid.UUID
 	if svc.DestinationID != nil {
 		dest, derr := r.Store.GetDestination(ctx, b.TeamID, *svc.DestinationID)
 		if derr != nil {

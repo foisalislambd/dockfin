@@ -239,7 +239,15 @@ export function NotificationsPage() {
   const ChannelIcon = channel.icon
 
   const save = useMutation({
-    mutationFn: () => api.upsertNotification(tab, { enabled, config, events }),
+    mutationFn: () => {
+      if (tab === 'webhook') {
+        const url = String(config.url || '').trim()
+        if (url && !/^https?:\/\//i.test(url)) {
+          throw new Error('Webhook URL must start with http:// or https://.')
+        }
+      }
+      return api.upsertNotification(tab, { enabled, config, events })
+    },
     onSuccess: () => {
       setError('')
       toast.success('Settings saved.')
@@ -273,6 +281,11 @@ export function NotificationsPage() {
   return (
     <div className="space-y-6">
       <Header title="Notifications" />
+      {list.error ? (
+        <div className="panel-card border-error-200 p-4 text-sm text-error-500" role="alert">
+          Could not load notification channels. {list.error.message}
+        </div>
+      ) : null}
 
       <ResourceTabs
         tabs={CHANNELS.map((c) => ({ id: c.id, label: c.label, icon: c.icon }))}
@@ -313,7 +326,11 @@ export function NotificationsPage() {
             </div>
           </div>
 
-          {error ? <p className="text-sm text-error-500">{error}</p> : null}
+          {error ? (
+            <p className="text-sm text-error-500" role="alert">
+              {error}
+            </p>
+          ) : null}
 
           <div className="panel-card space-y-4 p-5">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Connection</h2>
@@ -667,7 +684,18 @@ function WebhookFields({
         label="Webhook URL (POST)"
         value={cfg.url || ''}
         onChange={(v) => setCfg({ url: v })}
+        onBlur={() => {
+          const url = (cfg.url || '').trim()
+          if (url && !/^https?:\/\//i.test(url)) {
+            setCfg({ url })
+          }
+        }}
       />
+      {(cfg.url || '').trim() && !/^https?:\/\//i.test(cfg.url || '') ? (
+        <p className="text-sm text-error-500" role="alert">
+          Use an http:// or https:// URL.
+        </p>
+      ) : null}
       <FieldHelp>Dockfin sends a POST to this URL when a selected event fires.</FieldHelp>
     </div>
   )
